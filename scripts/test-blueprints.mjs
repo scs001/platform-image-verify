@@ -145,7 +145,7 @@ test("1.3 凭据禁带闸：存储层硬拒端点/秘密字面值，软契约发
     );
     assert.equal(soft.status, 201);
     const softBody = await soft.json();
-    assert.match(softBody.warnings[0]?.error ?? "", /registry server name or internal-library logical name/);
+    assert.match(softBody.warnings[0]?.error ?? "", /registry server name, an internal-library logical name, or a knowledge collection/);
   } finally {
     await close(server);
   }

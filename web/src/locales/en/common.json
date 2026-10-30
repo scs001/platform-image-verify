@@ -16,6 +16,7 @@
   },
   "nav": {
     "chat": "Chat",
+    "family": { "knowledge": "Knowledge", "build": "Build" },
     "knowledge": "Library",
     "resources": "Outputs",
     "agents": "Agents",
@@ -503,6 +504,8 @@
       "title": "Collections",
       "namePlaceholder": "Collection name…",
       "create": "Create",
+      "makeAgent": "Create an agent with this",
+      "makeAgentHint": "Pin this collection into a blueprint to build a dedicated agent",
       "empty": "No collections yet.",
       "docsCount": "{{count}} docs",
       "delete": "Delete",
@@ -3070,6 +3073,7 @@
       "ignore": "Ignore"
     },
     "title": "Memory",
+    "funnel": { "title": "Distillation funnel", "segTitle": "{{layer}} · {{count}} items · {{pct}}%" },
     "subtitle": "Everything your agents remember",
     "all": "All",
     "layerLabel": "Layer",
@@ -3093,6 +3097,7 @@
   },
   "blueprints": {
     "title": "Blueprint Studio",
+    "fromCollectionSeeded": "Prefilled the data source from this collection — finish the blueprint, then validate and approve.",
     "new": "New",
     "untitled": "Untitled scene",
     "list": {
@@ -3148,6 +3153,7 @@
       "add": "Add",
       "hint": "Registry server names or internal-library logical names only — no endpoints, no credentials.",
       "placeholder": "e.g. policy-feed",
+                        "pickCollection": "Pick a knowledge collection…",
       "remove": "Remove"
     },
     "json": {
@@ -3316,6 +3322,10 @@
         "failing": "failing {{count}}"
       },
       "empty": "No agent teams yet — provision one from the template shelf, or create one.",
+      "viewMode": { "cards": "Cards", "formation": "Formation" },
+      "formationEmpty": "Empty formation",
+      "formationTruncated": "{{count}} posts · thumbnail",
+      "formationUnavailable": "Formation data unavailable",
       "sourceUnavailable": "source unavailable",
       "retry": "retry",
       "loading": "loading…",

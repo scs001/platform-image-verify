@@ -92,15 +92,19 @@ export function registerDocumentRoutes(ctx) {
   // Collections organize library documents into named groups: chat-starting
   // selections and scoping filters for the agent's library tools.
 
-  app.get("/api/collections", (_req, res) => {
-    res.json({ collections: collections.listCollections() });
+  app.get("/api/collections", (req, res) => {
+    // projectId query: absent = every collection (default view, unchanged);
+    // "default" = the unattributed (默认项目) bucket; an id = that project.
+    const q = req.query?.projectId;
+    const projectId = q === undefined ? undefined : q === "default" ? null : String(q);
+    res.json({ collections: collections.listCollections(projectId === undefined ? {} : { projectId }) });
   });
 
   app.post("/api/collections", async (req, res) => {
-    const { name, description } = req.body;
+    const { name, description, projectId } = req.body;
     if (!name) return res.status(400).json({ error: "Missing name" });
     try {
-      const collection = await collections.createCollection({ name, description });
+      const collection = await collections.createCollection({ name, description, projectId: projectId ?? null });
       res.json(collection);
     } catch (err) {
       res.status(err.status || 500).json({ error: err.message });

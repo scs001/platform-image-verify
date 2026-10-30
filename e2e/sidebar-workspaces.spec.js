@@ -19,12 +19,60 @@ async function injectSessions(page, sessions, currentSessionId) {
 const _DAY = 24 * 60 * 60 * 1000;
 const iso = (hoursAgo) => new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
 
-function stampedSession(id, title, workspace, hoursAgo) {
-  return { id, title, updatedAt: iso(hoursAgo), workspace, agentPreset: null };
+function stampedSession(id, title, workspace, hoursAgo, projectId = null) {
+  return { id, title, updatedAt: iso(hoursAgo), workspace, agentPreset: null, projectId };
+}
+
+// The two projects the web surface groups by (add-web-project-container). The
+// stub answers the sidebar's /api/projects read; sessions carry projectId.
+const PROJECTS = [
+  { id: "p-paas", name: "paas", backingPath: "/home/me/paas" },
+  { id: "p-other", name: "other", backingPath: "/home/me/other" },
+];
+async function stubProjects(page, projects = PROJECTS) {
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ projects }) }),
+  );
+}
+
+// Simulate the Electron shell so IS_DESKTOP evaluates true at module load —
+// the desktop fork groups by workspace PATH, the web fork by project NAME.
+async function asDesktop(page) {
+  await page.addInitScript(() => {
+    window.platform = { pickWorkdir: () => Promise.resolve(null) };
+  });
 }
 
 test.describe("sidebar workspaces", () => {
-  test("sessions group under their workspace with Ungrouped fallback", async ({ page }) => {
+  test("web groups by project name with the 默认项目 fallback", async ({ page }) => {
+    await stubProjects(page);
+    await gotoChat(page);
+    await injectSessions(page, [
+      stampedSession("a1", "alpha", "/home/me/paas", 1, "p-paas"),
+      stampedSession("a2", "alpha two", "/home/me/paas", 2, "p-paas"),
+      stampedSession("b1", "beta", "/home/me/other", 3, "p-other"),
+      { id: "u1", title: "legacy row", updatedAt: iso(4), agentPreset: null },
+    ], "a1");
+
+    const groups = page.getByTestId("workspace-group");
+    await expect(groups).toHaveCount(3);
+    // Labels are project NAMES (never the absolute path); the unattributed row
+    // falls to the read-time 默认项目 group.
+    await expect(page.getByTestId("workspace-group").filter({ hasText: "paas" })).toBeVisible();
+    await expect(page.getByTestId("workspace-group").filter({ hasText: "other" })).toBeVisible();
+    await expect(page.getByTestId("workspace-group").filter({ hasText: "Default project" })).toBeVisible();
+    // No absolute path leaks into a web group label.
+    await expect(groups.filter({ hasText: "/home/me" })).toHaveCount(0);
+    // The current session's group opens by default and holds the active row.
+    const paasGroup = page.getByTestId("workspace-group").filter({ hasText: "paas" });
+    await expect(paasGroup.getByTestId("session-row")).toHaveCount(2);
+    await expect(paasGroup.getByTestId("session-row").first()).toHaveAttribute("data-current", "true");
+    // Non-current groups stay collapsed by default.
+    await expect(page.getByTestId("workspace-group").filter({ hasText: "other" }).getByTestId("session-row")).toHaveCount(0);
+  });
+
+  test("desktop still groups by workspace path with the Ungrouped fallback", async ({ page }) => {
+    await asDesktop(page);
     await gotoChat(page);
     await injectSessions(page, [
       stampedSession("a1", "alpha", "/home/me/paas", 1),
@@ -35,23 +83,17 @@ test.describe("sidebar workspaces", () => {
 
     const groups = page.getByTestId("workspace-group");
     await expect(groups).toHaveCount(3);
-    // Labels are path basenames; the null-workspace row falls to Ungrouped.
+    // Desktop labels are path basenames; the null-workspace row is Ungrouped.
     await expect(page.getByTestId("workspace-group").filter({ hasText: "paas" })).toBeVisible();
     await expect(page.getByTestId("workspace-group").filter({ hasText: "other" })).toBeVisible();
     await expect(page.getByTestId("workspace-group").filter({ hasText: "Ungrouped" })).toBeVisible();
-    // Current workspace group opens by default (its rows render), and the
-    // active session is inside it.
-    const paasGroup = page.getByTestId("workspace-group").filter({ hasText: "paas" });
-    await expect(paasGroup.getByTestId("session-row")).toHaveCount(2);
-    await expect(paasGroup.getByTestId("session-row").first()).toHaveAttribute("data-current", "true");
-    // Non-current, non-workspace groups stay collapsed by default.
-    await expect(page.getByTestId("workspace-group").filter({ hasText: "other" }).getByTestId("session-row")).toHaveCount(0);
   });
 
   test("group collapse toggle and per-group show-more pagination", async ({ page }) => {
     const many = Array.from({ length: 7 }, (_, i) =>
-      stampedSession(`m${i}`, `row ${i}`, "/home/me/paas", i + 1),
+      stampedSession(`m${i}`, `row ${i}`, "/home/me/paas", i + 1, "p-paas"),
     );
+    await stubProjects(page);
     await gotoChat(page);
     await injectSessions(page, many, "m0");
 
@@ -73,11 +115,12 @@ test.describe("sidebar workspaces", () => {
   });
 
   test("search filters session titles across groups and restores on clear", async ({ page }) => {
+    await stubProjects(page);
     await gotoChat(page);
     await injectSessions(page, [
-      stampedSession("a1", "kubernetes debug", "/home/me/paas", 1),
-      stampedSession("b1", "kubernetes upgrade", "/home/me/other", 2),
-      stampedSession("b2", "grocery list", "/home/me/other", 3),
+      stampedSession("a1", "kubernetes debug", "/home/me/paas", 1, "p-paas"),
+      stampedSession("b1", "kubernetes upgrade", "/home/me/other", 2, "p-other"),
+      stampedSession("b2", "grocery list", "/home/me/other", 3, "p-other"),
     ], "a1");
 
     await page.getByTestId("workspace-search-toggle").click();

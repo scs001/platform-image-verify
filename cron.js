@@ -24,7 +24,12 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
     broadcast,
     runTurn: runJobTurn,
     isBusy,
-    onFinished: refreshNextRun,
+    onFinished: (task) => {
+      // Interval + finite-run lifecycle first (it may retire the task), then
+      // the generic next-run refresh for every kind.
+      onIntervalFinished(task);
+      refreshNextRun(task);
+    },
     // Occupancy provider for the fleet stats snapshot — a closure so the
     // worker pool (attached after init) is picked up lazily (unify-wanxing-management-plane).
     workerStats,
@@ -132,6 +137,36 @@ function validateCron(cron, tz) {
   } catch {
     return `invalid cron expression: ${cron}`;
   }
+}
+
+// ── Interval rules (add-cron-automation-parity, design S2) ───────────────────
+// An every-N interval is stored as the RULE, never coerced into a cron
+// approximation: five-field cron cannot express "every 40 days". Occurrences
+// are anchor + k × step, where the anchor is the acceptance time on the SERVER
+// clock (a client-computed wall time would silently roll a year forward once
+// it lands in the past). Day/week units honour the job's timezone for the
+// optional time-of-day phase; minute/hour units are pure durations.
+const INTERVAL_UNITS = new Set(["minute", "hour", "day", "week"]);
+const UNIT_MS = { minute: 60_000, hour: 3_600_000, day: 86_400_000, week: 604_800_000 };
+
+function validateInterval(interval) {
+  if (!interval || typeof interval !== "object") return "interval must be an object";
+  const { number, unit } = interval;
+  if (!Number.isInteger(number) || number < 1 || number > 200) return "interval.number must be an integer 1–200";
+  if (!INTERVAL_UNITS.has(unit)) return "interval.unit must be one of minute|hour|day|week";
+  return null;
+}
+
+// Next occurrence after `from`, anchored at `anchorIso`. Occurrences are
+// anchor + k × step with k ≥ 1 — the anchor is the moment the rule STARTED,
+// never an occurrence itself (firing at the anchor would mean an interval task
+// ran the instant it was created).
+function nextIntervalOccurrence(task, from = Date.now()) {
+  const anchor = new Date(task.anchor || task.createdAt).getTime();
+  const step = task.interval.number * UNIT_MS[task.interval.unit];
+  if (from < anchor) return anchor + step;
+  const k = Math.floor((from - anchor) / step) + 1;
+  return anchor + k * step;
 }
 
 // Tolerance window for a downtime gap (P2 catch-up): the same shape the fleet
@@ -264,13 +299,21 @@ async function fireTask(id) {
 // the engine's map entry; copying would detach state transitions from it).
 function scheduleJob(task) {
   if (task.paused) return task;
+  // A capped task that already ran out never re-arms (spec: 跑满即 completed).
+  if (task.maxRuns != null && (task.runs ?? 0) >= task.maxRuns) {
+    task.status = "completed";
+    return task;
+  }
   try {
-    // tz, when present, evaluates the cron rule in the task's IANA timezone
-    // (verified: node-schedule honors { rule, tz }); absent = cell-local,
-    // which is the pre-change behavior legacy tasks keep.
-    const spec = task.type === "recurring" && task.cron
-      ? (task.tz ? { rule: task.cron, tz: task.tz } : task.cron)
-      : new Date(task.when);
+    // Interval tasks arm ONE occurrence at a time (a Date), because an every-N
+    // rule can exceed what a five-field cron can express; the next Date is
+    // recomputed from the rule on every finish (refreshNextRun).
+    const spec =
+      task.interval
+        ? new Date(nextIntervalOccurrence(task))
+        : task.type === "recurring" && task.cron
+          ? (task.tz ? { rule: task.cron, tz: task.tz } : task.cron)
+          : new Date(task.when);
     task.job = schedule.scheduleJob(spec, () => {
       void fireTask(task.id);
     });
@@ -293,6 +336,29 @@ function refreshNextRun(task) {
   }
 }
 
+// Interval + finite-run lifecycle (add-cron-automation-parity, design S2/S4):
+// after each completed execution count it, retire at the cap, otherwise re-arm
+// the next rule occurrence. Cron/once tasks keep their node-schedule arming and
+// simply refresh nextRun (their handles repeat by themselves).
+function onIntervalFinished(task) {
+  if (!task || !task.interval) return;
+  task.runs = (task.runs ?? 0) + 1;
+  if (task.maxRuns != null && task.runs >= task.maxRuns) {
+    task.status = "completed";
+    if (task.job) {
+      try {
+        task.job.cancel();
+      } catch {
+        /* already gone */
+      }
+      task.job = null;
+    }
+    task.nextRun = null;
+    return;
+  }
+  if (!task.paused && task.status !== "expired") scheduleJob(task);
+}
+
 async function addJob({
   cron,
   when,
@@ -308,12 +374,41 @@ async function addJob({
   executionPolicy,
   targetAgents,
   sourceTag,
+  projectId,
+  // add-cron-automation-parity: the two new schedule forms + the finite cap.
+  delayMinutes,
+  interval,
+  maxRuns,
 }) {
+  // ── Schedule-form validation (exactly one form) ──────────────────────────
+  // A relative one-shot is resolved HERE, from the server's own clock — a
+  // client-computed wall time could land in the past and silently roll a year
+  // forward (design S3). The stored task keeps the resolved absolute `when`.
+  if (delayMinutes !== undefined) {
+    if (!Number.isInteger(delayMinutes) || delayMinutes < 1 || delayMinutes > 525600) {
+      throw new Error("delayMinutes must be an integer between 1 and 525600");
+    }
+    if (cron || when || interval) throw new Error("delayMinutes is exclusive with cron/when/interval");
+    when = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+  }
+  if (interval !== undefined) {
+    const bad = validateInterval(interval);
+    if (bad) throw new Error(bad);
+    if (cron || when) throw new Error("interval is exclusive with cron/when");
+  }
+  if (maxRuns !== undefined) {
+    if (!Number.isInteger(maxRuns) || maxRuns < 1) throw new Error("maxRuns must be a positive integer");
+    // A cap only means something on a repeating form.
+    if (!cron && !interval) throw new Error("maxRuns requires a recurring form (cron or interval)");
+  }
+
   if (cron) {
     const invalid = validateCron(cron, tz);
     if (invalid) throw new Error(invalid);
+  } else if (interval) {
+    // validated above
   } else if (!when || Number.isNaN(new Date(when).getTime())) {
-    throw new Error("a valid cron expression or one-shot time is required");
+    throw new Error("a valid cron expression, interval, delay, or one-shot time is required");
   }
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
 
@@ -353,9 +448,15 @@ async function addJob({
   const taskData = {
     id,
     trigger: "schedule",
-    type: cron ? "recurring" : "once",
+    type: cron || interval ? "recurring" : "once",
     cron,
     when,
+    // Schedule-form extras (add-cron-automation-parity): the interval rule is
+    // the truth (never a coerced cron), the anchor is when the rule started,
+    // and maxRuns/runs are the finite-run counter pair. All absent on legacy
+    // cron/once records → same semantics as before.
+    ...(interval ? { interval: { number: interval.number, unit: interval.unit }, anchor: new Date().toISOString() } : {}),
+    ...(maxRuns != null ? { maxRuns, runs: 0 } : {}),
     prompt,
     // Binding: the persona the task runs under and the session its output
     // belongs to. sessionId is minted here so the id is stable from creation,
@@ -386,6 +487,9 @@ async function addJob({
     history: [],
     // Owning front-end tag (agent-fleet-core) — opaque passthrough.
     sourceTag: sourceTag ?? null,
+    // Project attribution (add-web-project-container) — opaque passthrough to
+    // the read surfaces; NULL = the 默认项目 bucket. The engine never reads it.
+    projectId: projectId ?? null,
   };
 
   // insertTask validates the target (persona-only today) before anything is
@@ -413,12 +517,29 @@ async function updateJob(id, changes = {}) {
     throw new Error("only schedule tasks can be updated in place");
   }
 
-  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag } = changes;
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns } = changes;
 
   if (cron !== undefined) {
     if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
     const invalid = validateCron(cron, tz ?? task.tz);
     if (invalid) throw new Error(invalid);
+  }
+  // add-cron-automation-parity: schedule-form changes. A relative one-shot is
+  // resolved on the SERVER clock (same discipline as create), and an interval
+  // rule is validated here; the three forms stay mutually exclusive.
+  if (delayMinutes !== undefined) {
+    if (!Number.isInteger(delayMinutes) || delayMinutes < 1 || delayMinutes > 525600) {
+      throw new Error("delayMinutes must be an integer between 1 and 525600");
+    }
+    if (cron !== undefined || interval !== undefined) throw new Error("delayMinutes is exclusive with cron/interval");
+  }
+  if (interval !== undefined) {
+    const bad = validateInterval(interval);
+    if (bad) throw new Error(bad);
+    if (cron !== undefined) throw new Error("interval is exclusive with cron");
+  }
+  if (maxRuns !== undefined && (!Number.isInteger(maxRuns) || maxRuns < 1)) {
+    throw new Error("maxRuns must be a positive integer");
   }
   if (when !== undefined && when !== null && Number.isNaN(new Date(when).getTime())) {
     throw new Error("when must be a valid time");
@@ -442,12 +563,34 @@ async function updateJob(id, changes = {}) {
 
   if (cron !== undefined) task.cron = cron;
   if (when !== undefined) task.when = when;
+  if (delayMinutes !== undefined) {
+    // Resolve NOW, on the server clock — the stored task keeps the absolute
+    // time so a restart never re-anchors it (design S3).
+    task.when = new Date(Date.now() + delayMinutes * 60_000).toISOString();
+    task.cron = null;
+    task.interval = null;
+    task.anchor = null;
+  }
+  if (interval !== undefined) {
+    // A rule change re-anchors from now and clears the cron form/step counter.
+    task.interval = { number: interval.number, unit: interval.unit };
+    task.anchor = new Date().toISOString();
+    task.cron = null;
+    task.when = null;
+    task.runs = 0;
+  }
+  if (maxRuns !== undefined) {
+    task.maxRuns = maxRuns;
+    // Lowering the cap below what already ran retires the task immediately
+    // (spec: 改 cap 低于已跑数则即刻 completed).
+    if ((task.runs ?? 0) >= maxRuns) task.status = "completed";
+  }
   if (prompt !== undefined) task.prompt = prompt;
   if (tz !== undefined) task.tz = tz || null;
   if (sessionTitle !== undefined) task.sessionTitle = sessionTitle || null;
   if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null;
   if (cron !== undefined || when !== undefined) {
-    task.type = task.cron ? "recurring" : "once";
+    task.type = task.cron || task.interval ? "recurring" : "once";
   }
 
   if (targets.length === 1) {

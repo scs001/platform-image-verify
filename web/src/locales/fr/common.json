@@ -16,6 +16,7 @@
   },
   "nav": {
     "chat": "Discussion",
+    "family": { "knowledge": "Connaissances", "build": "Construire" },
     "knowledge": "Bibliothèque",
     "resources": "Résultats",
     "agents": "Agents",
@@ -503,6 +504,8 @@
       "title": "Collections",
       "namePlaceholder": "Nom de la collection…",
       "create": "Créer",
+      "makeAgent": "Créer un agent avec ceci",
+      "makeAgentHint": "Épinglez cette collection dans un plan pour créer un agent dédié",
       "empty": "Aucune collection.",
       "docsCount": "{{count}} docs",
       "delete": "Supprimer",
@@ -3070,6 +3073,7 @@
       "ignore": "Ignorer"
     },
     "title": "Mémoire",
+    "funnel": { "title": "Entonnoir de distillation", "segTitle": "{{layer}} · {{count}} éléments · {{pct}}%" },
     "subtitle": "Tout ce que vos agents retiennent",
     "all": "Tout",
     "layerLabel": "Couche",
@@ -3093,6 +3097,7 @@
   },
   "blueprints": {
     "title": "Studio de plans",
+    "fromCollectionSeeded": "Source de données préremplie depuis cette collection — complétez le plan, puis validez et approuvez.",
     "new": "Nouveau",
     "untitled": "Scène sans titre",
     "list": {
@@ -3148,6 +3153,7 @@
       "add": "Ajouter",
       "hint": "Uniquement des noms de serveurs du registre ou des noms logiques de la bibliothèque interne : ni endpoints ni identifiants.",
       "placeholder": "p. ex. policy-feed",
+                        "pickCollection": "Choisir une collection…",
       "remove": "Retirer"
     },
     "json": {
@@ -3316,6 +3322,10 @@
         "failing": "en échec {{count}}"
       },
       "empty": "Aucune équipe d'agents — provisionnez-en une depuis l'étagère de gabarits ou créez-en une.",
+      "viewMode": { "cards": "Cartes", "formation": "Formation" },
+      "formationEmpty": "Formation vide",
+      "formationTruncated": "{{count}} postes · vignette",
+      "formationUnavailable": "Données de formation indisponibles",
       "sourceUnavailable": "source indisponible",
       "retry": "réessayer",
       "loading": "chargement…",

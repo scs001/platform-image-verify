@@ -226,3 +226,92 @@ export function FleetGraph({
     </div>
   );
 }
+
+// ── Mini formation (add-teams-hub-formation-board 2.1) ──────────────────────
+// The hub formation grid's per-team thumbnail. SAME layout function and kind
+// palette as the cockpit graph (design D2: one geometry, two densities) — the
+// node/edge sets of a team's cockpit graph and its mini are identical by
+// construction, only the render differs: label-less dots with a status ring
+// (title on hover), no legend, implicit supervisor edges not drawn (same
+// aggregate-banner semantics as the cockpit face).
+export const MINI_STATUS_COLORS: Record<string, string> = {
+  on_duty: "#22c55e",
+  paused: "#94a3b8",
+  missing: "#ef4444",
+  vacant: "#f59e0b",
+  passive: "#a855f7",
+  failing: "#ef4444",
+};
+
+export function MiniFleetFormation({
+  members,
+  edges,
+  maxRows = 4,
+}: {
+  members: { id: string; title: string; status?: string | null }[];
+  edges: { kind: string; from?: string | null; to?: string | null }[];
+  maxRows?: number;
+}) {
+  const drawn = edges
+    .filter((e) => !(e.kind === "dispatch" && (e as { implicit?: boolean }).implicit))
+    .map((e) => ({ kind: e.kind, from: e.from ?? undefined, to: e.to ?? undefined }));
+  const nodes = computeGraph(
+    members.map((m) => ({ id: m.id, title: m.title, targetKind: "persona" })),
+    drawn,
+  );
+  const statusOf = new Map(members.map((m) => [m.id, m.status ?? null]));
+  const shown = nodes.nodes.slice(0, Math.min(nodes.nodes.length, 24));
+  const cols = Math.min(shown.length, Math.ceil(shown.length / maxRows) || 1);
+  const rows = Math.ceil(shown.length / cols) || 1;
+  const CELL = 16;
+  return (
+    <svg
+      width={cols * CELL + 4}
+      height={rows * CELL + 4}
+      role="img"
+      data-testid="fleet-mini-formation"
+      style={{ display: "block" }}
+    >
+      <defs>
+        {Object.entries(KIND_COLORS).map(([k, c]) => (
+          <marker key={k} id={`fm-arrow-${k}`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill={c} />
+          </marker>
+        ))}
+      </defs>
+      {drawn.map((e) => {
+        const a = shown.find((n) => n.id === e.from);
+        const b = shown.find((n) => n.id === e.to);
+        if (!a || !b) return null;
+        const x1 = 2 + (shown.indexOf(a) % cols) * CELL + CELL / 2;
+        const y1 = 2 + Math.floor(shown.indexOf(a) / cols) * CELL + CELL / 2;
+        const x2 = 2 + (shown.indexOf(b) % cols) * CELL + CELL / 2;
+        const y2 = 2 + Math.floor(shown.indexOf(b) / cols) * CELL + CELL / 2;
+        return (
+          <line
+            key={`${e.kind}-${e.from}-${e.to}-${x1}-${y1}-${x2}-${y2}`}
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={KIND_COLORS[e.kind] ?? "#94a3b8"}
+            strokeWidth={1}
+            markerEnd={`url(#fm-arrow-${e.kind})`}
+            opacity={0.7}
+          />
+        );
+      })}
+      {shown.map((n) => {
+        const cx = 2 + (shown.indexOf(n) % cols) * CELL + CELL / 2;
+        const cy = 2 + Math.floor(shown.indexOf(n) / cols) * CELL + CELL / 2;
+        const st = statusOf.get(n.id);
+        const ring = st ? MINI_STATUS_COLORS[st] : NODE_COLORS.persona;
+        return (
+          <circle key={n.id} cx={cx} cy={cy} r={4.5} fill={NODE_COLORS.persona} stroke={ring} strokeWidth={st && st !== "on_duty" ? 2 : 1.2}>
+            <title>{n.label}{st ? ` · ${st}` : ""}</title>
+          </circle>
+        );
+      })}
+    </svg>
+  );
+}

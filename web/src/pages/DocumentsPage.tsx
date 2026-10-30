@@ -11,11 +11,13 @@
 // UI shape: hero card with collection summary, then two cards (ingest, list),
 // then a card per collection. Each section is a Card primitive so the page
 // reads as a stack of distinct actions rather than a flat form.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { useDocumentsStore } from "@/hooks/useDocumentsStore";
+import { useProjectsStore } from "@/hooks/useProjectsStore";
+import { IS_DESKTOP } from "@/lib/environment";
 import { useChatStore } from "@platform/core";
 import * as api from "@platform/core";
 import type { DocMeta, CollectionMeta } from "@platform/core";
@@ -326,6 +328,7 @@ function DocRow({ doc, selected, onSelect, onDelete, onConverse }: {
 
 function CollectionsSection({ onConverse }: { onConverse: (token: string) => void }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { collections, documents } = useDocumentsStore(
     useShallow((s) => ({ collections: s.collections, documents: s.documents })),
   );
@@ -335,6 +338,20 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
   const [members, setMembers] = useState<DocMeta[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [addDocId, setAddDocId] = useState("");
+  // Project filter (add-web-project-container 3.3): "all" is the default and
+  // filters nothing — the page reads exactly as before this change. "default"
+  // narrows to the unattributed (默认项目) bucket; a project id narrows to that
+  // project. Filtering is display-only; membership/edit still address ids.
+  const projects = useProjectsStore((s) => s.projects);
+  useEffect(() => {
+    if (!IS_DESKTOP) void useProjectsStore.getState().load();
+  }, []);
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const visibleCollections = useMemo(() => {
+    if (projectFilter === "all") return collections;
+    if (projectFilter === "default") return collections.filter((c) => !(c as { projectId?: string | null }).projectId);
+    return collections.filter((c) => (c as { projectId?: string | null }).projectId === projectFilter);
+  }, [collections, projectFilter]);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -366,6 +383,23 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
         <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Icon name="folder" size={16} />
           {t("documents.collection.title")}
+          {!IS_DESKTOP ? (
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="ml-auto rounded-md border border-input bg-background px-2 py-1 text-xs font-normal"
+              data-testid="col-project-filter"
+              aria-label={t("documents.collection.projectFilter")}
+            >
+              <option value="all">{t("documents.collection.projectAll")}</option>
+              <option value="default">{t("sidebar.defaultProject")}</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
         </h2>
         <div className="mt-3 flex gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("documents.collection.namePlaceholder")}
@@ -374,11 +408,13 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
             {t("documents.collection.create")}
           </button>
         </div>
-        {collections.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">{t("documents.collection.empty")}</p>
+        {visibleCollections.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {collections.length === 0 ? t("documents.collection.empty") : t("documents.collection.emptyFiltered")}
+          </p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
-            {collections.map((c) => (
+            {visibleCollections.map((c) => (
               <li key={c.id} className="rounded-md border border-border" data-testid="col-item">
                 <div className="flex items-center gap-2 px-3 py-2">
                   <Icon name="folder" size={14} className="text-muted-foreground" />
@@ -387,6 +423,17 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
                   <button onClick={() => onConverse(`@collection:${c.id}`)} title={t("documents.startConversation")}
                     className="shrink-0 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" data-testid="col-converse">
                     {t("documents.startConversation")}
+                  </button>
+                  {/* Seed a blueprint draft pinning this collection (spec:
+                      document-collections「用它造 agent」). A deep link, not a
+                      mint — nothing is created until the owner approves. */}
+                  <button
+                    onClick={() => navigate(`/blueprints?fromCollection=${encodeURIComponent(c.id)}`)}
+                    title={t("documents.collection.makeAgentHint")}
+                    className="shrink-0 rounded-md border border-primary/40 px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                    data-testid="col-make-agent"
+                  >
+                    {t("documents.collection.makeAgent")}
                   </button>
                   <button onClick={() => remove(c.id)} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid="col-delete" title={t("documents.collection.delete")}>
                     <Icon name="trash-2" size={14} />

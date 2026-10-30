@@ -20,23 +20,30 @@ const roster = [
   { id: PAUSED, name: "Paused Team", state: "paused", memberCount: 1, openDecisions: 0, defaultModel: null, statusCounts: {}, spend: { windows: { "24h": { runs: 0, turns: 0 } } } },
 ];
 
+const formationOf = (members, edges) => ({ members, edges, truncated: false });
 const overview = {
   v: 1,
   sampledAt: Date.now(),
   fleets: [
-    { id: OK, counts: { onDuty: 3, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0, total: 3 }, openDecisions: { count: 1, top: [{ question: "Renew the vendor contract?", severity: "high", memberTitle: "Ops" }] } },
-    { id: ABNORMAL, counts: { onDuty: 1, paused: 0, missing: 1, vacant: 0, passive: 0, failing: 0, total: 2 }, openDecisions: { count: 0, top: [] } },
-    { id: PAUSED, counts: { onDuty: 0, paused: 1, missing: 0, vacant: 0, passive: 0, failing: 0, total: 1 }, openDecisions: { count: 0, top: [] } },
+    { id: OK, counts: { onDuty: 3, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0, total: 3 }, openDecisions: { count: 1, top: [{ question: "Renew the vendor contract?", severity: "high", memberTitle: "Ops" }] }, formation: formationOf([{ id: "o1", title: "Ops", status: "on_duty" }, { id: "o2", title: "Writer", status: "on_duty" }], [{ kind: "handoff", from: "o1", to: "o2", implicit: false }]) },
+    { id: ABNORMAL, counts: { onDuty: 1, paused: 0, missing: 1, vacant: 0, passive: 0, failing: 0, total: 2 }, openDecisions: { count: 0, top: [] }, formation: formationOf([{ id: "a1", title: "Scanner", status: "on_duty" }, { id: "a2", title: "Recorder", status: "missing" }], [{ kind: "handoff", from: "a1", to: "a2", implicit: false }]) },
+    { id: PAUSED, counts: { onDuty: 0, paused: 1, missing: 0, vacant: 0, passive: 0, failing: 0, total: 1 }, openDecisions: { count: 0, top: [] }, formation: formationOf([{ id: "p1", title: "Paused Post", status: "paused" }], []) },
   ],
 };
 
+// Owner-board rows render counts.onDuty and all three spend windows
+// unconditionally (OwnerBoardFleet type carries them); the fixture mirrors the
+// real board payload.
+const spendWindows = (runs, turns) => ({
+  windows: { "24h": { runs, turns }, "7d": { runs, turns }, "30d": { runs, turns } },
+});
 const board = {
   v: 1,
   sampledAt: Date.now(),
   fleets: [
-    { id: OK, openDecisions: 1, failing: 0, lastActivityAt: Date.now() - 60_000, spend: { windows: { "24h": { runs: 5, turns: 5 } } } },
-    { id: ABNORMAL, openDecisions: 0, failing: 0, lastActivityAt: Date.now() - 600_000, spend: { windows: { "24h": { runs: 2, turns: 2 } } } },
-    { id: PAUSED, openDecisions: 0, failing: 0, lastActivityAt: null, spend: { windows: { "24h": { runs: 0, turns: 0 } } } },
+    { id: OK, name: "OK Team", state: "active", sourceTemplate: null, counts: { onDuty: 3, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0, total: 3 }, openDecisions: 1, failing: 0, lastActivityAt: Date.now() - 60_000, spend: spendWindows(5, 5) },
+    { id: ABNORMAL, name: "Sick Team", state: "active", sourceTemplate: null, counts: { onDuty: 1, paused: 0, missing: 1, vacant: 0, passive: 0, failing: 0, total: 2 }, openDecisions: 0, failing: 0, lastActivityAt: Date.now() - 600_000, spend: spendWindows(2, 2) },
+    { id: PAUSED, name: "Paused Team", state: "paused", sourceTemplate: null, counts: { onDuty: 0, paused: 1, missing: 0, vacant: 0, passive: 0, failing: 0, total: 1 }, openDecisions: 0, failing: 0, lastActivityAt: null, spend: spendWindows(0, 0) },
   ],
 };
 
@@ -139,12 +146,88 @@ test.describe("fleet hub", () => {
     await expect(receipt.getByTestId("teams-batch-receipt-failure")).toContainText("terminal");
   });
 
-  test("deep link lands in the cockpit; returning to /fleets shows the overview", async ({ page }) => {
+  test("deep link lands in the cockpit; the switch stays visible, unhighlighted", async ({ page }) => {
     await page.goto(`/fleets/${OK}`);
     await expect(page.getByTestId("fleet-detail")).toContainText("OK Team");
-    await expect(page.getByTestId("teams-view-switch")).toBeHidden();
+    // polish-agent-teams-hub-navigation: the switch never hides; a bare deep
+    // link has no entry source, so no tab carries the active highlight.
+    await expect(page.getByTestId("teams-view-switch")).toBeVisible();
+    for (const tab of ["teams-view-overview", "teams-view-manage", "teams-view-owner"]) {
+      await expect(page.getByTestId(tab)).not.toHaveClass(/text-primary/);
+    }
     await page.goto("/fleets");
     await expect(page.getByTestId("teams-overview")).toBeVisible();
   });
-});
 
+  test("cockpit keeps the switch: source highlight follows the entry view, tab click leaves the fleet", async ({ page }) => {
+    await page.goto("/fleets");
+    await page.getByTestId(`teams-card-${OK}`).click();
+    await expect(page).toHaveURL(/\/fleets\/fleet_ok$/);
+    await expect(page.getByTestId("teams-view-switch")).toBeVisible();
+    // Entered from the overview board → overview stays highlighted in the cockpit.
+    await expect(page.getByTestId("teams-view-overview")).toHaveClass(/text-primary/);
+    // Clicking Manage leaves the fleet onto the management table.
+    await page.getByTestId("teams-view-manage").click();
+    await expect(page).toHaveURL(/\/fleets\?view=manage$/);
+    await expect(page.getByTestId("teams-manage-table")).toBeVisible();
+  });
+
+  test("browser back from the cockpit returns to the owner face", async ({ page }) => {
+    await page.goto("/fleets?view=owner");
+    await expect(page.getByTestId("fleet-owner-board")).toBeVisible();
+    await page.getByTestId(`fleet-board-row-${OK}`).click();
+    await expect(page.getByTestId("fleet-detail")).toContainText("OK Team");
+    await expect(page.getByTestId("teams-view-owner")).toHaveClass(/text-primary/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/fleets\?view=owner$/);
+    await expect(page.getByTestId("fleet-owner-board")).toBeVisible();
+  });
+
+  test("formation view: toggle persists, breakage shows on the board, click opens the cockpit", async ({ page }) => {
+    await page.goto("/fleets");
+    await expect(page.getByTestId("teams-overview")).toBeVisible();
+    // Switch to the formation view — the grid renders per-team minis from the
+    // SAME overview payload (one round-trip), and the choice persists.
+    await page.getByTestId("teams-view-mode-formation").click();
+    await expect(page.getByTestId("teams-formation-grid")).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId("teams-formation-grid")).toBeVisible();
+    // Breakage is visible on the board: the sick team's missing post renders
+    // its ring on the mini (SVG present) without opening the cockpit.
+    const sick = page.getByTestId(`teams-formation-${ABNORMAL}`);
+    await expect(sick).toBeVisible();
+    await expect(sick.locator("svg circle")).toHaveCount(2);
+    // Clicking a mini formation deep-links into that cockpit.
+    await page.getByTestId(`teams-formation-${OK}`).click();
+    await expect(page).toHaveURL(new RegExp(`/fleets/${OK}$`));
+    await expect(page.getByTestId("fleet-detail")).toContainText("OK Team");
+  });
+
+  test("formation view degrades independently of the card list (2.3)", async ({ page }) => {
+    // Break ONLY the overview read: the formation view names it with a retry,
+    // the card list keeps rendering (three-source independent degradation).
+    await page.route("**/api/fleets/overview", (route) => route.fulfill({ status: 500, contentType: "application/json", body: "{}" }));
+    await page.goto("/fleets");
+    await expect(page.getByTestId("teams-overview")).toBeVisible();
+    await page.getByTestId("teams-view-mode-formation").click();
+    await expect(page.getByTestId("teams-formation-error")).toBeVisible();
+    // Cards still render from the roster source.
+    await page.getByTestId("teams-view-mode-cards").click();
+    await expect(page.getByTestId("teams-cards")).toBeVisible();
+    await expect(page.getByTestId(`teams-card-${OK}`)).toBeVisible();
+  });
+
+  test("hub copilot: opens on the fleets line, honestly unfocused without the architect", async ({ page }) => {
+    await page.goto("/fleets");
+    await expect(page.getByTestId("teams-overview")).toBeVisible();
+    // The dock opens on the /fleets route (the hub line). No architect pack is
+    // installed in this fixture → the iframe loads WITHOUT a preset override
+    // (honest unfocused, spec: 架构师未装如实降级).
+    await page.getByTestId("copilot-fab").click();
+    await expect(page.getByTestId("copilot-dock")).toBeVisible();
+    const src = await page.getByTestId("copilot-frame").getAttribute("src");
+    expect(src).toContain("embed=copilot");
+    expect(src).toContain("board=fleets");
+    expect(src).not.toContain("preset=");
+  });
+});

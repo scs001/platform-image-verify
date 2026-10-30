@@ -16,6 +16,7 @@
   },
   "nav": {
     "chat": "チャット",
+    "family": { "knowledge": "ナレッジ", "build": "構築" },
     "knowledge": "ライブラリ",
     "resources": "成果",
     "agents": "エージェント",
@@ -503,6 +504,8 @@
       "title": "コレクション",
       "namePlaceholder": "コレクション名…",
       "create": "作成",
+      "makeAgent": "これでエージェントを作成",
+      "makeAgentHint": "このコレクションをブループリントに固定して専用エージェントを作成",
       "empty": "コレクションはまだありません。",
       "docsCount": "{{count}} 件",
       "delete": "削除",
@@ -3070,6 +3073,7 @@
       "ignore": "却下"
     },
     "title": "記憶",
+    "funnel": { "title": "蒸留ファネル", "segTitle": "{{layer}} · {{count}} 件 · {{pct}}%" },
     "subtitle": "エージェントが覚えているすべて",
     "all": "すべて",
     "layerLabel": "層",
@@ -3093,6 +3097,7 @@
   },
   "blueprints": {
     "title": "ブループリント工房",
+    "fromCollectionSeeded": "このコレクションからデータソースを事前入力しました。ブループリントを完成させ、検証・承認してください。",
     "new": "新規",
     "untitled": "無題のシーン",
     "list": {
@@ -3148,6 +3153,7 @@
       "add": "追加",
       "hint": "レジストリ登録のサーバー名または内部ライブラリの論理名のみ。エンドポイントと認証情報は禁止です。",
       "placeholder": "例：policy-feed",
+                        "pickCollection": "ナレッジコレクションを選択…",
       "remove": "削除"
     },
     "json": {
@@ -3316,6 +3322,10 @@
         "failing": "連続失敗 {{count}}"
       },
       "empty": "エージェントチームがありません——テンプレート棚から実体化するか、新規作成してください。",
+      "viewMode": { "cards": "カード", "formation": "編成" },
+      "formationEmpty": "空の編成",
+      "formationTruncated": "{{count}} 席 · サムネイル",
+      "formationUnavailable": "編成データを取得できません",
       "sourceUnavailable": "データソースが利用できません",
       "retry": "再試行",
       "loading": "読み込み中…",

@@ -11,6 +11,7 @@ import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
 import { storeDir } from "../../paths.js";
+import { listProjects, upsertProjectByName, renameProject } from "../../db.js";
 import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
 import * as registryCredentials from "../../registry-credentials.js";
 import * as connectorCredentials from "../../connector-credentials.js";
@@ -814,13 +815,19 @@ export function registerMiscRoutes(ctx) {
     res.json({ fullSurface: db.setFullSurfaceServers(list) });
   });
 
-  // ── Projects (add-projects-automation-flow) ───────────────────────────────
-  // Name-based project creation: the client sends a display name, the server
-  // materializes a directory under the projects root and returns its absolute
-  // path for the EXISTING set_workspace switch — the runtime is never touched
-  // here. PROJECTS_ROOT overrides the default (<dataDir>/projects).
+  // ── Projects (add-web-project-container) ─────────────────────────────────
+  // A project is the web-side top-level container with identity (id + display
+  // name); `backing_path` is the engine directory the set_workspace switch
+  // already produces — the runtime is never touched here. POST creates the
+  // directory AND a project row in one shot and returns the stable id, so the
+  // client can stamp sessions/collections/jobs with it. Re-POSTing an existing
+  // name attaches (returns the existing id) rather than duplicating. PROJECTS_ROOT
+  // overrides the default (<dataDir>/projects).
   app.post("/api/projects", (req, res) => {
     const raw = typeof req.body?.name === "string" ? req.body.name : "";
+    if (raw.includes("..") || raw.includes("/") || raw.includes("\\")) {
+      return res.status(400).json({ error: "项目名不能包含路径符号" });
+    }
     const sanitized = raw
       .trim()
       .replace(/\s+/g, "-")
@@ -829,9 +836,6 @@ export function registerMiscRoutes(ctx) {
       .slice(0, 64);
     if (!sanitized) {
       return res.status(400).json({ error: "项目名不能为空（仅支持中英文、数字、- 和 _）" });
-    }
-    if (raw.includes("..") || raw.includes("/") || raw.includes("\\")) {
-      return res.status(400).json({ error: "项目名不能包含路径符号" });
     }
     const root = storeDir("projects", process.env.PROJECTS_ROOT);
     const dir = path.join(root, sanitized);
@@ -844,7 +848,38 @@ export function registerMiscRoutes(ctx) {
     } catch (err) {
       return res.status(500).json({ error: `创建项目目录失败：${err.message}` });
     }
-    res.json({ path: dir, name: sanitized });
+    const project = upsertProjectByName(sanitized, dir);
+    if (!project) {
+      return res.status(500).json({ error: "写入项目记录失败" });
+    }
+    res.json({ id: project.id, path: project.path, name: project.name, attached: project.attached });
+  });
+
+  // List the caller's projects (id + name + backing path) for the web sidebar's
+  // project grouping and the collection/job pickers. Read-only over the same
+  // projects store POST/PATCH write.
+  app.get("/api/projects", (_req, res) => {
+    res.json({ projects: listProjects() });
+  });
+
+  // Rename a project's display name. Identity (id) and backing path never
+  // move — existing session/collection attributions keyed by id stay valid.
+  app.patch("/api/projects/:id", (req, res) => {
+    const id = req.params?.id;
+    const raw = typeof req.body?.name === "string" ? req.body.name : "";
+    const sanitized = raw
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^\p{Script=Han}\p{L}\p{N}_-]/gu, "")
+      .replace(/^[.\-]+/, "")
+      .slice(0, 64);
+    if (!sanitized) {
+      return res.status(400).json({ error: "项目名不能为空（仅支持中英文、数字、- 和 _）" });
+    }
+    if (!renameProject(id, sanitized)) {
+      return res.status(404).json({ error: "项目不存在" });
+    }
+    res.json({ id, name: sanitized });
   });
 }
 

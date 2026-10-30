@@ -422,3 +422,23 @@ test("stats snapshot: side-effect free (repeat calls, queue untouched)", async (
   assert.deepEqual(a, b);
   assert.equal(engine.getTask("job_1").state, null); // nothing queued or run by sampling
 });
+
+// add-web-project-container 2.2: cron jobs carry an optional projectId as a
+// record field (jobs.json store, not SQLite). It persists, surfaces in the
+// client shape, and survives a reload — NULL = the 默认项目 bucket.
+test("projectId persists, surfaces, and reloads (default-bucket when absent)", async () => {
+  await boot([
+    legacyRecord({ id: "job_p1", projectId: "proj-123" }),
+    legacyRecord({ id: "job_p0" }), // no projectId → absent/NULL
+  ]);
+  // Client shape carries it for the read surfaces.
+  assert.equal(engine.getTask("job_p1").projectId, "proj-123");
+  assert.equal(engine.getTask("job_p0").projectId, null);
+  // Persisted to jobs.json.
+  const stored = readStored();
+  assert.equal(stored.find((r) => r.id === "job_p1").projectId, "proj-123");
+  assert.equal(stored.find((r) => r.id === "job_p0").projectId, null);
+  // Survives a reload (a fresh boot reads the same file back).
+  await boot(readStored());
+  assert.equal(engine.getTask("job_p1").projectId, "proj-123");
+});

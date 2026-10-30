@@ -16,8 +16,16 @@ export function registerCronRoutes(ctx) {
   const app = ctx.app;
   const router = Router();
 
-  router.get("/", (_req, res) => {
-    res.json({ jobs: cron.listJobs() });
+  router.get("/", (req, res) => {
+    // projectId query (add-web-project-container): absent = every job (default
+    // view, unchanged); "default" = the unattributed (默认项目) bucket; an id =
+    // that project's jobs. The engine never reads projectId — filtering is a
+    // read-surface concern, same as sourceTag.
+    const q = req.query?.projectId;
+    const jobs = cron.listJobs();
+    const filtered =
+      q === undefined ? jobs : jobs.filter((j) => (q === "default" ? !j.projectId : j.projectId === String(q)));
+    res.json({ jobs: filtered });
   });
 
   router.post("/", async (req, res) => {
@@ -55,6 +63,10 @@ export function registerCronRoutes(ctx) {
         preset: clusterFields ? undefined : (req.body?.preset ?? (req.user?.internal ? ctx.currentPreset : undefined)),
         tz: req.body?.tz,
         sessionTitle: req.body?.sessionTitle,
+        // Project attribution (add-web-project-container): the active web
+        // project the client is creating this job under, if any. NULL/absent
+        // leaves the job in the 默认项目 bucket.
+        projectId: req.body?.projectId ?? null,
         ...(clusterFields ?? {}),
       });
       res.status(201).json({ job });
@@ -68,6 +80,18 @@ export function registerCronRoutes(ctx) {
 
   router.post("/:id/pause", async (req, res) => {
     res.json({ ok: await cron.pauseJob(req.params.id) });
+  });
+
+  // In-place edit (add-cron-automation-parity 2.1): id, execution history and
+  // paused state survive; only the provided fields change.
+  router.patch("/:id", async (req, res) => {
+    try {
+      const job = await cron.updateJob(req.params.id, req.body ?? {});
+      if (!job) return res.status(404).json({ error: `task ${req.params.id} not found` });
+      res.json({ job });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   router.post("/:id/resume", async (req, res) => {

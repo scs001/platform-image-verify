@@ -16,6 +16,7 @@
   },
   "nav": {
     "chat": "Chat",
+    "family": { "knowledge": "Conocimiento", "build": "Construir" },
     "knowledge": "Biblioteca",
     "resources": "Resultados",
     "agents": "Agentes",
@@ -503,6 +504,8 @@
       "title": "Colecciones",
       "namePlaceholder": "Nombre de la colección…",
       "create": "Crear",
+      "makeAgent": "Crear un agente con esto",
+      "makeAgentHint": "Fija esta colección en un plano para crear un agente dedicado",
       "empty": "Aún no hay colecciones.",
       "docsCount": "{{count}} docs",
       "delete": "Eliminar",
@@ -3070,6 +3073,7 @@
       "ignore": "Ignorar"
     },
     "title": "Memoria",
+    "funnel": { "title": "Embudo de destilación", "segTitle": "{{layer}} · {{count}} elementos · {{pct}}%" },
     "subtitle": "Todo lo que tus agentes recuerdan",
     "all": "Todo",
     "layerLabel": "Capa",
@@ -3093,6 +3097,7 @@
   },
   "blueprints": {
     "title": "Estudio de planos",
+    "fromCollectionSeeded": "Se rellenó la fuente de datos con esta colección: completa el plano, luego valida y aprueba.",
     "new": "Nuevo",
     "untitled": "Escena sin título",
     "list": {
@@ -3148,6 +3153,7 @@
       "add": "Añadir",
       "hint": "Solo nombres de servidores del registro o nombres lógicos de la biblioteca interna: sin endpoints ni credenciales.",
       "placeholder": "p. ej. policy-feed",
+                        "pickCollection": "Elegir una colección…",
       "remove": "Quitar"
     },
     "json": {
@@ -3316,6 +3322,10 @@
         "failing": "en fallo {{count}}"
       },
       "empty": "Aún no hay equipos de agentes — provisión uno desde la estantería de plantillas o crea uno.",
+      "viewMode": { "cards": "Tarjetas", "formation": "Formación" },
+      "formationEmpty": "Formación vacía",
+      "formationTruncated": "{{count}} puestos · miniatura",
+      "formationUnavailable": "Datos de formación no disponibles",
       "sourceUnavailable": "fuente no disponible",
       "retry": "reintentar",
       "loading": "cargando…",

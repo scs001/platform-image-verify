@@ -14,11 +14,20 @@
 import { Router } from "express";
 import { getBlueprintDatabase } from "./routes/blueprints-db.js";
 import { validateBlueprint, dataSourceFindings } from "./blueprint-validate.js";
+import { isDbReady, getCollection } from "../db.js";
 
 export function registerBlueprintAuthorRoutes(app, ctx = null) {
   const router = Router();
   const owner = () => ctx?.cellUserEmail || "owner@local";
   const store = () => getBlueprintDatabase();
+  // Library refs (`library:<collectionId>`) resolve against this deployment's
+  // collections (add-knowledge-memory-surface 3.1): a dangling or invisible id
+  // is refused by name at validation time. No DB → skip (a storage problem must
+  // not block every blueprint), matching the judge-roster posture.
+  const resolveLibrary = (id) => {
+    if (!isDbReady()) return true;
+    return getCollection(id) ? true : "no such collection in this deployment";
+  };
 
   router.use((req, _res, next) => {
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
@@ -40,7 +49,7 @@ export function registerBlueprintAuthorRoutes(app, ctx = null) {
   // the validator's own errors (no second validator lives here).
   router.post("/validate", (req, res) => {
     try {
-      const verdict = validateBlueprint(req.body?.content);
+      const verdict = validateBlueprint(req.body?.content, { resolveLibrary });
       res.json({ ok: verdict.ok, errors: verdict.errors, findings: verdict.findings, manifestPreview: verdict.manifestPreview });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -53,7 +62,7 @@ export function registerBlueprintAuthorRoutes(app, ctx = null) {
   router.post("/save", (req, res) => {
     try {
       const content = req.body?.content;
-      const verdict = validateBlueprint(content);
+      const verdict = validateBlueprint(content, { resolveLibrary });
       if (!verdict.ok) {
         return res.status(422).json({ ok: false, error: "validation must be green before saving", errors: verdict.errors, findings: verdict.findings });
       }

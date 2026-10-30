@@ -60,28 +60,51 @@ export function credentialFindings(content) {
   return findings;
 }
 
-// ── Shape gate: dataSources 契约（只在册名/逻辑名，禁端点禁凭据） ──────────
+// ── Shape gate: dataSources 契约（只在册名/逻辑名/知识库集合，禁端点禁凭据） ──
 
 const DATASOURCE_REF_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+// Third ref kind (add-knowledge-memory-surface 3.1): a knowledge-base
+// collection pinned into the blueprint. `library:<collectionId>` makes the
+// materialized member a KB-scoped agent (its library tools see that collection
+// ∪ shared, per document-library-tools' boundary). This module stays DB-free,
+// so it validates the SHAPE here and takes an optional `resolveLibrary(id)`
+// callback from the caller that owns DB access — returning true (visible), a
+// string (why not) or false (dangling/invisible).
+const LIBRARY_REF_RE = /^library:([A-Za-z0-9_-]{1,64})$/;
 
-export function dataSourceFindings(content) {
+export function dataSourceFindings(content, resolveLibrary = null) {
   const findings = [];
   const sources = content?.dataSources;
   if (sources === undefined || sources === null) return findings;
   if (!Array.isArray(sources)) {
-    return [{ error: "dataSources must be an array of { ref } entries naming registry servers or internal libraries", entry: "dataSources" }];
+    return [{ error: "dataSources must be an array of { ref } entries naming registry servers, internal libraries, or knowledge collections (library:<id>)", entry: "dataSources" }];
   }
   sources.forEach((src, i) => {
     const entry = `dataSources[${i}]`;
     if (!src || typeof src !== "object" || Array.isArray(src)) {
-      findings.push({ error: `data source must be an object of { ref, note? } naming a registry server or internal-library logical name`, entry });
+      findings.push({ error: `data source must be an object of { ref, note? } naming a registry server, an internal-library logical name, or a knowledge collection (library:<id>)`, entry });
       return;
     }
-    if (typeof src.ref !== "string" || !DATASOURCE_REF_RE.test(src.ref)) {
+    const ref = src.ref;
+    const isLibrary = typeof ref === "string" && LIBRARY_REF_RE.test(ref);
+    if (typeof ref !== "string" || (!DATASOURCE_REF_RE.test(ref) && !isLibrary)) {
       findings.push({
-        error: `data source ref '${src.ref}' must be a registry server name or internal-library logical name (no endpoints, no credentials)`,
+        error: `data source ref '${ref}' must be a registry server name, an internal-library logical name, or a knowledge collection (library:<id>) — no endpoints, no credentials`,
         entry: `${entry}.ref`,
       });
+      return;
+    }
+    // Resolution: when the caller can check the collection, a dangling or
+    // invisible id is refused BY NAME (spec: 悬空引用指名拒绝).
+    if (isLibrary && typeof resolveLibrary === "function") {
+      const id = ref.slice("library:".length);
+      const verdict = resolveLibrary(id);
+      if (verdict !== true) {
+        findings.push({
+          error: `data source ${entry}.ref 'library:${id}' does not name a collection you can see${typeof verdict === "string" ? ` (${verdict})` : ""}`,
+          entry: `${entry}.ref`,
+        });
+      }
     }
     if (src.note !== undefined && typeof src.note !== "string") {
       findings.push({ error: `data source note must be a string when present`, entry: `${entry}.note` });
@@ -233,7 +256,7 @@ export function assembleManifest(content, { name } = {}) {
 // 提交前全套校验链（spec 要求三 + D3 consult）：shape → parseFleetTemplate
 // → validatePackManifest → toolFace/toolClosure。返回按链序摊平的 errors
 // （既有校验器原文逐字段）+ manifestPreview 供编辑面/铸造复用。
-export function validateBlueprint(content) {
+export function validateBlueprint(content, { resolveLibrary = null } = {}) {
   const manifestPreview = assembleManifest(content);
   // v1 方言前置短路（design D1）：错方言的派生发现（逐条 acceptance 形状错、
   // 无字段归属的包级错）会淹没根因——命中即只报这一条。
@@ -246,7 +269,7 @@ export function validateBlueprint(content) {
       manifestPreview,
     };
   }
-  const shape = shapeFindings(content ?? {});
+  const shape = [...credentialFindings(content ?? {}), ...dataSourceFindings(content ?? {}, resolveLibrary)];
   // 验收断言段也进校验链：试跑只有五类可判绿的断言，未知 kind 在此就指名，
   // 不留到试跑才暴露。
   const acceptance = normalizeAcceptance(content?.acceptance).errors;

@@ -12,13 +12,25 @@ import { useNavigate } from "react-router-dom";
 import { useChatStore, useCronStore, type ClientMessage, type CronJob } from "@platform/core";
 import { describeJobSchedule, formatInJobTz, weekdayLabel } from "@/lib/cron-text";
 import { parseSchedule, zhWeekdayName, type ParsedSchedule } from "@/lib/scheduleParse";
+import { useProjectsStore } from "@/hooks/useProjectsStore";
+import { IS_DESKTOP } from "@/lib/environment";
 
 export interface TasksPageProps {
   send: (msg: ClientMessage) => void;
 }
 
-type Freq = "daily" | "weekly" | "custom";
+type Freq = "daily" | "weekly" | "custom" | "interval";
 type Mode = "recurring" | "once";
+type IntervalUnit = "minute" | "hour" | "day" | "week";
+
+// ISO → the value shape a <input type="datetime-local"> expects (local wall
+// clock, no seconds/zone). Used only to prefill the edit form.
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 // Automation templates (add-projects-automation-flow): one-click prefills of
 // name + prompt + schedule. Copy is locale content; the schedule values here
@@ -58,16 +70,23 @@ function TaskCard({
   job,
   send,
   onOpenSession,
+  onEdit,
 }: {
   job: CronJob;
   send: TasksPageProps["send"];
   onOpenSession: (id: string) => void;
+  onEdit: (job: CronJob) => void;
 }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const last = job.history.at(-1);
   const badge = badgeKey(job);
   const rerunnable = job.state === "failed" || job.state === "interrupted";
+  // Run history expands per task (add-cron-automation-parity 3.3): pure read of
+  // the existing history entries — no new backend enumeration. A load failure
+  // is not possible here (the entries ride the job payload), so the expansion
+  // never blocks the inline card.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <div
@@ -168,6 +187,13 @@ function TaskCard({
           </button>
           <button
             className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
+            onClick={() => onEdit(job)}
+            data-testid="cron-job-edit"
+          >
+            {t("tasks.actions.edit")}
+          </button>
+          <button
+            className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
             onClick={() =>
               send(job.paused ? { type: "cron_resume", jobId: job.id } : { type: "cron_pause", jobId: job.id })
             }
@@ -188,6 +214,52 @@ function TaskCard({
           </button>
         </div>
       </div>
+
+      {/* Run history (add-cron-automation-parity 3.3): occurrence time, outcome,
+          duration and token spend from the existing history entries. The
+          most recent run stays inline above; this is the full trail. */}
+      {job.history.length > 0 ? (
+        <div className="mt-3 border-t border-border pt-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+            data-testid="cron-job-history-toggle"
+          >
+            {historyOpen ? "▾ " : "▸ "}
+            {t("tasks.history.title", { count: job.history.length })}
+            {job.maxRuns != null ? ` · ${t("tasks.history.progress", { runs: job.runs ?? 0, cap: job.maxRuns })}` : ""}
+          </button>
+          {historyOpen ? (
+            <ul className="mt-2 space-y-1" data-testid="cron-job-history">
+              {[...job.history].reverse().map((h) => {
+                const outcome = h.state ?? (h.success === true ? "done" : h.success === false ? "failed" : "missed");
+                const tone =
+                  outcome === "done"
+                    ? "text-emerald-600"
+                    : outcome === "failed"
+                      ? "text-destructive"
+                      : "text-amber-600";
+                return (
+                  <li
+                    key={`${h.time}-${h.duration ?? 0}-${outcome}`}
+                    className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground"
+                    data-testid="cron-history-row"
+                  >
+                    <span className={`font-medium ${tone}`}>{t(`tasks.history.state.${outcome}`, { defaultValue: outcome })}</span>
+                    <span>{formatInJobTz(h.time, job.tz, locale)}</span>
+                    {typeof h.duration === "number" ? <span>{(h.duration / 1000).toFixed(1)}s</span> : null}
+                    {h.tokens?.total != null ? <span>{h.tokens.total} tok</span> : null}
+                    {h.catchUp ? <span className="rounded-sm bg-amber-500/15 px-1 text-amber-700">补跑</span> : null}
+                    {h.missed ? <span>{t("tasks.history.missed", { count: h.missed })}</span> : null}
+                    {h.error ? <span className="truncate text-destructive">{h.error}</span> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -211,6 +283,14 @@ export function TasksPage({ send }: TasksPageProps) {
   const [weekdays, setWeekdays] = useState<number[]>([1]);
   const [cronExpr, setCronExpr] = useState("");
   const [when, setWhen] = useState("");
+  // add-cron-automation-parity: the interval builder, the relative one-shot,
+  // and the finite-run cap. Defaults keep every existing flow byte-identical:
+  // interval empty, once-relative off, maxRuns blank.
+  const [intervalNumber, setIntervalNumber] = useState("1");
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("hour");
+  const [onceRelative, setOnceRelative] = useState(false);
+  const [delayMinutes, setDelayMinutes] = useState("30");
+  const [maxRuns, setMaxRuns] = useState("");
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
   const [agent, setAgent] = useState<string>("");
@@ -261,6 +341,42 @@ export function TasksPage({ send }: TasksPageProps) {
   const usablePresets = useMemo(() => presets.filter((p) => !p.broken), [presets]);
   const effectiveAgent = agent || currentPreset || usablePresets[0]?.id || "";
 
+  // In-place edit (add-cron-automation-parity 3.3 / spec: edit reschedules in
+  // place). Reopen the form prefilled from the job; submitting then goes out as
+  // cron_update — the job id, its history and paused state survive. A blank
+  // editingId means a create.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const startEdit = (job: CronJob) => {
+    setLocalError(null);
+    setEditingId(job.id);
+    setFormOpen(true);
+    setName(job.sessionTitle ?? "");
+    setPrompt(job.prompt);
+    setTz(job.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setAgent(job.preset ?? "");
+    setMaxRuns(job.maxRuns != null ? String(job.maxRuns) : "");
+    if (job.interval) {
+      setMode("recurring");
+      setFreq("interval");
+      setIntervalNumber(String(job.interval.number));
+      setIntervalUnit(job.interval.unit as IntervalUnit);
+    } else if (job.type === "recurring" && job.cron) {
+      // A cron form reopens on the custom branch — the exact expression is the
+      // one thing the presets cannot reconstruct.
+      setMode("recurring");
+      setFreq("custom");
+      setCronExpr(job.cron);
+    } else {
+      setMode("once");
+      setOnceRelative(false);
+      setWhen(job.when ? toLocalInput(job.when) : "");
+    }
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setFormOpen(false);
+  };
+
   const openSession = (sessionId: string) => {
     send({ type: "switch_session", id: sessionId });
     navigate(`/chat/${sessionId}`);
@@ -284,29 +400,76 @@ export function TasksPage({ send }: TasksPageProps) {
     }
     let expr: string | undefined;
     let iso: string | undefined;
+    let interval: { number: number; unit: IntervalUnit } | undefined;
+    let delay: number | undefined;
+    const cap = maxRuns.trim() ? Number.parseInt(maxRuns.trim(), 10) : undefined;
     if (mode === "recurring") {
-      const [h, m] = time.split(":");
-      if (freq === "daily") expr = `${m || "0"} ${h || "0"} * * *`;
-      else if (freq === "weekly") {
-        const days = [...weekdays].sort().join(",");
-        if (!weekdays.length) {
-          setLocalError(t("tasks.form.errors.weekday"));
-          return;
-        }
-        expr = `${m || "0"} ${h || "0"} * * ${days}`;
-      } else {
-        if (!cronExpr.trim()) {
-          setLocalError(t("tasks.form.errors.cron"));
-          return;
-        }
-        expr = cronExpr.trim();
+      if (cap !== undefined && (!Number.isInteger(cap) || cap < 1)) {
+        setLocalError(t("tasks.form.errors.maxRuns"));
+        return;
       }
+      if (freq === "interval") {
+        // Interval builder (add-cron-automation-parity): a cron-impossible step
+        // like "every 40 days" is expressible only here; the rule is the truth.
+        const n = Number.parseInt(intervalNumber, 10);
+        if (!Number.isInteger(n) || n < 1 || n > 200) {
+          setLocalError(t("tasks.form.errors.intervalNumber"));
+          return;
+        }
+        interval = { number: n, unit: intervalUnit };
+      } else {
+        const [h, m] = time.split(":");
+        if (freq === "daily") expr = `${m || "0"} ${h || "0"} * * *`;
+        else if (freq === "weekly") {
+          const days = [...weekdays].sort().join(",");
+          if (!weekdays.length) {
+            setLocalError(t("tasks.form.errors.weekday"));
+            return;
+          }
+          expr = `${m || "0"} ${h || "0"} * * ${days}`;
+        } else {
+          if (!cronExpr.trim()) {
+            setLocalError(t("tasks.form.errors.cron"));
+            return;
+          }
+          expr = cronExpr.trim();
+        }
+      }
+    } else if (onceRelative) {
+      // Relative one-shot: submit the DELAY, never a wall time — the server
+      // anchors it to its own clock (a past client-computed time would roll a
+      // year forward).
+      const d = Number.parseInt(delayMinutes, 10);
+      if (!Number.isInteger(d) || d < 1) {
+        setLocalError(t("tasks.form.errors.delayMinutes"));
+        return;
+      }
+      delay = d;
     } else {
       if (!when) {
         setLocalError(t("tasks.form.errors.when"));
         return;
       }
       iso = new Date(when).toISOString();
+    }
+    // Editing routes to cron_update (id/history/paused preserved); a create
+    // goes out as cron_add with the same schedule fields.
+    if (editingId) {
+      send({
+        type: "cron_update",
+        jobId: editingId,
+        ...(interval ? { interval } : {}),
+        ...(expr ? { cron: expr } : {}),
+        ...(iso ? { when: iso } : {}),
+        ...(delay !== undefined ? { delayMinutes: delay } : {}),
+        ...(cap !== undefined ? { maxRuns: cap } : {}),
+        prompt: prompt.trim(),
+        tz: tz.trim() || null,
+        ...(name.trim() ? { sessionTitle: name.trim() } : {}),
+      });
+      setPendingSubmit(Date.now());
+      setEditingId(null);
+      return;
     }
     send({
       type: "cron_add",
@@ -316,26 +479,70 @@ export function TasksPage({ send }: TasksPageProps) {
       preset: effectiveAgent || null,
       tz: tz.trim() || null,
       sessionTitle: name.trim() || null,
+      ...(interval ? { interval } : {}),
+      ...(delay !== undefined ? { delayMinutes: delay } : {}),
+      ...(cap !== undefined ? { maxRuns: cap } : {}),
+      ...(projectFilter !== "all" && projectFilter !== "default" ? { projectId: projectFilter } : {}),
     });
     setPendingSubmit(Date.now());
     setPrompt("");
     setName("");
+    setMaxRuns("");
   };
 
   const errorText = localError ?? (lastError?.action === "cron_add" ? lastError.message : null);
+
+  // Project filter (add-web-project-container 3.3) — display-only.
+  const projects = useProjectsStore((s) => s.projects);
+  useEffect(() => {
+    if (!IS_DESKTOP) void useProjectsStore.getState().load();
+  }, []);
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const visibleJobs = useMemo(() => {
+    if (projectFilter === "all") return jobs;
+    if (projectFilter === "default") return jobs.filter((j) => !j.projectId);
+    return jobs.filter((j) => j.projectId === projectFilter);
+  }, [jobs, projectFilter]);
 
   return (
     <div className="flex h-full flex-col bg-background" data-testid="cron-page">
       <div className="border-b border-border px-6 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold">{t("tasks.title")}</h1>
-          <button
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={() => setFormOpen((v) => !v)}
-            data-testid="cron-new-toggle"
-          >
-            {formOpen ? t("tasks.form.close") : t("tasks.form.title")}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Project filter (add-web-project-container 3.3): "all" is the
+                default and filters nothing — the list reads exactly as before
+                this change. Display-only; every action still addresses jobs by
+                id. Desktop has no project concept, so the control is web-only. */}
+            {!IS_DESKTOP ? (
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                data-testid="cron-project-filter"
+                aria-label={t("tasks.projectFilter")}
+              >
+                <option value="all">{t("tasks.projectAll")}</option>
+                <option value="default">{t("sidebar.defaultProject")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <button
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={() => {
+                // Opening the form fresh cancels any in-flight edit.
+                if (formOpen) setEditingId(null);
+                setFormOpen((v) => !v);
+              }}
+              data-testid="cron-new-toggle"
+            >
+              {formOpen ? t("tasks.form.close") : t("tasks.form.title")}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -405,7 +612,7 @@ export function TasksPage({ send }: TasksPageProps) {
             {mode === "recurring" ? (
               <div className="mt-3 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  {(["daily", "weekly", "custom"] as Freq[]).map((f) => (
+                  {(["daily", "weekly", "custom", "interval"] as Freq[]).map((f) => (
                     <button
                       key={f}
                       className={`rounded-md px-3 py-1 text-sm ${freq === f ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
@@ -433,7 +640,32 @@ export function TasksPage({ send }: TasksPageProps) {
                     ))}
                   </div>
                 )}
-                {freq === "custom" ? (
+                {freq === "interval" ? (
+                  <div className="flex flex-wrap items-center gap-2" data-testid="cron-interval-builder">
+                    <span className="text-xs text-muted-foreground">{t("tasks.form.every")}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      className="w-16 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                      value={intervalNumber}
+                      onChange={(e) => setIntervalNumber(e.target.value)}
+                      data-testid="cron-interval-number"
+                    />
+                    <select
+                      className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                      value={intervalUnit}
+                      onChange={(e) => setIntervalUnit(e.target.value as IntervalUnit)}
+                      data-testid="cron-interval-unit"
+                    >
+                      {(["minute", "hour", "day", "week"] as IntervalUnit[]).map((u) => (
+                        <option key={u} value={u}>
+                          {t(`tasks.form.unit.${u}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : freq === "custom" ? (
                   <input
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                     placeholder={t("tasks.form.cronPlaceholder")}
@@ -450,15 +682,64 @@ export function TasksPage({ send }: TasksPageProps) {
                     data-testid="cron-time"
                   />
                 )}
+                {/* Finite-run cap (add-cron-automation-parity): blank = unbounded. */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="cron-max-runs" className="text-xs text-muted-foreground">
+                    {t("tasks.form.maxRuns")}
+                  </label>
+                  <input
+                    id="cron-max-runs"
+                    type="number"
+                    min={1}
+                    placeholder={t("tasks.form.maxRunsPlaceholder")}
+                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    value={maxRuns}
+                    onChange={(e) => setMaxRuns(e.target.value)}
+                    data-testid="cron-max-runs"
+                  />
+                </div>
               </div>
             ) : (
-              <input
-                type="datetime-local"
-                className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                value={when}
-                onChange={(e) => setWhen(e.target.value)}
-                data-testid="cron-when"
-              />
+              <div className="mt-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { key: false, label: t("tasks.form.onceAbsolute") },
+                    { key: true, label: t("tasks.form.onceRelative") },
+                  ].map((opt) => (
+                    <button
+                      key={String(opt.key)}
+                      type="button"
+                      className={`rounded-md px-3 py-1 text-sm ${onceRelative === opt.key ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                      onClick={() => setOnceRelative(opt.key)}
+                      data-testid={`cron-once-${opt.key ? "relative" : "absolute"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {onceRelative ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Submits the DELAY; the server anchors it. Never a wall time. */}
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                      value={delayMinutes}
+                      onChange={(e) => setDelayMinutes(e.target.value)}
+                      data-testid="cron-delay-minutes"
+                    />
+                    <span className="text-xs text-muted-foreground">{t("tasks.form.minutesAfterNow")}</span>
+                  </div>
+                ) : (
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    value={when}
+                    onChange={(e) => setWhen(e.target.value)}
+                    data-testid="cron-when"
+                  />
+                )}
+              </div>
             )}
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -511,8 +792,18 @@ export function TasksPage({ send }: TasksPageProps) {
               onClick={submit}
               data-testid="cron-submit"
             >
-              {t("tasks.form.submit")}
+              {editingId ? t("tasks.actions.edit") : t("tasks.form.submit")}
             </button>
+            {editingId ? (
+              <button
+                type="button"
+                className="mt-3 ml-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                onClick={cancelEdit}
+                data-testid="cron-edit-cancel"
+              >
+                {t("tasks.form.close")}
+              </button>
+            ) : null}
           </div>
         )}
 
@@ -538,7 +829,9 @@ export function TasksPage({ send }: TasksPageProps) {
             </div>
           </div>
         ) : (
-          jobs.map((job) => <TaskCard key={job.id} job={job} send={send} onOpenSession={openSession} />)
+          visibleJobs.map((job) => (
+            <TaskCard key={job.id} job={job} send={send} onOpenSession={openSession} onEdit={startEdit} />
+          ))
         )}
       </div>
     </div>

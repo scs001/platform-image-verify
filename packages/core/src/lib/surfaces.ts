@@ -101,6 +101,24 @@ export const SURFACE_REGISTRY: Record<SurfaceContainer, RegistryEntry[]> = {
 
 export const SURFACE_CONTAINERS: SurfaceContainer[] = ["nav", "settings", "agentsTabs"];
 
+// ── Nav families (add-knowledge-memory-surface D1) ──────────────────────────
+// Presentation-only grouping of the nav (a Codex-style collapsible family). It
+// is NOT registry data: the resolver already decided which slugs exist; a
+// family only arranges the survivors, and a hidden slug simply never shows.
+// The slug membership lives here (not in the client) so the client never
+// re-derives which surfaces belong together.
+export interface NavFamily {
+  /** Stable id; the client renders the label from `nav.family.<id>`. */
+  id: string;
+  /** Members in registry order. */
+  slugs: string[];
+}
+
+export const NAV_FAMILIES: NavFamily[] = [
+  { id: "knowledge", slugs: ["knowledge", "resources", "memory"] },
+  { id: "build", slugs: ["fleets", "blueprints"] },
+];
+
 export function registryFor(container: SurfaceContainer): RegistryEntry[] {
   return SURFACE_REGISTRY[container] ?? [];
 }

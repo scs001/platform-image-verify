@@ -115,14 +115,75 @@ const TOOLS = [
 
 // ── Tool implementations (plain strings — the model reads text) ─────────────
 
+// Retrieval boundary (add-knowledge-memory-surface, design D2): the TOOL SERVER
+// enforces the turn's project boundary — prompt text is not a boundary. The
+// project id arrives as a server-set env var (the lane that spawns this child
+// stamps it); absent = no project context = the pre-change whole-account view.
+// Bounded view = this project's collections ∪ unattributed (NULL) collections.
+// Reads outside answer "does not exist" — never "forbidden", which would
+// confirm existence to a caller that must not know about it.
+const PROJECT_ID = (process.env.LIBRARY_PROJECT_ID || "").trim() || null;
+
+// Collection whitelist (add-knowledge-memory-surface 3.2): a KB-pinned agent
+// (blueprint dataSources `library:<id>`, materialized) gets EXACTLY those
+// collections ∪ shared — narrower than a project boundary. Takes precedence
+// over LIBRARY_PROJECT_ID when both are present.
+const COLLECTION_IDS = (process.env.LIBRARY_COLLECTIONS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function boundedCollectionIds() {
+  if (COLLECTION_IDS.length > 0) {
+    // Spec: a pinned member sees the pinned collections ∪ SHARED (unattributed)
+    // — same shared bucket the project boundary unions with.
+    const shared = db.listCollections({ projectId: null }).map((c) => c.id);
+    return new Set([...COLLECTION_IDS, ...shared]);
+  }
+  if (!PROJECT_ID) return null; // null = unbounded (whole account library)
+  const mine = db.listCollections({ projectId: PROJECT_ID }).map((c) => c.id);
+  const shared = db.listCollections({ projectId: null }).map((c) => c.id);
+  return new Set([...mine, ...shared]);
+}
+
+function isDocInBoundary(docId) {
+  const allowed = boundedCollectionIds();
+  if (!allowed) return true;
+  // In-boundary = belongs to an allowed collection, OR belongs to no collection
+  // at all (a loose library doc is account-level, like the shared bucket).
+  const memberships = db
+    .listCollections()
+    .filter((c) => db.listCollectionDocuments(c.id).some((d) => d.id === docId))
+    .map((c) => c.id);
+  if (memberships.length === 0) return true;
+  return memberships.some((id) => allowed.has(id));
+}
+
 function toolListLibrary({ collection } = {}) {
   if (!db.isDbReady()) return errOut("library unavailable (database not open)");
+  const allowed = boundedCollectionIds();
   if (collection && !db.getCollection(collection)) {
     return errOut(`collection ${collection} does not exist`);
   }
-  const docs = collection
+  // Out-of-bound collection reads answer "does not exist" (no existence leak).
+  if (collection && allowed && !allowed.has(collection)) {
+    return errOut(`collection ${collection} does not exist`);
+  }
+  let docs = collection
     ? db.listCollectionDocuments(collection)
     : db.listDocuments().slice(0, LIST_CAP);
+  if (!collection && allowed) {
+    // Whole-library listing under a boundary: keep docs reachable through an
+    // allowed collection (plus loose docs), drop the rest.
+    const reachable = new Set();
+    for (const id of allowed) {
+      for (const d of db.listCollectionDocuments(id)) reachable.add(d.id);
+    }
+    const collected = new Set(
+      db.listCollections().flatMap((c) => db.listCollectionDocuments(c.id).map((d) => d.id)),
+    );
+    docs = docs.filter((d) => reachable.has(d.id) || !collected.has(d.id));
+  }
   const truncated = !collection && db.listDocuments().length > LIST_CAP;
   const lines = [
     `Documents (${docs.length}${truncated ? ", listing truncated" : ""}):`,
@@ -131,7 +192,7 @@ function toolListLibrary({ collection } = {}) {
     ),
   ];
   if (!collection) {
-    const cols = db.listCollections();
+    const cols = db.listCollections().filter((c) => !allowed || allowed.has(c.id));
     lines.push("", `Collections (${cols.length}):`);
     for (const c of cols) {
       const members = db
@@ -146,14 +207,24 @@ function toolListLibrary({ collection } = {}) {
 
 function toolSearchLibrary({ query, collection, doc, limit } = {}) {
   if (!db.isDbReady()) return errOut("library unavailable (database not open)");
+  const allowed = boundedCollectionIds();
+  if (collection && allowed && !allowed.has(collection)) {
+    return errOut(`collection ${collection} does not exist`);
+  }
+  if (doc && !isDocInBoundary(String(doc))) {
+    return errOut(`document ${JSON.stringify(String(doc))} does not exist`);
+  }
   const hits = search.searchLibrary(String(query ?? ""), {
     collectionId: collection || null,
     docId: doc || null,
     limit: Number(limit) || 10,
   });
-  if (!hits.length) return textOut(`No matches for ${JSON.stringify(String(query))}.`);
+  // Post-filter hits that landed outside the boundary: search spans the whole
+  // index, the boundary decides what this caller may see.
+  const visible = allowed ? hits.filter((h) => isDocInBoundary(String(h.docId))) : hits;
+  if (!visible.length) return textOut(`No matches for ${JSON.stringify(String(query))}.`);
   return textOut(
-    hits
+    visible
       .map((h) => `- ${JSON.stringify(h.name)} [doc_id: ${h.docId}, loc: ${h.loc}]: ${h.snippet}`)
       .join("\n"),
   );
@@ -161,7 +232,10 @@ function toolSearchLibrary({ query, collection, doc, limit } = {}) {
 
 function toolReadDocument({ doc_id, cursor } = {}) {
   if (!db.isDbReady()) return errOut("library unavailable (database not open)");
-  const page = search.readDocumentPage(String(doc_id ?? ""), Number(cursor) || 0);
+  const id = String(doc_id ?? "");
+  // Out-of-bound reads answer exactly like an unknown id (no existence leak).
+  if (!isDocInBoundary(id)) return errOut(`document ${JSON.stringify(id)} does not exist`);
+  const page = search.readDocumentPage(id, Number(cursor) || 0);
   if (page.error) return errOut(page.error);
   const header = `(${JSON.stringify(page.name)}, ${page.text.length} chars of ${page.total} total)`;
   const next = page.nextCursor != null ? `\n[next_cursor: ${page.nextCursor}]` : "\n[end of document]";
@@ -175,6 +249,8 @@ async function toolFetchDocumentFile({ doc_id } = {}) {
   const id = String(doc_id ?? "").trim();
   if (!id) return errOut("fetch_document_file requires doc_id");
   if (!db.isDbReady()) return errOut("library unavailable (database not open)");
+  // Boundary applies here too — otherwise bytes become an existence oracle.
+  if (!isDocInBoundary(id)) return errOut(`document ${JSON.stringify(id)} does not exist`);
   const doc = db.getDocument(id);
   if (!doc) return errOut(`document ${JSON.stringify(id)} does not exist`);
   try {

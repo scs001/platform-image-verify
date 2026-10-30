@@ -63,13 +63,42 @@ export function CopilotDock({ send }: Props) {
       setBoardLine("facet");
       return;
     }
+    // Teams hub (add-teams-hub-formation-board 3.1): /fleets and /fleets/:id
+    // open the dock with the fleets line — the focused preset resolves to the
+    // fleet architect when one is installed (honest null otherwise), and the
+    // hub's roster/selection rides the fleets:selection event as context.
+    if (location.pathname === "/fleets" || location.pathname.startsWith("/fleets/")) {
+      setBoardLine("fleets");
+      return;
+    }
     setBoardLine(null);
   }, [location.pathname, location.search]);
 
   // Resolve the line's focused assistant as soon as the line is known (before
   // the FAB is clicked), so opening the dock does not wait on the request.
   useEffect(() => {
-    if (!boardLine || !lineBoardsEnabled) {
+    if (!boardLine) {
+      setPreset(null);
+      return;
+    }
+    // The fleets hub is not a line board — its focus resolves from the
+    // installed-pack roster, not the line-board copilot lane; the board-gate
+    // (lineBoardsEnabled) does not apply to it.
+    if (boardLine === "fleets") {
+      let cancelled = false;
+      fetch("/api/fleets/copilot")
+        .then((r) => (r.ok ? r.json() : { copilot: null }))
+        .then((body) => {
+          if (!cancelled) setPreset({ line: boardLine, copilot: body?.copilot ?? null });
+        })
+        .catch(() => {
+          if (!cancelled) setPreset({ line: boardLine, copilot: null });
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!lineBoardsEnabled) {
       setPreset(null);
       return;
     }
@@ -117,9 +146,36 @@ export function CopilotDock({ send }: Props) {
     }
   }, [packCtx, open]);
 
+  // Teams-hub context (add-teams-hub-formation-board 3.1): while open on the
+  // fleets line, mirror the hub's roster/selection into the embed so the
+  // architect sees what the owner sees. Same postMessage channel as the
+  // board/facet contexts.
+  const [fleetCtx, setFleetCtx] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || boardLine !== "fleets") {
+      setFleetCtx(null);
+      return;
+    }
+    const onSelection = (e: Event) => {
+      setFleetCtx((e as CustomEvent<{ fleetId?: string | null }>).detail?.fleetId ?? null);
+    };
+    window.addEventListener("fleets:selection", onSelection);
+    return () => window.removeEventListener("fleets:selection", onSelection);
+  }, [open, boardLine]);
+  useEffect(() => {
+    if (!open || boardLine !== "fleets") return;
+    const frame = document.querySelector<HTMLIFrameElement>("[data-testid=copilot-frame]");
+    if (frame && frame.contentWindow) {
+      frame.contentWindow.postMessage({ type: "copilot_context", board: "fleets", fleetId: fleetCtx }, window.location.origin);
+    }
+  }, [fleetCtx, open, boardLine]);
+
   // The preset answer for THIS line; still in flight → hold the iframe (a
   // reload after the first frame would re-run the switch for nothing).
-  const resolved = !boardLine || !lineBoardsEnabled || preset?.line === boardLine;
+  // The preset answer for THIS line; still in flight → hold the iframe (a
+  // reload after the first frame would re-run the switch for nothing). The
+  // fleets line waits the same way — its answer comes from /api/fleets/copilot.
+  const resolved = !boardLine || (boardLine !== "fleets" && !lineBoardsEnabled) || preset?.line === boardLine;
   const copilot = preset?.line === boardLine ? preset.copilot : null;
 
   // What the open dock last injected. Kept while the dock navigates to a route

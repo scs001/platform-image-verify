@@ -189,6 +189,63 @@ test.describe("library index + tools", () => {
     const unknown = await expandDocRefs({ db }, "@doc:missing-id what is this");
     expect(unknown).toContain("unavailable");
   });
+
+  test("project boundary: a scoped child sees its project ∪ shared only", async () => {
+    // Self-contained documents: the delete test earlier in this file removes
+    // the shared fixtures, so this case mints its own (the FK from
+    // collection_documents to documents would otherwise fail).
+    const aDoc = await documents.addDocument({ type: "markdown", name: "boundary-a.md", content: "# A\n\nalpha only body" });
+    const bDoc = await documents.addDocument({ type: "markdown", name: "boundary-b.md", content: "# B\n\nbeta only body" });
+    // Two projects; one collection each; plus an unattributed (shared) one.
+    const stamp = Date.now();
+    const pA = db.upsertProjectByName(`projA-${stamp}`, `/projects/projA-${stamp}`);
+    const pB = db.upsertProjectByName(`projB-${stamp}`, `/projects/projB-${stamp}`);
+    db.createCollection({ id: `col-a-${stamp}`, name: "A only", description: null, created_at: new Date().toISOString(), project_id: pA.id });
+    db.createCollection({ id: `col-b-${stamp}`, name: "B only", description: null, created_at: new Date().toISOString(), project_id: pB.id });
+    db.createCollection({ id: `col-shared-${stamp}`, name: "Shared", description: null, created_at: new Date().toISOString(), project_id: null });
+    db.addDocumentToCollection(`col-a-${stamp}`, aDoc.id);
+    db.addDocumentToCollection(`col-b-${stamp}`, bDoc.id);
+
+    // A child scoped to project A must NOT see project B's document at all.
+    const scoped = await McpChild.start(dbDir, { LIBRARY_PROJECT_ID: pA.id });
+    const list = await scoped.call("tools/call", { name: "list_library", arguments: {} });
+    const text = list.result.content[0].text;
+    expect(text).toContain("A only");
+    expect(text).toContain("Shared");
+    expect(text).not.toContain("B only");
+
+    // Reading project B's doc answers exactly like an unknown id (no existence
+    // leak), and its collection is likewise "does not exist".
+    const peek = await scoped.call("tools/call", { name: "read_document", arguments: { doc_id: bDoc.id } });
+    expect(peek.result.isError).toBe(true);
+    expect(peek.result.content[0].text).toContain("does not exist");
+    const badCol = await scoped.call("tools/call", { name: "list_library", arguments: { collection: `col-b-${stamp}` } });
+    expect(badCol.result.isError).toBe(true);
+    expect(badCol.result.content[0].text).toContain("does not exist");
+
+    // The in-boundary doc still reads normally.
+    const ok = await scoped.call("tools/call", { name: "read_document", arguments: { doc_id: aDoc.id } });
+    expect(ok.result.isError).toBeFalsy();
+    expect(ok.result.content[0].text).toContain("alpha only body");
+
+    // No scope env = the pre-change whole-account view (both projects visible).
+    const unscoped = await McpChild.start(dbDir);
+    const all = await unscoped.call("tools/call", { name: "list_library", arguments: {} });
+    expect(all.result.content[0].text).toContain("B only");
+
+    // Collection whitelist (3.2): a KB-pinned member sees exactly the pinned
+    // collections ∪ shared — narrower than a project boundary.
+    const pinned = await McpChild.start(dbDir, { LIBRARY_COLLECTIONS: `col-a-${stamp}` });
+    const pinnedList = await pinned.call("tools/call", { name: "list_library", arguments: {} });
+    const ptext = pinnedList.result.content[0].text;
+    expect(ptext).toContain("A only");
+    expect(ptext).toContain("Shared");
+    expect(ptext).not.toContain("B only");
+    // Out-of-whitelist read answers like an unknown id.
+    const ppeek = await pinned.call("tools/call", { name: "read_document", arguments: { doc_id: bDoc.id } });
+    expect(ppeek.result.isError).toBe(true);
+    expect(ppeek.result.content[0].text).toContain("does not exist");
+  });
 });
 
 // Minimal MCP stdio client for the spec: newline-delimited JSON-RPC, one

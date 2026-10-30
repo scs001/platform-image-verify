@@ -919,6 +919,34 @@ const MIGRATIONS = [
     ],
   },
   {
+    // add-skill-self-evolution: the candidate store (AI-proposed skills) and
+    // the lineage column on custom_skills. Candidates live OUTSIDE
+    // custom_skills on purpose (D1): the materializer mirrors custom_skills
+    // verbatim, so a status column there would be one missed filter away from
+    // a candidate going live. Promotion is a one-way write with audit.
+    // lineage records "superseded by X per eval Y" on the OLD row (never
+    // delete — 永不删页只 lineage).
+    version: 109,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS skill_candidates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        body TEXT NOT NULL,
+        evidence TEXT NOT NULL,
+        supersedes TEXT,
+        status TEXT NOT NULL DEFAULT 'candidate',
+        eval_report TEXT,
+        proposed_by TEXT,
+        created_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_skill_candidates_status ON skill_candidates(status)`,
+      `ALTER TABLE custom_skills ADD COLUMN evolution_lineage TEXT`,
+    ],
+  },
+  {
     // add-unified-fleet-console: a deployment row remembers WHO established it
     // — 'manual' (user action on this machine, wins over cloud desired state)
     // or 'cloud' (applied by the desired-state merge, keeps following the
@@ -930,6 +958,42 @@ const MIGRATIONS = [
     statements: [
       `ALTER TABLE local_fleet_deployments ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
     ],
+  },
+  {
+    // add-web-project-container: Project as the web-side top-level container —
+    // a persisted entity with identity (id + display name), NOT just a
+    // directory. `projects` carries id/name/backing-path (unique)/owner and
+    // timestamps. Sessions and document collections each gain a nullable
+    // project_id (additive; every existing row keeps NULL → the read-time
+    // 默认项目 fallback). Cron jobs get the same attribution but live in
+    // task-engine's jobs.json (file store), NOT this SQLite DB — they carry
+    // project_id as a record field there (handled with the cron lane, not a
+    // migration). The backing path stays the engine-facing contract: the dsh
+    // cwd and the set_workspace chain are untouched (design D1). The ALTERs
+    // ride the `apply` hook with PRAGMA guards because a fresh DB created them
+    // inside the CREATE TABLE (so an ALTER would throw "duplicate column")
+    // while older DBs need the column added — same idempotency convention as
+    // v6 chat_messages.blocks.
+    version: 110,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        backing_path TEXT NOT NULL,
+        owner TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_backing_path ON projects(backing_path)`,
+    ],
+    apply: (db) => {
+      const addCol = (table, col) => {
+        const cols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+        if (!cols.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
+      };
+      addCol("chat_sessions", "project_id");
+      addCol("collections", "project_id");
+    },
   },
 ];
 
@@ -1036,16 +1100,24 @@ function stmt(sql) {
 
 export function upsertSession(id, title, createdAt, updatedAt, path = null, agentPreset = null, workspace = null) {
   if (!dbReady) return;
+  // Project attribution (add-web-project-container, design D2): the session's
+  // workspace path is backtraced to a project row at the SAME single stamping
+  // point as the workspace column itself — no separate enqueue-side writer.
+  // A path with no project (desktop origin, legacy rows) stays NULL and renders
+  // under the read-time 默认项目 fallback. Write-once like workspace: a later
+  // turn whose workspace changed must not re-stamp creation facts.
+  const projectId = workspace ? (getProjectByPath(workspace)?.id ?? null) : null;
   stmt(
-    `INSERT INTO chat_sessions (id, title, created_at, updated_at, path, agent_preset, workspace)
-     VALUES (@id, @title, @created_at, @updated_at, @path, @agent_preset, @workspace)
+    `INSERT INTO chat_sessions (id, title, created_at, updated_at, path, agent_preset, workspace, project_id)
+     VALUES (@id, @title, @created_at, @updated_at, @path, @agent_preset, @workspace, @project_id)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title,
        updated_at = excluded.updated_at,
        path = COALESCE(excluded.path, chat_sessions.path),
        agent_preset = COALESCE(chat_sessions.agent_preset, excluded.agent_preset),
-       workspace = COALESCE(chat_sessions.workspace, excluded.workspace)`
-  ).run({ id, title: title || "New chat", created_at: createdAt, updated_at: updatedAt, path, agent_preset: agentPreset, workspace });
+       workspace = COALESCE(chat_sessions.workspace, excluded.workspace),
+       project_id = COALESCE(chat_sessions.project_id, excluded.project_id)`
+  ).run({ id, title: title || "New chat", created_at: createdAt, updated_at: updatedAt, path, agent_preset: agentPreset, workspace, project_id: projectId });
 }
 
 export function setSessionPath(id, path) {
@@ -1078,6 +1150,57 @@ export function backfillSessionOwners(owner) {
 export function touchSession(id, updatedAt) {
   if (!dbReady) return;
   stmt("UPDATE chat_sessions SET updated_at = ? WHERE id = ?").run(updatedAt, id);
+}
+
+// ── Projects (add-web-project-container) ────────────────────────────────────
+// Project = the web-side top-level container with identity (id + display
+// name). `backing_path` is the engine-facing directory the set_workspace switch
+// already produces; the unique index makes path→id backtrace a single lookup
+// (design D2). Rows are additive: a directory created before this table existed
+// attaches by path on the next create attempt, never a duplicate.
+
+export function listProjects() {
+  if (!dbReady) return [];
+  return stmt(
+    "SELECT id, name, backing_path AS backingPath, owner, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY name"
+  ).all();
+}
+
+export function getProjectByPath(backingPath) {
+  if (!dbReady || !backingPath) return null;
+  const row = stmt(
+    "SELECT id, name, backing_path AS backingPath, owner, created_at AS createdAt FROM projects WHERE backing_path = ?"
+  ).get(backingPath);
+  return row ?? null;
+}
+
+export function getProjectById(id) {
+  if (!dbReady || !id) return null;
+  const row = stmt(
+    "SELECT id, name, backing_path AS backingPath, owner, created_at AS createdAt FROM projects WHERE id = ?"
+  ).get(id);
+  return row ?? null;
+}
+
+// Insert-or-attach by backing path. A directory that already backs a project
+// returns the existing row (attaching, design D5 / spec: attach on reuse); a
+// fresh one mints a new id and returns it. Returns { id, name, path, attached }.
+export function upsertProjectByName(name, backingPath, owner = null) {
+  if (!dbReady || !name || !backingPath) return null;
+  const existing = getProjectByPath(backingPath);
+  if (existing) return { id: existing.id, name: existing.name, path: backingPath, attached: true };
+  const id = crypto.randomUUID();
+  stmt(
+    "INSERT INTO projects (id, name, backing_path, owner, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(id, name, backingPath, owner, nowIso(), nowIso());
+  return { id, name, path: backingPath, attached: false };
+}
+
+// Rename display name only; backing path and identity never move (design D5).
+// Returns true when a row changed.
+export function renameProject(id, name) {
+  if (!dbReady || !id || !name) return false;
+  return stmt("UPDATE projects SET name = ?, updated_at = ? WHERE id = ?").run(name, nowIso(), id).changes > 0;
 }
 
 // Set a session's title and bump updated_at. Returns true if the row was
@@ -1113,7 +1236,7 @@ export function appendMessage(sessionId, role, content, createdAt, blocksJson) {
 //   { includeAll: true } — every row (admin group / ops console)
 export function listChatSessions(scope) {
   if (!dbReady) return [];
-  const base = `SELECT s.id, s.title, s.created_at AS createdAt, s.updated_at AS updatedAt, s.path, s.agent_preset AS agentPreset, s.workspace, s.owner,
+  const base = `SELECT s.id, s.title, s.created_at AS createdAt, s.updated_at AS updatedAt, s.path, s.agent_preset AS agentPreset, s.workspace, s.project_id AS projectId, s.owner,
               (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.id) AS messageCount
        FROM chat_sessions s`;
   if (scope?.owner && !scope.includeAll) {
@@ -1482,12 +1605,12 @@ export function getDocIndex(docId) {
 // foreign keys ON DELETE CASCADE, so deleting a document removes its memberships
 // and deleting a collection removes its memberships (but never the documents).
 
-export function createCollection({ id, name, description, created_at }) {
+export function createCollection({ id, name, description, created_at, project_id = null }) {
   if (!dbReady) return;
   stmt(
-    `INSERT INTO collections (id, name, description, created_at)
-     VALUES (@id, @name, @description, @created_at)`
-  ).run({ id, name, description, created_at });
+    `INSERT INTO collections (id, name, description, created_at, project_id)
+     VALUES (@id, @name, @description, @created_at, @project_id)`
+  ).run({ id, name, description, created_at, project_id });
 }
 
 export function getCollection(id) {
@@ -1495,7 +1618,7 @@ export function getCollection(id) {
   return (
     db
       .prepare(
-        `SELECT c.id, c.name, c.description, c.created_at AS createdAt,
+        `SELECT c.id, c.name, c.description, c.created_at AS createdAt, c.project_id AS projectId,
                 (SELECT COUNT(*) FROM collection_documents cd WHERE cd.collection_id = c.id) AS documentCount
          FROM collections c WHERE c.id = ?`
       )
@@ -1503,15 +1626,20 @@ export function getCollection(id) {
   );
 }
 
-export function listCollections() {
+// projectId: undefined = every collection (default view, unchanged behavior);
+// null = only unattributed (默认项目); a string = that project's collections.
+export function listCollections({ projectId } = {}) {
   if (!dbReady) return [];
-  return db
-    .prepare(
-      `SELECT c.id, c.name, c.description, c.created_at AS createdAt,
+  const base = `SELECT c.id, c.name, c.description, c.created_at AS createdAt, c.project_id AS projectId,
               (SELECT COUNT(*) FROM collection_documents cd WHERE cd.collection_id = c.id) AS documentCount
-       FROM collections c ORDER BY c.created_at DESC`
-    )
-    .all();
+       FROM collections c`;
+  if (projectId === undefined) {
+    return db.prepare(`${base} ORDER BY c.created_at DESC`).all();
+  }
+  if (projectId === null) {
+    return db.prepare(`${base} WHERE c.project_id IS NULL ORDER BY c.created_at DESC`).all();
+  }
+  return db.prepare(`${base} WHERE c.project_id = ? ORDER BY c.created_at DESC`).all(projectId);
 }
 
 export function renameCollection(id, { name, description }) {

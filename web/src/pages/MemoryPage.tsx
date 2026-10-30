@@ -80,6 +80,20 @@ export function MemoryPage() {
 
   const projects = useMemo(() => [...new Set(items.map((i) => i.project))].slice(0, 8), [items]);
 
+  // Distillation funnel (add-knowledge-memory-surface 4.2): L0→L1→L2 counts and
+  // shares over the CURRENT filter result, so the funnel and the list below
+  // always speak the same numbers. Clicking a segment applies that layer filter
+  // (the same one the chip row sets). Degraded state never draws a fake funnel.
+  const funnel = useMemo(() => {
+    const counts: Record<"L0" | "L1" | "L2", number> = { L0: 0, L1: 0, L2: 0 };
+    for (const it of items) {
+      const l = String(it.layer ?? "").toUpperCase();
+      if (l === "L0" || l === "L1" || l === "L2") counts[l] += 1;
+    }
+    const total = counts.L0 + counts.L1 + counts.L2;
+    return { counts, total };
+  }, [items]);
+
   return (
     <div className="flex h-full flex-col bg-background" data-testid="memory-page">
       <div className="border-b border-border px-6 py-4">
@@ -123,6 +137,42 @@ export function MemoryPage() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        {/* Distillation funnel (add-knowledge-memory-surface 4.2) — the primary
+            view: L0→L1→L2 counts + shares over the current filter result.
+            Clicking a segment applies that layer filter. Degraded state shows
+            the explanation (below), never a zero-drawn funnel. */}
+        {!degraded && !loading && funnel.total > 0 ? (
+          <div className="mb-4 rounded-md border border-border bg-card p-3" data-testid="memory-funnel">
+            <div className="text-xs font-medium text-muted-foreground">{t("memory.funnel.title")}</div>
+            <div className="mt-2 flex items-end gap-2" data-testid="memory-funnel-bars">
+              {(["L0", "L1", "L2"] as const).map((l, i) => {
+                const n = funnel.counts[l];
+                const pct = funnel.total ? Math.round((n / funnel.total) * 100) : 0;
+                // Widening bars read as a funnel; colour tracks depth.
+                const tone = i === 0 ? "bg-muted-foreground/30" : i === 1 ? "bg-primary/40" : "bg-primary";
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setLayer(l)}
+                    data-testid={`memory-funnel-seg-${l}`}
+                    className={`flex-1 rounded-md px-2 py-2 text-left hover:opacity-80 ${layer === l ? "ring-2 ring-primary" : ""}`}
+                    title={t("memory.funnel.segTitle", { layer: l, count: n, pct })}
+                  >
+                    <div className={`h-1.5 rounded-full ${tone}`} style={{ width: `${Math.max(pct, 4)}%` }} />
+                    <div className="mt-1.5 flex items-baseline gap-1.5">
+                      <span className="text-sm font-semibold tabular-nums">{n}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {l}·{LAYER_LABEL[l]} · {pct}%
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+        {/* Promotion box sits above the list (spec: 晋升箱第一区块). */}
         {!degraded && promotions.length > 0 ? (
           <div className="mb-4 rounded-md border border-primary/30 bg-primary/5 p-3" data-testid="memory-promotions">
             <div className="text-sm font-medium text-primary" data-testid="memory-promotions-count">

@@ -338,9 +338,10 @@ export function FleetsPage() {
   }, []);
 
   // Deep link /:fleetId selects the fleet (the cockpit is THE fleet page, D6).
-  // The clear runs ONLY on a route change into bare /fleets — manual selection
-  // (rail click, card click, create) happens on an unchanged route and must
-  // survive this effect.
+  // Selection is route-driven end to end (polish-agent-teams-hub-navigation):
+  // every open goes through openFleet → navigate, so this effect is the single
+  // writer of the selection. The clear runs on a route change back into bare
+  // /fleets (switch click, back button, dissolve).
   const { fleetId: routeFleetId } = useParams();
   const prevRouteFleetId = useRef<string | undefined>(undefined);
   // biome-ignore lint/correctness/useExhaustiveDependencies: route-change-only effect — manual selections ride an unchanged route and must not be cleared
@@ -351,20 +352,69 @@ export function FleetsPage() {
       if (routeFleetId !== selectedId) setSelectedId(routeFleetId);
     } else if (hadRoute) {
       setSelectedId(null);
+      // Back on the hub, the previous entry source is spent — a later deep
+      // link must not inherit its highlight (polish-agent-teams-hub-navigation).
+      try {
+        sessionStorage.removeItem("fleets.hubSourceView");
+      } catch {
+        /* storage blocked */
+      }
     }
   }, [routeFleetId]);
 
   // View switch inside the nav item (agent-teams-first-class D1): /fleets is
   // the overview board by default, ?view=manage the management table,
-  // ?view=owner the owner board (the pre-existing 经营坞). A selected fleet
-  // renders the cockpit and the switch disappears — /fleets/:id deep links
-  // never land in a switch state.
+  // ?view=owner the owner board. The switch stays visible in EVERY state,
+  // including the cockpit (polish-agent-teams-hub-navigation): selection is
+  // route-driven — opening a fleet navigates to /fleets/:id, and the highlight
+  // follows the hub view it was opened from (sessionStorage; a bare deep link
+  // has no source and highlights nothing).
   const [searchParams, setSearchParams] = useSearchParams();
   const hubView = searchParams.get("view") === "manage" || searchParams.get("view") === "owner" ? searchParams.get("view") : null;
   const setHubView = (v: "manage" | "owner" | null) => {
     if (v) setSearchParams({ view: v });
     else setSearchParams({});
   };
+
+  // Where the current cockpit was entered from — the team-state switch
+  // highlight. undefined = no source (bare deep link) → nothing highlighted.
+  const HUB_SOURCE_KEY = "fleets.hubSourceView";
+  const sourceView = useMemo<"manage" | "owner" | null | undefined>(() => {
+    if (!selectedId) return undefined;
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(HUB_SOURCE_KEY);
+    } catch {
+      /* storage blocked — deep-link semantics apply: no source, no highlight */
+    }
+    if (raw === "manage" || raw === "owner") return raw;
+    if (raw === "overview") return null;
+    return undefined;
+  }, [selectedId]);
+
+  // The hub scroll position survives the cockpit round-trip (back lands where
+  // the card was). FleetsPage stays mounted across /fleets <-> /fleets/:id,
+  // so an in-memory memo suffices — no storage needed.
+  const detailPaneRef = useRef<HTMLDivElement>(null);
+  const hubScrollMemo = useRef<Record<string, number>>({});
+  const openFleet = (id: string) => {
+    const el = detailPaneRef.current;
+    if (!selectedId) {
+      if (el) hubScrollMemo.current[hubView ?? "overview"] = el.scrollTop;
+      try {
+        sessionStorage.setItem(HUB_SOURCE_KEY, hubView ?? "overview");
+      } catch {
+        /* storage blocked — the switch just stops showing a source highlight */
+      }
+    }
+    navigate(`/fleets/${encodeURIComponent(id)}`);
+  };
+  useEffect(() => {
+    if (selectedId) return;
+    const el = detailPaneRef.current;
+    const saved = hubScrollMemo.current[hubView ?? "overview"];
+    if (el && saved != null) el.scrollTop = saved;
+  }, [selectedId, hubView]);
 
   // Remember the selection across navigations (the deep link above still wins).
   useEffect(() => {
@@ -374,8 +424,8 @@ export function FleetsPage() {
   // broken selection — the loaded list is the source of truth.
   useEffect(() => {
     if (listCache.status !== "loaded") return;
-    if (selectedId && !fleets.some((f) => f.id === selectedId)) setSelectedId(null);
-  }, [listCache.status, fleets, selectedId]);
+    if (selectedId && !fleets.some((f) => f.id === selectedId)) navigate("/fleets");
+  }, [listCache.status, fleets, selectedId, navigate]);
 
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
@@ -619,8 +669,8 @@ export function FleetsPage() {
     if (!window.confirm(t("fleets.ops.confirmDissolve"))) return;
     const r = await fetch(`/api/fleets/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `delete ${r.status}`);
-    setSelectedId(null);
     setDetail(null);
+    navigate("/fleets");
     await listCache.refresh();
   };
 
@@ -657,37 +707,51 @@ export function FleetsPage() {
 
   const selected = fleets.find((f) => f.id === selectedId) ?? null;
 
+  // Hub context for the copilot dock (add-teams-hub-formation-board 3.1): the
+  // dock (iframe, separate document) mirrors what the owner is looking at —
+  // selected fleet id, null when browsing the hub faces. A CustomEvent, same
+  // lane as the facet pack-inspection bridge.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("fleets:selection", { detail: { fleetId: selectedId ?? null } }));
+  }, [selectedId]);
+
   return (
     <div className="flex h-full flex-col" data-testid="fleets-page">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold">{t("fleets.title")}</h1>
-          {/* View switch (agent-teams-first-class D1): overview | manage | owner.
-              Hidden while a fleet is selected — the cockpit is its own face and
-              /fleets/:id deep links never land in a switch state. */}
-          {!selected ? (
-            <nav className="flex gap-1" data-testid="teams-view-switch">
-              {(
-                [
-                  [null, "agentTeams.views.overview", "teams-view-overview"],
-                  ["manage", "agentTeams.views.manage", "teams-view-manage"],
-                  ["owner", "agentTeams.views.owner", "teams-view-owner"],
-                ] as const
-              ).map(([value, key, testId]) => (
+          {/* View switch (agent-teams-first-class D1 + polish-agent-teams-hub-
+              navigation): overview | manage | owner — visible in EVERY state,
+              the cockpit included. In the team state the highlight shows the
+              source view (a bare deep link highlights nothing) and clicking a
+              tab leaves the fleet onto that hub view. */}
+          <nav className="flex gap-1" data-testid="teams-view-switch">
+            {(
+              [
+                [null, "agentTeams.views.overview", "teams-view-overview"],
+                ["manage", "agentTeams.views.manage", "teams-view-manage"],
+                ["owner", "agentTeams.views.owner", "teams-view-owner"],
+              ] as const
+            ).map(([value, key, testId]) => {
+              const active = selectedId ? sourceView : hubView;
+              return (
                 <button
                   key={key}
                   type="button"
                   data-testid={testId}
-                  onClick={() => setHubView(value)}
+                  onClick={() => {
+                    if (selectedId) navigate(value ? `/fleets?view=${value}` : "/fleets");
+                    else setHubView(value);
+                  }}
                   className={`rounded-md px-2 py-1 text-xs ${
-                    hubView === value ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"
+                    active === value ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   {t(key)}
                 </button>
-              ))}
-            </nav>
-          ) : null}
+              );
+            })}
+          </nav>
         </div>
         <Button variant="outline" size="sm" data-testid="fleet-create" onClick={() => setCreateOpen(true)}>
           {t("fleets.create")}
@@ -710,7 +774,7 @@ export function FleetsPage() {
                 key={f.id}
                 type="button"
                 data-testid={`fleet-card-${f.id}`}
-                onClick={() => setSelectedId(f.id)}
+                onClick={() => openFleet(f.id)}
                 className={`mb-2 w-full rounded-md border p-3 text-left ${
                   f.id === selectedId ? "border-primary bg-primary/5" : "border-border hover:bg-muted"
                 }`}
@@ -743,29 +807,25 @@ export function FleetsPage() {
 
         {/* detail — cockpit when a fleet is selected; otherwise the hub face
             (overview default, manage table, owner board) by query switch */}
-        <div className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="fleet-detail">
+        <div ref={detailPaneRef} className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="fleet-detail">
           {hubView === "manage" && !selected ? (
             <TeamsManagementView
               fleets={fleets}
               modelRoster={modelRoster ?? []}
               onPatch={managePatch}
               onBatch={manageBatch}
-              onOpenCockpit={(id) => setSelectedId(id)}
+              onOpenCockpit={openFleet}
               onCreate={() => setCreateOpen(true)}
             />
           ) : !detail || !selected ? (
             hubView === "owner" ? (
-              <OwnerBoardStrip
-                onSelect={(fleetId) => {
-                  setSelectedId(fleetId);
-                }}
-              />
+              <OwnerBoardStrip onSelect={openFleet} />
             ) : (
               <TeamsOverviewBoard
                 roster={fleets}
                 rosterError={listError}
                 onRetryRoster={() => void listCache.refresh()}
-                onSelect={(fleetId) => setSelectedId(fleetId)}
+                onSelect={openFleet}
                 onOpenManage={() => setHubView("manage")}
                 onOpenOwner={() => setHubView("owner")}
               />
@@ -1338,7 +1398,7 @@ export function FleetsPage() {
           onCreated={async (id) => {
             setCreateOpen(false);
             await listCache.refresh();
-            setSelectedId(id);
+            openFleet(id);
           }}
         />
       ) : null}

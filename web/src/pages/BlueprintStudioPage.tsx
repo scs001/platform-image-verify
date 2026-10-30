@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import { useChatStore } from "@platform/core";
 import {
   approveBlueprint,
@@ -126,6 +127,24 @@ export function BlueprintStudioPage() {
   const [draftPaste, setDraftPaste] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Knowledge-collection picker source (3.3): the owner's visible collections,
+  // fetched once per mount (the list is small; failures degrade to an empty
+  // picker — hand-typing a ref keeps working).
+  const [myCollections, setMyCollections] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/collections")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`collections ${r.status}`))))
+      .then((body) => {
+        if (alive) setMyCollections(Array.isArray(body?.collections) ? body.collections : []);
+      })
+      .catch(() => {
+        if (alive) setMyCollections([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const refreshList = useCallback(async () => {
     const out = await listBlueprints();
@@ -152,6 +171,33 @@ export function BlueprintStudioPage() {
       setBusy(null);
     }
   }, []);
+
+  // Collection handoff (add-knowledge-memory-surface 4.3): arriving from a
+  // collection card's「用它造 agent」seeds a NEW draft whose dataSources pin
+  // that collection (`library:<id>`). Seeding only — nothing is validated,
+  // saved, minted or published here; the owner edits and approves per the
+  // studio discipline. A bare visit (no param) behaves exactly as before.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const coll = searchParams.get("fromCollection");
+    if (!coll) return;
+    const base = content ?? ({} as BlueprintContent);
+    const seeded = {
+      ...base,
+      boundary: base.boundary ?? { name: "", oneLine: "", outOfScope: "" },
+      fleet: base.fleet ?? { name: "", members: [] },
+      dataSources: [{ ref: `library:${coll}` }],
+    } as BlueprintContent;
+    setContent(seeded);
+    setJsonText(JSON.stringify(seeded, null, 2));
+    setVerdict(null);
+    setVerdictStale(true);
+    setNotice({ kind: "ok", text: t("blueprints.fromCollectionSeeded") });
+    // Clear the param so a refresh/back does not re-seed over later edits.
+    const next = new URLSearchParams(searchParams);
+    next.delete("fromCollection");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, content, t]);
 
   useEffect(() => {
     void (async () => {
@@ -586,6 +632,25 @@ export function BlueprintStudioPage() {
                             onChange={(e) => setDataSource(i, e.target.value)}
                             data-testid={`blueprint-source-${i}`}
                           />
+                          {/* Knowledge-collection picker (3.3): one click turns
+                              the ref into a library:<collectionId> pin. Only
+                              the owner's visible collections appear; a pinned
+                              ref shows a marker, not a raw id. */}
+                          <select
+                            className="max-w-44 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                            value={s.ref.startsWith("library:") ? s.ref : ""}
+                            onChange={(e) => {
+                              if (e.target.value) setDataSource(i, e.target.value);
+                            }}
+                            data-testid={`blueprint-source-pick-${i}`}
+                          >
+                            <option value="">{t("blueprints.sources.pickCollection")}</option>
+                            {myCollections.map((c) => (
+                              <option key={c.id} value={`library:${c.id}`}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
                           <button type="button" className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted" onClick={() => removeDataSource(i)}>
                             {t("blueprints.sources.remove")}
                           </button>

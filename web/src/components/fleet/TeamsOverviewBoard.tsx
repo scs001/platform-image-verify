@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { MiniFleetFormation } from "@/components/FleetGraph";
 
 interface RosterFleet {
   id: string;
@@ -31,6 +32,14 @@ interface OverviewFleet {
   id: string;
   counts: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; failing: number; total: number };
   openDecisions: { count: number; top: { question: string; severity: string; memberTitle: string | null }[] };
+  // Formation summary (add-teams-hub-formation-board): compact nodes + edges
+  // from the same read the cockpit draws. Absent on older servers — the
+  // formation view then says so instead of rendering an empty grid.
+  formation?: {
+    members: { id: string; title: string; targetKind?: string | null; status?: string | null }[];
+    edges: { kind: string; from?: string | null; to?: string | null; implicit?: boolean }[];
+    truncated: boolean;
+  } | null;
 }
 
 interface BoardFleet {
@@ -84,6 +93,25 @@ export function TeamsOverviewBoard({
   const { t } = useTranslation();
   const [overview, setOverview] = useState<Source<OverviewFleet[]>>({ data: null, error: null });
   const [board, setBoard] = useState<Source<BoardFleet[]>>({ data: null, error: null });
+  // View mode (add-teams-hub-formation-board 2.2): card list ↔ formation grid.
+  // Persisted per user; "cards" stays the default so the pre-change face is
+  // byte-identical on first visit.
+  const [view, setView] = useState<"cards" | "formation">(() => {
+    try {
+      const v = localStorage.getItem("teams.overview.view");
+      return v === "formation" ? "formation" : "cards";
+    } catch {
+      return "cards";
+    }
+  });
+  const setViewPersisted = (v: "cards" | "formation") => {
+    setView(v);
+    try {
+      localStorage.setItem("teams.overview.view", v);
+    } catch {
+      /* storage blocked — the toggle just stops persisting */
+    }
+  };
 
   const loadOverview = useCallback(async () => {
     setOverview({ data: null, error: null });
@@ -183,6 +211,20 @@ export function TeamsOverviewBoard({
           {t("agentTeams.overview.runs24h", { count: totals.runs24h })}
         </span>
         <span className="ml-auto flex items-center gap-2">
+          {/* View switch (2.2): cards ↔ formation; the choice persists. */}
+          <span className="flex overflow-hidden rounded-md border border-border" data-testid="teams-view-mode">
+            {(["cards", "formation"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setViewPersisted(m)}
+                data-testid={`teams-view-mode-${m}`}
+                className={`px-2 py-0.5 text-xs ${view === m ? "bg-primary/15 font-medium text-primary" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {t(`agentTeams.overview.viewMode.${m}`)}
+              </button>
+            ))}
+          </span>
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={onOpenManage} data-testid="teams-goto-manage">
             {t("agentTeams.views.manage")}
           </Button>
@@ -201,6 +243,70 @@ export function TeamsOverviewBoard({
         </div>
       ) : null}
 
+      {view === "formation" ? (
+        /* Formation grid (2.2): one mini formation per team from the SAME
+           overview payload (single round-trip). Broken/absent posts show as
+           ring colours on the dots (missing/vacant/failing = red/amber), so
+           the breakage is visible without opening the cockpit (spec: 断线上板
+           可见). Click = deep link into that cockpit (一点进驾驶舱). Degraded
+           overview read marks THIS view unavailable with a retry (2.3); the
+           card list keeps working — three-source independent degradation. */
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="teams-formation-grid">
+          {overview.error ? (
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <SourceError testId="teams-formation-error" onRetry={loadOverview} />
+            </div>
+          ) : null}
+          {cards.map(({ f, o }) => {
+            const abnormal = isAbnormal(o, undefined);
+            const fm = o?.formation;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                data-testid={`teams-formation-${f.id}`}
+                onClick={() => onSelect(f.id)}
+                className={`rounded-md border p-3 text-left transition-colors hover:bg-muted/50 ${
+                  abnormal ? "border-destructive/50" : "border-border"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{f.name}</span>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs">{f.state}</span>
+                </div>
+                <div className="mt-2 flex min-h-16 items-center justify-center rounded-md bg-muted/20 p-2">
+                  {overview.data === null && !overview.error ? (
+                    <span className="text-xs text-muted-foreground">{t("agentTeams.overview.loading")}</span>
+                  ) : fm ? (
+                    fm.truncated || fm.members.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        {fm.members.length === 0
+                          ? t("agentTeams.overview.formationEmpty")
+                          : t("agentTeams.overview.formationTruncated", { count: fm.members.length })}
+                      </span>
+                    ) : (
+                      <MiniFleetFormation members={fm.members} edges={fm.edges} />
+                    )
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t("agentTeams.overview.formationUnavailable")}</span>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>{t("agentTeams.overview.members", { count: f.memberCount ?? 0 })}</span>
+                  <span data-testid={`teams-formation-decisions-${f.id}`}>
+                    {t("agentTeams.overview.decisions", { count: f.openDecisions ?? 0 })}
+                  </span>
+                  {o && ABNORMAL_KEYS.filter((k) => (o.counts[k] ?? 0) > 0).map((k) => (
+                    <span key={k} className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">
+                      {t(`agentTeams.overview.state.${k}`, { count: o.counts[k] })}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="teams-cards">
         {cards.map(({ f, o, b }) => {
           const abnormal = isAbnormal(o, b);
@@ -261,6 +367,7 @@ export function TeamsOverviewBoard({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

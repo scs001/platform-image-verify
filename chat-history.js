@@ -259,6 +259,9 @@ export async function listSessions(scope) {
       path: s.path || null,
       agentPreset: s.agentPreset || null,
       workspace: s.workspace || null,
+      // Project attribution (add-web-project-container): the web sidebar groups
+      // by this; null/absent → the read-time 默认项目 fallback.
+      projectId: s.projectId ?? null,
     }));
   }
 
@@ -290,6 +293,9 @@ export async function listSessions(scope) {
       path: sm?.getSessionFile?.() ?? null,
       agentPreset: presetSource?.() || null,
       workspace: workspaceSource?.() || null,
+      // A brand-new pre-mirror session is attributed the same way a mirrored
+      // one will be (backing-path backtrace of the live workspace).
+      projectId: db.isDbReady() ? (db.getProjectByPath?.(workspaceSource?.() || null)?.id ?? null) : null,
     });
   }
 

@@ -16,6 +16,7 @@
   },
   "nav": {
     "chat": "对话",
+    "family": { "knowledge": "知识", "build": "构建" },
     "knowledge": "资料库",
     "resources": "成果",
     "agents": "智能体",
@@ -503,6 +504,8 @@
       "title": "集合",
       "namePlaceholder": "集合名称…",
       "create": "创建",
+      "makeAgent": "用它造 agent",
+      "makeAgentHint": "把该集合钉进蓝图，造一个专用智能体",
       "empty": "暂无集合。",
       "docsCount": "{{count}} 篇文档",
       "delete": "删除",
@@ -3070,6 +3073,7 @@
       "ignore": "忽略"
     },
     "title": "记忆",
+    "funnel": { "title": "蒸馏漏斗", "segTitle": "{{layer}} 层 · {{count}} 条 · {{pct}}%" },
     "subtitle": "智能体记得的一切，都在这里",
     "all": "全部",
     "layerLabel": "层",
@@ -3093,6 +3097,7 @@
   },
   "blueprints": {
     "title": "蓝图构造间",
+    "fromCollectionSeeded": "已按该集合预填数据来源，请继续完善蓝图后校验、批准。",
     "new": "新建",
     "untitled": "未命名场景",
     "list": {
@@ -3148,6 +3153,7 @@
       "add": "添加",
       "hint": "只收 registry 在册 server 名或内部库逻辑名——禁端点、禁凭据。",
       "placeholder": "如 policy-feed",
+                        "pickCollection": "选知识库集合…",
       "remove": "移除"
     },
     "json": {
@@ -3316,6 +3322,10 @@
         "failing": "需关注 {{count}}"
       },
       "empty": "还没有智能体团队——从模板货架实化一支，或点右上角创建。",
+      "viewMode": { "cards": "卡片", "formation": "编队" },
+      "formationEmpty": "空编队",
+      "formationTruncated": "{{count}} 岗 · 缩略",
+      "formationUnavailable": "该队编队数据不可用",
       "sourceUnavailable": "该数据源暂不可用",
       "retry": "重试",
       "loading": "加载中…",

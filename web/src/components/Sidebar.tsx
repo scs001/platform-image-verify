@@ -45,13 +45,14 @@ import {
 } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import type { ClientMessage, SessionMeta } from "@platform/core";
-import { NAV_SURFACES, FACTORY_PRESETS, FACTORY_PRESET_SLUG, registryFor } from "@platform/core";
+import { NAV_SURFACES, NAV_FAMILIES, FACTORY_PRESETS, FACTORY_PRESET_SLUG, registryFor } from "@platform/core";
 import { cn } from "@/lib/utils";
 import { getLastSeen, markSessionSeen, isSessionUnseen } from "@/lib/unread";
 import { ChatSessionMenu } from "@/components/ChatSessionMenu";
 import { WorkbenchPanel } from "@/components/WorkbenchPanel";
 import { useAppConfig, useBranding } from "@/hooks/useAppConfig";
 import { settingsPath } from "@/components/settings/sections";
+import { useProjectsStore } from "@/hooks/useProjectsStore";
 
 interface Props {
   send: (m: ClientMessage) => void;
@@ -89,6 +90,10 @@ const navRoute = (slug: string) => `/${slug}`;
 // Sessions whose workspace stamp is missing (rows written before the
 // capability) group under this sentinel key.
 const UNGROUPED = "__ungrouped__";
+// Web-side fallback bucket (add-web-project-container): sessions with no
+// project attribution (desktop origin, legacy rows) or whose project id is no
+// longer listed. Read-time only — never a stored project row.
+const DEFAULT_PROJECT = "__default_project__";
 // Per-group preview cap — mirrors the welcome screen's recent-list preview.
 const GROUP_PREVIEW = 5;
 
@@ -117,6 +122,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
         to: navRoute(e.slug),
         key: e.i18nKey,
         testId: e.testId,
+        slug: e.slug,
         icon: NAV_ICONS[e.slug],
       }));
   }, [resolvedLayout]);
@@ -129,6 +135,62 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const catalogVersion = useChatStore((s) => s.catalogVersion);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // ── Nav families (add-knowledge-memory-surface D1) ────────────────────────
+  // Registry-resolved nav entries arranged into collapsible families
+  // (Codex-style). Membership comes from @platform/core; the resolver already
+  // decided which slugs exist, so a hidden slug never appears in its family.
+  // The family holding the active route always renders expanded.
+  const navFamilyOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of NAV_FAMILIES) for (const s of f.slugs) m.set(s, f.id);
+    return m;
+  }, []);
+  const NAV_FAMILY_COLLAPSED_KEY = "nav.families.collapsed";
+  const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(NAV_FAMILY_COLLAPSED_KEY);
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleFamily = (id: string) => {
+    setCollapsedFamilies((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      try {
+        localStorage.setItem(NAV_FAMILY_COLLAPSED_KEY, JSON.stringify([...n]));
+      } catch {
+        /* storage blocked — the toggle just stops persisting */
+      }
+      return n;
+    });
+  };
+  const activeFamilyId = useMemo(() => {
+    const hit = visibleNav.find((n) => location.pathname === n.to || location.pathname.startsWith(`${n.to}/`));
+    return hit ? (navFamilyOf.get(hit.slug) ?? null) : null;
+  }, [visibleNav, location.pathname, navFamilyOf]);
+  // Render order: a family is emitted once, at the position of its first
+  // present member; single-member families flatten to a plain entry.
+  const navRender = useMemo(() => {
+    const out: ({ kind: "item"; item: (typeof visibleNav)[number] } | { kind: "family"; id: string; items: (typeof visibleNav)[number][] })[] = [];
+    const emitted = new Set<string>();
+    for (const item of visibleNav) {
+      const famId = navFamilyOf.get(item.slug);
+      if (!famId) {
+        out.push({ kind: "item", item });
+        continue;
+      }
+      if (emitted.has(famId)) continue;
+      emitted.add(famId);
+      const members = visibleNav.filter((x) => navFamilyOf.get(x.slug) === famId);
+      if (members.length <= 1) out.push({ kind: "item", item: members[0] ?? item });
+      else out.push({ kind: "family", id: famId, items: members });
+    }
+    return out;
+  }, [visibleNav, navFamilyOf]);
   // Workbench customization drawer (layout-configuration): the user's own
   // visibility/order adjustments on top of what the layers above left.
   const [workbenchOpen, setWorkbenchOpen] = useState(false);
@@ -147,6 +209,25 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // ephemeral filter over the already-loaded payload with no deep-link use.
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Projects (add-web-project-container): the web grouping key above the
+  // workspace path. Fetched once; a failure degrades to an empty list and every
+  // session falls back to 默认项目 — never a blank sidebar.
+  const projects = useProjectsStore((s) => s.projects);
+  const loadProjects = useProjectsStore((s) => s.load);
+  const refreshProjects = useProjectsStore((s) => s.refresh);
+  useEffect(() => {
+    if (!IS_DESKTOP) void loadProjects();
+  }, [loadProjects]);
+  const projectNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) m.set(p.id, p.name);
+    return m;
+  }, [projects]);
+  const projectPathById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) m.set(p.id, p.backingPath);
+    return m;
+  }, [projects]);
   // Group expansion is three-state: explicit user choice wins, otherwise the
   // group holding the active session (or the current workspace) is open.
   const [userExpanded, setUserExpanded] = useState<Set<string>>(new Set());
@@ -197,12 +278,36 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     [sessions, q],
   );
 
-  // Group the (filtered) sessions by their workspace stamp, current workspace
-  // first, Ungrouped last, the rest by their newest session.
+  // Group the (filtered) sessions. The grouping KEY forks by surface
+  // (add-web-project-container, design D3 / spec: sidebar-workspaces):
+  //   web     = project attribution (id) → 默认项目 for unattributed rows,
+  //             so the label is a project NAME and never an absolute path;
+  //   desktop = the workspace path stamp, Ungrouped for unstamped rows —
+  //             exactly the pre-change behaviour.
+  // Ordering is unchanged conceptually: the group holding the current session
+  // leads, the fallback bucket trails, the rest by their newest session.
+  const fallbackKey = IS_DESKTOP ? UNGROUPED : DEFAULT_PROJECT;
+  // The current session's group key on this surface (leads the ordering and
+  // defaults open), mirroring the web/desktop key above.
+  const currentSession = visibleSessions.find((s) => s.id === currentSessionId);
+  const activeKey = IS_DESKTOP
+    ? currentWorkspace || undefined
+    : currentSession
+      ? currentSession.projectId && projectNameById.has(currentSession.projectId)
+        ? currentSession.projectId
+        : DEFAULT_PROJECT
+      : undefined;
+
   const groups = useMemo(() => {
     const map = new Map<string, SessionMeta[]>();
     for (const s of visibleSessions) {
-      const key = s.workspace || UNGROUPED;
+      // Web: a project id only groups when that project is still listed —
+      // a stale id (project gone) falls back rather than showing a dangling key.
+      const key = IS_DESKTOP
+        ? s.workspace || UNGROUPED
+        : s.projectId && projectNameById.has(s.projectId)
+          ? s.projectId
+          : DEFAULT_PROJECT;
       const list = map.get(key);
       if (list) list.push(s);
       else map.set(key, [s]);
@@ -214,17 +319,29 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
         hasCurrent: items.some((s) => s.id === currentSessionId),
       }))
       .sort((a, b) => {
-        if (a.key === UNGROUPED) return 1;
-        if (b.key === UNGROUPED) return -1;
-        if (a.key === currentWorkspace) return -1;
-        if (b.key === currentWorkspace) return 1;
+        if (a.key === fallbackKey) return 1;
+        if (b.key === fallbackKey) return -1;
+        if (a.key === activeKey) return -1;
+        if (b.key === activeKey) return 1;
         return String(b.items[0]?.updatedAt || "").localeCompare(String(a.items[0]?.updatedAt || ""));
       });
-  }, [visibleSessions, currentSessionId, currentWorkspace]);
+  }, [visibleSessions, currentSessionId, activeKey, fallbackKey, projectNameById]);
 
+  // Web labels are project NAMES (path is a detail, never a leading label);
+  // desktop labels stay the trailing path segment as before.
   const groupLabel = (key: string) => {
-    if (key === UNGROUPED) return t("sidebar.ungrouped");
-    return key.split(/[/\\]/).filter(Boolean).pop() || key;
+    if (IS_DESKTOP) {
+      if (key === UNGROUPED) return t("sidebar.ungrouped");
+      return key.split(/[/\\]/).filter(Boolean).pop() || key;
+    }
+    if (key === DEFAULT_PROJECT) return t("sidebar.defaultProject");
+    return projectNameById.get(key) ?? t("sidebar.defaultProject");
+  };
+  // Hover title: web shows the backing path (the detail), desktop the full path.
+  const groupTitle = (key: string) => {
+    if (IS_DESKTOP) return key === UNGROUPED ? undefined : key;
+    if (key === DEFAULT_PROJECT) return undefined;
+    return projectPathById.get(key) ?? undefined;
   };
 
   const toggleGroup = (key: string) => {
@@ -232,7 +349,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     // override sets (clear the set that agrees with the flip, fill the other).
     const g = groups.find((x) => x.key === key);
     const currentlyOpen =
-      userExpanded.has(key) || (!userCollapsed.has(key) && (g?.hasCurrent || g?.key === currentWorkspace));
+      userExpanded.has(key) || (!userCollapsed.has(key) && (g?.hasCurrent || g?.key === activeKey));
     setUserExpanded((prev) => {
       const n = new Set(prev);
       if (currentlyOpen) n.delete(key);
@@ -254,7 +371,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     if (q) return true;
     if (userExpanded.has(g.key)) return true;
     if (userCollapsed.has(g.key)) return false;
-    return g.hasCurrent || g.key === currentWorkspace;
+    return g.hasCurrent || g.key === activeKey;
   };
 
   const toggleShowAll = (key: string) => {
@@ -306,9 +423,13 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
 
   const submitWorkspace = (close: () => void) => submitWorkspacePath(wsDraft, close);
 
-  // Create-by-name: the server materializes the directory, then the SAME
-  // switch chain takes over (validation no-ops — the path is server-issued —
-  // confirm still fires mid-conversation, restart and broadcast as usual).
+  // Create-by-name: the server materializes the directory AND the project row
+  // (add-web-project-container), then the SAME switch chain takes over
+  // (validation no-ops — the path is server-issued — confirm still fires
+  // mid-conversation, restart and broadcast as usual). The returned id is not
+  // sent anywhere by the client: session attribution is stamped server-side at
+  // first mirror by backing-path backtrace (design D2), so the only client job
+  // is to refresh the project list so the new group can render immediately.
   const submitProjectName = async (close: () => void) => {
     const name = wsDraft.trim();
     if (!name) return;
@@ -323,6 +444,9 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
       setWsBusy(false);
+      // Refresh first so the session created under this path groups by NAME,
+      // not into 默认项目 (the backtrace lands the id; the list must know it).
+      await refreshProjects();
       submitWorkspacePath(data.path, close);
     } catch (e) {
       setWsError((e as Error).message);
@@ -429,43 +553,72 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       </div>
 
       <div className="flex flex-col gap-0.5 p-2">
-        {visibleNav.map((n) => {
-          const Icon = n.icon;
+        {navRender.map((entry) => {
+          const navLink = (n: (typeof visibleNav)[number], indented: boolean) => {
+            const Icon = n.icon;
+            return (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                data-testid={n.testId}
+                onClick={() => onNavigate?.()}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2 rounded-md py-2 pr-3 text-left text-sm text-muted-foreground",
+                    indented ? "pl-6" : "pl-3",
+                    "hover:bg-muted hover:text-foreground",
+                    isActive && "bg-primary-deep text-primary-foreground hover:bg-primary-deep hover:text-primary-foreground",
+                  )
+                }
+              >
+                {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                {t(n.key)}
+                {n.to === "/fleets" && fleetOpenDecisions > 0 ? (
+                  <span
+                    className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                    data-testid="nav-fleets-badge"
+                    title={t("fleets.decisions.waitingBadge", { count: fleetOpenDecisions })}
+                  >
+                    {fleetOpenDecisions}
+                  </span>
+                ) : null}
+                {n.to === "/zhiyu" && zhiyuUnread > 0 ? (
+                  <span
+                    className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                    data-testid="nav-zhiyu-badge"
+                    title={t("zhiyu.notices.title")}
+                  >
+                    {zhiyuUnread}
+                  </span>
+                ) : null}
+              </NavLink>
+            );
+          };
+
+          if (entry.kind === "item") return navLink(entry.item, false);
+
+          // A family: the active route's family is always open; otherwise the
+          // user's persisted collapse choice decides (default expanded).
+          const isActiveFamily = activeFamilyId === entry.id;
+          const collapsed = !isActiveFamily && collapsedFamilies.has(entry.id);
           return (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              data-testid={n.testId}
-              onClick={() => onNavigate?.()}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted-foreground",
-                  "hover:bg-muted hover:text-foreground",
-                  isActive && "bg-primary-deep text-primary-foreground hover:bg-primary-deep hover:text-primary-foreground",
-                )
-              }
-            >
-              {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
-              {t(n.key)}
-              {n.to === "/fleets" && fleetOpenDecisions > 0 ? (
-                <span
-                  className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
-                  data-testid="nav-fleets-badge"
-                  title={t("fleets.decisions.waitingBadge", { count: fleetOpenDecisions })}
-                >
-                  {fleetOpenDecisions}
-                </span>
-              ) : null}
-              {n.to === "/zhiyu" && zhiyuUnread > 0 ? (
-                <span
-                  className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
-                  data-testid="nav-zhiyu-badge"
-                  title={t("zhiyu.notices.title")}
-                >
-                  {zhiyuUnread}
-                </span>
-              ) : null}
-            </NavLink>
+            <div key={`fam-${entry.id}`} data-testid={`nav-family-${entry.id}`}>
+              <button
+                type="button"
+                onClick={() => toggleFamily(entry.id)}
+                data-testid={`nav-family-toggle-${entry.id}`}
+                aria-expanded={!collapsed}
+                className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {collapsed ? (
+                  <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                )}
+                <span className="truncate">{t(`nav.family.${entry.id}`)}</span>
+              </button>
+              {collapsed ? null : <div className="flex flex-col gap-0.5">{entry.items.map((n) => navLink(n, true))}</div>}
+            </div>
           );
         })}
       </div>
@@ -700,7 +853,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                   type="button"
                   onClick={() => toggleGroup(g.key)}
                   data-testid="workspace-group-toggle"
-                  title={g.key === UNGROUPED ? undefined : g.key}
+                  title={groupTitle(g.key)}
                   className="flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   {expanded ? (

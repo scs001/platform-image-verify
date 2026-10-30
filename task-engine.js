@@ -65,6 +65,10 @@ function saveTasks() {
       type: t.type,
       cron: t.cron,
       when: t.when,
+      // Schedule-form extras (add-cron-automation-parity): the interval rule,
+      // its anchor, and the finite-run counter pair. Absent on legacy records.
+      ...(t.interval ? { interval: t.interval, anchor: t.anchor ?? null } : {}),
+      ...(t.maxRuns != null ? { maxRuns: t.maxRuns, runs: t.runs ?? 0 } : {}),
       prompt: t.prompt,
       preset: t.preset ?? null,
       targetType: t.targetType ?? "persona",
@@ -94,6 +98,12 @@ function saveTasks() {
       // opaque passthrough on every surface — the engine never interprets it;
       // the fleet reconcile layer locates its materialized tasks by it.
       sourceTag: t.sourceTag ?? null,
+      // Project attribution (add-web-project-container): cron jobs live in this
+      // file store rather than SQLite, so the optional project id rides the
+      // record itself. Absent/NULL = the 默认项目 bucket (legacy + desktop).
+      // The engine never interprets it — list filtering is the read surface's
+      // job, exactly like sourceTag.
+      projectId: t.projectId ?? null,
       aggregated: t.aggregated ?? false,
       paused: t.paused,
       createdAt: t.createdAt,
@@ -294,6 +304,9 @@ function clientShape(t) {
     type: t.type,
     cron: t.cron,
     when: t.when,
+    // Schedule-form extras — present only on interval / capped tasks.
+    ...(t.interval ? { interval: t.interval, anchor: t.anchor ?? null } : {}),
+    ...(t.maxRuns != null ? { maxRuns: t.maxRuns, runs: t.runs ?? 0 } : {}),
     prompt: t.prompt,
     target: { type: t.targetType ?? "persona", ref: t.preset ?? null },
     preset: t.preset ?? null,
@@ -317,6 +330,9 @@ function clientShape(t) {
     aggregated: t.aggregated ?? false,
     // Owning front-end tag (agent-fleet-core) — passthrough, see saveTasks.
     sourceTag: t.sourceTag ?? null,
+    // Project attribution (add-web-project-container) — passthrough; NULL =
+    // the 默认项目 bucket. Read surfaces filter on it; the engine does not.
+    projectId: t.projectId ?? null,
     paused: t.paused,
     createdAt: t.createdAt,
     lastRun: t.lastRun,

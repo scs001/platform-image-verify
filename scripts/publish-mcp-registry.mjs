@@ -203,20 +203,32 @@ try {
 
   if (PUBLISH) {
     let published = 0;
+    let already = 0;
     const failures = [];
     for (const doc of eligible) {
       try {
         execFileSync("mcp-publisher", ["publish"], {
           cwd: path.join(OUT, doc.name.replace(/\//g, "__")),
-          stdio: "inherit",
+          stdio: ["ignore", "pipe", "pipe"],
+          encoding: "utf8",
         });
         published += 1;
         console.log(`  ✓ 已发布 ${doc.name}`);
       } catch (e) {
+        // Idempotent re-runs: the registry answers 400 "cannot publish duplicate
+        // version" for entries already in the listing. That is the desired end
+        // state, NOT a failure — treating it as one turned a fully-successful
+        // re-publish green batch red (2026-10-31, run 41143983762).
+        const errText = `${e?.stdout ?? ""}${e?.stderr ?? ""}`;
+        if (/already exists|duplicate version/i.test(errText)) {
+          already += 1;
+          console.log(`  = 已在名录（重复版本，跳过）${doc.name}`);
+          continue;
+        }
         failures.push({ name: doc.name, message: String(e?.message || e).split("\n")[0] });
       }
     }
-    console.log(`✓ 发布完成：${published}/${eligible.length}`);
+    console.log(`✓ 发布完成：新发 ${published}、已在名录 ${already}（共 ${eligible.length}）`);
     if (failures.length) {
       for (const f of failures) console.error(`  ✗ ${f.name}: ${f.message}`);
       process.exitCode = 1;

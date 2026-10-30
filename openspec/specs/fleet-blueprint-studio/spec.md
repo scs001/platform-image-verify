@@ -97,7 +97,6 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 - **WHEN** 机器断言全绿、模型断言全部 `pass`、且 owner 已签该报告
 - **THEN** 收费上架通过可售闸；三者缺一即 400 指名缺哪一项
 
-
 ### Requirement: v1 方言如实拒绝，不归一化兼容
 
 平台 SHALL 只接受蓝图格式 v2（`boundary` / `dataSources` / `board` / `acceptance` 结构化条目）。收到 v1 方言（出现 `vertical` / `sources` / `boards` 独有键，而对应 v2 键 `boundary` / `dataSources` / `board` 缺位）时，平台 SHALL 落一条指名 v1→v2 的错误并拒绝，SHALL NOT 归一化改写成 v2 形状后接受。
@@ -156,7 +155,6 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 - **WHEN** 蓝图的 `judgeModel` 不在本部署的模型名册里
 - **THEN** 校验面（`/validate`）逐字段指名拒绝该蓝图；试跑若被强行触发，该断言记 `insufficient-evidence` 并写明「所选模型不在册」，不静默换模型
 
-
 ### Requirement: 模型判绿是证据，主人签字是终审（双钥匙）
 
 `llm-judged` 断言的绿 SHALL 需要两把钥匙同时在场：① 模型判 `pass`；② owner 对**该份试跑报告**显式签字（记录签字人与时间）。仅模型判绿而无签字的报告 SHALL NOT 计为可售；仅签字而模型未判绿同样不计。
@@ -194,7 +192,6 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 - **WHEN** 蓝图 `judgeModel` 恰是其产出岗位的模型
 - **THEN** 判定被拒并指名这一冲突；校验面同时提示该选择会导致无法判定（不静默替换成别的模型）
 
-
 ### Requirement: 模型判据有成本闸
 
 单次试跑的 `llm-judged` 条数与单条证据的字符量 SHALL 有上限；超限 SHALL 如实拒（报告写明超限项）而不是静默截断或跳过。判定调用 SHALL 走既有 LLM 车道（不新造 provider 通道），且判据模型固定为便宜的判定档。
@@ -217,3 +214,28 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 
 - **WHEN** `judgeModel` 在册或未声明
 - **THEN** 校验链行为与本变更前一致（未声明时不做任何额外校验）
+
+### Requirement: NL 起草可经蓝图构造师工具面直通草稿池
+
+自然语言起草 SHALL 支持两条等价通道，产物进**同一**草稿池、走**同一**校验链：
+①既有复制粘贴通道（studio 提示词 → 外部会话 → 粘贴回池）保留不删；②**builder 直通通道**——
+蓝图构造师官方 pack 经其 bundled 工具面（`blueprint_draft`/`blueprint_validate`/`blueprint_save`，
+openspec: builder-team-templates）在对话内组稿、校验、落池。直通通道 SHALL 复用既有校验链与错误
+原文语义（禁第二套校验），落池的草稿与粘贴草稿在构造间 SHALL 无差别可见、可继续编辑；未过校验
+的草稿 SHALL 拒绝落池。直通通道 SHALL NOT 改变批准闸纪律：未经主人在构造间明确批准，草稿不落地
+为任何实体（既有「草稿不落库」纪律原样覆盖工具面来稿）。
+
+#### Scenario: 两条通道产物同池同权
+
+- **WHEN** 同一场景分别经粘贴通道与构造师直通通道各产一份草稿
+- **THEN** 两份草稿在构造间草稿池无差别呈现，编辑、校验、批准、铸造路径完全一致
+
+#### Scenario: 直通来稿同受批准闸约束
+
+- **WHEN** 构造师经工具面落池一份草稿，主人未批准
+- **THEN** 市场、铸造仓与实例化路径零新增，与粘贴通道的未批准草稿纪律逐字相同
+
+#### Scenario: 粘贴通道不删
+
+- **WHEN** 用户在无蓝图构造师安装的 cell 打开蓝图构造间
+- **THEN** 复制提示词→粘贴回池的既有通道照常可用

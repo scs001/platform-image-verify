@@ -1,7 +1,12 @@
 # agent-fleet-cockpit-projection Specification
 
 ## Purpose
-TBD - created by archiving change add-fleet-cockpit-projection. Update Purpose after archive.
+
+萬星半边的舰队投影：cell 把主人视角下的全部舰队快照压缩为一个有界聚合端点
+（`GET /api/fleets/overview`），网关的 fleet-cells 采样器经身份信道取样并
+relay 到观察板（OpsView）——远端一面镜子就能看见每支团队此刻的运转
+（健康六态分布、待拍板题面、各岗最新报数一行）。纯读投影，不另造状态机：
+全部语义复用驾驶舱的既有派生，硬界截断保证 payload 恒定。
 
 ## Requirements
 

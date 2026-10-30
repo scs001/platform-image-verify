@@ -103,6 +103,13 @@ const EXCLUDE_PATHS = new Set([
   // 与运维路径，属内部运维文档——与 registry-maintenance 同类，不入公开快照。
   "docs/yongyi-federation-recipe.production.md",
   "docs/yongyi-site-deploy-requirements.md",
+  // zhiyu 上线材料（同 yongyi 一类，禁品扫描 2026-10-30 拦下）：DNS A 记录公网 IP、
+  // 雷池主机 openssl 取证、私有仓 fd-craw-private 的 codeload 补给单 URL——真源在
+  // 私有仓，属内部运维文档，不入公开快照。
+  "docs/zhiyu-dns-and-edge-request.md",
+  "docs/zhiyu-handoff-note.md",
+  "docs/zhiyu-site-deploy-requirements.md",
+  "docs/zhiyu-site-supply-order-20261030.md",
   // internal handoff / acceptance material for add-line-boards-and-action-gate
   // (2026-10-20): live cluster node names, fd-infra-deploy paths, internal TCR
   // URLs, private repo names — same class as the roadmap/handoff exclusions.

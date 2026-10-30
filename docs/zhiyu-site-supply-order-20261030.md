@@ -105,3 +105,65 @@ cp /srv/zhiyu-site/index.html.bak-pre-20261030 /srv/zhiyu-site/index.html && cad
 
 真机验收：真域 iframe 内未登录访客提问 → 产品向导真应答 →
 `reply_cap_hit` 如实收住第二席。房间与令牌在平台侧，静态件回滚不影响它。
+
+
+## 八、四席扩容：为什么没能落，以及回退了什么（2026-10-31）
+
+**结论先说**：官网房间保持 **2 席**（产品向导 + 壹座专家），已上线并在真站验过应答。
+余 4 席不是「再点一次部署」能解决的，它撞的是**容量与规划模型**，不是权限也不是代码。
+
+### 8.1 一次错误改动（已回退，留作判据）
+
+我依据「registry 全部条目都带显式 `port_override`」这个读数，把 runner env 与名册行
+`port_span` 一并 32→64，理由是「runner 照记录端口绑，拓宽只扩新席位的规划窗」。
+
+**那个读数是假的**：脚本按 `data.items` 解析，而 registry `/api/agents` 的真实结构是
+**顶层 `agents`**，取到空数组，于是「0 条没有 override」被误读成「全部都有 override」。
+
+**实测真相**：37 条里只有 **14 条**带 `port_override`，其余老条目实际绑在 `hash%32` 的
+位置。网关改按 `%64` 规划后，把「其实已被占用」的槽当成空槽 → 该路径注册**悬挂**，
+边界报 `registry POST /api/agents/register failed (504): {}`；**改前是快速且诚实的
+400 `port span exhausted`**。
+
+回退动作（全部已执行并复验）：
+- 清单 `AGENT_RUNNER_PORT_SPAN` 回 32 — GitOps commit `d653491`，已 apply + rollout；
+- 网关名册行 `agent_runners.port_span` 回 32（两侧必须一致，否则就是 co-host 撞车）；
+- 镜像包可见性回 `private`（期间为验证假设临时改过 `public`+`unlisted`，已复原，
+  确认它没有出现在公开市场）；
+- 回退后真站复验：iframe 挂载、访客提问、产品向导真应答、`replyCap` 收口、零 JS 错。
+
+**三条判据入册**：
+1. 解析外部 API 响应前先打印顶层键，别假定 `data.items`；空数组 ≠ 全满足。
+2. `%span` 哈希让「端口规划空间」依赖 span 值本身——改 span 是**重排**不是扩容，
+   只在全条目都有显式 override 时才安全。
+3. 失败形态的退化本身是信号：400（诚实拒绝）→ 504（悬挂）就说明改动是错的。
+
+### 8.2 四席真正缺什么
+
+| 约束 | 实测值 | 结论 |
+|---|---|---|
+| 端口规划窗 | 32 槽，37 条条目（其中 14 条显式 override） | 已满；扩窗要先解决无 override 条目的规划可信度 |
+| runner 内存预算 | `AGENT_RUNNER_RESIDENT_BUDGET_MB=3328`，单 child≈540-600MB | 约 5-6 个并发，现已在跑 3 个 |
+| pod 共宿资格 | 要求同包**共用**计费钥匙；部署门禁是「一席一键不可重复」 | `bTnrv2P` 被判 `pod-ineligible — members serve solo`，六席＝六个 dsh 进程 |
+| 备用 runner | `runner-b`/`runner-c` 是**缩零的活部署**（不是死行） | 缩零本因见 GitOps `5fc4d8b`：配额耗尽曾卡住 fd-paper-trading 滚版 |
+| 命名空间配额余量 | limits.memory 仅剩 **288Mi**、limits.cpu 剩 **700m**、pods 剩 5 | 塞不进 2Gi runner pod |
+| 节点真实余量 | cheap-4/6/7 均 8GB，可用 3.9-4.4GB | cheap-6 是控制面，不宜再压 runner |
+
+三条可行路线（都要先拍板，不宜静默动）：
+
+- **A · 抬配额复活 runner-c（cheap-7 worker）**：GitOps 改 `compute-quota.yaml`（+2~4Gi）
+  + `agent-runner-c` replicas 0→1 + 镜像从 `sha-51c33c3` 升到与 serving 同代 +
+  名册行 `port_span` 到位。爆炸半径最小（不碰在服 30 个 agent），但动集群配额。
+- **B · 抬 runner-serving 内存 + 扩窗**：`4Gi→6Gi`、span 扩窗须配套把无 override 条目
+  逐个补 override（一次性重指 23 条）。最彻底，也最重。
+- **C · 六席共宿**：让同包共用一把计费钥匙以取得 pod 共宿资格 → 六席摊一个 dsh 进程，
+  内存问题基本消失。但要改「一席一键」这条计费归属纪律，属平台级决策。
+
+### 8.3 遗留 1 条：`intro-lex` 半部署
+
+`intro-lex` 已有 `pack_deployments` 行、registry 条目也在，但 runner 如实报
+`listener ... NOT serving on :8815 — port 8815 already in use`（8815 是别家包
+`reception` 的 override）。**它没有被邀请进房间，访客看不到它，不影响对外**。
+清掉它需要 admin 权限（`/deployments/:id/kill` 返 `Admin group required`，当前身份
+`isAdmin=false`、`adminGroups=["platform"]`），留作待办；不做也不会恶化——
+runner 每次 reconcile 只报一行 warn，不动别的席位。

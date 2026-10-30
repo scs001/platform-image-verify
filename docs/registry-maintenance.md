@@ -5027,3 +5027,212 @@ drill 才逮出致命假设错误——这是本次最值钱的一课：
 **证据**：`sha-29b24a0` 三面 CI+image+check 全绿（重跑后）；relay OK（3s，digest
 `3550ce52`）；ArgoCD `Synced|Healthy`；两 pod `sha-29b24a0` 同代 `sameNameHint` grep 在场；
 测试 22→23→25→26 全绿；真机反例/正例/试跑/签字/reseal/可售闸六段全实证。
+
+### §15.105 免键令牌车道 L2 落地 + 续期两条生产硬约束（2026-10-31）
+
+承接 §15.96/§15.97。免键 MCP 鉴权的服务端早已在产（authorize → token `aud=https://mcp.finddatatech.cloud`
+→ `initialize` 200 → `tools/list` 161），但**「服务端能发令牌」≠「客户端会用」**：WorkBuddy 5.9.3
+的**用户级 `mcp.json` 加载器丢弃 `oauth` 块**（`parseMcpServerEntry` 只留 transport/trust 字段，
+`UserMcpProvider` 的 `toAuth$2` 只传 `provider:{name}` → 回落 DCR → 我们无 DCR → 失败）。连接器/
+市场模板那条加载器才读 `descriptor.oauth.clientId`，与 `mcp.json` 不是同一条路。
+
+**因此「整体方案」落成三道，选道靠机器证据而非文档**（`add-universal-keyless-mcp-auth`）：
+
+| 道 | 形态 | 覆盖 |
+|---|---|---|
+| L1 原生 OAuth | 写静态 `clientId`，客户端自己跑授权，零凭据落盘 | 仅限能力表**实证**消费 static client_id 的客户端 |
+| **L2 代持令牌** | CLI 跑 PKCE，把**短命 access token** 写进客户端静态 `Authorization` 头 | **今天 100% 客户端**（凡认静态头者） |
+| L3 调用键 | `wgk-` 设备流键 | headless / CI / 企业内部 |
+
+已落地：`facet/cli/mcp-auth-capability.js`（能力表，**每条必须带 `{probe,at,build}` 证据，缺证据视为记录不存在而不是 false**；`installedBuild` 与证据不符即 `stale` → 一律不选 L1，只降级并提示「待复验」）+ `facet auth` 子命令（`--status/--refresh/--write-mcp`，选道理由逐条打印，客户端侧限制永远不会被误当成服务端故障）+ 10 条单测全绿。
+
+**两条续期硬约束（生产实测，写进代码注释与单测，防回归）**
+
+真机第一次续期拿到「成功」但 `aud`/`username` 全空——差点当成 Logto 的怪癖放过，实测才定案：
+
+1. **refresh 必须重放 `resource`**。不带 `resource` 时 Logto 回**客户端绑定的 opaque token**
+   （`scope=openid offline_access`，无 `aud`），网关根本不认——这是「续期成功但连不上」的真形态。
+2. **refresh 绝不可重放 `scope`**。带任何 scope（含仅 `openid offline_access` 之外的
+   `gateway:access`）一律 `400 oidc.invalid_scope / refresh token missing requested scope`——
+   `gateway:access` 是**授权时刻授予的 resource scope**，不在 refresh token 的可刷新 scope 集合里。
+
+四组组合一次打穿（`resource` only → 200 `jwt=1 aud=https://mcp.finddatatech.cloud`；`resource`+任意
+`scope` → 400），修法=授权时把 `resource`/`scope` 存进令牌文档，续期只重放 `resource`。
+**真机终验**：`AUTHED {"min":60,"renewable":true}` → `REFRESH: OK {"min":60,"rotated":true,
+"user":"aloadtree@gmail.com","aud":"https://mcp.finddatatech.cloud"}`——refresh token 轮换、
+身份与受众都回来了，用户零操作。
+
+**顺带钉死的一条事实**：`prompt=consent` 是拿到 `refresh_token` 的前提（不强制 consent 时
+Logto 不回 refresh token，「可续期」直接为假）。这一条只在真授权里能验证，桩测试永远看不出来。
+
+**证据**：`node --test scripts/test-facet-mcp-auth.mjs` 10/10 绿；`biome check` 三文件净；
+`openspec validate add-universal-keyless-mcp-auth` valid；L2 写入形状
+`{type:"http",url,headers.Authorization:"Bearer h.…"}`、文件模式 `0600`、配置内无 refresh token
+（单测断言）；生产 PKCE 全链由 CLI 自身代码路径跑通（不是旁路脚本）。
+
+### §15.103 Project 容器（web 端顶层容器）实施：projects 实体 + 三处归属 + 双端分组 fork（2026-10-31）
+
+change `add-web-project-container` 实施完成（12/12 棒、openspec validate 绿）。
+
+**① 存储（v110 迁移）**
+`projects` 表（id/name/backing_path 唯一索引/owner/时间戳）+ `chat_sessions`、
+`collections` 两处可空 `project_id`。ALTER 走 `apply` 钩子 + PRAGMA guard（新库
+CREATE TABLE 已带列、旧库补列，幂等；同 v6 chat_messages.blocks 惯例）。
+**坑**：cron jobs **不在 SQLite**——它走 `task-engine.js` 的 `jobs.json` 文件存储，
+`projectId` 是记录字段而非列（首轮我把 `ALTER TABLE cron_jobs` 写进迁移，核实后撤掉）。
+
+**② 归属落章（单点，不新增写手）**
+会话：`upsertSession` 内按 workspace 路径回溯 projects 表写 `project_id`（与 workspace
+列同一落章点，write-once——后续换 workspace 不重盖）。collection：create 带 projectId；
+cron：addJob 收 projectId → taskData → saveTasks/clientShape 双向透传。
+查询过滤：`listCollections({projectId})`（undefined=全量 / null=默认桶 / id=该项目）、
+cron 路由 GET 同口径。
+
+**③ Web 表面**
+侧栏分组键 fork（design D3）：web = `projectId ?? 默认项目`（标签是项目名，路径只作
+hover title），desktop = workspace 路径 + Ungrouped 原样。新 `useProjectsStore`（失败降级
+为空 → 全落默认项目，绝不空栏）。Documents/Tasks 页加项目过滤（默认「全部」= 零过滤）。
+建项目后 `refreshProjects()` 再切 workspace，新项目立即可分组。
+
+**④ 证据**
+`test-project-container` 11/11（新建/附着/改名/会话落章三态/collection 桶过滤）、
+task-engine 23/23（含 job projectId 持久+重载）、chat-history 20/20、workspace 契约
+18/18、`sidebar-workspaces` e2e 6/6（**新增桌面用例**：addInitScript 注入
+`window.platform.pickWorkdir` 让 IS_DESKTOP=true，同一 payload 验 web 名分组 vs 桌面路径分组）、
+cron-ui + documents-react e2e 8/8、web typecheck + biome + locale 门（2543 键）绿。
+
+**挂账**：真机走查（web 建项目→会话落组名、桌面仍路径分组、Documents/Tasks 过滤三眼见）。
+
+#### §15.105 续记：真机走查逮出「续期不回写」缺陷 + 按受众认令牌的三次收敛（2026-10-31）
+
+L2 单测全绿之后上真机走 `auth → 写配置 → 客户端连上 → 续期 → 再连`，**第六步直接翻车**：
+`facet auth --refresh` 打印「✓ 已静默续期」，客户端配置里却还是**旧的** Bearer——
+`refreshOAuthToken` 只更新 `~/.facet/oauth.json`，没有任何人回写客户端配置文件。
+用户会看到「续期成功」而实际连不上，这是比「续期失败」更坏的形态：**它撒谎**。
+
+- **修法**（`rewriteBrokeredTokens`）：续期/重授权后遍历六 target 的用户级（+项目级）MCP
+  配置文件，把令牌换掉，并在输出里逐文件报「已原地改写配置」。
+- **改哪几条？连改三版才定**：
+  1. 按「等于旧令牌」精确匹配 → 单测绿，**真机失败**：上一轮（修复前）的续期已让配置与存储
+     脱节，配置里那个令牌**永远不会再等于**当前令牌 → 陈旧令牌永远修不好。**这正是要治的病，
+     却被我的安全条件挡住了。**
+  2. 按「长得像 JWT」→ 会误改别人的 JWT（另一部署/另一受众）。
+  3. **按受众认亲**（定案）：解码每个 Bearer，仅当 `claims.aud === 新令牌.aud` 才替换；
+     `wgk-` 调用键解码不出 JWT、别家的 JWT 受众不同 —— 两类都原样不动。
+     真机复验：三个条目全部更新为最新令牌，且没有误伤。
+- **一句话教训**：「只改我认识的」这类安全条件，判据必须落在**内容语义**（受众/签发者）上，
+  不能落在**与某次快照相等**上——后者一旦历史已经分叉就永久失效，而分叉恰恰是它该修的场景。
+- **单元测试补一条**（第 11 条）：用真实子进程跑 `--refresh`，断言配置里旧令牌被换、而
+  `wgk-` 别人的键**原样保留**。
+
+**顺带两条真机事实（不是缺陷，是边界）**
+- `facet-market-mcp` / `facet-ops-mcp` 对客户令牌回**边缘裸 401**（`{"error":"Authentication required"}`，
+  与网关的 JSON-RPC 错误形状不同）——它们是内部运维面，不该进客户包的连接块。同一令牌打
+  `fd-daas-mcp` 稳定 `initialize 200 → tools/list 161`。**内部 server 不该出现在市场包引用里，
+  这是内容侧要收的口子，不是链路缺陷。**
+- 期间一次 `401 egress_credential_service_unavailable`：网关出口凭据服务的瞬时不可用，
+  与鉴权无关（同一令牌 6 秒后即 200），重试即过。
+
+### §15.106 官方精选转正：外部热门技能经审校成为官方 Agent（核心技术面落地）（2026-10-31）
+
+**背景**：用户提出「热门 skills 直接加到生态、直接构成 agent/team」。探索→立案 `add-official-adopted-agents`
+（`da337743`，validate --strict 绿），拍板首发布形态 = **官方精选转正**（非用户自助一键包、非热度自动进精选）。
+
+**三条拿代码验伪出来的硬事实（提案期假设全被推翻，实施前就挡住返工）**
+
+1. **徽章真源是 `lib/pack-badge.js`，不是 facet**。四值 `blueprint→facade→assistant→toolkit`，纯类型轴；
+   facet `marketplace-json.js` 只做 listing 准入、不推徽章。→ provenance 是**与徽章正交的第二轴**，不是第五种 badge。
+2. **`official` 只来自部署 roster**（`gateway/packs.js` 的 `officialAuthors` / env `OFFICIAL_AUTHOR_EMAILS`），
+   作者不可自报。→ 「官方精选·已审校」= `roster-official===true ∧ manifest.provenance.kind==="official-adopted"`。
+3. **货架 `licenseState` 恒 `unknown`**（`external-sources.js:419/443/491/517` 硬编码）。→ 许可门必须去上游取 LICENSE，
+   读货架字段会得到「全 unknown → 全拒」死局或合规漏洞。
+
+**真实 spike 副产品（值得记）**：`curl` 打 `modelcontextprotocol/servers` 的仓库元数据，`license.spdx_id`
+返回 **`NOASSERTION` / name `Other`**，而 LICENSE 原文明确是 **MIT → Apache-2.0 过渡双许可**。
+→ 元数据字段不可单独采信，原文优先。这个仓库本身现在就是许可门测试夹具。
+
+**已实施（代码面，`111/111` 测试绿）**
+- `lib/license-gate.js` — `scanLicenseText` / `evaluateLicense` / `assertLicenseAdmissible`。宽松集 MIT/Apache-2.0/
+  BSD-2/3/ISC；拒绝集 AGPL/GPL/LGPL/SSPL/BUSL/CC-BY-NC 各带失败轴；多许可取最宽松并记 `mixed-license` 供复核；
+  空证据 → `not-declared` fail-closed。LGPL 不被误判成 GPL（`\bGPL` 词边界）。
+- `lib/upstream-license.js` — `collectUpstreamLicenseEvidence` / `licenseEvidenceFromPackage`。证据顺序=可信度顺序：
+  包内 LICENSE > 仓库 LICENSE（技能目录优先，回落仓根）> package.json license > 仓库元数据。**永不抛**：任一步失败
+  只是少一条证据，空集交给门去拒。
+- `lib/pack-provenance.js` — `describeProvenance` 三轴单点合成 + `describeShelfProvenance` 第四态（货架·未审）。
+  **关键不变式**：manifest 自报 provenance **永远不能**把非 roster 包顶成 official-adopted（社区态不置键）。
+- `lib/pack-manifest.js` — `validateProvenance` 可选键形状校验（kind/upstreamUrl/upstreamName/license/revision/
+  adoptedBy/reviewedBy/reviewedAt）；缺省零影响，旧 manifest 逐字节不变。
+- `gateway/packs.js` — 详情读 `GET /api/packs/:id` 接三轴投影；`community` 态不置 `provenance` 键 → 旧 payload 不变。
+- 测试：`scripts/test-official-adoption.mjs` 20/20、`scripts/test-upstream-license.mjs` 7/7，回归 84/84（pack-validate/
+  pack-badge/official-showcase/external-sources/external-install/preset-pack-bridge/custom-presets/official-locale-gate）。
+
+**Fork 结论（写进 design，不另立单）**
+- **团队级转正结构上不成立机械扩量**：`fleet.members[].target` 指向 **pack-preset（persona）而非技能**；
+  节奏/边/KPI 槽位四类信息一个都不在技能文本里。「≥3 岗」必要非充分，**真闸是「节奏能否被陈述」**。
+  → adoption 只管内容，团队形状交给既有 `fleet-architect` + blueprint studio。等 Agent 级跑顺 + ≥3 真案例再谈。
+- **热度字段已存在**（`downloads`/`stars`/`totalActivations`/`externalStars`）但跨源口径不一，不可直接混排；
+  需源内分位归一，作独立小单；热度永不作准入。
+
+**未完（后续班）**：1.4 桥消费侧、2.3 真实内联快照写入、2.4 转正动作落库、2.5 工具面默认 chat、3.x 前端/facet 渲染。
+
+**归属更正（2026-10-31，本条必读）**：本节实现的 8 个文件（`lib/license-gate.js`、`lib/upstream-license.js`、
+`lib/pack-provenance.js`、`lib/pack-manifest.js`、`gateway/packs.js`、两份测试、本单 `tasks.md`）在提交时被
+**并行会话的 `0a2bcd4b`（feat(facet): 能力探针 + 市场 connect 块 + 续期回写）一并扫走**——本会话已 `git restore --staged`
+剔除 8 个外来文件，但并行会话在同一时间窗内重新 `git add` 时把 index 整体带上。**内容逐字节无损**（已核 `git diff HEAD` 为空、
+`111/111` 复跑全绿），仅是 commit 归属错位。这是本仓已知事故形态（同一形态见本文件「扫宽事故一枚（如实记）」：归档移动用宽路径 add 卷进并行会话在树改动），
+**再证一条纪律：多文件暂存期间，任何 `git add` 都可能被并行会话的 index 操作放大成全表提交；提交必须 add 后立刻 commit，不留窗口。**
+
+### §15.105 第五真缺陷：试跑读面身份裸串 → private 包恒 404（2026-10-31）
+
+**这是把前四刀全部带偏的那个根因。** §15.104 记的四刀都对，但都没有解释真机最顽固的现象：
+「投研晨会」重铸后试跑仍报 `trial aborted: Pack version not found`。
+
+**定位过程（全部在产 pod 内 drill，零会话污染）**
+
+1. 查旧包 `Bo2MWrb…` —— **HTTP 200 活着**，已被并行会话改名「投研晨会（已退役）」，
+   `_casting.blueprintId` 正是本蓝图 → **指针根本没失效**，四刀追的是错误方向。
+2. 查版本接口 `/api/packs/<id>/versions/{4,5,6,7}` —— **全部 200**（作者视角）。
+   所以 404 不是版本缺失。
+3. 读 `blueprint-trial.js:184`：`fetchManifest({ ..., viewer: blueprint.ownerEmail })`
+   —— **传的是裸邮箱字符串**。
+4. 读 `gateway/facet-proxy.js:30`：`facetForwardHeaders` 读的是 `user.email`，
+   对字符串取 `.email` 得 `undefined` → 身份头退化成 `{"groups":[]}` →
+   **facet 判匿名** → private/foreign 包一律 404 → 被包成误导性的
+   `Pack version not found`（facet 对「不可见」与「不存在」故意同答 404，这是既有设计）。
+
+**结论**：包是 private 的（构造样例本来就不该公开），而读面把自己介绍成了匿名访客。
+「指针失效」是假象，真相是**身份在传输路上丢了**。
+
+**修法**（`903a9dbe`，镜像 `sha-85980ad`）：读面身份与发布面同规——`viewer` 是字符串
+则归一成 `{ email, groups: [] }`。同坑 `createFacetPublishClient` 已于 2026-10-28 修过
+（注释就在旁边），**读面这一处漏了**——一个 bug 修了写面忘了读面，隔三天以另一副面孔复发。
+
+**新增测试** `scripts/test-pack-manifest-source.mjs`（4 条）：裸串归一 / 对象透传 groups /
+404 契约不变 / 5xx 报 502 不混淆。合计 30/30 绿（含 blueprint 26）。
+
+**定案执行：投研晨会 →「投研晨会 · 构造样例」**
+名称「投研晨会」已被官方种子 `YMSt-…` 永久占用（同名闸：listed/unlisted 均算），
+而本蓝图旧包仍在（`Bo2MWrb…`）且是 private 构造语料。取舍=**不删**（造语料就是因为
+等真实用户太慢，删不可逆），改名后重铸：`boundary.name` 改「投研晨会 · 构造样例」→
+校验绿 → 批准 → 重铸（同名冲突消失，指针 pin 从 v5 刷到 v7）。
+
+**真机全链终态（`sha-85980ad`，pod `platform-7c69c9cfcb-5m47w`）**
+
+| 段 | 实证 |
+|---|---|
+| 试跑 | `green:true`，三条机器判据（posts-staffed / first-round / both-posts）全 pass |
+| 模型判据 | `both-posts → pass`，`laneError: None`（评审车道真的跑了，不是降级） |
+| 签字 | `signoff.by=aloadtree@gmail.com` |
+| reseal | 报告刷进包内 → **v8** |
+| 包内报告位 | `{green:true, ranAt, judged:[...], signoff.reportRanAt===ranAt}` |
+| **可售闸判据** | **true**（绿 && 签 && 签对得上报告） |
+| 市场可见性 | `visibility:private`，**匿名 404**（构造样例不上公开市场，符合定位） |
+
+**教训（补进配方）**
+- **「指针失效」类现象先证「包还在不在」**：本次旧包一直 200，只是名字变了、版本 pin 落后。
+  不先证存在性就写自愈，会连写四刀全打在错误方向上。
+- **一个 bug 修了写面要顺手查读面**：裸串身份坑 2026-10-28 在 `publish` 修过，
+  读面 `fetchMarketManifest` 同款漏网，三天后以「Pack version not found」的面孔复发。
+  凡是「同一个 helper 被多处调用」，修完必须 grep 全部调用点。
+- **facet 对 private/foreign 与不存在同答 404** 是既有设计（防探测），
+  所以任何 404 都必须先排「是不是我自己身份没带上」，再怀疑存在性。

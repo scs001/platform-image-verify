@@ -30,15 +30,22 @@ const VERSION = JSON.parse(
 const DEFAULT_BASE = process.env.FACET_BASE || "https://facet.finddatatech.cloud";
 const DEFAULT_REGISTRY = process.env.FACET_REGISTRY || "https://mcp.finddatatech.cloud";
 // Keyless MCP lane (add-workbuddy-mcp-lane, 2026-10-30): a pre-registered
-// PUBLIC client on our Logto tenant. WorkBuddy's bundled MCP SDK calls DCR
-// unconditionally unless clientInformation() is already populated — the
-// client's mcp.json `oauth.clientId` field populates it, skipping DCR
-// entirely (verified against the shipped app.asar + a live headless PKCE
-// round-trip). The tenant's custom-JWT script injects roles/email for tokens
-// whose audience is the gateway, and the auth-server accepts the gateway's
-// own advertised resource URL as audience (fork patch c216f479). End-to-end
-// green: authorize → token → gateway 200 → 160+ tools listed, zero pasted
-// keys. App id overridable for non-prod registries.
+// PUBLIC client on our Logto tenant. Server side is fully live and was
+// verified end-to-end with a headless PKCE round-trip in the SDK's exact
+// semantics: static client_id (no DCR) → authorize → token (aud = the
+// gateway origin) → gateway 200 → 160+ tools, zero pasted keys. The tenant's
+// custom-JWT script injects roles/email for gateway-audience tokens, and the
+// auth-server accepts the gateway's own advertised resource URL as audience
+// (fork patch c216f479).
+// CLIENT-side caveat, established by reading the shipped app.asar (5.9.3):
+// the static oauth.clientId is honored on the connector/marketplace-template
+// paths (toConnectorMcpItem/toDependencyItem read descriptor.oauth.clientId),
+// but the USER-level mcp.json loader is not there yet — parseMcpServerEntry
+// keeps only transport/trust fields and UserMcpProvider's auth mapper passes
+// provider:{name} only, so a file entry falls back to DCR (which our Logto
+// does not offer). The entry written here matches the client's own connector
+// shape, so it is the forward-compatible form; key-based connect remains
+// the working path on 5.9.3. App id overridable for non-prod registries.
 const DEFAULT_OAUTH_CLIENT_ID = process.env.FACET_OAUTH_CLIENT_ID || "tvmzkpz3ld5kqlmse5se9";
 const DEFAULT_OAUTH_SCOPE = "openid gateway:access offline_access";
 
@@ -62,8 +69,9 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
   --project  项目级安装：写进 <dir>/<dotdir>/skills/ 而非用户级目录
   --base     谦面地址（默认 ${DEFAULT_BASE}）
   --registry 注册处地址——打印 MCP 端点；connect 用它验活与铸造
-  --oauth    workbuddy 免键(OAuth)连接：mcp.json 条目带 oauth.clientId（静态客户端，
-             绕开动态注册），首次调用弹浏览器授权一次，零凭据落盘；暂仅 workbuddy
+  --oauth    workbuddy 免键(OAuth)条目：mcp.json 写 oauth.clientId（静态客户端，与
+             客户端连接器模板同形）。服务端侧已端到端实证；5.9.3 客户端的用户文件加载
+             器暂不消费该块——今日真连接用贴键（connect + --write-mcp）。暂仅 workbuddy
   --oauth-client 覆盖免键条目的 OAuth client_id（默认 facet-mcp-keyless 应用）
 
   connect 子命令（ecosystem-bridge）：铸取并验活 wgk- 调用键，存本地后
@@ -222,14 +230,16 @@ const MCP_TARGETS = {
   // <configDir>/mcp.json). Same root, not two — verified on a real install
   // 2026-10-30, which also disproved the earlier ".codebuddy" reading.
   // Remote transport is declared explicitly (type "http"). TWO connection
-  // forms (both live-verified 2026-10-30):
-  //  - entry(): header-keyed (wgk- caller key) — the path that predates the
-  //    keyless lane and still works for headless/CI callers.
-  //  - entryOauth(): keyless — `oauth.clientId` makes the client's OAuth
-  //    provider return clientInformation() immediately, so the SDK never
-  //    reaches its (required-here) dynamic-registration call. The user
-  //    authorizes once in the browser; tokens live in the CLIENT's encrypted
-  //    store, never in this file. This is the path --write-mcp --oauth picks.
+  // forms:
+  //  - entry(): header-keyed (wgk- caller key) — the working path on 5.9.3,
+  //    also what headless/CI callers use.
+  //  - entryOauth(): keyless — the client's own connector-template shape
+  //    (`oauth.clientId` short-circuits DCR on the connector/plugin paths,
+  //    per the shipped app.asar). The USER-level mcp.json loader does not yet
+  //    consume this block on 5.9.3 (parseMcpServerEntry drops it), so the
+  //    written entry is the forward-compatible form; see the keyless-lane
+  //    note above DEFAULT_OAUTH_CLIENT_ID. Tokens would live in the CLIENT's
+  //    encrypted store, never in this file.
   workbuddy: {
     userFile: () => path.join(HOME(), ".workbuddy", "mcp.json"),
     projectFile: (dir) => path.join(dir, ".workbuddy", "mcp.json"),
@@ -586,8 +596,9 @@ async function install(opts) {
   const mcp = detail.manifest?.mcpServers ?? [];
   if (mcp.length > 0) {
     if (opts.oauth) {
-      // 免键车道（add-workbuddy-mcp-lane）：条目带 oauth.clientId，用户首调用在
-      // 浏览器授权一次；token 存客户端自己的加密库，任何键都不落这个文件。
+      // 免键车道（add-workbuddy-mcp-lane）：条目带 oauth.clientId（与客户端连接器模板
+      // 同形）。服务端侧端到端实证就绪；WorkBuddy 5.9.3 的用户级 mcp.json 加载器暂不
+      // 消费该块（见上注），写入的是前瞻形状——token 若被消费也只存客户端加密库。
       const shouldWrite = opts.writeMcp === true || (opts.noWriteMcp !== true && process.stdin.isTTY
         ? await (async () => {
             const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin });
@@ -606,8 +617,13 @@ async function install(opts) {
         const files = await writeMcpConfig(opts.target, {
           registry, servers: mcp, project: opts.project, oauth: opts.oauthClient || true,
         });
-        console.log("\nMCP 免键连接配置已写入（无凭据落盘——首次调用该服务器时客户端会打开授权页）：");
+        console.log("\nMCP 免键连接配置已写入（无凭据落盘）：");
         for (const f of [...new Set(files)]) console.log(`  ✓ ${f}`);
+        if (opts.target === "workbuddy") {
+          console.log("  注：服务端免键车道已端到端实证（静态 client_id 绕开动态注册）。");
+          console.log("      WorkBuddy 5.9.3 的用户级 mcp.json 加载器暂不消费 oauth 块（客户端连接器/市场模板路径才消费）——");
+          console.log("      该条目为前瞻形状，与客户端连接器模板同形；今日真连接仍走贴键（facet connect 后 --write-mcp）。");
+        }
         for (const s of mcp) {
           if (s.requiredGroup) console.log(`  注：${s.registryName} 需要组 ${s.requiredGroup}——授权账号不持该角色时调用会被拒。`);
         }
@@ -624,7 +640,7 @@ async function install(opts) {
       }
       console.log("  运行 facet connect 铸取并验活调用键；之后 install 可代写连接配置。");
       if (opts.target === "workbuddy") {
-        console.log("  workbuddy 亦可免键：重跑本命令加 --oauth（浏览器授权一次，零凭据落盘）。");
+        console.log("  workbuddy 亦可免键：重跑本命令加 --oauth（写前瞻条目——服务端已实证就绪，5.9.3 客户端用户文件暂不消费该块）。");
       }
     } else {
       const shouldWrite = opts.writeMcp === true || (opts.noWriteMcp !== true && process.stdin.isTTY
@@ -668,7 +684,7 @@ async function install(opts) {
       "\n注：WorkBuddy 的技能目录是 ~/.workbuddy/skills/（真机实证：放进去的 SKILL.md 会进客户端技能列表，source=userSettings）；"
       + "MCP 配置在同目录的 mcp.json。若客户端未识别技能，检查「已安装」列表与技能开关（关闭≠未安装），并确认客户端已重启或该目录在监听表内。"
     );
-    console.log("    免键车道已打通（2026-10-30 端到端实证）：重跑本命令加 --oauth --write-mcp，mcp.json 写 oauth.clientId 静态客户端条目，首次调用浏览器授权一次即连上，零凭据落盘；wgk- 调用键的 header 写法照旧可用。配方与原理见 docs/ecosystem/workbuddy.md。");
+    console.log("    免键车道（两层状态，2026-10-30 定案）：授权/网关侧已端到端实证（静态 client_id 绕开动态注册，token 零落盘）；WorkBuddy 5.9.3 客户端的用户级 mcp.json 加载器暂不消费 oauth 块（仅连接器/市场模板路径消费）——`facet install … --oauth --write-mcp` 写的是同形前瞻条目，今日真连接走 facet connect 贴键 + --write-mcp。两层证据与去向见 docs/ecosystem/workbuddy.md §1a。");
   }
   console.log(`\n完成：${detail.id} v${version}（快照安装，无订阅副作用）。`);
   console.log(`把功能集装进运行时（对话/Agent 服务）请到壹座：设置 → 功能集 → 我的功能集（订阅后一键安装）。`);

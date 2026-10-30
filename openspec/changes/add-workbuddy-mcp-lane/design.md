@@ -21,8 +21,9 @@
 - 新增 target 之后，`facet install <pack> --target workbuddy --write-mcp` 一条命令完成技能落盘 +
   MCP 配置写入（贴键），`--oauth` 车道一条命令完成免键写入，用户不手抄 JSON。
 - 文档矩阵、CLI 事实、冒烟脚本三者继续单源咬合，新 target 不能靠手工同步。
-- 把「OAuth 在真实客户端上是否可用」从推论变成一次逐环实测记录（结论两跳：**先判卡在授权服务器
-  缺 `registration_endpoint` → 同日翻案，静态 client_id 车道打通并端到端实证**，见 D4）。
+- 把「OAuth 在真实客户端上是否可用」从推论变成逐环实测记录（结论三跳：**先判卡在授权服务器缺
+  `registration_endpoint` → 翻案：静态 client_id 车道服务端端到端实证 → 再定案：5.9.3 客户端仅
+  连接器/模板路径消费，用户文件条目为前瞻形状，今日真连接=贴键**，见 D4）。
 
 **Non-Goals**
 
@@ -69,9 +70,9 @@
 **同日第二跳翻案**：「不可用」错在把 DCR 当成了必经环节。成熟方案本就不依赖 DCR——MCP 规范
 把 DCR 定为 MAY 且 2026-07-28 版起弃用（转向预注册/CIMD），**静态 client_id 才是优先路径**；
 读客户端 asar 实证其 SDK provider 为
-`clientInformation(){if(this.options.provider?.clientId)return{client_id:…}}`——
-mcp.json 的 `oauth.clientId` 一给出，`registerClient` 整个环节被短路，进入标准授权码 + PKCE
-流程。打通共三处配套（均生产、已落地）：
+`clientInformation(){if(this.options.provider?.clientId)return{client_id:…}}`——provider 一拿到
+`oauth.clientId`，`registerClient` 整个环节被短路，进入标准授权码 + PKCE 流程。打通共三处配套
+（均生产、已落地）：
 
 1. **Logto Native 应用** facet-mcp-keyless（`tvmzkpz3ld5kqlmse5se9`），回调
    `http://127.0.0.1/oauth/callback`。native 型走 RFC 8252 端口无关回环匹配（注册 URI 去端口
@@ -85,12 +86,21 @@ mcp.json 的 `oauth.clientId` 一给出，`registerClient` 整个环节被短路
    auth-server 的 Logto provider 经 env `LOGTO_ACCEPTED_AUDIENCES` 追加接受网关**自广告的
    origin** 为 bearer audience——token 的 `aud` 是裸 origin 而非 `/api`，旧集合不认。
 
-端到端实证（无头复刻客户端全流程）：授权 → token `aud=https://mcp.finddatatech.cloud` 含
-roles/username → initialize 200 → tools/list 160+ 工具。CLI 侧 `--oauth [--oauth-client <id>]`
-写入 `entryOauth` 形状（`{type:"http", url, oauth:{name, clientId, scope}}`），token 存客户端
-自己的加密库，**任何凭据不落 mcp.json**。贴键车道照旧保留（headless/CI、脚本化）。
-已知非阻塞项：provider 对 native 应用未回 refresh_token（`offline_access` 被丢弃）→ 过期后
-客户端自动再弹授权（已登录时近乎无感）。
+端到端实证（无头复刻 SDK 全流程）：授权 → token `aud=https://mcp.finddatatech.cloud` 含
+roles/username → initialize 200 → tools/list 160+ 工具。**服务端车道=真打通**——任何按规范消费
+预注册 client_id 的 MCP 客户端今天就能免键直连。
+
+**同日第三跳（读出厂 app.asar 逐路径核，5.9.3）**：短路的**前提**是客户端把 `oauth.clientId`
+递进 SDK provider，而这在 5.9.3 只成立于**连接器/市场模板路径**（`toConnectorMcpItem`/
+`toDependencyItem` 的 auth 映射读 `descriptor.oauth.clientId`——腾讯自家 Outlook 连接器即此形状）；
+**用户级 mcp.json 加载器不消费**：`parseMcpServerEntry` 只保留 transport/信任字段（丢弃 `oauth` 块），
+`UserMcpProvider → toAuth$2` 只递 `provider:{name}` → 回 DCR 路径 → 即第一跳现场报错的真因。
+结论改判为两层：`--oauth [--oauth-client <id>]` 写入 `entryOauth` 形状（`{type:"http", url,
+oauth:{name, clientId, scope}}`）是**与客户端连接器模板同形的前瞻条目**——零凭据落盘、客户端哪天
+在用户文件接线即激活、无需重配；**今日真连接=贴键车道**（headless/CI 与桌面同一条）。已知非阻塞项：
+provider 对 native 应用未回 refresh_token（`offline_access` 被丢弃）→ 车道激活后过期会自动再弹授权
+（已登录时近乎无感）。**律：「服务端 + SDK 语义可行」≠「目标客户端消费我们的配置文件形状」——
+客户端侧必须按出厂代码逐路径核。**
 
 ### D5：文档事实表只扩不复制
 

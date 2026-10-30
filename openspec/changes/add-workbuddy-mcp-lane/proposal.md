@@ -6,13 +6,15 @@ WorkBuddy 是 CodeBuddy Agent CLI 之上的桌面 Product，其开放面已支�
 而谦面 CLI 现有的五个 target（Claude Code / Cursor / ZCode / Codex / Gemini CLI）不含它——
 一条命令能完成的事，今天要用户手写 JSON、手贴调用键。
 
-同时本单把「我们的 OAuth 发现能力能不能让这个客户端免贴键」从推论变成了逐环实测，走了两跳：
-第一跳判「不通，卡在授权服务器缺 `registration_endpoint`（RFC 7591 动态注册）」；**同日翻案打通**——
+同时本单把「我们的 OAuth 发现能力能不能让这个客户端免贴键」从推论变成了逐环实测，走了三跳：
+第一跳判「不通，卡在授权服务器缺 `registration_endpoint`（RFC 7591 动态注册）」；第二跳翻案——
 错在把 DCR 当必经环节：MCP 规范里 DCR 是 MAY（2026-07-28 版起弃用），静态 client_id 才是优先路径，
-mcp.json 给 `oauth.clientId` 即短路 SDK 的注册环节进入标准授权码 + PKCE。配套身份/网关侧三处
-（Logto Native 应用、网关 origin 注册为 API 资源 + 租户 custom-JWT、accepted_audiences 补丁
-sha-c216f47），端到端实证到 tools/list。本单把**两条车道都做成可用产品**：贴键（headless/CI）
-与 `--oauth` 免键（桌面日常），指南写明机制与翻案过程（避免下一个人再推一遍、或再误判一遍）。
+SDK provider 拿到 `oauth.clientId` 即短路注册；配套身份/网关侧三处（Logto Native 应用、网关 origin
+注册为 API 资源 + 租户 custom-JWT、accepted_audiences 补丁 sha-c216f47），**服务端免键车道端到端
+实证（initialize 200 + tools/list 160+）**。第三跳按出厂代码逐路径核定案客户端侧：5.9.3 只有
+连接器/市场模板路径消费 `oauth.clientId`，用户级 mcp.json 加载器丢弃该块——所以 CLI `--oauth`
+写的是同形**前瞻条目**（客户端接线即激活），**今日真连接=贴键**。本单把贴键车道做成可用产品、
+把免键车道做到「服务端就绪 + 前瞻形状落盘」，三层证据链写进指南（避免下一个人再推、再误判）。
 
 ## What Changes
 
@@ -20,7 +22,8 @@ sha-c216f47），端到端实证到 tools/list。本单把**两条车道都做�
   写它原生的 MCP 配置（用户级与项目级各一），条目形状为 `type: "http"` + `url` + `headers`。
 - **两条连接车道**：贴键 = `facet connect` 铸键 + `install --write-mcp` 写 `headers.Authorization`；
   免键 = `install --oauth [--oauth-client <id>] --write-mcp` 写 `oauth.clientId` 静态客户端条目
-  （零凭据落盘，首次调用浏览器授权一次）。指南写明免键机制、翻案过程与已知非阻塞项。
+  （零凭据落盘；服务端就绪、5.9.3 客户端用户文件消费待版本——前瞻形状）。指南写明免键机制、
+  三跳定案过程与已知非阻塞项。
 - **文档与单源测试同步**：新增 `docs/ecosystem/workbuddy.md` 指南、`docs/ecosystem/client-matrix.md`
   增列；`scripts/test-facet-docs-facts.mjs` 的「文档事实 == CLI 两张表」断言随新 target 自动咬合。
 - **冒烟覆盖**：`scripts/smoke-facet-clients.mjs` 增加新 target 的写入形状断言（路径 + 条目键名）。

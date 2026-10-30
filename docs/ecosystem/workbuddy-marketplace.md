@@ -25,9 +25,10 @@ WorkBuddy（及同族的 CodeBuddy）的插件市场支持**按地址添加外�
   关闭开关 ≠ 卸载（关闭只是暂停模型调用，文件仍在）。
 - **智能体**：插件携带的 agents 成为可用的专属助手。
 - **MCP**：**不随插件自动连接**。插件 README 给出每个引用服务的端点与组要求；连接方式是
-  `--target workbuddy --write-mcp` 由谦面 CLI 写配置——贴键车道（`facet connect` 铸 wgk- 键，
-  键写进 `~/.workbuddy/mcp.json`）或免键车道（加 `--oauth`，条目只带静态 client_id，
-  首次调用浏览器授权，零凭据落盘；2026-10-30 端到端实证，配方见 `workbuddy.md` §1a）。
+  `--target workbuddy --write-mcp` 由谦面 CLI 写配置——今日可用的是贴键车道（`facet connect` 铸
+  wgk- 键，键写进 `~/.workbuddy/mcp.json`）；另有免键前瞻条目（加 `--oauth`，只带静态 client_id、
+  零凭据落盘；服务端侧 2026-10-30 端到端实证，5.9.3 客户端的用户文件加载器暂不消费该块——
+  两层状态与配方见 `workbuddy.md` §1a）。
   这是刻意的：公开仓库若嵌服务器配置，没有身份的人装上去就是坏的。
 
 ## 下架的诚实边界

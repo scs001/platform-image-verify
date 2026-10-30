@@ -13,17 +13,27 @@
 - [x] 1.2 在 `~/.workbuddy/mcp.json` 配一条远端 MCP（`type: "http"` + `url` + `headers.Authorization`），
   验证：路径经客户端代码 `getMcpConfigPath()` 确认为 `<configDir>/mcp.json`，`--write-mcp` 实际写入该路径
   且条目形状正确。**真连通未验**（用非真键，工具列表未刷新，属预期）
-- [x] 1.3 ~~让该客户端走我们的 OAuth 发现连接同一个网关端点（不贴 key）~~ **已打通（2026-10-30 当日翻案）**：
+- [x] 1.3 该客户端走我们的 OAuth 发现连接同一个网关端点（不贴 key）—— **服务端车道当日打通并端到端实证；客户端消费两层定案**：
   原判「阻塞点在身份侧缺 DCR」只对了一半——缺 `registration_endpoint` 属实，但成熟方案本就不依赖 DCR：
-  MCP 规范把 DCR 定为 MAY（2026-07-28 版起弃用），**静态 client_id 是优先路径**；客户端 OAuth provider
-  从 mcp.json `oauth.clientId` 拿到静态 id 后短路 `registerClient`（读 asar 实证
+  MCP 规范把 DCR 定为 MAY（2026-07-28 版起弃用），**静态 client_id 是优先路径**；SDK provider 拿到
+  `oauth.clientId` 即短路 `registerClient`（读 asar 实证
   `clientInformation(){if(this.options.provider?.clientId)return{client_id:…}}`）。身份/网关侧三处配套
   当日完成：① Logto Native 应用 facet-mcp-keyless（tvmzkpz3ld5kqlmse5se9，回环回调 RFC 8252 端口无关）；
   ② 网关 origin `https://mcp.finddatatech.cloud` 注册为 API 资源（scope gateway:access）+ 租户 custom-JWT
   注入 roles/username；③ 网关补丁 sha-c216f47（accepted_audiences 接受自广告 origin，env
-  `LOGTO_ACCEPTED_AUDIENCES`）。无头复刻客户端全流程（PKCE-S256 + PRM 裸 origin resource）端到端实证：
-  initialize 200 + tools/list 160+ 工具，计费与 wgk- 同口径。CLI 侧 `--oauth` 车道随本单实现
-  （2.1-2.4 与新 6.x），`docs/ecosystem/workbuddy.md` §1a 已改写为工作配方。
+  `LOGTO_ACCEPTED_AUDIENCES`）。无头复刻 SDK 全流程（PKCE-S256 + PRM 裸 origin resource）端到端实证：
+  initialize 200 + tools/list 160+ 工具，计费与 wgk- 同口径。
+  **但逐路径核出厂 app.asar（5.9.3）定案客户端侧边界**：静态 clientId 只在**连接器/市场模板路径**被消费
+  （`toConnectorMcpItem`/`toDependencyItem` 读 `descriptor.oauth.clientId`），**用户级 mcp.json 加载器不消费**
+  （`parseMcpServerEntry` 丢弃 `oauth` 块、`UserMcpProvider→toAuth$2` 只递 `provider:{name}` → 回 DCR，
+  即首跳现场报错的真因）。故 CLI `--oauth` 写的是与客户端连接器模板同形的**前瞻条目**，今日真连接=贴键。
+  **律：「服务端+SDK 语义可行」≠「目标客户端消费我们的配置文件形状」。**
+  CLI 侧 `--oauth` 写入车道随本单实现（2.1-2.4 与新 6.x），`docs/ecosystem/workbuddy.md` §1a 两层记录。
+
+  - [x] 1.4 真机免键往返（授权页→工具可见）：**在 5.9.3 上不可达，按负结论收口**——客户端用户文件
+    不消费该块（代码级证据见 1.3），往返必然停在 `Incompatible auth server`。往返的服务端半程已由
+    无头 PKCE 实证；客户端半程待其版本在用户文件接线（前瞻条目零改动即激活）。docs-facts 矩阵
+    workbuddy `verified` 维持 `config-only`（诚实档位：真机连通只到形状层）。
 
 ## 2. CLI 目标面（两张表，D1/D3）—— 已完成
 
@@ -73,7 +83,8 @@
   形状，生产客户端 facet-mcp-keyless，scope `openid gateway:access offline_access`）；
   非 workbuddy 目标明确拒绝（「未证实免键连接面」）。
   验证：`test-facet-cli-mcp.mjs` 12/12——默认 id、覆盖 id、未写入提示、拒绝分支、无键提示出路
-- [x] 6.2 install 输出与尾部注改用免键口径（「MCP 免键连接配置已写入（无凭据落盘…）」；
+- [x] 6.2 install 输出与尾部注改用免键口径（「MCP 免键连接配置已写入（无凭据落盘）」+ 1.3 定案后的
+  **两层状态注**：服务端已端到端实证 / 5.9.3 客户端用户文件暂不消费该块、今日真连接=贴键；
   requiredGroup 提示改「授权账号不持该角色时调用会被拒」）；`facet help` 用法行加
   `[--write-mcp|--no-write-mcp] [--oauth [--oauth-client <id>]]` 与两条 flag 说明。
   验证：测试断言输出；biome 零告警

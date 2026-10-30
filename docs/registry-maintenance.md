@@ -4791,3 +4791,22 @@ GitOps `d8d99246`（gitee+github 双推）加镜像 bump + env，ArgoCD hard-ref
 `/applications/:id/custom-jwt` 404 是错路）；脚本契约=声明 `function getCustomJwtClaims(input)`，
 `input={token,context,environmentVariables,api}`（context 取 user 不是顶层）；创建 API 资源字段名是
 `indicator` 不是 apiIdentifier；heredoc 未加引号会把反引号当命令执行（本次毁注释一处，现场脚本无损）。
+
+### §15.96 补记：免键车道客户端侧第三跳定案——5.9.3 用户文件不消费 oauth 块（2026-10-30）
+
+出片后对出厂 app.asar（WorkBuddy 5.9.3）逐路径复核，**把第二跳翻案再修正**：
+
+- **连接器/市场模板路径消费静态 clientId**：`toConnectorMcpItem`→`toAuth$1`、`toDependencyItem`→
+  `toDependencyAuth` 都读 `descriptor.oauth.{name,clientId,scope,…}`（自家 Outlook 连接器就是该形状）。
+- **用户级 `~/.workbuddy/mcp.json` 加载器不消费**：`parseMcpServerEntry`（`j.yn`）只保留
+  transport/timeout/disabled/deferLoading/needsInjectPOI/injectOneIdAuth——**`oauth` 块被丢弃**；
+  `UserMcpProvider → toAuth$2(transport, name)` 对 http/sse 条目只递 `provider:{name}` 给 SDK
+  → 无 clientId → 回 DCR → 无 `registration_endpoint` → 首跳现场报错 `Incompatible auth server`。
+  （CLI 侧 codebuddy-lite 引擎亦然：OAuth 走 DCR+凭据库，配置 schema 无 oauth 块。）
+- **处置**：CLI `--oauth` 保留为**同形前瞻条目**（客户端用户文件哪天接线即激活，token 届时也只存
+  客户端加密库），但全部输出/文档/规格改为两层状态（服务端端到端实证 ✅ / 5.9.3 用户文件消费待版本）；
+  今日真连接=贴键（`facet connect` + `--write-mcp`）。docs-facts 矩阵 workbuddy `verified` 维持
+  `config-only`。tests 19/19 绿（mcp 12 + docs-facts 7）。
+- **律（升级版）**：「服务端 + SDK 语义可行」≠「目标客户端消费我们的配置文件形状」——客户端侧
+  结论必须按**出厂代码逐加载路径**核，不许用 SDK 级证据代表整客户端。三跳全程：
+  判死（缺 DCR）→ 翻案（静态 client_id 短路，服务端三件套+e2e）→ 再修正（用户文件加载器不递 clientId）。

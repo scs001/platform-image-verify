@@ -11,7 +11,7 @@ npx @finddatatechnology/facet install <packRef>
 - `--project <dir>`：改为项目级（`<dir>/.<target>/skills/…`）。
 - `--base <url>`：换谦面部署地址（默认 `https://facet.finddatatech.cloud`）。
 - `--registry <url>`：注册处地址（默认 `https://mcp.finddatatech.cloud`）。
-- `--oauth`：免键（OAuth）连接车道——写授权型 MCP 条目而非凭据，首次调用浏览器授权一次（目前仅 `workbuddy` 实证支持）；`--oauth-client <id>` 覆盖 client_id。
+- `--oauth`：免键（OAuth）条目车道——写静态 client_id 形状而非凭据（目前仅 `workbuddy` 提供写入；两层状态见「版本说明」）；`--oauth-client <id>` 覆盖 client_id。
 
 ## 连接 MCP（connect）
 
@@ -30,8 +30,8 @@ npx @finddatatechnology/facet connect --clear     # 清除本地键
 npx @finddatatechnology/facet install <packRef> --write-mcp   # 写目标编辑器原生 MCP 配置并报告所写文件
 ```
 
-无键时 install 行为与旧版一致：只打印 MCP 端点与凭据要求，零写入——`workbuddy` 目标可用
-`--oauth` 免键车道替代贴键（见下「版本说明」）。
+无键时 install 行为与旧版一致：只打印 MCP 端点与凭据要求，零写入——`workbuddy` 目标另有
+`--oauth` 免键前瞻条目（服务端已就绪、5.9.3 客户端消费待版本，见下「版本说明」）。
 
 ## 调用者偏好（萬星）
 
@@ -70,15 +70,17 @@ npx @finddatatechnology/facet install <packRef> --target workbuddy --write-mcp
 ```
 
 远端 MCP 条目按 `{"type": "http", "url": …, "headers": {"Authorization": …}}` 写入。
-免键车道（2026-10-30 端到端实证）：
+免键车道（两层状态，2026-10-30 定案）：
 
 ```bash
 npx @finddatatechnology/facet install <packRef> --target workbuddy --oauth --write-mcp
 ```
 
 写的是静态 OAuth 客户端条目 `{"type": "http", "url": …, "oauth": {"name", "clientId", "scope"}}`
-——文件里没有任何凭据，首次调用由客户端弹浏览器授权，token 存客户端自己的加密库。
-机制、翻案记录与配套（Logto native 应用 / 网关受众补丁）见 `docs/ecosystem/workbuddy.md`。
+——文件里没有任何凭据。**服务端侧已端到端实证**（静态 client_id 授权 → 网关 200 → 工具可列）；
+WorkBuddy 5.9.3 的用户级 mcp.json 加载器暂不消费 `oauth` 块（客户端仅连接器/市场模板路径消费），
+所以该条目是**前瞻形状**——今日真连接仍用上面的贴键命令。三层证据与机理见
+`docs/ecosystem/workbuddy.md` §1a。
 
 ## 隐私
 

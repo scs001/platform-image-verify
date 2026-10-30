@@ -28,6 +28,9 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
     // Occupancy provider for the fleet stats snapshot — a closure so the
     // worker pool (attached after init) is picked up lazily (unify-wanxing-management-plane).
     workerStats,
+    // The pre-turn seam (fix-fleet-context-injection-seam): fleet context and
+    // the catch-up prefix are composed HERE, once, for every enqueue path.
+    beforeTurn: composeFleetPrompt,
   });
 
   // Scheduling pass over the engine's loaded records: downtime accounting
@@ -65,17 +68,15 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
   // The marker rides the task record for the duration of that run: prompt
   // prefix + cockpit/report evidence show this was a make-up, never a normal
   // patrol (a caught-up round must not read as "the 09:00 patrol happened").
+  //
+  // The prefix itself is NOT written here anymore (fix-fleet-context-injection-
+  // seam): pre-writing promptOverride lost the prefix whenever the injection
+  // replaced the prompt wholesale, and lost the context whenever the repair
+  // queue raced ahead. `catchUpPending` is the marker the seam reads.
   for (const id of catchUp) {
     const t = engine.getRecord(id);
     if (!t) continue;
     t.catchUpPending = true;
-    const base = t.promptOverride ?? t.prompt;
-    if (typeof base === "string") {
-      engine.setPromptOverride(
-        id,
-        `【补跑】上一轮因平台停机被跳过，本次为补跑（正常节奏不受影响）。\n\n${base}`,
-      );
-    }
     console.log(`[cron] Task ${id} catch-up run enqueued (downtime gap, still inside the tolerance window)`);
     void fireTask(id);
   }
@@ -216,47 +217,64 @@ function setFleetContextRenderer(fn) {
   renderFleetContextFn = typeof fn === "function" ? fn : null;
 }
 
-// 舰队巡逻上下文注入（唯一入口）：把本轮算出的 segment 写成本次执行的临时
-// promptOverride（存着的 prompt 仍是可复用模板）。返回 { ok } 或 { ok:false, error }
-// —— 空段/渲染失败必须**显式失败这一次开火**，绝不静默地让巡逻在没有上下文的
-// 情况下跑一轮。
+// 舰队巡逻上下文注入 —— 现在是**执行侧注入缝的实现**（fix-fleet-context-
+// injection-seam），不再是入队前的写手。
 //
-// 抽成函数是因为它有两个调用者：定时/补跑的 fireTask，以及手动触发
-// （runJobNow → engine.runTaskNow）。此前手动路径直接 enqueueExecution，**完全
-// 绕过这里**——于是 `{{fleetContext}}` 从不被展开，手动触发的舰队回合拿到的
-// 是一份没有巡视上下文的裸模板（2026-10-29 真机取证：CEO 一轮 prompt 只有
-// 249 字符，正常轮是 2880；这既让手动走查失真，也让被手动触发的会话看起来
-// 「没上下文」而四处去翻文件）。
-async function applyFleetContext(id, task) {
-  if (!renderFleetContextFn || !task?.sourceTag?.fleetId) return { ok: true };
-  if (typeof task.prompt !== "string" || !task.prompt.includes("{{fleetContext}}")) return { ok: true };
+// 为什么搬家：入队路径有四条（定时开火、补跑开火、手动立即执行、平台重启后
+// 恢复持久化 queued 任务），注入原本散写在入队侧，于是漏了两次——2026-10-29
+// 手动戳发绕过（CEO 一轮 prompt 只有 249 字符），2026-10-30 恢复通道绕过
+// （补跑轮 283 字符、`{{fleetContext}}` 原样没展开）。引擎的
+// runExecutionTurn 是四条路径唯一的汇合点，缝设在那里，第五条路径出现时也
+// 天然覆盖。
+//
+// 组合规则（两处既证缺陷一并根治）：
+//   base   = task.promptOverride ?? task.prompt（保留决策送达等既有覆写）
+//   prefix = task.catchUpPending ? 【补跑】 : ""
+//   占位符在 → 替换为渲染段；不在 → 跳过（不双注入）
+//   final  = prefix + base
+// 补跑前缀改由 catchUpPending 标志在缝内组合——它以前是入队前预写进
+// promptOverride 的，会被这里的整体替换吃掉（正常补跑丢前缀），或与恢复通道
+// 竞态时反过来丢掉上下文。标志是既有的（结算时清除），无需新字段。
+//
+// 渲染失败/空段**抛错**：由 runExecutionTurn 的 catch 落成该次执行的 failed，
+// 绝不静默按裸模板跑一轮。
+async function composeFleetPrompt(task) {
+  const basePrompt = task.promptOverride ?? task.prompt;
+  const prefix = task.catchUpPending
+    ? "【补跑】上一轮因平台停机被跳过，本次为补跑（正常节奏不受影响）。\n\n"
+    : "";
+  const isFleet = !!task?.sourceTag?.fleetId;
+  const hasPlaceholder = typeof basePrompt === "string" && basePrompt.includes("{{fleetContext}}");
+  // Non-fleet task, or a prompt composed elsewhere already (decision delivery
+  // overwrites with a placeholder-free prompt): nothing to render.
+  if (!isFleet || !hasPlaceholder) {
+    if (prefix) engine.setPromptOverride(task.id, `${prefix}${basePrompt ?? ""}`);
+    return;
+  }
+  if (!renderFleetContextFn) {
+    // No renderer mounted (a deployment without the report lane): keep the
+    // historical behavior — fire with the stored template, never fail the run.
+    if (prefix) engine.setPromptOverride(task.id, `${prefix}${basePrompt}`);
+    return;
+  }
   let segment;
   try {
     segment = await renderFleetContextFn(task.sourceTag, task);
   } catch (err) {
-    return { ok: false, error: `fleetContext render failed: ${err?.message || err}` };
+    throw new Error(`fleetContext render failed: ${err?.message || err}`);
   }
   if (typeof segment !== "string" || !segment.trim()) {
-    return { ok: false, error: "fleetContext renderer returned an empty segment" };
+    throw new Error("fleetContext renderer returned an empty segment");
   }
-  engine.setPromptOverride(id, task.prompt.replace(/\{\{fleetContext\}\}/g, segment));
-  return { ok: true };
+  engine.setPromptOverride(task.id, `${prefix}${basePrompt.replace(/\{\{fleetContext\}\}/g, segment)}`);
 }
 
-// One trigger of an armed task: the injection seam (agent-fleet-report-lane
-// D6). A fleet-tagged task whose prompt carries the {{fleetContext}} placeholder
-// gets the context SEGMENT from the renderer and substitutes it into this
-// fire's prompt only; a render failure or empty segment fails the fire
-// explicitly (never a silent empty-context patrol); everything else — non-fleet
-// tasks, templates without the placeholder — enqueues byte-for-byte as before.
+// One trigger of an armed task. Prompt shaping (fleet context, catch-up prefix)
+// no longer happens here — it happens in the engine's pre-turn seam, which this
+// module implements above — so every enqueue path gets it.
 async function fireTask(id) {
   const task = engine.getRecord(id);
   if (!task) return;
-  const ctx = await applyFleetContext(id, task);
-  if (!ctx.ok) {
-    engine.recordFailedFire(id, ctx.error);
-    return;
-  }
   engine.enqueueExecution(id);
 }
 
@@ -567,14 +585,12 @@ async function resumeJob(id) {
 // or running executions are a no-op carrying the current state, and re-run of
 // a failed/interrupted execution is allowed.
 //
-// 舰队任务的上下文注入与定时开火**同一条路**（applyFleetContext）。手动触发
-// 曾经直接 enqueueExecution，`{{fleetContext}}` 从未被展开——走查看到的舰队
-// 回合是裸模板，和人手点「立即执行」后代理四处翻文件是同一件事的两面。
+// 手动触发不再自己做注入：它和定时、补跑、重启恢复一样，起轮时经过引擎的
+// pre-turn 缝（见 composeFleetPrompt）。这条路径曾两次成为「注入被绕过」的
+// 现场（2026-10-29 手动、2026-10-30 恢复），现在缝在汇合点，路径再增也不漏。
 async function runJobNow(id) {
   const task = engine.getRecord(id);
   if (!task) return engine.runTaskNow(id);
-  const ctx = await applyFleetContext(id, task);
-  if (!ctx.ok) return { ok: false, error: ctx.error };
   return engine.runTaskNow(id);
 }
 

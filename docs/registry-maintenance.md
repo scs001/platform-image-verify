@@ -4591,3 +4591,28 @@ v1 带 `{{PACK_ID}}` 占位发布拿 id，v1.0.1 续版把真 packId 烙进 pack
 B2 前台不知壹座已开源（已修，v1.0.2 复测通过）、B3 内部车道名与内部产品面随工具描述泄漏、
 B4 persona 文案越界（已删净但复现，归 B3）、B5 web 文本信道推理痕迹外泄、B6 首启返回错误非排队）。
 B1/B3/B5/B6 立案 `openspec/changes/fix-external-team-chat-lane/`。
+
+### §15.95 快照推送事故（分号落错仓）+ 出片线分叉定案（2026-10-30）
+
+**事故**：重出公开快照时命令链 `cd dist && ... ; git push --force mirror main` 的**分号**让 push 在
+`cd` 失败后于**源仓 worktree** 执行——把 paas 全树提交 `d51d2870`（含 2708 份被排除的内部文件）
+推上了公开验证仓 `scs001/platform-image-verify`。**暴露窗 ~8 分钟**。
+
+**止血与取证**：
+- 立即以干净快照 `ea29873`（单提交、过禁品扫描+gitleaks）强推覆盖 main 引用；
+- 泄漏 commit 触发的 4 个 run：image×2 与 image-build-check 于 **build 步取消（Push image 步从未执行，
+  hkccr 无全树镜像）**，CI 取消，live-supply-owner-acceptance 自然失败；
+- 仓 fork=0 / star=0 / watcher=0；悬空 commit `d51d2870` 对象随 GitHub GC；
+  未硬删仓（若需彻底清 run 日志可删仓重建，TCR_USERNAME/PASSWORD secret 需先取回）。
+
+**教训（入律）**：
+1. **推送命令一律 `&&` 全链，禁分号**；push 前显式 `git rev-parse --show-toplevel` 自证所在仓。
+2. 快照目录**存在性检查放在链首**：`test -d dist/... && cd ... && ...`。
+3. 误推后第一动作=**覆盖引用+掐 run**，再评估暴露面（fork 数/run 日志/是否触达 push 步）。
+
+**出片线分叉定案**：本会话工作树在 `feat/zhiyu-official-site`，与 `main` 大幅分叉——**九修复/B1/
+lint 清零/dsh 白名单均已在 main**（生产 sha-32a1c38 即 main 线快照，pod grep 五 marker 全中：
+GET×2、kind×2、persist×2、express.json×2、isDbReady×2）。从 feat 分支出片会**回退 main 面**（违反
+核祖先律）→ 平台出片一律 **main 线**：cherry-pick 快照排除两笔（d51d2870 zhiyu 四文档排除、
+fa4adf77 种子自测表豁免）后 `make-public-snapshot --init` → 补回 image.yml → 强推 mirror。
+feat 分支上的 lint 精修（e74f2330/09987b26/68bb63ed）不再搬 main——main 的 39f31eb4 更净（0 警告）。

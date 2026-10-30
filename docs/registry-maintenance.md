@@ -4846,3 +4846,20 @@ OIDC trusted publishing **19s 绿**（run 41023095669，免任何令牌）→ �
 **流程教训**：facet CLI 的既定发布路=**tag→OIDC trusted publishing**（工作流头注释写清、
 0.2.1 即此路），本会话先按「bypass 令牌」老配方走到 401 才回头查工作流——**发版类任务第一步
 读仓内发布工作流**，别默认上轮会话的令牌路。bypass GAT 仅剩「新包 bootstrap 首发」用。
+
+### §15.100 蓝图构造间教程双语上线官网学院 + 客户回路两 UI 断点补上（2026-10-30）
+
+起因=用户三连：「现在这样我都不会用」「做个教程发布到星研」「构造间做的角色主要是 AI，有到谦面吗」。
+起草教程前先以客户视角走查构造间，**逮出两处真断点**，先修产品再写教程——否则教程写的步骤在 UI 上走不通。
+
+| 项 | 内容 |
+|---|---|
+| 产品修复 | **试跑无触发**（POST /trial 与 api 库 runTrial 俱在，UI 只有「载入」）→ 补「试跑」按钮（busy=trialRun，跑完自动载入+刷新列表，绿/未绿/没跑成三态通知，失败文案如实「重跑即可」）；**再铸无路**（铸造按钮 disabled={status!=="approved"} 铸完即灰）→ 拿到**已签署绿色报告**后变「再铸上架（刷新绿色报告）」重新可用。paas `7e6e2eca`+lint 修 `39f88c13`（CI 门实测红：Biome noImplicitAnyLet——typecheck 过 ≠ lint 过，出片前先跑 `biome check`） |
+| 出片 | fd-build-channel 判路=公开快照线；**本地 main 与 origin/main 已分叉（20/29）且生产已滚到 9b6600a**→ 不从本地直出，开 worktree 在 origin/main 上 cherry-pick 我的提交（`19d2b5f4`+lint 修）出快照——**只滚自己那一面，不挟持他人未推工作**。镜像 `sha-6fc854f` digest `7323b1af`（首推 CI 红=lint，修后 6fc854f 三腿全绿）；relay OK；ccr skopeo digest 全等硬门过 |
+| 滚版 | fd-infra-deploy `8e4b1f98`（platform+platform-demo 双面，facet 不动）→ gitee → ArgoCD `all-services-prod` hard refresh → rollout 绿；pod grep：`blueprint-trial-run` testid / `再铸上架` / 五语键全在位 |
+| 狗食 | UI 真点「试跑」两发：**laneError 诚实分层当场眼见**——机器 2/2 过、模型腿 `insufficient-evidence + laneError{kind:unreachable}`（判据车道 60s 超时）而非假绿假红；「再铸上架」按钮在绿+签蓝图上实证可用（cast state enabled+文案正确）；「模型：未跑成（车道不可用）」徽章生产眼见 |
+| 车道事故 | minimax-m3.1-flash 突变不可用：sub2api 日志 `account_upstream_error account_id=46 status=502` + `latency 121s`（客户端已断 499）——46 号接入机上游挂，组3 所有裸名模型（minimax/glm-5.3-flash/deepseek-v4-pro）全超时；与 §15.94 runtime_blocked 同谱系=**46 号 windows 接入机供给不稳**，词元站侧挂账；平台产出（volces 流式）不受影响 |
+| 教程 | `yizuo-blueprint-studio-tour` zh+en 双语：学完能做什么/前置/界面导览/八步旅程（新建→表单边界→JSON 断言→校验→批准铸造→试跑→签字双钥匙→再铸）/三态与禁自证/自检/如果没成功/下一步。**六张生产真截图**（DOM 级脱敏：邮箱→demo@studio.example、packId→pack-a1b2c3…、隐调试蓝图行、「试跑集群」→「试跑团队」；逐张 leftovers=false 机检）。sanitize_check 0 命中；**视觉门降级实录**：visual-judge 车道不可用（provider-not-found）→ 以截图瞬间的 DOM 机检替代（比 OCR 更准，同标准全零残留） |
+| CMS | Strapi v5 **content-manager 路径无 /admin 前缀**（`/admin/content-manager/*` 被 SPA 兜底页吞掉返回 200 HTML——json 解析炸在半路；upload 在 `/upload` 顶层所以此前能用）。zh create+publish → en 挂同 documentId（`yj97nehisbnbalohc43kq8tj`）publish。**坑：en variant 落地会把 zh 打回 modified**——重新 publish zh 才双绿；**坑：admin API 限流 429**——反复 login 触发，重试脚本要 90s 退避且一次会话做完。图片双传重复（-1 后缀）无害，正文引用首套 |
+| 官网 | 双推 github（CI `image` run 绿）→ **fd-deploy 宿主 dist 整替**（docker create+cp 抽 dist 222 html、备份 dist.bak-20261030-1616、**保留 live calibers.json 728B**、nginx -t+reload）+ `fd-web.yaml` bump `fa33ed8`（回退线）→ ArgoCD `fd-web` Synced+rollout 绿。公网三层眼见：www zh/en 双页 200、学院列表在列、正文关键词眼见、CMS 图链 200 |
+| 待办 | ①教程**人工终审**未做（agent 代发，xingyan 纪律要求明示）②四份真场景包+「投研晨会」同名冲突（§15.99 遗留）待产品裁 ③minimax 车道恢复后可从 UI 重跑试跑把投研晨会回绿（laneError 处置=重跑）④CMS 媒体库 -1 重复图可清 |

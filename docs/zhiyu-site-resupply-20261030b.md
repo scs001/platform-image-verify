@@ -35,7 +35,8 @@ git clone --depth 1 -b deliver/zhiyu-official-site \
   && cd /tmp/zhiyu-site && git log --oneline -1
 ```
 
-推送后本单会补具体 commit sha；在那之前，**B 路自带全文**（推荐，零凭据）：
+**交付分支 tip = `b0ac658fc64196b304098d351ce417b0ffef46a9`**（GitHub 与 Gitee 同名分支同一 sha，已核）。
+按分支名取件即可，无需 sha。零凭据路线：
 
 ```
 docs/zhiyu-site-source-bundle.md   # 三文件全文内联 + 逐文件 sha256，可直接重建

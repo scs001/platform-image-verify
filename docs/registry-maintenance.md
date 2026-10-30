@@ -4751,3 +4751,43 @@ ref（`Workflow does not have 'workflow_dispatch' trigger`）；而靠推 tag �
 facet 公开 JSON 通道不再吐它们；存在 re-list 通道、订阅/版本史不级联，属可逆处置）。
 **律：调试用蓝图铸完即下架；「试跑→再铸」链天然会推市场，测试残留不会自己消失。**
 四份真场景包（免费、走查号名下）去留属商业决定，留待用户拍板。
+
+### §15.96 免键 MCP 车道上产：WorkBuddy OAuth 静态客户端（翻案 DCR 阻塞论）（2026-10-30）
+
+**结论先行**：`add-workbuddy-mcp-lane` 曾判「OAuth 免键被授权服务器缺动态注册端点阻塞」——**同日翻案**。
+成熟方案本就不依赖 DCR：MCP 规范把 DCR 定为 MAY（2026-07-28 版起弃用），静态 client_id 是优先路径；
+WorkBuddy 内嵌官方 SDK 的 provider 只要从 mcp.json `oauth.clientId` 拿到 id 就短路 `registerClient`
+（读 asar 实证 `clientInformation(){if(this.options.provider?.clientId)return{client_id:…}}`）。
+
+**生产三件套（Logto Management API，cheap-1 M2M 凭据在 `/opt/mcp-gateway-registry/.env`）**
+1. Native 应用 `facet-mcp-keyless` = `tvmzkpz3ld5kqlmse5se9`，回调 `http://127.0.0.1/oauth/callback`
+   ——native 型走 RFC 8252 **端口无关回环匹配**（去端口比对，scheme+host+path 逐字一致），客户端
+   每次随机监听端口照样命中。免 secret。
+2. API 资源 `MCP Gateway canonical` = `19yd7zmhfx7kouixynym5`，indicator=裸 origin
+   `https://mcp.finddatatech.cloud`（scope `gateway:access`=`0abc4c0bh2q5igxm2t4yq`）——客户端按
+   RFC 8707 把 PRM 里的裸 origin 原样作 `resource` 发出，不注册即 `invalid_target`。
+   first-party/native 应用**无需 scope assignment** 即可请求该资源 scope（实测）。
+3. 租户级 custom-JWT（access-token）注入 `roles`（名称数组）与 `username`（primaryEmail），
+   仅对 `aud` 命中网关两 indicator 的 token 生效；其余返回 `{}`。计费/组门由此与 wgk- 车道同口径
+   （`sub2api_caller_map` 按 username=邮箱查）。回滚= `DELETE /api/configs/jwt-customizer/access-token`。
+
+**网关补丁与出片**：fork 线 `fd-keyless-mcp-audience`（worktree 506f127d=自报生产线谱系），
+补丁 `c216f479`：Logto provider 经 env `LOGTO_ACCEPTED_AUDIENCES`（逗号分隔）追加接受**网关自广告
+的 origin** 为 bearer audience（旧集合只有 client_id/m2m_client_id/m2m_resource，裸 origin 进 `aud`
+会被拒）。新增 6 测（真 RSA keypair patch get_jwks）、345 测绿、ruff 净。出片走**公开仓**
+`FindDataTechnology/fd-mcp-registry`（私仓额度 2011/2000 已尽，公开标准 runner 免费）image.yml
+dispatch 矩阵 mcp-auth-server → `sha-c216f47`/digest ef8657bd，GHA→hkccr→cheap-3 tcr-relay→ccr。
+GitOps `d8d99246`（gitee+github 双推）加镜像 bump + env，ArgoCD hard-refresh 同步、rollout 成。
+
+**端到端实证（无头复刻客户端全流程，playwright PKCE-S256 + 本地随机端口回调）**：授权 → token
+`aud=https://mcp.finddatatech.cloud` 含 roles/username → 网关 initialize 200 → tools/list **160+ 工具**。
+已知非阻塞项：provider 对 native 应用**未回 refresh_token**（`offline_access` 被静默丢弃）→ 过期后
+客户端自动再弹授权（已登录近乎无感）。
+
+**CLI 侧（paas 本仓）**：`facet install --oauth [--oauth-client <id>] --write-mcp` 写
+`{type:"http", url, oauth:{name, clientId, scope}}`（零凭据落盘）；未实证目标明确拒绝。
+`test-facet-cli-mcp` 12/12、docs-facts 7/7、facet 全家 55 测绿、biome 净。
+**坑**：Logto customizer 路由是**租户级** `/api/configs/jwt-customizer/:tokenTypePath`（应用级
+`/applications/:id/custom-jwt` 404 是错路）；脚本契约=声明 `function getCustomJwtClaims(input)`，
+`input={token,context,environmentVariables,api}`（context 取 user 不是顶层）；创建 API 资源字段名是
+`indicator` 不是 apiIdentifier；heredoc 未加引号会把反引号当命令执行（本次毁注释一处，现场脚本无损）。

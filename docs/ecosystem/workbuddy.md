@@ -13,37 +13,51 @@ WorkBuddy 是腾讯的 AI 办公工作台（CodeBuddy Agent CLI 之上的桌面 
 
 ## 1. 连接
 
-**只有一条路现在能用：贴调用键（1b）。** OAuth 免键那条（1a）我们这边还差一环，见下。
+**两条路都能用：1a OAuth 免键（桌面日常）与 1b 贴调用键（headless/CI、脚本化）。**
 
-### 1a. OAuth 授权（不贴键）—— 当前不可用，原因已定位
+### 1a. OAuth 授权（不贴键）—— 已打通（2026-10-30 端到端实证）
 
-这条路的链路我们查到底了，**不是客户端不支持，是我们的授权服务器缺一个端点**。
+一条命令，`mcp.json` 里不落任何秘密：
 
-客户端做 MCP OAuth 用的是官方 SDK 的 `registerClient`，它要求授权服务器元数据里有
-`registration_endpoint`（动态客户端注册，RFC 7591）；缺了就直接抛错：
-
-```
-Incompatible auth server: does not support dynamic client registration
+```bash
+npx @finddatatechnology/facet install <packRef> --target workbuddy --oauth --write-mcp
 ```
 
-实测我们的链路逐环：
+写入的条目带的是**静态 OAuth 客户端**（不是凭据）：
 
-| 环 | 状态 |
-|---|---|
-| `POST /<pack>/mcp` 未授权 → `WWW-Authenticate: Bearer … resource_metadata="…"` | ✅ 正确 |
-| `GET /.well-known/oauth-protected-resource` | ✅ 200，指向 `https://auth.finddatatech.cloud/oidc` |
-| `GET <auth>/.well-known/openid-configuration` | ✅ 200 |
-| 该元数据里的 `registration_endpoint` | ❌ **缺失**（Logto 不提供 DCR） |
-| 该元数据里的 `client_id_metadata_document_supported`（SEP-991 免注册替代） | ❌ **缺失** |
+```json
+{
+  "mcpServers": {
+    "<server>": {
+      "type": "http",
+      "url": "https://mcp.finddatatech.cloud/<server>/mcp",
+      "oauth": { "name": "facet", "clientId": "tvmzkpz3ld5kqlmse5se9",
+                 "scope": "openid gateway:access offline_access" }
+    }
+  }
+}
+```
 
-两条替代路都不通：客户端只有在拿到 `clientMetadataUrl` 时才走 SEP-991 的 URL 型 client_id，
-而它这个值没有被赋值（不是内置常量）。所以**当前 OAuth 只能在客户端抛错**。
+首次调用该服务器时，WorkBuddy 打开浏览器到 Logto 授权页（PKCE），登录同意后 token 存进
+客户端自己的加密库——配置文件里没有凭据，吊销走 Logto 侧。`--oauth-client <id>` 可覆盖
+client_id（自建应用时用）。组/角色照常生效：授权账号不持某 server 要求的角色时，调用被拒。
 
-要打通需要动授权侧（Logto 开 DCR 或前置一个注册代理，或让网关在授权服务器元数据里补上
-`client_id_metadata_document_supported` 并支持 URL 型 client_id）——这是**网关/身份侧的活**，
-不在本次 CLI 改动范围内。在那之前，**用 1b**。
+> **这条路曾判过死刑，翻案记录。** 客户端内嵌官方 MCP SDK，在没有现成 client_id 时会调
+> `registerClient` 要求动态注册（RFC 7591），而 Logto 无 `registration_endpoint`，于是抛
+> `Incompatible auth server: does not support dynamic client registration`。但成熟方案本就不依赖
+> DCR：MCP 规范把 DCR 定为 MAY（2026-07-28 版起弃用，转向预注册/CIMD），静态 client_id 是优先
+> 路径——SDK 的 provider 一旦拿到 `oauth.clientId` 就短路整个注册环节。打通共动三处：
+>
+> | 处 | 内容 |
+> |---|---|
+> | Logto 生产配置 | Native 应用 facet-mcp-keyless（id 即上例 clientId），回调 `http://127.0.0.1/oauth/callback`——native 型走 RFC 8252 端口无关回环匹配，客户端随机端口照样命中 |
+> | Logto 生产配置 | 把网关 origin `https://mcp.finddatatech.cloud` 注册为 API 资源（scope `gateway:access`）；租户级 custom-JWT 给网关受众的 token 注入 `roles` 与 `username`（计费/组门与 wgk- 车道同口径） |
+> | 网关镜像 sha-c216f47 | auth-server 的 Logto provider 接受网关**自广告的 origin** 为 bearer audience（env `LOGTO_ACCEPTED_AUDIENCES`，RFC 8707 资源指示符原样进 `aud`） |
+>
+> 已知非阻塞项：Logto provider 对 native 应用未回 refresh_token（`offline_access` 被静默丢弃），
+> 令牌过期后客户端会自动再弹一次授权（账号已登录时近乎无感）。
 
-### 1b. 贴调用键（现在唯一可用的路，与其它编辑器一致）
+### 1b. 贴调用键（headless/脚本化，与其它编辑器一致）
 
 ```bash
 npx @finddatatechnology/facet connect
@@ -55,7 +69,10 @@ npx @finddatatechnology/facet connect
 ## 2. 安装
 
 ```bash
+# 贴键车道：先 facet connect 铸 wgk- 键，再
 npx @finddatatechnology/facet install <packRef> --target workbuddy --write-mcp
+# 免键车道：跳过 connect，直接
+npx @finddatatechnology/facet install <packRef> --target workbuddy --oauth --write-mcp
 ```
 
 技能与 MCP 都落在 `.workbuddy`：
@@ -101,7 +118,9 @@ MCP 条目形状（客户端读这个）：
 `.cursor`）。仍不识别时，把 `SKILL.md` 内容贴进项目规则文件是可行的降级路径（同 Cursor 的 Rules 做法）。
 
 **MCP 状态灯红。** 检查三件：`type` 是否写成 `http`（漏写时客户端会按有无 `url` 推断，但显式更稳）、
-`url` 是否指到 `<registry>/<server>/mcp`、`Authorization` 头是否带 `Bearer` 前缀。
+`url` 是否指到 `<registry>/<server>/mcp`、`Authorization` 头是否带 `Bearer` 前缀。免键条目
+（`oauth.clientId` 形状）首次连接必须完成一次浏览器授权，授权前灯不绿属预期；回调端口被防火墙
+拦时改用其它网络环境重试（回调固定在 `127.0.0.1:<随机端口>/oauth/callback`，不出本机）。
 
 **调用被拒 401/405。** 401 = 键无效或组不可见；405 = 该 server 在你注册处的组里已停用。这属注册处侧
 的端到端判定，不是本地配置问题。
@@ -130,13 +149,14 @@ WorkBuddy 5.9.3 桌面版（`/Applications/WorkBuddy.app`），配置根 `~/.wor
    与 `facet/marketplace-repo.js` 的产物逐字段一致（`name`/`owner`/`plugins[].{name,source,version,description}`；
    plugin.json 的 name+version 必须与条目一致——客户端加载器直接 reject 不一致者）。
    **未做**：真机「添加地址」走查（需要一个可访问的远端仓）。
-5. **OAuth 连接 ❌ 查到底：被授权服务器阻塞（非客户端能力问题）**。客户端确有能力——它内嵌官方
-   MCP SDK 的标准 OAuth 流程（`registerClient` + PKCE-S256 + 授权码），但**要求授权服务器元数据里有
-   `registration_endpoint`**，缺了就抛 `Incompatible auth server: does not support dynamic client
-   registration`。实测我们的链路：资源侧挑战头正确（`resource_metadata` 指到位）、
-   `/.well-known/oauth-protected-resource` 200、Logto 的 `openid-configuration` 200，
-   但**没有 `registration_endpoint`，也没有 SEP-991 的 `client_id_metadata_document_supported`**；
-   客户端侧 `clientMetadataUrl` 未被赋值，所以 SEP-991 兜底也走不了。**结论：键路径是当前唯一可用的连接方式**，
-   打通 OAuth 属网关/身份侧改动。
+5. **OAuth 连接 ✅ 打通（同日翻案：原判「被授权服务器阻塞」只对了一半）**。缺 DCR 属实，但成熟
+   解法本就不走 DCR——MCP 规范把 DCR 定为 MAY（2026-07-28 版起弃用），静态 client_id 是优先路径，
+   SDK 的 provider 拿到 mcp.json `oauth.clientId` 即短路 `registerClient`。配套三处（Logto native
+   应用 facet-mcp-keyless + origin `https://mcp.finddatatech.cloud` 注册为 API 资源 + 租户 custom-JWT
+   注入 roles/username；网关 accepted_audiences 补丁 sha-c216f47）后，无头复刻客户端全流程
+   （PKCE-S256、PRM 裸 origin resource）实测：授权 → token `aud=https://mcp.finddatatech.cloud`
+   含 roles/username → initialize 200 → tools/list 160+ 工具；计费与 wgk- 车道同口径（username=邮箱）。
+   CLI 侧 `--oauth` 写入车道由 `scripts/test-facet-cli-mcp.mjs` 持续咬合。已知非阻塞项：native 应用
+   未回 refresh_token（offline_access 被 provider 丢弃）→ 令牌过期自动再弹一次授权。
 
 CLI 侧写入形状由 `scripts/smoke-facet-clients.mjs` 与 `scripts/test-facet-cli-mcp.mjs` 持续咬合。

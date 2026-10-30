@@ -137,9 +137,12 @@ test("install 持键 + --write-mcp + --project：claude-code 写项目级 .mcp.j
 });
 
 // ── WorkBuddy (add-workbuddy-mcp-lane) ──────────────────────────────────────
-// Two roots on purpose: skills ride the client's CodeBuddy configuration tree
-// (.codebuddy), MCP has its own dotdir (.workbuddy). Both are the client's
-// own documented locations — see docs/ecosystem/workbuddy.md.
+// One root, verified on a real install 2026-10-30 (which disproved the
+// earlier ".codebuddy" reading): skills at ~/.workbuddy/skills, MCP at
+// ~/.workbuddy/mcp.json — see docs/ecosystem/workbuddy.md.
+// Two connection forms: header-keyed (wgk-) and keyless OAuth — the entry
+// carries oauth.clientId (static client, DCR short-circuited), live-verified
+// end-to-end 2026-10-30 (Logto native app + gateway audience patch).
 test("install 持键 + --write-mcp：workbuddy 写 .workbuddy/mcp.json 的 http 形状", async () => {
   const server = await stubFacet();
   try {
@@ -190,4 +193,82 @@ test("workbuddy 技能落盘在 .workbuddy/skills（用户级与项目级；真�
       assert.equal(inProject.scope, "项目级");
       process.env.FACET_HOME = prevHome;
   });
+});
+
+// ── WorkBuddy 免键(OAuth)车道 (--oauth) ─────────────────────────────────────
+// 静态 oauth.clientId 使客户端 OAuth provider 的 clientInformation() 立即返回，
+// SDK 不再触达动态注册——2026-10-30 生产端到端实证（Native app facet-mcp-keyless
+// + 网关 LOGTO_ACCEPTED_AUDIENCES 补丁 sha-c216f47），配方见 docs/ecosystem/workbuddy.md。
+
+test("install --oauth --write-mcp：workbuddy 写免键条目——oauth.clientId 形状、零凭据落盘（本地无键也能走）", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome(null, async (home, _proj) => { // 注意：未 seedKey——免键不依赖 wgk-
+      const { stdout } = await install(home, ["--target", "workbuddy", "--registry", base, "--base", base, "--oauth", "--write-mcp"]);
+      assert.match(stdout, /MCP 免键连接配置已写入/);
+      const doc = JSON.parse(await readFile(path.join(home, ".workbuddy", "mcp.json"), "utf8"));
+      const entry = doc.mcpServers["law-bench"];
+      assert.equal(entry.type, "http");
+      assert.equal(entry.url, `${base}/law-bench/mcp`);
+      assert.equal(entry.oauth.clientId, "tvmzkpz3ld5kqlmse5se9"); // 生产 facet-mcp-keyless
+      assert.match(entry.oauth.scope, /gateway:access/);
+      assert.match(entry.oauth.scope, /offline_access/);
+      assert.equal(entry.headers, undefined); // 免键：任何 Authorization 不落这个文件
+      assert.equal(doc.mcpServers["fd-open-data-mcp"].oauth.clientId, "tvmzkpz3ld5kqlmse5se9");
+      // requiredGroup 提示改用「授权账号/角色」口径
+      assert.match(stdout, /授权账号不持该角色/);
+    });
+  } finally { server.close(); }
+});
+
+test("install --oauth --oauth-client <id>：client_id 可覆盖", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome(null, async (home, _proj) => {
+      await install(home, ["--target", "workbuddy", "--registry", base, "--base", base,
+        "--oauth", "--oauth-client", "custom-client-x", "--write-mcp"]);
+      const doc = JSON.parse(await readFile(path.join(home, ".workbuddy", "mcp.json"), "utf8"));
+      assert.equal(doc.mcpServers["law-bench"].oauth.clientId, "custom-client-x");
+    });
+  } finally { server.close(); }
+});
+
+test("install --oauth 未 --write-mcp（非 TTY）：只引用不写入", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome(null, async (home, _proj) => {
+      const { stdout } = await install(home, ["--target", "workbuddy", "--registry", base, "--base", base, "--oauth"]);
+      assert.match(stdout, /--oauth 但未写入/);
+      await assert.rejects(() => stat(path.join(home, ".workbuddy", "mcp.json")));
+    });
+  } finally { server.close(); }
+});
+
+test("install --oauth 目标非 workbuddy：明确拒绝（免键仅实证于 workbuddy）", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome(null, async (home, _proj) => {
+      await assert.rejects(
+        () => install(home, ["--target", "cursor", "--registry", base, "--base", base, "--oauth", "--write-mcp"]),
+        /未证实免键/,
+      );
+      await assert.rejects(() => stat(path.join(home, ".cursor", "mcp.json")));
+    });
+  } finally { server.close(); }
+});
+
+test("install 无键 workbuddy：提示里给出 --oauth 免键出路", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome(null, async (home, _proj) => {
+      const { stdout } = await install(home, ["--target", "workbuddy", "--registry", base, "--base", base]);
+      assert.match(stdout, /workbuddy 亦可免键/);
+      assert.match(stdout, /--oauth/);
+    });
+  } finally { server.close(); }
 });

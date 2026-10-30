@@ -32,9 +32,9 @@ The `@finddatatechnology/facet` CLI SHALL install a published pack's skills from
 
 ### Requirement: MCP references are honest about credentials
 
-The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice of the credential requirement. Without a caller key on file, the CLI SHALL NOT write MCP connection configuration into any editor target. With a caller key established through the connect flow, the CLI SHALL offer to write each target's native MCP configuration — endpoint plus Authorization header carrying that key — for the pack's MCP references, and SHALL say exactly which files it wrote.
+The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice of the credential requirement. Without a caller key on file, the CLI SHALL NOT write key-bearing MCP connection configuration into any editor target; the keyless OAuth form is written only when the user explicitly opts in (`--oauth`) and only against a target whose OAuth behavior is verified. With a caller key established through the connect flow, the CLI SHALL offer to write each target's native MCP configuration — endpoint plus Authorization header carrying that key — for the pack's MCP references, and SHALL say exactly which files it wrote.
 
-For the WorkBuddy target the native configuration SHALL be the client's own MCP file at user level (`~/.workbuddy/mcp.json`) and at project level (`<project>/.workbuddy/mcp.json`), and each server entry SHALL declare the remote transport explicitly (`type: "http"`), the gateway endpoint (`url`), and the key-bearing `headers.Authorization` — the header-keyed form is the connection path that works today against this client, whose OAuth flow requires dynamic client registration that our authorization server does not yet expose.
+For the WorkBuddy target the native configuration SHALL be the client's own MCP file at user level (`~/.workbuddy/mcp.json`) and at project level (`<project>/.workbuddy/mcp.json`). Two connection forms are supported against this target: the key-bearing form (`type: "http"`, gateway `url`, `headers.Authorization` — for headless/scripted callers), and, when the user opts into the keyless lane (`--oauth`, optionally `--oauth-client <id>`), a form declaring a pre-registered static OAuth client (`type: "http"`, gateway `url`, `oauth.clientId`, `oauth.scope`) with **no credential in the file** — the client obtains tokens through the browser authorization flow on first use and stores them in its own encrypted store. A keyless request against a target whose OAuth behavior has not been verified SHALL be refused with an explanation, writing nothing.
 
 #### Scenario: MCP reference prints endpoint and notice
 
@@ -54,3 +54,16 @@ For the WorkBuddy target the native configuration SHALL be the client's own MCP 
 - **THEN** the entry is written into `~/.workbuddy/mcp.json` at user level, or `<project>/.workbuddy/mcp.json` when a project directory is named
 - **AND** the entry carries `type: "http"`, the gateway `url`, and `headers.Authorization` with the caller key
 - **AND** no other client's configuration file is touched
+
+#### Scenario: WorkBuddy keyless write carries no credential
+
+- **WHEN** an install with `--oauth` targets WorkBuddy and the user accepts the write, whether or not a caller key is on file
+- **THEN** the entry carries `type: "http"`, the gateway `url`, and a static OAuth client (`oauth.clientId` + `oauth.scope`) — and carries no Authorization header or other secret
+- **AND** the CLI states that the client will open the browser authorization on first call
+- **AND** `--oauth-client <id>` overrides the client id when a deployment registers its own application
+
+#### Scenario: Keyless opt-in declined on unverified targets
+
+- **WHEN** `--oauth` is combined with a target whose OAuth behavior has not been verified
+- **THEN** the CLI refuses with an explanation naming the verified targets and points to the caller-key flow
+- **AND** no configuration file is created or modified

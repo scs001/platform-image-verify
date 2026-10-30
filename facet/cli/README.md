@@ -11,6 +11,7 @@ npx @finddatatechnology/facet install <packRef>
 - `--project <dir>`：改为项目级（`<dir>/.<target>/skills/…`）。
 - `--base <url>`：换谦面部署地址（默认 `https://facet.finddatatech.cloud`）。
 - `--registry <url>`：注册处地址（默认 `https://mcp.finddatatech.cloud`）。
+- `--oauth`：免键（OAuth）连接车道——写授权型 MCP 条目而非凭据，首次调用浏览器授权一次（目前仅 `workbuddy` 实证支持）；`--oauth-client <id>` 覆盖 client_id。
 
 ## 连接 MCP（connect）
 
@@ -29,7 +30,8 @@ npx @finddatatechnology/facet connect --clear     # 清除本地键
 npx @finddatatechnology/facet install <packRef> --write-mcp   # 写目标编辑器原生 MCP 配置并报告所写文件
 ```
 
-无键时 install 行为与旧版一致：只打印 MCP 端点与凭据要求，零写入。
+无键时 install 行为与旧版一致：只打印 MCP 端点与凭据要求，零写入——`workbuddy` 目标可用
+`--oauth` 免键车道替代贴键（见下「版本说明」）。
 
 ## 调用者偏好（萬星）
 
@@ -67,8 +69,16 @@ npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --clear all
 npx @finddatatechnology/facet install <packRef> --target workbuddy --write-mcp
 ```
 
-远端 MCP 条目按 `{"type": "http", "url": …, "headers": {"Authorization": …}}` 写入；
-该客户端也支持 OAuth 发现连接，可不贴键（见 `docs/ecosystem/workbuddy.md`）。
+远端 MCP 条目按 `{"type": "http", "url": …, "headers": {"Authorization": …}}` 写入。
+免键车道（2026-10-30 端到端实证）：
+
+```bash
+npx @finddatatechnology/facet install <packRef> --target workbuddy --oauth --write-mcp
+```
+
+写的是静态 OAuth 客户端条目 `{"type": "http", "url": …, "oauth": {"name", "clientId", "scope"}}`
+——文件里没有任何凭据，首次调用由客户端弹浏览器授权，token 存客户端自己的加密库。
+机制、翻案记录与配套（Logto native 应用 / 网关受众补丁）见 `docs/ecosystem/workbuddy.md`。
 
 ## 隐私
 

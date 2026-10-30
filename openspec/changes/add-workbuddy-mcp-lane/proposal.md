@@ -6,19 +6,21 @@ WorkBuddy 是 CodeBuddy Agent CLI 之上的桌面 Product，其开放面已支�
 而谦面 CLI 现有的五个 target（Claude Code / Cursor / ZCode / Codex / Gemini CLI）不含它——
 一条命令能完成的事，今天要用户手写 JSON、手贴调用键。
 
-同时本单把「我们的 OAuth 发现能力能不能让这个客户端免贴键」从推论变成了逐环实测，
-结论是**当前不通，且原因不在客户端**：客户端内嵌官方 MCP SDK 的标准 OAuth 流程，
-硬要求授权服务器元数据带 `registration_endpoint`（RFC 7591 动态客户端注册），而我们的
-Logto 没有它（也没有 SEP-991 兜底开关）；实测抛错 `Incompatible auth server: does not support
-dynamic client registration`。打通它属身份/网关侧改动，不在本单范围；本单把贴键路径
-做成可用产品，并把这一阻塞原因写进指南（避免下一个人再推一遍）。
+同时本单把「我们的 OAuth 发现能力能不能让这个客户端免贴键」从推论变成了逐环实测，走了两跳：
+第一跳判「不通，卡在授权服务器缺 `registration_endpoint`（RFC 7591 动态注册）」；**同日翻案打通**——
+错在把 DCR 当必经环节：MCP 规范里 DCR 是 MAY（2026-07-28 版起弃用），静态 client_id 才是优先路径，
+mcp.json 给 `oauth.clientId` 即短路 SDK 的注册环节进入标准授权码 + PKCE。配套身份/网关侧三处
+（Logto Native 应用、网关 origin 注册为 API 资源 + 租户 custom-JWT、accepted_audiences 补丁
+sha-c216f47），端到端实证到 tools/list。本单把**两条车道都做成可用产品**：贴键（headless/CI）
+与 `--oauth` 免键（桌面日常），指南写明机制与翻案过程（避免下一个人再推一遍、或再误判一遍）。
 
 ## What Changes
 
 - **facet CLI 新增第六 target `workbuddy`**：技能安装按该客户端的目录约定落盘；`install --write-mcp`
   写它原生的 MCP 配置（用户级与项目级各一），条目形状为 `type: "http"` + `url` + `headers`。
-- **连接主路径是贴键**：`facet connect` 铸键 + `install --write-mcp` 写 `headers.Authorization`；
-  同时把 OAuth 免键为什么当前不可用写进指南（阻塞点定位到授权服务器缺注册端点，非客户端能力）。
+- **两条连接车道**：贴键 = `facet connect` 铸键 + `install --write-mcp` 写 `headers.Authorization`；
+  免键 = `install --oauth [--oauth-client <id>] --write-mcp` 写 `oauth.clientId` 静态客户端条目
+  （零凭据落盘，首次调用浏览器授权一次）。指南写明免键机制、翻案过程与已知非阻塞项。
 - **文档与单源测试同步**：新增 `docs/ecosystem/workbuddy.md` 指南、`docs/ecosystem/client-matrix.md`
   增列；`scripts/test-facet-docs-facts.mjs` 的「文档事实 == CLI 两张表」断言随新 target 自动咬合。
 - **冒烟覆盖**：`scripts/smoke-facet-clients.mjs` 增加新 target 的写入形状断言（路径 + 条目键名）。
@@ -42,6 +44,9 @@ dynamic client registration`。打通它属身份/网关侧改动，不在本单
 - 代码：`facet/cli/facet.js`（`SKILLS_SUBDIR`、`MCP_TARGETS`、`writeMcpConfig`、帮助文本）。
 - 测试：`scripts/test-facet-docs-facts.mjs`、`scripts/smoke-facet-clients.mjs`、CLI 单测。
 - 文档：`docs/ecosystem/workbuddy.md`（新）、`docs/ecosystem/client-matrix.md`。
-- 依赖：无新增依赖；不涉及镜像层变化（纯 CLI + 文档 + 测试）。
+- 免键车道配套（1.3 翻案，身份/网关侧，均在生产落地）：Logto 生产配置（native 应用 + API 资源 +
+  租户 custom-JWT）；网关 fork 线 `fd-keyless-mcp-audience`（基座=自报生产线 506f127d，补丁
+  c216f479，镜像 sha-c216f47）+ GitOps d8d99246。详见 design D4 与 tasks 1.3/6.3。
+- 依赖：无新增依赖；不涉及镜像层变化（纯 CLI + 文档 + 测试；网关补丁属身份/网关侧单线）。
 - 风险面：WorkBuddy 的技能目录约定在文档中未完全统一（MCP 走 `~/.workbuddy/`，项目级技能文档写作
   `.codebuddy/skills/`），落盘路径必须由真机走查定案，不得照抄猜测。

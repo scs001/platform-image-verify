@@ -29,12 +29,25 @@ const VERSION = JSON.parse(
 ).version;
 const DEFAULT_BASE = process.env.FACET_BASE || "https://facet.finddatatech.cloud";
 const DEFAULT_REGISTRY = process.env.FACET_REGISTRY || "https://mcp.finddatatech.cloud";
+// Keyless MCP lane (add-workbuddy-mcp-lane, 2026-10-30): a pre-registered
+// PUBLIC client on our Logto tenant. WorkBuddy's bundled MCP SDK calls DCR
+// unconditionally unless clientInformation() is already populated — the
+// client's mcp.json `oauth.clientId` field populates it, skipping DCR
+// entirely (verified against the shipped app.asar + a live headless PKCE
+// round-trip). The tenant's custom-JWT script injects roles/email for tokens
+// whose audience is the gateway, and the auth-server accepts the gateway's
+// own advertised resource URL as audience (fork patch c216f479). End-to-end
+// green: authorize → token → gateway 200 → 160+ tools listed, zero pasted
+// keys. App id overridable for non-prod registries.
+const DEFAULT_OAUTH_CLIENT_ID = process.env.FACET_OAUTH_CLIENT_ID || "tvmzkpz3ld5kqlmse5se9";
+const DEFAULT_OAUTH_SCOPE = "openid gateway:access offline_access";
 
 const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者偏好
 
 用法：
   facet install <packRef> [--target CC|cursor|zcode|codex|gemini-cli|workbuddy]
                           [--project <dir>] [--base <url>] [--registry <url>]
+                          [--write-mcp|--no-write-mcp] [--oauth [--oauth-client <id>]]
   facet update [packRef] [--target <t>] [--base <url>]   # 重取最新版快照（无订阅副作用）
   facet connect [--key wgk-…] [--registry <url>] [--clear] [--show] [--no-open]
   facet prefs <agent-slug> [--key sk-…] [--wanxing <url>]
@@ -49,6 +62,9 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
   --project  项目级安装：写进 <dir>/<dotdir>/skills/ 而非用户级目录
   --base     谦面地址（默认 ${DEFAULT_BASE}）
   --registry 注册处地址——打印 MCP 端点；connect 用它验活与铸造
+  --oauth    workbuddy 免键(OAuth)连接：mcp.json 条目带 oauth.clientId（静态客户端，
+             绕开动态注册），首次调用弹浏览器授权一次，零凭据落盘；暂仅 workbuddy
+  --oauth-client 覆盖免键条目的 OAuth client_id（默认 facet-mcp-keyless 应用）
 
   connect 子命令（ecosystem-bridge）：铸取并验活 wgk- 调用键，存本地后
   install 可写各编辑器的 MCP 连接配置。--key 免交互粘贴；缺省打开铸造页
@@ -114,6 +130,8 @@ function parseArgs(argv) {
     else if (a === "--no-open") out.noOpen = true;
     else if (a === "--write-mcp") out.writeMcp = true;
     else if (a === "--no-write-mcp") out.noWriteMcp = true;
+    else if (a === "--oauth") out.oauth = true;
+    else if (a === "--oauth-client") out.oauthClient = rest.shift();
     else if (a === "--show") out.show = true;
     else if (a === "--help" || a === "-h") out.command = "help";
     else if (a === "--version" || a === "-v") out.command = "version";
@@ -203,16 +221,25 @@ const MCP_TARGETS = {
   // ~/.workbuddy/mcp.json (its MCP guide; client code getMcpConfigPath() =
   // <configDir>/mcp.json). Same root, not two — verified on a real install
   // 2026-10-30, which also disproved the earlier ".codebuddy" reading.
-  // Remote transport is declared explicitly (type "http") with url + headers.
-  // The client does implement MCP OAuth, but it requires dynamic client
-  // registration from the authorization server and ours has no
-  // registration_endpoint, so the header key is the WORKING path, not a
-  // fallback: without it the client fails with "Incompatible auth server".
+  // Remote transport is declared explicitly (type "http"). TWO connection
+  // forms (both live-verified 2026-10-30):
+  //  - entry(): header-keyed (wgk- caller key) — the path that predates the
+  //    keyless lane and still works for headless/CI callers.
+  //  - entryOauth(): keyless — `oauth.clientId` makes the client's OAuth
+  //    provider return clientInformation() immediately, so the SDK never
+  //    reaches its (required-here) dynamic-registration call. The user
+  //    authorizes once in the browser; tokens live in the CLIENT's encrypted
+  //    store, never in this file. This is the path --write-mcp --oauth picks.
   workbuddy: {
     userFile: () => path.join(HOME(), ".workbuddy", "mcp.json"),
     projectFile: (dir) => path.join(dir, ".workbuddy", "mcp.json"),
     json: { container: (doc) => doc, key: "mcpServers" },
     entry: (url, headers) => ({ type: "http", url, headers }),
+    entryOauth: (url, clientId, scope) => ({
+      type: "http",
+      url,
+      oauth: { name: "facet", clientId, scope },
+    }),
   },
 };
 
@@ -256,12 +283,22 @@ async function upsertTomlMcp(file, name, url, headers) {
 // the list of files written (for the CLI's report). Project-level writes go
 // to whichever targets declare a projectFile (CC: <dir>/.mcp.json,
 // WorkBuddy: <dir>/.workbuddy/mcp.json); the rest are user-level only.
-async function writeMcpConfig(target, { registry, servers, key, project }) {
+async function writeMcpConfig(target, { registry, servers, key, project, oauth }) {
   const t = MCP_TARGETS[target];
   if (!t) throw new Error(`目标「${target}」没有 MCP 配置约定`);
+  if (oauth && !t.entryOauth) {
+    throw new Error(`目标「${target}」未证实免键(OAuth)连接面——免键车道目前仅 workbuddy；其余目标用 wgk- 调用键（facet connect 铸键）。`);
+  }
   const files = [];
   for (const s of servers) {
     const url = `${registry}/${s.registryName}/mcp`;
+    if (oauth) {
+      const clientId = typeof oauth === "string" ? oauth : DEFAULT_OAUTH_CLIENT_ID;
+      const entry = t.entryOauth(url, clientId, DEFAULT_OAUTH_SCOPE);
+      const file = project && t.projectFile ? t.projectFile(project) : t.userFile();
+      files.push(await upsertJsonMcp(file, t.json.container, t.json.key, s.registryName, entry));
+      continue;
+    }
     const headers = { Authorization: `Bearer ${key}` };
     if (t.toml) files.push(await upsertTomlMcp(t.userFile(), s.registryName, url, headers));
     else {
@@ -548,6 +585,34 @@ async function install(opts) {
 
   const mcp = detail.manifest?.mcpServers ?? [];
   if (mcp.length > 0) {
+    if (opts.oauth) {
+      // 免键车道（add-workbuddy-mcp-lane）：条目带 oauth.clientId，用户首调用在
+      // 浏览器授权一次；token 存客户端自己的加密库，任何键都不落这个文件。
+      const shouldWrite = opts.writeMcp === true || (opts.noWriteMcp !== true && process.stdin.isTTY
+        ? await (async () => {
+            const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin });
+            try {
+              const a = (await rl.question("写入免键(OAuth 授权)连接配置？[y/N] ")).trim().toLowerCase();
+              return a === "y" || a === "yes";
+            } finally { rl.close(); }
+          })()
+        : false);
+      if (!shouldWrite) {
+        console.log("\nMCP 引用（--oauth 但未写入；--write-mcp 启用写入）：");
+        for (const s of mcp) {
+          console.log(`  · ${s.registryName} — 端点 ${registry}/${s.registryName}/mcp`);
+        }
+      } else {
+        const files = await writeMcpConfig(opts.target, {
+          registry, servers: mcp, project: opts.project, oauth: opts.oauthClient || true,
+        });
+        console.log("\nMCP 免键连接配置已写入（无凭据落盘——首次调用该服务器时客户端会打开授权页）：");
+        for (const f of [...new Set(files)]) console.log(`  ✓ ${f}`);
+        for (const s of mcp) {
+          if (s.requiredGroup) console.log(`  注：${s.registryName} 需要组 ${s.requiredGroup}——授权账号不持该角色时调用会被拒。`);
+        }
+      }
+    } else {
     const stored = await loadCredentials();
     if (!stored) {
       console.log("\nMCP 引用（未写入任何编辑器配置——本地未存调用键）：");
@@ -558,6 +623,9 @@ async function install(opts) {
         console.log(`    端点 ${endpoint} — 连接需 wgk- 调用键`);
       }
       console.log("  运行 facet connect 铸取并验活调用键；之后 install 可代写连接配置。");
+      if (opts.target === "workbuddy") {
+        console.log("  workbuddy 亦可免键：重跑本命令加 --oauth（浏览器授权一次，零凭据落盘）。");
+      }
     } else {
       const shouldWrite = opts.writeMcp === true || (opts.noWriteMcp !== true && process.stdin.isTTY
         ? await (async () => {
@@ -586,6 +654,7 @@ async function install(opts) {
         }
       }
     }
+    }
   }
 
   if (opts.target === "cursor") {
@@ -599,7 +668,7 @@ async function install(opts) {
       "\n注：WorkBuddy 的技能目录是 ~/.workbuddy/skills/（真机实证：放进去的 SKILL.md 会进客户端技能列表，source=userSettings）；"
       + "MCP 配置在同目录的 mcp.json。若客户端未识别技能，检查「已安装」列表与技能开关（关闭≠未安装），并确认客户端已重启或该目录在监听表内。"
     );
-    console.log("    OAuth 免键连接当前不可用（我们的授权服务器缺动态客户端注册端点，客户端会报 Incompatible auth server）；请用 facet connect 铸键后 --write-mcp。去向见 docs/ecosystem/workbuddy.md。");
+    console.log("    免键车道已打通（2026-10-30 端到端实证）：重跑本命令加 --oauth --write-mcp，mcp.json 写 oauth.clientId 静态客户端条目，首次调用浏览器授权一次即连上，零凭据落盘；wgk- 调用键的 header 写法照旧可用。配方与原理见 docs/ecosystem/workbuddy.md。");
   }
   console.log(`\n完成：${detail.id} v${version}（快照安装，无订阅副作用）。`);
   console.log(`把功能集装进运行时（对话/Agent 服务）请到壹座：设置 → 功能集 → 我的功能集（订阅后一键安装）。`);

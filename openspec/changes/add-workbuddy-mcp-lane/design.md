@@ -10,18 +10,19 @@
   文档的「项目级技能写 `.codebuddy/skills/`」指的是**仓库内代码开发配置**，不是用户级技能列表——
   真机探针定案用户级技能根为 `~/.workbuddy/skills`（详见 D2）。
 - 我们已有的 OAuth 连接能力在 `ecosystem-access`（RFC 9728 保护资源文档 + 授权服务器元数据），
-  今天没有被任何真实桌面工作台客户端验收过——本单查明了原因：**授权服务器缺动态客户端注册端点**，
-  而 WorkBuddy 内嵌的官方 MCP SDK 硬要它（详见 D4）。
+  本单先查明「为何从未被桌面客户端验收过」——客户端无 client_id 时硬要动态注册而 Logto 无
+  `registration_endpoint`；随后当日翻案打通（静态 `oauth.clientId` 短路 DCR + 身份/网关三处配套，
+  端到端实证），详见 D4 与 tasks 1.3/6.3。
 
 ## Goals / Non-Goals
 
 **Goals**
 
 - 新增 target 之后，`facet install <pack> --target workbuddy --write-mcp` 一条命令完成技能落盘 +
-  MCP 配置写入，用户不手抄 JSON。
+  MCP 配置写入（贴键），`--oauth` 车道一条命令完成免键写入，用户不手抄 JSON。
 - 文档矩阵、CLI 事实、冒烟脚本三者继续单源咬合，新 target 不能靠手工同步。
-- 把「OAuth 在真实客户端上是否可用」从推论变成一次逐环实测记录（结论：**当前不可用，卡在
-  授权服务器缺 `registration_endpoint`**，见 D4）。
+- 把「OAuth 在真实客户端上是否可用」从推论变成一次逐环实测记录（结论两跳：**先判卡在授权服务器
+  缺 `registration_endpoint` → 同日翻案，静态 client_id 车道打通并端到端实证**，见 D4）。
 
 **Non-Goals**
 
@@ -53,22 +54,43 @@
 `{ type: "http", url, headers: { Authorization } }`，写进 `MCP_TARGETS.workbuddy.entry()`。
 不写 `command`（这是远程 MCP，不是 stdio），也不复用 `zcode` 的嵌套结构（那是另一个客户端的形状）。
 
-### D4：当前只能贴键；OAuth 免键被授权服务器阻塞（原「OAuth 优先」已被实测推翻）
+### D4：两条连接车道并存——贴键（headless/CI）与免键 OAuth（桌面日常，同日打通）
 
 本单原把「客户端自己走 OAuth 发现」作为优先连接方式（贴键对非技术用户是漏斗杀手，
-且我们的发现文档已在产）。**2026-10-30 对生产端点逐环实测推翻了这个判断**：
+且我们的发现文档已在产）。**2026-10-30 对生产端点逐环实测第一跳判为阻塞**：
 
 - 客户端确实内嵌了官方 MCP SDK 的标准 OAuth 流程（授权码 + PKCE-S256 + `registerClient`），
   它的资源侧也正确消费了我们的挑战头（`WWW-Authenticate: Bearer realm="mcp", resource_metadata="…"`）。
-- 但 `registerClient` 硬要求授权服务器元数据带 `registration_endpoint`（RFC 7591 动态客户端注册），
+- 无 client_id 时 `registerClient` 硬要求授权服务器元数据带 `registration_endpoint`（RFC 7591），
   缺则直接抛 `Incompatible auth server: does not support dynamic client registration`。
-- 我们的 Logto 元数据**没有** `registration_endpoint`，也**没有**免注册的兜底开关
-  `client_id_metadata_document_supported`（SEP-991 URL 型 client_id；且该兜底在客户端需要
-  `clientMetadataUrl` 被赋值，它未赋值）。两条兜底全数不通。
+- 我们的 Logto 元数据没有 `registration_endpoint`，免注册的兜底开关 `client_id_metadata_document_supported`
+  （SEP-991 URL 型 client_id）也没有——当时据此把主路径改为贴键并写下「OAuth 当前不可用」。
 
-所以指南与 CLI 提示的**主路径改为贴键**，OAuth 作为「当前不可用、原因定位清楚」写明。
-打通它需要动身份/网关侧（Logto 开 DCR，或网关前置注册代理，或元数据补 SEP-991 开关），
-不在本单范围内——本单技术上只涉及 CLI 两张表 + 文档。
+**同日第二跳翻案**：「不可用」错在把 DCR 当成了必经环节。成熟方案本就不依赖 DCR——MCP 规范
+把 DCR 定为 MAY 且 2026-07-28 版起弃用（转向预注册/CIMD），**静态 client_id 才是优先路径**；
+读客户端 asar 实证其 SDK provider 为
+`clientInformation(){if(this.options.provider?.clientId)return{client_id:…}}`——
+mcp.json 的 `oauth.clientId` 一给出，`registerClient` 整个环节被短路，进入标准授权码 + PKCE
+流程。打通共三处配套（均生产、已落地）：
+
+1. **Logto Native 应用** facet-mcp-keyless（`tvmzkpz3ld5kqlmse5se9`），回调
+   `http://127.0.0.1/oauth/callback`。native 型走 RFC 8252 端口无关回环匹配（注册 URI 去端口
+   比对，scheme+host+path 逐字一致即可），客户端每次随机监听端口照样命中——这是免键桌面客户端
+   的标准形。无 secret 落任何文件。
+2. **网关 origin 注册为 Logto API 资源**（indicator `https://mcp.finddatatech.cloud`，scope
+   `gateway:access`）：客户端按 RFC 8707 把 PRM 里的裸 origin 原样作 `resource` 发出，不注册则
+   `invalid_target`。租户级 custom-JWT（本实例即支持，无需升级）对网关受众的 token 注入
+   `roles` 与 `username`（邮箱），计费与组门和 wgk- 车道同口径。
+3. **网关补丁 sha-c216f47**（fork 线 fd-keyless-mcp-audience，基座=自报生产线 506f127d）：
+   auth-server 的 Logto provider 经 env `LOGTO_ACCEPTED_AUDIENCES` 追加接受网关**自广告的
+   origin** 为 bearer audience——token 的 `aud` 是裸 origin 而非 `/api`，旧集合不认。
+
+端到端实证（无头复刻客户端全流程）：授权 → token `aud=https://mcp.finddatatech.cloud` 含
+roles/username → initialize 200 → tools/list 160+ 工具。CLI 侧 `--oauth [--oauth-client <id>]`
+写入 `entryOauth` 形状（`{type:"http", url, oauth:{name, clientId, scope}}`），token 存客户端
+自己的加密库，**任何凭据不落 mcp.json**。贴键车道照旧保留（headless/CI、脚本化）。
+已知非阻塞项：provider 对 native 应用未回 refresh_token（`offline_access` 被丢弃）→ 过期后
+客户端自动再弹授权（已登录时近乎无感）。
 
 ### D5：文档事实表只扩不复制
 
@@ -82,6 +104,7 @@
   "若客户端未识别，见 X 节"。这是本单最大的真风险，因为失败是静默的。
 - **WorkBuddy 对远端 MCP 的鉴权行为与我们假设不同**（例如要求 SSE、或 OAuth 与 header 二选一）
   → 走查先做 MCP 连通（`type: http` + header），再做 OAuth 走查；两者独立记结果。
+  （结果：两条车道都已在生产端点各自走通；OAuth 车道为无头端到端 + CLI 单测双层证据。）
 - **同族客户端路径漂移**：WorkBuddy 与 CodeBuddy 共享约定但可能不同步 → 表里只写已证实的一项，
   未证实的留空并让 CLI 在缺表项时报"该目标暂不支持 X"，不猜。
 - **文档矩阵改动触发 docs-facts 测试红**（并行会话在改同一份文档）→ 提交只 add 本变更文件
@@ -101,5 +124,6 @@
 - ~~WorkBuddy 用户级技能目录的真实路径~~ → **已定案 `~/.workbuddy/skills`**（真机探针 8/8 识别 +
   缓存 `watch.dirs` 首项 + 客户端代码 `createSkillsService` 三证一致；文档推断的 `.codebuddy/skills`
   是仓库内代码开发配置，属不同面）。
-- ~~该客户端 OAuth 授权后是否把 token 写回 `mcp.json`~~ → **当前走不到授权那步**，卡在授权服务器缺
-  `registration_endpoint`（D4）。若日后打通，这个观察点仍要重做。
+- ~~该客户端 OAuth 授权后是否把 token 写回 `mcp.json`~~ → **已定案：不写回**。车道打通后复核
+  （D4），SDK 把 token 存客户端自己的加密凭据库；`mcp.json` 的 oauth 块只有 clientId/scope，
+  零秘密落盘。这同时是免键车道对「共享机器/备份泄露」风险的正面答案。

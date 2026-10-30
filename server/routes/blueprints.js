@@ -363,7 +363,11 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     let published = await publisher.publish({ manifest, packId: blueprint.castPackId ?? undefined, user });
     let rebuilt = false;
     let reclaimedPackId = null;
-    if (!published.ok && published.status === 404 && blueprint.castPackId) {
+    // 真机实测（2026-10-30）：facet 对「已失效的旧 id + 同名活包存在」的组合先撞同名闸
+    // → 回 409 而不是 404，所以 404 分支根本进不去（旧版三刀在此漏）。故 404 与「409 且
+    // 文案含同名包提示」都算陈旧指针形态，走同一套重建/认回。
+    const sameNameHint = (r) => r?.status === 409 && /同名包已存在/.test(String(r?.body?.error ?? r?.error ?? ""));
+    if (!published.ok && (published.status === 404 || sameNameHint(published)) && blueprint.castPackId) {
       published = await publisher.publish({ manifest, user });
       rebuilt = published.ok;
       // 第三刀（2026-10-30 真机实录）：重建被「同名包已存在」409 拒——旧 id 失效但

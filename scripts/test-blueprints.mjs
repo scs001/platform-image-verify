@@ -967,3 +967,57 @@ test("铸造自愈第三刀反例：同名包 provenance 不是本蓝图时不�
     await close(server);
   }
 });
+
+// 真机诊断补钉（2026-10-30）：facet 对「旧 id 已失效 + 同名活包存在」先撞同名闸，
+// 回 **409 而不是 404**——旧版自愈只认 404，因此在真机上永远进不去分支（三刀都白做）。
+// 这里用 409+同名文案模拟真 facet，钉住「靠同名提示也能进自愈」这条形态。
+test("铸造自愈：旧 id 失效而 facet 回 409 同名提示时同样进自愈（真机形态）", async () => {
+  let bpId = null;
+  const DEAD = "pk_dead_real_machine_form";
+  const LIVE = "pk_live_same_name_owner";
+  let firstDone = false;
+  const publishClient = {
+    async publish({ packId }) {
+      if (packId === DEAD) {
+        // 真机行为：先撞同名闸，回 409（文案带同名提示），不是 404。
+        return { ok: false, status: 409, error: "同名包已存在", body: { error: `同名包已存在：…packId: "${LIVE}"` } };
+      }
+      if (!packId) {
+        if (!firstDone) {
+          firstDone = true;
+          return { ok: true, packId: DEAD, version: 1, body: {} };
+        }
+        return { ok: false, status: 409, error: "同名包已存在", body: { error: `同名包已存在：…packId: "${LIVE}"` } };
+      }
+      return { ok: true, packId, version: 2, body: {} };
+    },
+    async getPack({ packId }) {
+      if (packId !== LIVE) return null;
+      return { name: "任一", authorEmail: "alice@x", manifest: { _casting: { blueprintId: bpId } } };
+    },
+  };
+  const store = createBlueprintDatabase({ file: path.join(mkdtempSync(path.join(tmp, "db-")), "blueprints.db") });
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use((req, _res, next) => {
+    const email = req.headers["x-test-user"];
+    req.user = typeof email === "string" && email ? { email, groups: [] } : null;
+    next();
+  });
+  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver: async () => ({}) });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    bpId = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${bpId}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${bpId}/cast`, as("alice@x", { method: "POST" }));
+    store.saveTrialReport(bpId, { ranAt: 7, green: false, assertions: [], judged: [], errors: ["trial aborted: Pack version not found"] });
+    const healed = await fetch(`${base}/api/blueprints/${bpId}/cast`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(healed.cast.reclaimedPackId, LIVE, "409 同名形态必须也能认回");
+    assert.equal(healed.blueprint.castPackId, LIVE);
+  } finally {
+    await close(server);
+  }
+});

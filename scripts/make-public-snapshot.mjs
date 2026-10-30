@@ -314,6 +314,11 @@ const ALLOWED = [
     paths: ["facet/web/src/PageFooter.tsx", "openspec/specs/facet-platform/spec.md"],
     why: "facet footer contact (email/phone) is mandated by the facet-platform spec and already live on facet.finddatatech.cloud",
   },
+  {
+    label: "private repo name",
+    paths: ["scripts/test-product-intro-seed.mjs"],
+    why: "the file's own FORBIDDEN table spells out the very words it scans for (fd-craw-private / registry_token / corpSecret / session-secret), so the regex literals match themselves. The scanned *text* is clean; exempting the table keeps the gate honest instead of teaching people to bypass it.",
+  },
 ];
 
 // Any match in any snapshot text file fails the build. Patterns are

@@ -4576,3 +4576,106 @@ account_select_failed: no available OpenAI accounts supporting model:
 | 坑 | ①shell 宿主 zsh ENOENT 2h（机器级，非会话内可修，中断点记忆在册）②快照无 image.yml 会删 scs001 仓 push:main 触发器→抓回正位 ③shell cwd 重置致 mkdir 嵌套+image.yml 落错路径（git mv+amend 修复）④**facet-proxy 模式发现**：本地 registerPackRoutes 的改动要生效必须滚 facet 面（mirror remote 之前加在嵌套目录里也一并修正）⑤ArgoCD 同步延迟 rollout 假绿（须核 imageID）⑥并行会话竞速：他们先推快照仓（8cf22be）被我 force push 覆盖，但镜像已在 ccr——bump 核祖先链后前进滚 |
 | 4 红 | 广覆盖 867 测 4 红：install-fetch×3（HEAD 对照同红=pre-existing install 链路债，原车道归因）+decision-lane/fleet-runs（并发假红单跑绿） |
 | 遗留 | 词表 v4 的 facet/registry 侧文案与品牌串（对侧仓）；存量市场包改名+category 归位（运营班）；#7 技能自进化/#8 starter 序列已立案未实施；真机 UI 走查（浏览器）留给用户 |
+### §15.94 账号池修复实录：46 号元数据丢失 + sub2api 内存态陈旧；判据三态真机全过、构造集四份重封（2026-10-30）
+
+§15.92 把 503 归到「账号池真空」后留给词元站处置。本节是那个处置的真因与落地，
+外加判据三态的最终真机证据。
+
+#### 一、真因：46 号账号的 `upstream_model_metadata` 被抹掉
+
+时间线（均 UTC，取自 `audit_logs` 与 `usage_logs`）：
+
+| 时刻 | 事件 |
+|---|---|
+| 23:11:42 | 46 号最后一次成功调用 |
+| 23:12:48 | `sync-upstream` 动作 |
+| 23:13:25 | 46 号的四条 `account_groups` 行全部新建（说明账号被重绑） |
+| 23:13:26 | `accounts.update` |
+
+之后 46 号 `extra` 里 **`upstream_model_metadata` 整键消失**。该键是 scheduler 用来
+判断「这个账号支不支持这个模型」的清单；没有它，46 号对任何模型都被
+`model_not_supported` 过滤掉，等于从这个模型的所有候选池里退出。
+
+`credentials.model_mapping`（1:1 映射，79 条）仍在——元数据本可从它推导出来。
+
+#### 二、修复：从自己的 mapping 反推回填 + 必须重启进程
+
+```sql
+-- 先备份：CREATE TABLE _acct46_backup_20261030 AS SELECT * FROM accounts WHERE id=46;
+UPDATE accounts a
+   SET extra = a.extra || jsonb_build_object('upstream_model_metadata',
+         jsonb_build_object('models',
+           (SELECT jsonb_object_agg(k, jsonb_build_object(
+                     'id',k,'reasoning',false,'display_name',k,
+                     'context_window',128000,'max_context_window',128000,
+                     'max_output_tokens',32768,
+                     'input_modalities',jsonb_build_array('text'),
+                     'default_reasoning_level','none',
+                     'supported_reasoning_levels',jsonb_build_array('none')))
+              FROM jsonb_object_keys((a.credentials->'model_mapping')::jsonb) k))),
+       updated_at = now()
+ WHERE a.id = 46 AND NOT (a.extra ? 'upstream_model_metadata');
+```
+
+回填后**立刻仍 503**——这是本节最重要的坑：sub2api 的账号池是**进程内内存态**，
+pod 自 2026-10-29T00:20:31Z 起 0 次重启，比这次 DB 改动早一天多。**改库不等于生效，
+必须重启 sub2api 让池重建**。重启后 `pool` 从 2 变 3，`minimax-m3.1-flash` 稳定 200。
+
+核验口径（回填是否落地）：
+
+```sql
+-- 两个数必须相等（本次 79 / 79）
+select count(*) from jsonb_object_keys((select credentials->'model_mapping' from accounts where id=46));
+select count(*) from jsonb_object_keys((select extra->'upstream_model_metadata'->'models' from accounts where id=46));
+```
+
+**新律：sub2api 的账号池是进程内快照，DB 层修账号/分组/映射后必须重启才可见；
+「改完立刻 503 依旧」不能推回成「改动无效」，先看重启时间与改动时间的先后。**
+
+#### 三、`deepseek-v4.1-flash` 仍未恢复，且原因是另一个
+
+```
+pool=3, filtered: model_not_supported=2 runtime_blocked=1
+```
+
+46 号这次进了池，但被判 `runtime_blocked`——上游接入机本身不供 deepseek。
+**这不是元数据问题，是上游供给问题**，留在词元站侧；不改账号映射来硬凑。
+（顺带说明：平台默认产出模型 `volces/deepseek-v4.1-flash` 走的是 volces provider，
+不经这条池，所以平台产出没有受影响。）
+
+#### 四、判据三态真机全过（`sha-eb4c93c`）
+
+以「内容工厂」蓝图同一份证据、只换 rubric，三次真试跑：
+
+| rubric | 期望 | 实测 |
+|---|---|---|
+| 「选题岗、初稿岗在试跑集群中均已落位」 | pass | **pass** — 证据显示两岗均标注「已落位」 |
+| 「试跑集群中只有一个岗位」 | fail | **fail** — 「证据显示试跑集群有选题岗、初稿岗两个岗位，不满足"只有一个岗位"」 |
+| 「选题岗、初稿岗、审校岗三个岗位在试跑集群中均已落位」 | insufficient | **insufficient-evidence** — 「证据仅显示选题岗与初稿岗已落位，未提及审校岗，无法判断三岗是否均已落位」 |
+
+三条都 `judgeSource=deployment`（名册空走 env 路由，即 §15.92 修好后的正确语义）。
+`fail` 与 `insufficient-evidence` 的**理由直接引用证据原文**，说明模型真在读证据，
+不是关键词命中。反向断言同时成立：模型真判不足证据时 audit 不带 `laneError`。
+
+#### 五、构造集重封
+
+改完模型与判定逻辑后，`scripts/blueprint-corpus-seed.mjs` 全量重放（幂等复用同名）：
+四份真场景全部 校验绿 → 试跑绿（llm-judged 三条均引用证据判 pass）→ 报告已签 → 再铸可售：
+
+| 场景 | packId | 版本 |
+|---|---|---|
+| 跨境电商政策盯梢 | `_PGsJcBwYoeZU0kCfU-2Qg` | v7 |
+| 客服工单分诊 | `RgQzSlZJMOuNmjqbDfq9ZQ` | v11 |
+| 内容工厂 | `MnViPe6mi-FBOUL1Z0tDTw` | v13 |
+| 投研晨会 | `Bo2MWrbW5w_f1NGfwMWEzA` | v5 |
+
+五份坏例按设计不建实体（同一校验函数已在本地 9/9 对拍证拦截）。
+
+#### 六、本节新增的两条纪律
+
+1. **改库 ≠ 生效**：sub2api 账号池是进程内内存态，改完必须重启，并核 pod `startTime`
+   晚于改动时刻。
+2. **判红分界再细化**：`model_not_supported`（账号清单不含该名）与 `runtime_blocked`
+   （账号含该名但上游不供）是两件事，前者能靠补元数据修，后者只能靠上游供给；
+   日志里两个计数并存时不要当一个故障处理。
+

@@ -100,7 +100,7 @@ export function determineDueDeputyDigests({ db, now = Date.now() } = {}) {
 export async function runDueDeputyDigests({ db, memoryClientFor, now = Date.now(), log = console }) {
   const due = determineDueDeputyDigests({ db, now });
   const out = { due: due.length, written: 0, skipped: 0 };
-  for (const { fleet, policy, since } of due) {
+  for (const { fleet, since } of due) {
     const body = renderDeputyDigest({ db, fleet, since, now });
     const ownerEmail = fleet.ownerEmail ?? null;
     if (!body) {

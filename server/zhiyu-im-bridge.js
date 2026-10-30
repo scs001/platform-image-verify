@@ -109,7 +109,7 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
   };
 
   // Sequential splitting with the attribution prefix on the first chunk only.
-  function chunksFor(senderDisplay, content) {
+  function chunksFor(_senderDisplay, content) {
     const text = String(content ?? "");
     if (text.length <= RELAY_MAX_CHARS) return [text];
     const parts = [];

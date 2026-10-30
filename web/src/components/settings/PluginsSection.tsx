@@ -38,7 +38,7 @@ export function PluginsSection() {
 
   useEffect(() => {
     setPending(null);
-  }, [bundles]);
+  }, []);
 
   const onToggle = useCallback(
     (bundle: PluginBundleInfo) => {

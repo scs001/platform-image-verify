@@ -39,10 +39,11 @@ const answer = new Promise((resolve, reject) => {
   let buf = "";
   child.stdout.on("data", (chunk) => {
     buf += String(chunk);
-    let idx;
-    while ((idx = buf.indexOf("\n")) !== -1) {
+    let idx = buf.indexOf("\n");
+    while (idx !== -1) {
       const line = buf.slice(0, idx).trim();
       buf = buf.slice(idx + 1);
+      idx = buf.indexOf("\n");
       if (!line) continue;
       let msg;
       try {

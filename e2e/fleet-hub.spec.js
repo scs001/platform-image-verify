@@ -148,7 +148,7 @@ test.describe("fleet hub", () => {
   });
 });
 
-function pollFor(get) {
+function _pollFor(get) {
   return new Promise((resolve) => {
     const tick = () => {
       const v = get();

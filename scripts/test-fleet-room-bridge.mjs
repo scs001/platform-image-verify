@@ -35,15 +35,15 @@ const room = store.roomCreate({ title: "桥测试房", ownerEmail: OWNER });
 
 // A controllable sample: tests mutate `sample` between ticks.
 let sample = null;
-let sampleCalls = 0;
-const sampleFleets = async (ownerEmail) => {
-  sampleCalls += 1;
+let _sampleCalls = 0;
+const sampleFleets = async (_ownerEmail) => {
+  _sampleCalls += 1;
   return sample;
 };
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
-registerFleetRoomBridge(app, { store, resolveUser: (req) => ({ email: OWNER, groups: [] }), rejectUnauthenticated: (_q, r) => r.status(401).json({}), sampleFleets });
+registerFleetRoomBridge(app, { store, resolveUser: (_req) => ({ email: OWNER, groups: [] }), rejectUnauthenticated: (_q, r) => r.status(401).json({}), sampleFleets });
 const server = http.createServer(app);
 server.listen(0);
 const call = (method, p, body) =>
@@ -103,7 +103,7 @@ test("tick: first sight baselines silently; the second tick emits new facts", as
     }),
   ]);
   await registerFleetRoomBridge; // noop reference
-  const bridge = { tick: null };
+  const _bridge = { tick: null };
   // Re-enter the tick via a fresh bridge sharing THIS store (the module returns
   // { tick } — we call it directly through a second registration on the same
   // store but route-less: simplest is to invoke the returned tick from the
@@ -111,7 +111,7 @@ test("tick: first sight baselines silently; the second tick emits new facts", as
   const { registerFleetRoomBridge: reg } = await import("../gateway/fleet-room-bridge.js");
   const b = reg(express(), {
     store,
-    resolveUser: (req) => ({ email: OWNER, groups: [] }),
+    resolveUser: (_req) => ({ email: OWNER, groups: [] }),
     rejectUnauthenticated: (_q, r) => r.status(401).json({}),
     sampleFleets,
   });
@@ -149,7 +149,7 @@ test("dead cell: a null sample mutes the tick without error", async () => {
   const { registerFleetRoomBridge: reg } = await import("../gateway/fleet-room-bridge.js");
   const b = reg(express(), {
     store,
-    resolveUser: (req) => ({ email: OWNER, groups: [] }),
+    resolveUser: (_req) => ({ email: OWNER, groups: [] }),
     rejectUnauthenticated: (_q, r) => r.status(401).json({}),
     sampleFleets,
   });
@@ -163,14 +163,14 @@ test("summon: plan separates serving from cockpit-only; execution invites + subs
   ]);
   // The summon plan reads serving members from the second sample path arg —
   // the wired gateway passes /api/fleets/overview; tests answer per-path.
-  const summonSample = async (ownerEmail, p) => {
+  const summonSample = async (_ownerEmail, p) => {
     if (p === "/api/fleets/overview") return sample;
     return null; // serving face absent in tests → the plan degrades honestly
   };
   const { registerFleetRoomBridge: reg } = await import("../gateway/fleet-room-bridge.js");
   reg(express(), {
     store,
-    resolveUser: (req) => ({ email: OWNER, groups: [] }),
+    resolveUser: (_req) => ({ email: OWNER, groups: [] }),
     rejectUnauthenticated: (_q, r) => r.status(401).json({}),
     sampleFleets: summonSample,
   });
@@ -186,7 +186,7 @@ test("remove: unsubscribing stops the flow; past rows stay", async () => {
   const { registerFleetRoomBridge: reg } = await import("../gateway/fleet-room-bridge.js");
   const b = reg(express(), {
     store,
-    resolveUser: (req) => ({ email: OWNER, groups: [] }),
+    resolveUser: (_req) => ({ email: OWNER, groups: [] }),
     rejectUnauthenticated: (_q, r) => r.status(401).json({}),
     sampleFleets,
   });

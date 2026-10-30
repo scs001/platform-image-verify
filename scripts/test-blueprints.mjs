@@ -475,7 +475,7 @@ test("v1 方言如实拒绝：粘入即被指名拒绝（不归一化、不落�
     acceptance: ["巡检员一个成功回合", "主编日报合成"],
     _casting: { source_blueprint: "fleet-packs/blueprints/x/blueprint.json", packDependencies: {} },
   };
-  const { server, base, store } = mount();
+  const { server, base } = mount();
   try {
     // 写入层硬拒：POST 422，body.error 指名 v1，findings 携带完整迁移指引。
     const res = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: v1 }) }));

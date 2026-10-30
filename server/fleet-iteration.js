@@ -62,7 +62,7 @@ export function createConfigChangeProposal({ db, fleet, ownerEmail, changeDoc })
 // 批准的回调 (design D1)：decision 路由的 approve 分支把控制交到这里；
 // decision 的 approved 状态是先入痕的 — 抛错↑挂 axis, 不回调结论。
 // publishFn 由路由层注入（附体凭据: 正处批准动作的那个 owner session 走市场口径）。
-export async function runIterationCast({ db, iteration, ownerEmail, installFn, publishFn, validateFn, log = console }) {
+export async function runIterationCast({ db, iteration, ownerEmail: _ownerEmail, installFn, publishFn, validateFn, log = console }) {
   // 幂等锚: 已 published 的或 casting/publishing 里的不重入（决策路由的
   // 「首次决议胜」语义后, 回调只点一次火）。
   if (["published", "casting", "publishing"].includes(iteration.state)) return iteration;

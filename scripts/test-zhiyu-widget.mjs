@@ -301,7 +301,7 @@ test("4.2 daily budget gates guests honestly; 4.3 80% nudge lands in the in-app 
 });
 
 test("item3 proactive greeting: silent visitor gets greeted by a duty seat", async () => {
-  const dirs = [];
+  const _dirs = [];
   const { cli, zhiyu, calls, close } = await boot({ moduleOpts: { proactiveDelayMs: 60 } });
   const a = cli("a@x");
   const roomId = (await a.post("/api/zhiyu/rooms", { title: "", proactiveGreeting: undefined })).json.room.id;

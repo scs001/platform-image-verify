@@ -149,7 +149,7 @@ const V1_FORMAT_ERROR = [
 
 export function v1FormatFindings(content) {
   if (!content || typeof content !== "object" || Array.isArray(content)) return [];
-  const has = (k) => Object.prototype.hasOwnProperty.call(content, k) && content[k] !== undefined;
+  const has = (k) => Object.hasOwn(content, k) && content[k] !== undefined;
   const v1Shaped =
     (has("vertical") && !has("boundary")) ||
     (has("sources") && !has("dataSources")) ||

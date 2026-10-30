@@ -48,7 +48,7 @@ async function boot({ env = {}, agentScript = {} } = {}) {
   const app = express();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zhiyu-mem-"));
   const calls = [];
-  const callAgent = async (member, { text, contextId, onDelta }) => {
+  const callAgent = async (member, { text, contextId, onDelta: _onDelta }) => {
     calls.push({ ref: member.ref, text, contextId });
     const script = agentScript[member.ref] ?? { answer: `（${member.display}的回答）` };
     if (script.throw) throw new Error(script.throw);

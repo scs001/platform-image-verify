@@ -341,7 +341,7 @@ test("装前闸：未成交 402 如实拒，已成交放行到既有 manifest �
     cellUserEmail: "cell@test.dev",
     localPackMarket: {
       getLatest: () => ({ version: 1, manifest: { name: "gated-pack", description: "d", skills: [{ name: "s", description: "d", content: "c" }] }, pricing: { priceUsd: 6, kind: "once" } }),
-      getVersion: (packId, version, viewer) => ({ manifest: { name: "gated-pack", description: "d", skills: [{ name: "s", description: "d", content: "c" }] } }),
+      getVersion: (_packId, _version, _viewer) => ({ manifest: { name: "gated-pack", description: "d", skills: [{ name: "s", description: "d", content: "c" }] } }),
       market: registry.market,
     },
   });

@@ -33,6 +33,7 @@ const FORBIDDEN = [
   { re: /\b(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|127\.0\.0\.1)\b/, why: "内网地址" },
   { re: /@(gmail|findmail|qq|163)\.com|aloadtree|platform-test/, why: "内部账号/邮箱" },
   { re: /\b(k8s|kubernetes|crd|pod)\b/i, why: "内部部署栈词" },
+  { re: /wire-ops|facet-market|paper-trading|lex-ops|dsh-profile/i, why: "内部车道/模块名（走查 B3 实锤泄漏源）" },
 ];
 
 test("every persona text is free of internal-ops information and v3 lexicon", () => {
@@ -79,6 +80,24 @@ test("官网研究/服务口径归前台、永忆归壹座——不为此单设�
   assert.match(yizuo.persona, /永忆/, "永忆（开源自托管形态）必须并入壹座专家叙事");
   const guide = seed.agents.find((a) => a.id === "intro-guide");
   assert.match(guide.persona, /微调|论文/, "官网「研究与业务」口径（论文/微调服务）必须并入前台话术");
+});
+
+test("the walkthrough fixes are pinned: open-source fact + hardened red lines", () => {
+  const guide = seed.agents.find((a) => a.id === "intro-guide");
+  // B2: the front desk must KNOW the open-source fact (it is public) — the
+  // walkthrough showed it answering "official did not mark it open source".
+  assert.match(guide.persona, /开源/, "前台必须掌握「壹座已开源」这一公开事实（B2）");
+  assert.match(guide.persona, /github\.com\/FindDataTechnology\/platform/, "前台必须带公开仓地址（B2）");
+  // B3/B4 hardening: no internal lane names, no local-file reconnaissance, and
+  // no unpublic product surfaces (the 柏讯 walkthrough answer invented a
+  // console / ticket / 24h promise).
+  for (const a of seed.agents) {
+    assert.match(a.persona, /不(?:得|要)提及任何内部车道名/, `${a.id} 必须带禁内部车道名指令（B3）`);
+    assert.match(a.persona, /不要为回答访客而检索本机的项目文件/, `${a.id} 必须带禁翻本地文件指令（B3）`);
+  }
+  const wire = seed.agents.find((a) => a.id === "intro-wire");
+  assert.ok(!/需求单|控制台|24 ?小时/.test(wire.persona), "柏讯 persona 不得出现官网没有的产品面（B4）");
+  assert.match(wire.persona, /开放数据本体/, "柏讯 persona 必须保留官网三件能力之一");
 });
 
 test("the team is fully self-carried — six agents, every member a pack-preset", () => {

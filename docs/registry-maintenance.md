@@ -4563,3 +4563,31 @@ account_select_failed: no available OpenAI accounts supporting model:
 
 **留给词元站（sub2api）处置**：要么给组 3 补 `composite_model_routes` 把裸名映射到账号认的
 上游名，要么把账号上游清单刷成含裸名，要么把 46 号重新纳入调度。
+
+## §17 发布记录：产品介绍官方种子铸造上架（add-product-intro-team，2026-10-30，sha-eb4c93c）
+
+**出片**：真源 paas `4587726f`（含 6f7e0574 种子 / 75df6914 上限 3→50 / 4587726f 六岗全自载）
+→ 公开快照 `scs001/platform-image-verify`（源快照 b7d62e3 + `ci: keep repo-side image.yml` eb4c93c，
+image run 绿 4m40s）→ hkccr → cheap-3 relay 回灌 OK 28s → ccr 硬门 skopeo digest
+`sha256:622e8b94…` → GitOps 双清单 bump（platform.yaml:54 + platform-demo.yaml:71，只滚两面）
+→ ArgoCD hard refresh → rollout。**在位实证**：两面 pod 内 `grep "maxAgents: 50" /app/lib/pack-manifest.js`
+命中第 49 行。
+
+**铸造上架**：官方种子按「种子 → manifest（version+category）→ 市场 pack」两段铸造——
+v1 带 `{{PACK_ID}}` 占位发布拿 id，v1.0.1 续版把真 packId 烙进 pack-preset 目标（先例五枚官方种子
+同为 v2+，同因）。成品 pack `v8rZ8F7E92MrssZ92ygnXQ`「壹座产品介绍（官方种子）」，
+六岗全自载、category=fleet（列表归一 cluster）、visibility=public。作者 aloadtree@gmail.com（creators）。
+
+**生产实化**：cell `3fdc7b8e8ac03b68` 装包六岗全 installed → 建队 `fleet_1793319839709_2tgix6`
+（6 岗、5 条 dispatch 边、owner platform-test@findmail.com）→ start → active。
+走查实录见 `docs/product-intro-walkthrough-2026-10-30.md`。
+
+**出片链两处再确认**：① ArgoCD hard refresh 后 `rollout status` 仍报 success——那是**旧 spec** 的
+成功（假绿），必须轮询 deploy 的 image 字段直到 Synced 才算真滚；② 并行会话在我推送前数秒推了
+自己的快照（真源同为 4587726f），我的 force push 顶掉了它分支上的提交——其 run 的 headSha 钉在
+触发时的 sha，内容不受影响（无交叉污染），但**推送前必须再查一次在飞 run**。
+
+**遗留**：走查揪出六条缺陷（B1 chat 车道缺 {{fleetContext}} → 派发打不中本队/turns 恒 0（阻断级）、
+B2 前台不知壹座已开源（已修，v1.0.2 复测通过）、B3 内部车道名与内部产品面随工具描述泄漏、
+B4 persona 文案越界（已删净但复现，归 B3）、B5 web 文本信道推理痕迹外泄、B6 首启返回错误非排队）。
+B1/B3/B5/B6 立案 `openspec/changes/fix-external-team-chat-lane/`。

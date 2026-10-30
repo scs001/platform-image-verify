@@ -44,7 +44,7 @@ test("sequence shape: 5 teams, one preferred, roles covered, seeds exist", () =>
   assert.equal(roles.filter((r) => r === "secondary").length, 2);
   assert.equal(roles.filter((r) => r === "advanced").length, 2);
   const preferred = STARTER_TEAMS.find((t) => t.role === "preferred");
-  assert.equal(preferred.name, "客服班组（官方种子）", "首选=客服班组（design D3）");
+  assert.equal(preferred.name, "客服班组", "首选=客服班组（design D3）");
   for (const t of STARTER_TEAMS) {
     assert.ok(fs.existsSync(path.join(root, "docs/fleet-templates", t.seedFile)), `${t.seedFile} exists`);
     assert.ok(t.oneLine.trim().length > 10, `${t.name}: oneLine present`);

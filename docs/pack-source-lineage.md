@@ -36,14 +36,20 @@ finddata 侧目录里。此前 `~/finddata/fleet-packs`（14 枚官方包唯一�
 - 市场对外字段泄漏内部物：`fleet-packs/blueprints/...` 路径、`schema.md` 路径、`L3/harness` 阶段词、`add-*` change ID、`共用层 L1`、`4.4 挂账销账` → 8 枚发去敏新版（跨境电商 v6、蓝图构造师 v7、共用五枚 +1、官网内容 v9），源同步回填。
 - fd-info 裸目录 → 转 git 推 GitHub FDT 私仓（06b9291）。
 
-## 四、挂账（不动，等裁决/另批）
+## 四、挂账（2026-10-30 二次收口后）
 
-- **双胞胎包待裁**：跨境电商政策盯梢（`C8wx14…`本仓铸 v6 vs `_PGsJcBw…`构造间再铸 v7）、
-  投研晨会（`Bo2…`单岗 v5 vs `YMSt…`官方种子 v4）——留一退一=产品裁决。
-- **tags 旧词清扫**：市场 tags 仍含「集群/舰队/模板/harness」词面（名/描述已清）——随词汇清扫批，
-  哨以 KNOWN_LEAKS 降级不判红。
+- ~~双胞胎包待裁~~ **已裁决收口（同日）**：跨境电商——`C8wx14…`（本仓源铸 v7，内容完整 3 岗+全工具面）保留，
+  构造间再铸件 `_PGsJcBw…`（单岗 16 字 persona、零工具面的退化件）置私退役；投研晨会——官方种子
+  `YMSt…` 正名「投研晨会」v5（三层级联、starter 卡与教程指向、paas 仓源码），单岗件 `Bo2…` 腾位改名
+  「投研晨会（已退役）」后置私。公网货架 total=77、**旧词包名=0**。
+- ~~tags 旧词清扫~~ **已收口（同日）**：15 枚发版（集群/舰队→团队，去 模板/harness/cluster），
+  14 枚源同步回填，哨 KNOWN_LEAKS 清空仍全绿。
+- ~~六枚官方种子旧名~~ **已同步（同日）**：种子的 name/en.name 与 packGuides 引导卡、starter 测试钉值
+  三层去「（官方种子）」尾（与市场现行名一致，防 starter 重铸冲掉改名）。
 - persona/skill 正文的「集群」句（内容层）：v4 决议内容层不进改名面，维持原样。
 - finddata 其余裸目录（attic/docs/dashboards/plans/resources/scripts/secrets 等）=工作文档非包源，
   不入本矩阵；secrets 目录**永不**入任何仓。
 - facet/ 与 wanxing/ 与 marketing/ 三目录无 cast.json（手写 manifest 形态）：重铸需先补 cast.json
   或继续手编+哨兜底。
+- gitee 第二保护位**已建**：FindDataTechnology/fleet-packs 与 fd-info 均推 gitee+GitHub 双远端
+  （gitee 私仓匿名 403 确认；经 `POST /api/v5/user/repos` 带 org 参数建库）。

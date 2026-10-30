@@ -4746,3 +4746,15 @@ B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更
 | 矩阵 | `docs/pack-source-lineage.md`：14 枚←fleet-packs；6 种子+3 助手+分身类←paas 仓；套件类技能←finddata-skills（gitee 在册已同步）；MCP 面←各 finddata 服务仓；构造间再铸类=**仅 packs.db**（日备 42 份兜底）；secrets 目录永不入任何仓 |
 | paas 代码随班 | server/blueprint-validate.js 的 v1 拒收**面显文案**内泄内部路径→该行删除（前一行已列 v2 字段闭集），开发者指路移入代码注释；test-blueprints 绿（钉的是首句未动）；**上产随下一班出片** |
 | 挂账 | ① 双胞胎待裁：跨境电商（C8wx v6 本仓铸 vs _PGsJc v7 构造间再铸）、投研晨会（Bo2 vs YMSt）——留一退一=产品裁决 ② tags 旧词（集群/舰队/模板/harness）市场面词面清扫另批，哨 KNOWN_LEAKS 降级不判红 ③ facet/marketing/wanxing 三目录无 cast.json（手写形态），重铸链覆盖不到，靠哨兜底 ④ gitee 第二保护位 |
+
+### §15.101 双胞胎裁决+词面清扫+种子同步（源码入册收口二班，2026-10-30，用户「你处理就好」全权委托）
+
+| 项 | 事实 |
+|---|---|
+| 裁决·跨境电商 | 对拍取证：本仓铸 `C8wx14…` v6=3 岗完整编队+fd-info/wire-ops/wire-build 全工具面；构造间再铸件 `_PGsJcBw…` v7=**单岗 persona 仅 16 字、零工具面**退化试跑件 → 留 C8wx，_PGsJc `PUT /api/packs/:id/visibility` 置私退役（可恢复通道） |
+| 裁决·投研晨会 | `Bo2…` 单岗退化件 vs `YMSt…` 官方种子（三层级联+starter 卡/教程指向+paas 种子源）→ **同名门机理**：listed/unlisted/private 都算（publish-gate.js 作者视角全量），置私腾不出名 → 先给 Bo2 发 v6 改名「投研晨会（已退役）」腾位、再置私，然后 YMSt 正名「投研晨会」v5（desc「官方集群模板」→「官方团队模板」、en.name 去尾） |
+| tags 词面清扫 | 我方 70 枚全量扫出 16 枚带旧词 tags（14 枚 fleet-packs+投研三镜头+dev 探针）；**探针 U9IjsYO（供给车道验收夹具）不碰**；15 枚发版：集群/舰队→团队、去 模板/harness/cluster（如 egaYyO tags `['柏讯','投研','集群','cluster']`→`['柏讯','投研','团队']`）；发布前后 validate 干跑 15/15 绿 |
+| 种子三层同步 | **又一处分叉实证**：packGuides.ts 注释自证「byte-identical to the market listing」而卡片名全是旧名——六种子 name/en.name、packGuides 卡 10 处、starter 测试钉值三层去「（官方种子）」尾；test-official-starter-teams/fleet-templates/product-intro-seed 29/29 绿 |
+| 哨子收口 | fleet-packs 14 源再回填=市场真值（v6–v10），cast.json tags 同步；KNOWN_LEAKS 清空仍 **14/14 全绿 exit 0**；cast --check 4/4；仓库 65ec10e 推 GitHub；**gitee 第二保护位建成**（POST user/repos 带 org 参数；fleet-packs+fd-info 双远端，私仓匿名 403 确认） |
+| 归档收尾 | add-legacy-pack-rebrand 曾被并行班 b54b5423 以**旧版 tasks** 归档（勾选/证据未带上）——用本会话全勾版覆盖归档 tasks.md 并补 3.2/3.3 终态，清除 changes/ 残留副本（specs 亦清）；主 spec 219/0 绿 |
+| 坑 | ① 同名门连 private 都算——「先置私再改名」腾不出名，正解=先版本改名再置私 ② 探针/夹具包（供给车道验收在用）一律不碰 ③ 归档副本可能落后于 changes 活跃副本（并行班时序），归档前先 diff ④ gitee 建库正道=`user/repos`+`org` 参数，enterprise 端点 404 是死路 |

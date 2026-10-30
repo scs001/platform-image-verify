@@ -4758,3 +4758,18 @@ B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更
 | 哨子收口 | fleet-packs 14 源再回填=市场真值（v6–v10），cast.json tags 同步；KNOWN_LEAKS 清空仍 **14/14 全绿 exit 0**；cast --check 4/4；仓库 65ec10e 推 GitHub；**gitee 第二保护位建成**（POST user/repos 带 org 参数；fleet-packs+fd-info 双远端，私仓匿名 403 确认） |
 | 归档收尾 | add-legacy-pack-rebrand 曾被并行班 b54b5423 以**旧版 tasks** 归档（勾选/证据未带上）——用本会话全勾版覆盖归档 tasks.md 并补 3.2/3.3 终态，清除 changes/ 残留副本（specs 亦清）；主 spec 219/0 绿 |
 | 坑 | ① 同名门连 private 都算——「先置私再改名」腾不出名，正解=先版本改名再置私 ② 探针/夹具包（供给车道验收在用）一律不碰 ③ 归档副本可能落后于 changes 活跃副本（并行班时序），归档前先 diff ④ gitee 建库正道=`user/repos`+`org` 参数，enterprise 端点 404 是死路 |
+
+### §15.102 收口面上产（sha-acd8d6a，2026-10-30 第四班，用户令「现在就发车」）
+
+| 项 | 事实 |
+|---|---|
+| 发布树 | origin/main `a3c470ef` ⊕ cherry-pick `7e6e2eca`+`39f88c13`（蓝图构造间试跑/再铸 UI 修复）= `4f7d7bde`。**核祖先律逮到真雷**：现网 platform sha-6fc854f 的源里这两枚修复**只在本地 feat/zhiyu-official-site、不在 main**——直接按默认从 main 打快照=把生产在跑的 UI 修复回退。沿用上班「叠 worktree 不挟持他人未推分支」做法 |
+| 门槛 | 发布树 lint 0 error / typecheck 绿 / test-official-starter-teams+fleet-templates+product-intro-seed+blueprints 50/50 / locale 门 5 语言绿 |
+| 快照 | make-public-snapshot assert+FORBIDDEN 扫 1539 文件+gitleaks 全过；补 image.yml（push:main 触发）；推 scs001/platform-image-verify `acd8d6a`（toplevel 自证过 /tmp→/private/tmp 符号链接假阳性=用 pwd -P 比对）|
+| CI | run 41031508923(CI)/41031509000(image)/410315014(build-check) 三绿；tag=`sha-acd8d6a`(cut -c1-7)+main 浮标 |
+| relay 时序坑 | 17:16 relay 轮跑完时 image job push 步 17:17 才完成 → 首轮 `manifest unknown` 非事故，**等下一轮（~10min）即落**；勿见 unknown 就重出片 |
+| skopeo 硬门 | ccr `sha-acd8d6a` digest=`sha256:1ecf1b59…`；三面 pod imageID 逐字节=1ecf1b59（platform/demo/facet 新代 hhmcm/mlkxg/ncmrs）；ArgoCD Synced\|Healthy |
+| BSD sed 坑（新） | `s|…#[^\n]*|…|` 里 `[^\n]` 在 BSD sed 是**排除字母 n 的字符类**不是「到行尾」——facet 旧注释 `pack-category-lines` 的 n 把匹配截断留 `nes：…` 拼接残尾（platform 两文件旧注释恰无 n 而侥幸干净）。律=**整行重写用 python，sed 替换中文注释行必回验** |
+| pod 四项眼见 | ① dist bundle `BlueprintStudioPage-*.js` 含 trialRun（UI 修复在产未回退）② 引导卡 bundle 「官方种子」0 命中 ③ server/blueprint-validate.js `fleet-packs/blueprints`+`格式真源` 0 命中 ④ 种子文件不随镜像发布（packGuides 构建期打进 bundle=生效面，已验）|
+| 市场侧（本批已在产） | 双胞胎退役+YMSt 正名+tags 15 枚清扫是 facet 数据面，**发布前即已生效**；本班滚的是面显代码 |
+| 挂账清零 | §15.100/101 的「面显随班出片」随本班销账；paas 台账 §15.102 即本条 |

@@ -79,3 +79,29 @@ caddy reload --config /etc/caddy/Caddyfile
 cp /srv/zhiyu-site/index.html.bak-pre-20261030 /srv/zhiyu-site/index.html && caddy reload
 # 或整站下线：删 Caddyfile 块 + reload，再删雷池 site；DNS A 记录 TTL 600s 内失效
 ```
+
+
+---
+
+## 七、§四 runbook 实际执行结果（2026-10-30 第二班补记）
+
+按 §四 跑完，**三处与预案不同，均已在产**：
+
+1. **在席 2 席，不是 6 席**。官方包六岗无 serving 契约不可部署；已铸**镜像私包**
+   `bTnrv2P_JhmCzqqXCF0GIA`（岗位文案与官方 v5 逐字一致 + 六岗补 serving），
+   部署时 **runner-serving 32 端口槽已满**（registry 34 条含同主机 untagged；fleet 名册里
+   `runner-b`/`runner-c` 两台无 pod＝死行，无处可放），只落两席：
+   `intro-guide`（产品向导）+ `intro-yizuo`（壹座专家）。余四席等端口，不是等代码。
+2. **车道改选**。契约声明 `toolFace:"chat"` + 回合预算 3 分钟；模型先钉 `:free`
+   （`google/gemma-4-31b-it:free`）实测持续 429/502，改钉 `deepseek-v4.1-flash` 后真答。
+   注意模型有**两道闸**：计费车道白名单 ∩ **runner 名册**，后者更窄（名册实得 8 个模型）。
+3. **嵌入白名单必须两条域名**：`zhiyu.finddatatech.cloud`（父站 meta 门）
+   **＋ `platform.finddatatech.cloud`**（iframe 自身同源请求的 referer 落点）。
+   只放前者→访客铸席 403（仓内 e2e 用伪造 referer 掩盖了这点，真机才露）。
+
+房间 = `zy_42ce690574b5423bd2`，房主 `zhiyu@finddatatech.cloud`（对外角色地址，
+访客头一行会原样显示房主邮箱，所以不能是个人邮箱）；`replyCap=1`、日预算 60 应答；
+`idle_minutes` 直写 5256000 豁免闲置收房（API 上限 1440＝24h，常设展厅不该被临时房规则掐死）。
+
+真机验收：真域 iframe 内未登录访客提问 → 产品向导真应答 →
+`reply_cap_hit` 如实收住第二席。房间与令牌在平台侧，静态件回滚不影响它。

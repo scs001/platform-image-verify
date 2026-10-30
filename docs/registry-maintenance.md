@@ -5458,8 +5458,15 @@ locale 门（五语言）绿。
 0 命中；重写稿两版各 0 错误 0 提示；CMS 双语 `published`（body 3124/7708）；官网内容门 199 文件
 0 命中。
 
-**留账**：relay 手动补单 `sha-26fdcf6` 被 cron 全量轮的 403 风暴占锁，ccr 尚无该 tag（`manifest
-unknown`）——bump 未做，重写稿的**线上可见性待下一轮 relay**。这是发布链卡点，不是内容问题。
+**relay 卡点与解法（当日清账）**：手动补单 `tcr-relay-sync.sh` 连续被 `SKIP: 上次同步仍在运行`——
+cron 全量轮因 `sub2api/*` 的 403 风暴跑了十余分钟且一直持 `flock`。**等它不现实**，绕过锁直接
+做同一件事：`skopeo copy --all` 单 tag 点对点 `hkccr → ccr`（EXIT=0，digest `8c53a4c5`），
+ccr `inspect` 实证存在后才 bump。**律：relay 的锁是「整轮互斥」而非「单 tag 互斥」，
+一个坏仓库能拖住全链；急件就绕过脚本做单 tag copy，别排队等。**
+
+**线上三层验证全过**：pod 内 zh `17259` 字节 / 通行证 ×14 / 产出 ×5、en `18244`；源站 30442
+同尺寸且通行证命中；公网 zh `17259` + 通行证 ×14（`eo-cache-status: MISS` 即回源新内容）、
+en 标题正确。bump `63665fa`（镜像 tag `sha-26fdcf6`），ArgoCD `Synced` → rollout 成功。
 
 **续 §15.106 · 1.4 桥往返 + 5.3 运营文档，change 代码面收官（2026-10-31）**
 

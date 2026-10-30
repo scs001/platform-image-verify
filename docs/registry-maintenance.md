@@ -5181,3 +5181,58 @@ L2 单测全绿之后上真机走 `auth → 写配置 → 客户端连上 → �
 剔除 8 个外来文件，但并行会话在同一时间窗内重新 `git add` 时把 index 整体带上。**内容逐字节无损**（已核 `git diff HEAD` 为空、
 `111/111` 复跑全绿），仅是 commit 归属错位。这是本仓已知事故形态（同一形态见本文件「扫宽事故一枚（如实记）」：归档移动用宽路径 add 卷进并行会话在树改动），
 **再证一条纪律：多文件暂存期间，任何 `git add` 都可能被并行会话的 index 操作放大成全表提交；提交必须 add 后立刻 commit，不留窗口。**
+
+### §15.105 第五真缺陷：试跑读面身份裸串 → private 包恒 404（2026-10-31）
+
+**这是把前四刀全部带偏的那个根因。** §15.104 记的四刀都对，但都没有解释真机最顽固的现象：
+「投研晨会」重铸后试跑仍报 `trial aborted: Pack version not found`。
+
+**定位过程（全部在产 pod 内 drill，零会话污染）**
+
+1. 查旧包 `Bo2MWrb…` —— **HTTP 200 活着**，已被并行会话改名「投研晨会（已退役）」，
+   `_casting.blueprintId` 正是本蓝图 → **指针根本没失效**，四刀追的是错误方向。
+2. 查版本接口 `/api/packs/<id>/versions/{4,5,6,7}` —— **全部 200**（作者视角）。
+   所以 404 不是版本缺失。
+3. 读 `blueprint-trial.js:184`：`fetchManifest({ ..., viewer: blueprint.ownerEmail })`
+   —— **传的是裸邮箱字符串**。
+4. 读 `gateway/facet-proxy.js:30`：`facetForwardHeaders` 读的是 `user.email`，
+   对字符串取 `.email` 得 `undefined` → 身份头退化成 `{"groups":[]}` →
+   **facet 判匿名** → private/foreign 包一律 404 → 被包成误导性的
+   `Pack version not found`（facet 对「不可见」与「不存在」故意同答 404，这是既有设计）。
+
+**结论**：包是 private 的（构造样例本来就不该公开），而读面把自己介绍成了匿名访客。
+「指针失效」是假象，真相是**身份在传输路上丢了**。
+
+**修法**（`903a9dbe`，镜像 `sha-85980ad`）：读面身份与发布面同规——`viewer` 是字符串
+则归一成 `{ email, groups: [] }`。同坑 `createFacetPublishClient` 已于 2026-10-28 修过
+（注释就在旁边），**读面这一处漏了**——一个 bug 修了写面忘了读面，隔三天以另一副面孔复发。
+
+**新增测试** `scripts/test-pack-manifest-source.mjs`（4 条）：裸串归一 / 对象透传 groups /
+404 契约不变 / 5xx 报 502 不混淆。合计 30/30 绿（含 blueprint 26）。
+
+**定案执行：投研晨会 →「投研晨会 · 构造样例」**
+名称「投研晨会」已被官方种子 `YMSt-…` 永久占用（同名闸：listed/unlisted 均算），
+而本蓝图旧包仍在（`Bo2MWrb…`）且是 private 构造语料。取舍=**不删**（造语料就是因为
+等真实用户太慢，删不可逆），改名后重铸：`boundary.name` 改「投研晨会 · 构造样例」→
+校验绿 → 批准 → 重铸（同名冲突消失，指针 pin 从 v5 刷到 v7）。
+
+**真机全链终态（`sha-85980ad`，pod `platform-7c69c9cfcb-5m47w`）**
+
+| 段 | 实证 |
+|---|---|
+| 试跑 | `green:true`，三条机器判据（posts-staffed / first-round / both-posts）全 pass |
+| 模型判据 | `both-posts → pass`，`laneError: None`（评审车道真的跑了，不是降级） |
+| 签字 | `signoff.by=aloadtree@gmail.com` |
+| reseal | 报告刷进包内 → **v8** |
+| 包内报告位 | `{green:true, ranAt, judged:[...], signoff.reportRanAt===ranAt}` |
+| **可售闸判据** | **true**（绿 && 签 && 签对得上报告） |
+| 市场可见性 | `visibility:private`，**匿名 404**（构造样例不上公开市场，符合定位） |
+
+**教训（补进配方）**
+- **「指针失效」类现象先证「包还在不在」**：本次旧包一直 200，只是名字变了、版本 pin 落后。
+  不先证存在性就写自愈，会连写四刀全打在错误方向上。
+- **一个 bug 修了写面要顺手查读面**：裸串身份坑 2026-10-28 在 `publish` 修过，
+  读面 `fetchMarketManifest` 同款漏网，三天后以「Pack version not found」的面孔复发。
+  凡是「同一个 helper 被多处调用」，修完必须 grep 全部调用点。
+- **facet 对 private/foreign 与不存在同答 404** 是既有设计（防探测），
+  所以任何 404 都必须先排「是不是我自己身份没带上」，再怀疑存在性。

@@ -172,6 +172,26 @@ npx @finddatatechnology/facet auth --target workbuddy --write-mcp
 
 第 3 条今天已通（真机 refresh 轮换实证，见 §2.2）；第 5 条是避免"再误判一次"的制度保障。
 
+### 4.1 上线检查单（每个客户端逐条签，缺一条就不许说"已解决"）
+
+| # | 判据 | 怎么验（命令） | 期望 |
+|---|---|---|---|
+| 1 | 产物零凭据 | 对市场仓跑生成器正则 `CREDENTIAL_RE` | 0 命中 |
+| 2 | 用户看不到密钥 | `facet auth --target <c> --write-mcp` 全程 | 只有浏览器授权，输出无密钥串 |
+| 3 | 过期不重授权 | `facet auth --refresh` | 一次成功、token 轮换、aud 正确 |
+| 4 | 401 可分类 | 过期/组不符/停用三种响应体 | 分别给出「过期 / 组不匹配 / 服务停用」文案 |
+| 5 | 有机器证据 | `probe-mcp-auth-lanes.mjs static --app <产物>` + `protocol --url … --token …` | 静态判定与 asar 一致，`tools/list` 非空 |
+
+签名格式：`<client> <版本> 1✅ 2✅ 3✅ 4✅ 5✅ (证据: 探针输出 / 台账 §)`。
+
+### 4.2 一个已知未达标的点（诚实记账）
+
+**旧 refresh token 在轮换后仍然有效**（2026-10-31 真机：连刷两次各得新 RT，但用最初的
+`rt0` 再打 token 端点仍 200）。这**不影响用户**（续期照常），但意味着 **refresh token 被盗
+无法靠轮换自动止损**——租户侧没开 reuse detection / RT 失效。要补的是 Logto 应用配置，
+不是本仓库代码；在此之前凭据泄露的止损手段只有服务端吊销。这一条**不阻塞**判据 1-5，
+但必须记着：对外文案不能承诺"令牌轮换即自动失效"。
+
 ## 5. 与既有工作的关系
 
 - 已上产：静态 client_id 车道（服务端）、六 target CLI、Git 市场仓、npm 0.3.0、Claude 市场 JSON 端点。

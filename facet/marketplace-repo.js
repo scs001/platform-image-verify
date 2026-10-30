@@ -26,6 +26,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isScriptFilePath, safePackagePath } from "../lib/skill-files.js";
 import { loadListedPacks } from "./marketplace-json.js";
+import { LANE, CAPABILITIES, selectLane } from "./cli/mcp-auth-capability.js";
 
 // The manifest directory this client family reads. The client accepts
 // `.codebuddy-plugin/`, `.workbuddy-plugin/` and `.claude-plugin/`
@@ -111,6 +112,108 @@ function renderAgentMd(agent) {
   if (Array.isArray(res.mcpServers) && res.mcpServers.length > 0) notes.push(`本角色引用 MCP：${res.mcpServers.join("、")}`);
   if (notes.length > 0) lines.push("", "## 资源", "", ...notes);
   return lines.join("\n");
+}
+
+// ── Per-client connect blocks (add-universal-keyless-mcp-auth D5 / tasks 4.1-4.2)
+//
+// The same pack needs a different connection block per client, because the
+// connection lane differs per client and NOT because the pack differs. The lane
+// is computed from the capability table — the market artifact must never state
+// a lane that the table does not evidence, or the artifact becomes the next
+// "documentation said it works" trap.
+//
+// Three shapes, one per lane:
+//   L1 native  → an `oauth.clientId` block, no secret anywhere
+//   L2 brokered→ a static `Authorization` header with a PLACEHOLDER value plus
+//                the command that fills it (the token is short-lived and
+//                per-user, so it can never be baked into a public artifact)
+//   L3 key     → the `--key` command
+//
+// Nothing here may contain a real credential: the placeholder text is a fetch
+// instruction, and assertNoCredential runs over every emitted file anyway.
+
+// Built by concatenation so the literal stays literal: a bare "${...}" in a
+// string reads as a template placeholder to linters and to whoever copies it.
+const PLACEHOLDER_BEARER = "$" + "{FACET_ACCESS_TOKEN}";
+
+function connectBlockFor(server, client, { registry }) {
+  const endpoint = `${registry}/${server.registryName}/mcp`;
+  const pick = selectLane(client, { hasBrowser: true });
+  const lane = pick.lane;
+  const base = {
+    client,
+    server: server.registryName,
+    endpoint,
+    lane,
+    laneReason: pick.reason,
+    ...(server.requiredGroup ? { requiredGroup: server.requiredGroup } : {}),
+  };
+
+  if (lane === LANE.NATIVE) {
+    const clientId = pick.record?.clientId ?? null;
+    return {
+      ...base,
+      config: { type: "http", url: endpoint, oauth: { ...(clientId ? { clientId } : {}), scope: "openid gateway:access offline_access" } },
+      how: `在 ${client} 的 MCP 配置里加入上面的块；客户端会自己拉起授权，配置文件内不含任何密钥。`,
+      credentialShape: "none",
+    };
+  }
+  if (lane === LANE.BROKERED) {
+    return {
+      ...base,
+      config: { type: "http", url: endpoint, headers: { Authorization: `Bearer ${PLACEHOLDER_BEARER}` } },
+      how:
+        "先跑 `npx @finddatatechnology/facet auth <packRef> --target " + client + " --write-mcp`" +
+        "（它会完成授权并把短命令牌写入客户端配置），再把上面的 Authorization 值替换成命令输出的值；" +
+        "过期后跑 `facet auth --refresh` 静默续期。",
+      credentialShape: "short-lived access token in a static header",
+    };
+  }
+  return {
+    ...base,
+    config: { type: "http", url: endpoint, headers: { Authorization: `Bearer ${PLACEHOLDER_BEARER}` } },
+    how: `跑 \`npx @finddatatechnology/facet connect\` 铸取调用键，再用 --key 写入（headless/CI 用）。`,
+    credentialShape: "caller key (wgk-)",
+  };
+}
+
+/**
+ * Build the `connect/` directory contents for one pack:
+ *   connect/<client>.json — machine-usable block the CLI can merge
+ *   connect/README.md     — one command per client
+ * Emitted for every client that has a capability record with usable evidence;
+ * a client whose record is missing or stale is listed as "待复验" and gets no
+ * block (writing an unevidenced block is the exact mistake we are avoiding).
+ */
+function connectFiles(pack, { registry, manifest }) {
+  const servers = Array.isArray(manifest.mcpServers) ? manifest.mcpServers : [];
+  if (servers.length === 0) return new Map();
+  const files = new Map();
+  const rows = [];
+  for (const client of CAPABILITIES.map((c) => c.client)) {
+    const blocks = servers.map((s) => connectBlockFor(s, client, { registry }));
+    const first = blocks[0];
+    files.set(`connect/${client}.json`, JSON.stringify({ client, pack: pack.id, blocks }, null, 2) + "\n");
+    rows.push({ client, lane: first.lane, laneReason: first.laneReason, how: first.how, blocks });
+  }
+  const lines = [
+    "# 连接指引（按客户端）",
+    "",
+    "本套件声明了 MCP 引用。**每个客户端走哪条连接道，由机器实证的能力表决定**，不按文档猜：",
+    "",
+    "| 客户端 | 连接道 | 说明 |",
+    "| --- | --- | --- |",
+    ...rows.map((r) => `| ${r.client} | ${r.lane} | ${r.laneReason} |`),
+    "",
+  ];
+  for (const r of rows) {
+    lines.push(`## ${r.client}（${r.lane}）`, "", r.how, "");
+    for (const b of r.blocks) {
+      lines.push(`### ${b.server}`, "", "```json", JSON.stringify(b.config, null, 2), "```", "");
+    }
+  }
+  files.set("connect/README.md", lines.join("\n"));
+  return files;
 }
 
 function renderReadme(pack, { registry, manifest }) {
@@ -201,6 +304,10 @@ function pluginFiles(pack, row, { registry }) {
   }
 
   files.set("README.md", renderReadme(pack, { registry, manifest }));
+  // Per-client connect blocks. Emitted only when the pack declares MCP
+  // references — a pack with none must not grow an empty `connect/` tree that
+  // suggests it needs a connection it does not.
+  for (const [rel, text] of connectFiles(pack, { registry, manifest })) files.set(rel, text);
   return files;
 }
 

@@ -230,6 +230,55 @@ test("refresh 重放 resource、不发 scope，并落盘轮换后的 refresh tok
   }
 });
 
+// ── 续期必须原地改写客户端配置（真机抓到的缺陷） ────────────────────────────
+// 只续期不回写，等于告诉用户「已续期」而客户端还握着旧令牌。这里用 CLI 真实
+// 子进程跑 `facet auth --refresh`，断言 ~/.workbuddy/mcp.json 里的 Bearer 换成新值。
+test("--refresh 后把新令牌原地写回客户端配置（只改旧令牌，不动别的凭据）", async () => {
+  const home = await mkdtemp(path.join(tmpdir(), "facet-auth-rewrite-"));
+  const server = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      const newJwt = `h.${Buffer.from(JSON.stringify({ aud: "https://mcp.finddatatech.cloud", username: "u@example.com", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.s`;
+      res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+        access_token: newJwt, token_type: "Bearer", expires_in: 3600, refresh_token: "RT-NEW",
+      }));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const oldJwt = `h.${Buffer.from(JSON.stringify({ aud: "https://mcp.finddatatech.cloud", username: "u@example.com", exp: Math.floor(Date.now() / 1000) - 60 })).toString("base64url")}.s`;
+    await mkdir(path.join(home, ".facet"), { recursive: true });
+    await writeFile(path.join(home, ".facet", "oauth.json"), JSON.stringify({
+      access_token: oldJwt, refresh_token: "RT-OLD", expires_in: 60, obtained_at: Date.now() - 120000,
+      resource: "https://mcp.finddatatech.cloud",
+    }), "utf8");
+    // 已写入的客户端配置：一条带旧令牌（应被改写），一条带别人的键（必须不动）
+    await mkdir(path.join(home, ".workbuddy"), { recursive: true });
+    await writeFile(path.join(home, ".workbuddy", "mcp.json"), JSON.stringify({
+      mcpServers: {
+        "fd-daas-mcp": { type: "http", url: "https://mcp.finddatatech.cloud/fd-daas-mcp/mcp", headers: { Authorization: `Bearer ${oldJwt}` } },
+        "other-mcp": { type: "http", url: "https://x/mcp", headers: { Authorization: "Bearer wgk-someone-elses-key" } },
+      },
+    }, null, 2) + "\n", "utf8");
+
+    const { stdout } = await run(process.execPath, [CLI, "auth", "--refresh", "--auth-url", base], {
+      env: { ...process.env, FACET_HOME: home },
+    });
+    assert.match(stdout, /已静默续期/);
+    assert.match(stdout, /已原地改写配置/);
+
+    const cfg = JSON.parse(await readFile(path.join(home, ".workbuddy", "mcp.json"), "utf8"));
+    const saved = JSON.parse(await readFile(path.join(home, ".facet", "oauth.json"), "utf8"));
+    assert.equal(cfg.mcpServers["fd-daas-mcp"].headers.Authorization, `Bearer ${saved.access_token}`, "旧令牌必须被换成续期后的令牌");
+    assert.notEqual(cfg.mcpServers["fd-daas-mcp"].headers.Authorization, `Bearer ${oldJwt}`);
+    assert.equal(cfg.mcpServers["other-mcp"].headers.Authorization, "Bearer wgk-someone-elses-key", "别人的凭据绝不可被覆盖");
+  } finally {
+    server.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("--status 报告余期与可续期性；无令牌时明说未登录", async () => {  const home = await mkdtemp(path.join(tmpdir(), "facet-auth-status-"));
   try {
     const { stdout: empty } = await run(process.execPath, [CLI, "auth", "--status"], { env: { ...process.env, FACET_HOME: home } });

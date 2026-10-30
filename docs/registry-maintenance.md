@@ -5069,3 +5069,108 @@ Logto 不回 refresh token，「可续期」直接为假）。这一条只在真
 `openspec validate add-universal-keyless-mcp-auth` valid；L2 写入形状
 `{type:"http",url,headers.Authorization:"Bearer h.…"}`、文件模式 `0600`、配置内无 refresh token
 （单测断言）；生产 PKCE 全链由 CLI 自身代码路径跑通（不是旁路脚本）。
+
+### §15.103 Project 容器（web 端顶层容器）实施：projects 实体 + 三处归属 + 双端分组 fork（2026-10-31）
+
+change `add-web-project-container` 实施完成（12/12 棒、openspec validate 绿）。
+
+**① 存储（v110 迁移）**
+`projects` 表（id/name/backing_path 唯一索引/owner/时间戳）+ `chat_sessions`、
+`collections` 两处可空 `project_id`。ALTER 走 `apply` 钩子 + PRAGMA guard（新库
+CREATE TABLE 已带列、旧库补列，幂等；同 v6 chat_messages.blocks 惯例）。
+**坑**：cron jobs **不在 SQLite**——它走 `task-engine.js` 的 `jobs.json` 文件存储，
+`projectId` 是记录字段而非列（首轮我把 `ALTER TABLE cron_jobs` 写进迁移，核实后撤掉）。
+
+**② 归属落章（单点，不新增写手）**
+会话：`upsertSession` 内按 workspace 路径回溯 projects 表写 `project_id`（与 workspace
+列同一落章点，write-once——后续换 workspace 不重盖）。collection：create 带 projectId；
+cron：addJob 收 projectId → taskData → saveTasks/clientShape 双向透传。
+查询过滤：`listCollections({projectId})`（undefined=全量 / null=默认桶 / id=该项目）、
+cron 路由 GET 同口径。
+
+**③ Web 表面**
+侧栏分组键 fork（design D3）：web = `projectId ?? 默认项目`（标签是项目名，路径只作
+hover title），desktop = workspace 路径 + Ungrouped 原样。新 `useProjectsStore`（失败降级
+为空 → 全落默认项目，绝不空栏）。Documents/Tasks 页加项目过滤（默认「全部」= 零过滤）。
+建项目后 `refreshProjects()` 再切 workspace，新项目立即可分组。
+
+**④ 证据**
+`test-project-container` 11/11（新建/附着/改名/会话落章三态/collection 桶过滤）、
+task-engine 23/23（含 job projectId 持久+重载）、chat-history 20/20、workspace 契约
+18/18、`sidebar-workspaces` e2e 6/6（**新增桌面用例**：addInitScript 注入
+`window.platform.pickWorkdir` 让 IS_DESKTOP=true，同一 payload 验 web 名分组 vs 桌面路径分组）、
+cron-ui + documents-react e2e 8/8、web typecheck + biome + locale 门（2543 键）绿。
+
+**挂账**：真机走查（web 建项目→会话落组名、桌面仍路径分组、Documents/Tasks 过滤三眼见）。
+
+#### §15.105 续记：真机走查逮出「续期不回写」缺陷 + 按受众认令牌的三次收敛（2026-10-31）
+
+L2 单测全绿之后上真机走 `auth → 写配置 → 客户端连上 → 续期 → 再连`，**第六步直接翻车**：
+`facet auth --refresh` 打印「✓ 已静默续期」，客户端配置里却还是**旧的** Bearer——
+`refreshOAuthToken` 只更新 `~/.facet/oauth.json`，没有任何人回写客户端配置文件。
+用户会看到「续期成功」而实际连不上，这是比「续期失败」更坏的形态：**它撒谎**。
+
+- **修法**（`rewriteBrokeredTokens`）：续期/重授权后遍历六 target 的用户级（+项目级）MCP
+  配置文件，把令牌换掉，并在输出里逐文件报「已原地改写配置」。
+- **改哪几条？连改三版才定**：
+  1. 按「等于旧令牌」精确匹配 → 单测绿，**真机失败**：上一轮（修复前）的续期已让配置与存储
+     脱节，配置里那个令牌**永远不会再等于**当前令牌 → 陈旧令牌永远修不好。**这正是要治的病，
+     却被我的安全条件挡住了。**
+  2. 按「长得像 JWT」→ 会误改别人的 JWT（另一部署/另一受众）。
+  3. **按受众认亲**（定案）：解码每个 Bearer，仅当 `claims.aud === 新令牌.aud` 才替换；
+     `wgk-` 调用键解码不出 JWT、别家的 JWT 受众不同 —— 两类都原样不动。
+     真机复验：三个条目全部更新为最新令牌，且没有误伤。
+- **一句话教训**：「只改我认识的」这类安全条件，判据必须落在**内容语义**（受众/签发者）上，
+  不能落在**与某次快照相等**上——后者一旦历史已经分叉就永久失效，而分叉恰恰是它该修的场景。
+- **单元测试补一条**（第 11 条）：用真实子进程跑 `--refresh`，断言配置里旧令牌被换、而
+  `wgk-` 别人的键**原样保留**。
+
+**顺带两条真机事实（不是缺陷，是边界）**
+- `facet-market-mcp` / `facet-ops-mcp` 对客户令牌回**边缘裸 401**（`{"error":"Authentication required"}`，
+  与网关的 JSON-RPC 错误形状不同）——它们是内部运维面，不该进客户包的连接块。同一令牌打
+  `fd-daas-mcp` 稳定 `initialize 200 → tools/list 161`。**内部 server 不该出现在市场包引用里，
+  这是内容侧要收的口子，不是链路缺陷。**
+- 期间一次 `401 egress_credential_service_unavailable`：网关出口凭据服务的瞬时不可用，
+  与鉴权无关（同一令牌 6 秒后即 200），重试即过。
+
+### §15.106 官方精选转正：外部热门技能经审校成为官方 Agent（核心技术面落地）（2026-10-31）
+
+**背景**：用户提出「热门 skills 直接加到生态、直接构成 agent/team」。探索→立案 `add-official-adopted-agents`
+（`da337743`，validate --strict 绿），拍板首发布形态 = **官方精选转正**（非用户自助一键包、非热度自动进精选）。
+
+**三条拿代码验伪出来的硬事实（提案期假设全被推翻，实施前就挡住返工）**
+
+1. **徽章真源是 `lib/pack-badge.js`，不是 facet**。四值 `blueprint→facade→assistant→toolkit`，纯类型轴；
+   facet `marketplace-json.js` 只做 listing 准入、不推徽章。→ provenance 是**与徽章正交的第二轴**，不是第五种 badge。
+2. **`official` 只来自部署 roster**（`gateway/packs.js` 的 `officialAuthors` / env `OFFICIAL_AUTHOR_EMAILS`），
+   作者不可自报。→ 「官方精选·已审校」= `roster-official===true ∧ manifest.provenance.kind==="official-adopted"`。
+3. **货架 `licenseState` 恒 `unknown`**（`external-sources.js:419/443/491/517` 硬编码）。→ 许可门必须去上游取 LICENSE，
+   读货架字段会得到「全 unknown → 全拒」死局或合规漏洞。
+
+**真实 spike 副产品（值得记）**：`curl` 打 `modelcontextprotocol/servers` 的仓库元数据，`license.spdx_id`
+返回 **`NOASSERTION` / name `Other`**，而 LICENSE 原文明确是 **MIT → Apache-2.0 过渡双许可**。
+→ 元数据字段不可单独采信，原文优先。这个仓库本身现在就是许可门测试夹具。
+
+**已实施（代码面，`111/111` 测试绿）**
+- `lib/license-gate.js` — `scanLicenseText` / `evaluateLicense` / `assertLicenseAdmissible`。宽松集 MIT/Apache-2.0/
+  BSD-2/3/ISC；拒绝集 AGPL/GPL/LGPL/SSPL/BUSL/CC-BY-NC 各带失败轴；多许可取最宽松并记 `mixed-license` 供复核；
+  空证据 → `not-declared` fail-closed。LGPL 不被误判成 GPL（`\bGPL` 词边界）。
+- `lib/upstream-license.js` — `collectUpstreamLicenseEvidence` / `licenseEvidenceFromPackage`。证据顺序=可信度顺序：
+  包内 LICENSE > 仓库 LICENSE（技能目录优先，回落仓根）> package.json license > 仓库元数据。**永不抛**：任一步失败
+  只是少一条证据，空集交给门去拒。
+- `lib/pack-provenance.js` — `describeProvenance` 三轴单点合成 + `describeShelfProvenance` 第四态（货架·未审）。
+  **关键不变式**：manifest 自报 provenance **永远不能**把非 roster 包顶成 official-adopted（社区态不置键）。
+- `lib/pack-manifest.js` — `validateProvenance` 可选键形状校验（kind/upstreamUrl/upstreamName/license/revision/
+  adoptedBy/reviewedBy/reviewedAt）；缺省零影响，旧 manifest 逐字节不变。
+- `gateway/packs.js` — 详情读 `GET /api/packs/:id` 接三轴投影；`community` 态不置 `provenance` 键 → 旧 payload 不变。
+- 测试：`scripts/test-official-adoption.mjs` 20/20、`scripts/test-upstream-license.mjs` 7/7，回归 84/84（pack-validate/
+  pack-badge/official-showcase/external-sources/external-install/preset-pack-bridge/custom-presets/official-locale-gate）。
+
+**Fork 结论（写进 design，不另立单）**
+- **团队级转正结构上不成立机械扩量**：`fleet.members[].target` 指向 **pack-preset（persona）而非技能**；
+  节奏/边/KPI 槽位四类信息一个都不在技能文本里。「≥3 岗」必要非充分，**真闸是「节奏能否被陈述」**。
+  → adoption 只管内容，团队形状交给既有 `fleet-architect` + blueprint studio。等 Agent 级跑顺 + ≥3 真案例再谈。
+- **热度字段已存在**（`downloads`/`stars`/`totalActivations`/`externalStars`）但跨源口径不一，不可直接混排；
+  需源内分位归一，作独立小单；热度永不作准入。
+
+**未完（后续班）**：1.4 桥消费侧、2.3 真实内联快照写入、2.4 转正动作落库、2.5 工具面默认 chat、3.x 前端/facet 渲染。

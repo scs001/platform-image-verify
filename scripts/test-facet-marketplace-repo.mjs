@@ -150,6 +150,58 @@ test("MCP 只做指引：插件本体无 mcpServers 键、README 给端点与凭
   } finally { await cleanup(); }
 });
 
+test("connect/ 连接块：每客户端一份，形状随能力表选道而定，且不含真凭据", async () => {
+  const { registry, cleanup } = await boot();
+  try {
+    const p = registry.publish({
+      email: AUTHORS.email,
+      manifest: manifest("F", { mcpServers: [{ registryName: "law-bench" }] }),
+    });
+    registry.setCuration({ id: p.id, actor: ACTOR, category: "legal", featured: false });
+    const built = repoMod.buildMarketplaceRepo(registry, { env: { FACET_REGISTRY_BASE: "https://reg.example" } });
+    const files = built.plugins.get(p.id);
+
+    for (const client of ["workbuddy", "CC", "cursor", "zcode", "codex", "gemini-cli"]) {
+      const raw = files.get(`connect/${client}.json`);
+      assert.ok(raw, `缺 connect/${client}.json`);
+      const doc = JSON.parse(raw);
+      assert.equal(doc.client, client);
+      assert.equal(doc.blocks.length, 1);
+      const b = doc.blocks[0];
+      assert.equal(b.endpoint, "https://reg.example/law-bench/mcp");
+      assert.ok(b.laneReason, "选道必须给出可解释的理由");
+      // workbuddy 5.9.x 用户文件不消费 clientId → 必须走 L2，写的是占位符
+      if (client === "workbuddy") {
+        assert.equal(b.lane, "L2");
+        assert.equal(b.config.headers.Authorization, "Bearer " + "$" + "{FACET_ACCESS_TOKEN}");
+        assert.equal(b.credentialShape, "short-lived access token in a static header");
+      }
+    }
+
+    const readme = files.get("connect/README.md");
+    assert.match(readme, /按客户端/);
+    assert.match(readme, /workbuddy/);
+    assert.match(readme, /不消费静态 client_id/);
+
+    // 连接块不得含真凭据：占位符是"去取"的指令，不是密钥
+    for (const [rel, text] of files) {
+      assert.equal(/Bearer (?!\$\{)[A-Za-z0-9._-]{20,}/.test(text), false, `${rel} 含疑似真令牌`);
+      assert.equal(/wgk-[A-Za-z0-9_-]{8,}/.test(text), false, `${rel} 含调用键`);
+    }
+  } finally { await cleanup(); }
+});
+
+test("connect/：无 MCP 引用的包不长出空的 connect 目录", async () => {
+  const { registry, cleanup } = await boot();
+  try {
+    const p = registry.publish({ email: AUTHORS.email, manifest: manifest("G") });
+    registry.setCuration({ id: p.id, actor: ACTOR, category: "data", featured: false });
+    const built = repoMod.buildMarketplaceRepo(registry, { env: {} });
+    const files = built.plugins.get(p.id);
+    assert.equal([...files.keys()].some((r) => r.startsWith("connect/")), false);
+  } finally { await cleanup(); }
+});
+
 test("路径安全：绝对路径 / .. / 盘符 / NUL 一律拒绝，不是清洗", async () => {
   const { registry, cleanup } = await boot();
   try {

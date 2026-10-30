@@ -762,6 +762,57 @@ export function classifyRefusal(status, body = "") {
  *   facet auth --status                                   # token + capability view
  *   facet auth --refresh                                  # silent renewal
  */
+// Rewrite brokered tokens already sitting in client configs.
+//
+// Renewal is only half the job: the config still holds the OLD bearer string, so
+// a refreshed token that is never written back leaves the client failing while
+// the CLI reports success. Found on a real machine (the config kept a 58-minute
+// token while the freshly renewed one sat in ~/.facet/oauth.json).
+//
+// Which entries to touch is decided by AUDIENCE, not by string equality. Exact
+// matching looked safer but is wrong in practice: a config written before this
+// fix holds a token that was never rotated again, so it will never equal the
+// current stored token and would be stale forever — the exact case we must heal.
+// So: decode each bearer, rewrite it only when it is one of OUR tokens (its `aud`
+// equals the new token's `aud`). Caller keys (`wgk-…`) do not decode as JWTs and
+// another deployment's JWT carries a different `aud`; both are left untouched
+// instead of being silently hijacked.
+async function rewriteBrokeredTokens({ newToken, project = null, targets = null }) {
+  const newAud = decodeJwtClaims(newToken)?.aud ?? null;
+  if (!newAud) return []; // can't identify our own tokens → refuse to guess
+  const rewritten = [];
+  const list = targets ?? Object.keys(MCP_TARGETS);
+  for (const target of list) {
+    const t = MCP_TARGETS[target];
+    if (!t || t.toml) continue; // TOML targets carry [mcp_servers.*]; handled separately if ever used
+    const candidates = [];
+    if (t.userFile) candidates.push(t.userFile());
+    if (project && t.projectFile) candidates.push(t.projectFile(project));
+    for (const file of candidates) {
+      const doc = await readJsonFile(file);
+      const box = t.json.container(doc)?.[t.json.key];
+      if (!box || typeof box !== "object") continue;
+      let touched = false;
+      for (const entry of Object.values(box)) {
+        const h = entry?.headers?.Authorization;
+        if (typeof h !== "string" || !h.startsWith("Bearer ")) continue;
+        const bearer = h.slice("Bearer ".length).trim();
+        if (bearer === newToken) continue; // already current
+        const claims = decodeJwtClaims(bearer);
+        if (!claims || claims.aud !== newAud) continue; // not ours (key, other issuer)
+        entry.headers.Authorization = `Bearer ${newToken}`;
+        touched = true;
+      }
+      if (touched) {
+        await writeFile(file, JSON.stringify(doc, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+        await chmod(file, 0o600).catch(() => {});
+        rewritten.push(file);
+      }
+    }
+  }
+  return rewritten;
+}
+
 export async function authRun(opts) {
   const authBase = opts.authUrl || DEFAULT_AUTH_URL;
   const clientId = opts.oauthClient || DEFAULT_OAUTH_CLIENT_ID;
@@ -776,6 +827,17 @@ export async function authRun(opts) {
     if (refreshed) {
       const s = describeToken(refreshed);
       console.log(`✓ 已静默续期（剩 ${s.minutesLeft} 分钟）`);
+      // Write the renewed token back, or the client keeps the expired one.
+      const files = await rewriteBrokeredTokens({
+        newToken: refreshed.access_token,
+        project: opts.project,
+      });
+      if (files.length > 0) {
+        console.log("  已原地改写配置：");
+        for (const f of files) console.log(`    ✓ ${f}`);
+      } else {
+        console.log("  没有配置携带旧令牌（未写过 MCP，或已换过账号）——无需改写。");
+      }
       return;
     }
     console.log("无 refresh_token 或续期失败——需要重新授权一次：");
@@ -785,6 +847,11 @@ export async function authRun(opts) {
     await saveOAuthToken(doc);
     const s = describeToken(doc);
     console.log(`✓ 已重新授权（剩 ${s.minutesLeft} 分钟${s.renewable ? "，可静默续期" : "，无 refresh_token"}）`);
+    const files = await rewriteBrokeredTokens({ newToken: doc.access_token, project: opts.project });
+    if (files.length > 0) {
+      console.log("  已原地改写配置：");
+      for (const f of files) console.log(`    ✓ ${f}`);
+    }
     return;
   }
 

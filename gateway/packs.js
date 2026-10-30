@@ -33,6 +33,7 @@ import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceError
 import { sellabilityGate } from "./pack-sellability-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
+import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { installVendorTables, createVendorStore } from "./vendors.js";
@@ -1556,6 +1557,19 @@ export function registerPackRoutes(app, {
     // per-file route below serves each body on demand.
     pack.manifest = projectManifestForDetail(pack.manifest);
     pack.official = isOfficial(pack.authorEmail);
+    // Adopted provenance (add-official-adopted-agents D1): the SOURCE axis,
+    // synthesized through the one projection so no surface can invent
+    // "official-adopted" independently. `official` comes from the roster
+    // judgment above — carrying provenance never grants official status, so a
+    // non-roster pack with a provenance block stays `community` and the key is
+    // simply absent (byte-identical payload for every legacy pack).
+    const provenance = describeProvenance(pack.manifest, { official: pack.official });
+    if (provenance.source !== PROVENANCE_SOURCE.COMMUNITY) {
+      pack.provenance = {
+        source: provenance.source,
+        ...(provenance.adopted ? { adopted: provenance.adopted } : {}),
+      };
+    }
     res.json(pack);
   });
 

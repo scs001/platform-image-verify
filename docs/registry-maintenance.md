@@ -4616,3 +4616,18 @@ GET×2、kind×2、persist×2、express.json×2、isDbReady×2）。从 feat 分
 核祖先律）→ 平台出片一律 **main 线**：cherry-pick 快照排除两笔（d51d2870 zhiyu 四文档排除、
 fa4adf77 种子自测表豁免）后 `make-public-snapshot --init` → 补回 image.yml → 强推 mirror。
 feat 分支上的 lint 精修（e74f2330/09987b26/68bb63ed）不再搬 main——main 的 39f31eb4 更净（0 警告）。
+
+### §15.96 技能自进化(#7)+官方 starter(#8) 两班滚产，公开 CI 首次全绿，途中清十项 unit 既存红（含三处生产真缺陷）（2026-10-30）
+
+| 项 | 内容 |
+|---|---|
+| 内容 | 路线八步的第七、八步上产：①**技能自进化闭环**（`server/skill-evolution*.js`+`skill-eval.js`：候选库 db v109 `skill_candidates`+`custom_skills.evolution_lineage`；agent 侧单工具 `skill_propose`（证据必带、pack 技能不可动）；主人面 评估/晋升/拒绝 REST；A/B 三臂评测=对照/旧技能/候选 盲评（甲乙丙洗牌、判词不含臂色）、「不劣于」过门；晋升为主人手势并写 lineage，永不删）②**官方 starter 团队序列**（`web/src/lib/packGuides.ts` 五队+说明卡、`docs/from-zero-to-first-team.md` 公开教程、全用词表 v4）|
+| 提交 | paas `f5aefc45`（实施）→ `39f31eb4`（Biome 门 25 项清零）→ `010f2c5d`（dsh 适配白名单补 plugin-supply 桥+蓝图评审测试自备名册）→ `f1e8f835`（unit 门十项清零，含三处生产真缺陷）；**origin/main 现 `b5c03b26`**（并行会话续推） |
+| 出片 | **两班**（同批次内先出一班、测出问题修完再出一班）。一班 run 40990570685 绿 → **sha-32a1c38** digest `ff42c566`（relay 10:26 OK 4s）；二班 run 41004167740 绿 → **sha-02588e6** digest `426fcb77`（relay 12:56 OK 4s）。**公开仓 CI gates run 41004167754 = 本仓首次 lint→typecheck→unit→locales→build→e2e 全绿** |
+| 滚版 | platform+platform-demo：GitOps `d5ea0ea`→32a1c38 → `be1dd08`→02588e6。ArgoCD 自动同步 6 分钟未拉，`kubectl annotate app all-services-prod argocd.argoproj.io/refresh=hard` 后两面 rollout 成功、**双 pod imageID 全等 426fcb77**（不信 rollout status）。生产现由并行会话前进滚至 sha-dcfa000（源 b5c03b26，**含本班全部**，无回退） |
+| 生产实证 | ①**cell 库迁移 v109 真落表**：扫 43 cell，四个活格 v109+`skill_candidates`+`evolution_lineage` 列全中（只有新码会建，等于证明新码在跑）②pod grep：`skill_propose`/`本团队工作记忆`/`help-starter-teams`/`skill-evolution`（ExtensionsPage chunk）/房间桥+fleet-memory+skill-eval 三文件齐③`/api/packs/official` 200 三段有真数据、新端点无身份 401 鉴权墙正确、gateway `/healthz` ok:true④二班 pod grep 三修复在镜像：`demo-expiry` 写点=0、`promise.abort`=1、`mkdirSync(path.dirname(file))`=1 |
+| 三处生产真缺陷（测试全绿也漏网，真跑才露） | ①**demo 墓碑锁死**：`add-cell-lifecycle` 的「destroyed 永不再绑」与 `mp-demo-mode` spec「reap 后访客可再冷启」互斥——demo 到期写 `destroyRequested` → 同一访客被永久 503 锁死。修法=到期停格改写 `down`（park），操作者销毁仍留终局墓碑②**bots 回合挂满 180s**：`collectTurn` 的硬计时器在 `prompt()` 抛错被 caller 弃单后无人解除 → 180s 后向已弃 promise 抛未处理拒绝（子进程崩溃时用户等 3 分钟才见失败回复，boot-latch 测试文件也因此从 1.6s 拖到 181s）。修法=`promise.abort()` 解闸+caller 弃单即 abort③**冷挂载启动即崩**：`createCellRegistryDb` 开库前不建父目录（姊妹模块都建），全新 `CELL_DATA_ROOT` 下 gateway 启动即 EACCES 崩。修法=补 mkdirSync（既是测试红也是生产冷部署隐患） |
+| 十项 unit 既存红的定性 | 私有 CI 额度耗尽期（FindDataTechnology 2011/2000）多会话落码从没过 unit 门，公开仓又被 lint 积压挡在门外 → 这批一次现形。除上三缺陷外皆测试侧失真：夹具谎报 v1..12 却没带 v8 `bots`/v12 `resources` 物理表（迁移链死于 ALTER）／golden 路径没跟归档移动（+分发树缺件如实 skip）／pack-install 桩没补「装前闸」新增的 detail 面（1.2 断言按两面新契约重写）／`test-product-intro-seed.mjs` 把内部仓名字面写进禁词正则=发布即自泄漏（快照门逮住→排除出公开树，守卫留私仓）／live 验收无密钥 `exit(2)` 色红 unit 门（改 exit 0 自跳，属 workflow_dispatch 车道） |
+| 坑 | ①**快照泄漏门两次正确拦停**：先拦 `fd-craw-private` 自指泄漏，逼出排除件而非绕过②**种子 en 副轨撞车**：我的防漂移门逮住 `product-intro-fleet.seed.json` 缺 `i18n.en`，正要补时并行会话已带同名改动落地（命名用 Base 系）→ rebase 冲突取**他们的**（三门 31/31 复验绿），我那份作废③**rebase/push 三次被并行竞速**（010f2c5d→7d544e6b→154fd04e→b5c03b26），每次先 `--left-right --count` 核快进再动④**僵尸 test 进程**：壳故障期遗留的 `node --test` 挂 3.5h 抢端口/库，制造假红（zhiyu-router 40 分钟 pending），先清进程再判红⑤**镜像 push 与 GitOps bump 之间生产被并行班插了一代**（21bdd57）→ bump 前重新核祖先链，确认前进滚非回退 |
+| 归档 | `add-skill-self-evolution`（3 需求）+`add-official-starter-teams`（3 需求）**双归档**（纯 ADDED，主 spec 新建两能力目录，无 delta 合并）；`openspec validate --specs --strict` 见本节末提交 |
+| 遗留 | ①真机走查三棒留用户节奏：skill 4.3（真实回合→propose→A/B→接受→下回合见新技能）、starter 4.2（新账号首启→引导→装客服班组→点燃→首轮报数）、skill 4.4 成本账（一次 A/B=2+1 次判道调用，随首个真实 propose 记）②market 侧存量包改名/类目归位（运营班）③facet/registry 侧 v4 文案（对侧仓）|

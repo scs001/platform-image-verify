@@ -141,9 +141,10 @@ export function judgeModelFindings(content) {
 // v2 键在场）。命中即返回唯一一条根因错误；调用方（validateBlueprint / 存储层）
 // 须短路或硬拒，不得再叠加方言错位派生的散错。
 const V1_FORMAT_ERROR = [
+  // 开发者：v2 格式全文真源 = fleet-packs 仓（GitHub FindDataTechnology/fleet-packs，
+  // 2026-10-30 起入版本控制）blueprints/schema.md v2；此处用户可见文案只列字段闭集，不带内部路径。
   "蓝图格式为 v1（vertical/sources/boards + 自由文本 acceptance），本平台只接受 v2。",
   "v2 字段：boundary{name, oneLine, outOfScope} / dataSources[{ref, note?}] / board[] / acceptance[{id, kind, target?, expect?, rubric?}]。",
-  "格式真源：finddata fleet-packs/blueprints/schema.md（v2）。",
   "迁移：把 vertical{name,tagline,non_goals[]} 换成 boundary{name, oneLine, outOfScope}、sources[].registryName 换成 dataSources[].ref、boards 换 board、自由文本断言换成五型结构化条目。",
 ].join("\n");
 

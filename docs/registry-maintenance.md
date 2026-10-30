@@ -4732,3 +4732,17 @@ B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更
 | 坑 | ① 需求书假设散类目 daas/data/authoring 现网**根本不存在**——真类目是 cluster/fleet/wire/legal/facet… 14 个；先拉现网普查再定表，没照需求书空写 ② `cluster`/`fleet` 等**代码 slug 正原样显示在中文市场**（B3 类内部词外泄），归位表是治它 ③ en 副轨名也漏 `Fleet ·` 前缀（11 枚），英文访客可见，同 v3 泄漏一并清 ④ 发新版必须原样回带 pricing/vendor（body 缺省即变免费=价格篡改事故）⑤ `node /dev/stdin` 在容器里 pipe fd 失效，脚本先 `cat>/tmp` 落文件再 exec（kubectl exec 无 `-e`） |
 
 **§15.98 再补（教程双线上官网，GitHub 门两次教做人）**：仓库公开教程（docs/deploy-and-manage-your-machine.md，cf7a2ffb）发布为官网学院课 `yizuo-machines-deploy-manage`（zh+en 孪生）。首推 **CI 内容门红**：`check-content-integrity` 的 tech-identifier 判据拦下正文裸域名（use 层课程不逼用户背主机名）——改法不是 gate_exceptions 放行，而是**改写到不需要域名**（下载→站内相对链 /products/base；控制台→「你登录的地址」，顺带更贴合自建实例现实）。二推 CI 绿（run 41015701828）→ official-web:sha-c013573 → fd-deploy 抽 dist 整替（保 calibers）→ **公网双页 200 眼见** + 学院列表在列。律：**写官网内容先跑 `node scripts/check-content-integrity.mjs <files>` 自闸，别等 CI 红**（推送前 2 秒的事）。
+### §15.100 功能集源码入册保护+市场为真值守则（add-legacy-pack-rebrand 余波，2026-10-30，用户令「源码在 finddata 我担心会出问题，你处理下」）
+
+| 项 | 事实 |
+|---|---|
+| 根险 | `~/finddata/fleet-packs`（14 枚官方包唯一铸源：manifest/cast/template/schema.md）**无 .git 裸在本机**；对照=cronjob facet-packs-backup 每日 03:17 只备 packs.db（市场分发面有备份、源码面零备份）。fd-info（6 枚包引用的 MCP 服务源）同样裸目录且 gitee 无同名仓 |
+| 分叉实锤① | 昨日市场 22 枚改名**未同步源**——源内仍「情报舆情集群（模板）」等旧名，照 README 配方重发=旧名 mint 新包或 --pack-id 覆盖→改名白做 |
+| 分叉实锤② | template.json 的 agents/fleet 还是**第一代岗位文案**（情报巡检员/XX舰队），市场现行=改铸后位词版（监视位/闸位…）——改铸时没回填，重铸会打回结构老版 |
+| 断链实锤③ | README 台账改中文名行后，cast 脚本 parse_ledger（正则只认小写 slug 行）报 **`ledger empty`——重铸链整体断链且无人察觉**（cast --check 首次全量复跑才暴露） |
+| 防冲建制 | 源 manifest/cast 显示字段+template agents/fleet **全量回填为市场真值**；cast_fleet_template.py 补 **i18n 顶层透传**（原脚本不认 i18n=重铸丢 11 枚英文副轨；skills 实跑副本与仓内 tooling/ 快照同版）；README 加**机器台账**节（slug→packId→版本→源目录）+「市场为真值」五纪律；新增 **scripts/check_drift.py**（逐字段对拍+对外字段内部物泄漏扫，读通道=public edge /api/packs/:id 直连）——cast --check 4/4 绿、漂移哨 14/14 绿 exit 0 |
+| 泄漏去敏（市场 8 枚发新版） | 对外字段扫出并清：`fleet-packs/blueprints/...` 路径、`schema.md` 路径、L3/harness 阶段词、add-vertical-blueprint-constructor / add-marketing-line-fleet change ID、`共用层 L1`、`4.4 挂账销账`、notes 契约黑话（allowTools⊆…persona 禁 {{...}} 句保留但改人话）→ 跨境电商 v6 / 蓝图构造师 v7 / 简报 v5 / 看板 v6 / 情报采集 v5 / 数据问答 v5 / 评测哨 v6 / 官网内容 v9；发前 validate 全干跑绿 |
+| 入册保护 | fleet-packs fbe0602（裸态原样快照）+ff315f1（对齐建制）推 **GitHub FindDataTechnology/fleet-packs 私仓**（无私有 workflow=零分钟）；fd-info 06b9291 推 FindDataTechnology/fd-info（.gitignore 剔 14M .venv/dist/egg-info）。gitee 企业 API 建库 404/400 无门→第二保护位挂账 |
+| 矩阵 | `docs/pack-source-lineage.md`：14 枚←fleet-packs；6 种子+3 助手+分身类←paas 仓；套件类技能←finddata-skills（gitee 在册已同步）；MCP 面←各 finddata 服务仓；构造间再铸类=**仅 packs.db**（日备 42 份兜底）；secrets 目录永不入任何仓 |
+| paas 代码随班 | server/blueprint-validate.js 的 v1 拒收**面显文案**内泄内部路径→该行删除（前一行已列 v2 字段闭集），开发者指路移入代码注释；test-blueprints 绿（钉的是首句未动）；**上产随下一班出片** |
+| 挂账 | ① 双胞胎待裁：跨境电商（C8wx v6 本仓铸 vs _PGsJc v7 构造间再铸）、投研晨会（Bo2 vs YMSt）——留一退一=产品裁决 ② tags 旧词（集群/舰队/模板/harness）市场面词面清扫另批，哨 KNOWN_LEAKS 降级不判红 ③ facet/marketing/wanxing 三目录无 cast.json（手写形态），重铸链覆盖不到，靠哨兜底 ④ gitee 第二保护位 |

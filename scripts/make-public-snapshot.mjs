@@ -86,6 +86,7 @@ const EXCLUDE_PATHS = new Set([
   "facet/cli/NPM-SCOPE-FIX.md", // npm scope ops runbook: account/org internals
   "docs/facet-cutover-repair-handoff.md", // cross-session repair handoff: live host facts, paths, incident log
   "docs/spider-heal-fleet-egress-handoff.md", // spider-heal runner egress handoff: tailnet IPs, cluster names, PAT plumbing
+  "docs/pack-source-lineage.md", // pack source-ownership matrix: private repo names (fd-craw-private), gitee wiring, packIds, ops accounts
   // internal deploy plumbing
   "Makefile", // k8s/argocd deploy wrapper + prod live-service URL
   "Jenkinsfile",

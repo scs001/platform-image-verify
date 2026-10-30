@@ -39,5 +39,5 @@
 
 - [x] 6.1 `openspec validate add-marketplace-projection-fanout --strict` 通过。→ 通过（过程中揪出并修掉一处真缺陷：MODIFIED 的 OAuth 需求块漏了两个既有场景，archive 会拒收）。
 - [x] 6.2 `openspec validate --specs` 全绿（归档前）。→ **219 passed, 0 failed**。
-- [ ] 6.3 端到端：至少一条公开 MCP server 成功出现在 MCP Registry（`mcp-publisher publish` 返回成功 + registry API 可查）。→ **未执行，阻塞在镜像上线**：实测 `GET https://facet.finddatatech.cloud/api/mcp-registry.json` 返回 404（投影路由尚未随镜像发布）。代码面与 dry-run 校验链路已就绪，待出片后跑 `dry-run → confirm=publish`，证据回填 `docs/ecosystem/mcp-registry-publishing.md` §5.4。
+- [ ] 6.3 端到端：至少一条公开 MCP server 成功出现在 MCP Registry（`mcp-publisher publish` 返回成功 + registry API 可查）。→ **前置已全部闭环（2026-10-31 06:4x）**：facet 面已滚产 `platform:sha-e8ab24c`（公开快照线，digest `5bdcab7b` ccr/hkccr 全等），生产 `GET /api/mcp-registry.json` 实测 **200、21 个公开 server、headers 零嵌入、漏斗文案在位**，`publish-mcp-registry.mjs --dry-run` 对生产全绿。**发布本体待拍**：dry-run 报告揪出投影含 7 条内网端点条目（`*.mesh.finddata.cn:3xxxx`：facet-market-mcp/facet-ops-mcp/fd-paper-trading/fd-quant/wanxing-ops-mcp/wire-build-mcp/wire-ops-mcp）与 3 条疑似测试 cell 条目（`fd-wire-cell-drillcust001/pgauto001/wiretester2`）——公开即不可撤回，须先在 registry 侧对这类条目加组/停用（或发布侧排除），再由组织 Owner dispatch `mcp-registry-publish.yml -f confirm=publish`。
 - [x] 6.4 端到端：`npx skills add FindDataTechnology/facet-marketplace`（或等价）能解析到至少一个技能的实证记录。→ 实测落盘 **152 个技能**，抽查 frontmatter 完整；记录见 `docs/ecosystem/skill-market-registration.md` §3。

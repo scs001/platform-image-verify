@@ -5514,3 +5514,39 @@ git commit -q -F - <<'EOF' -- <file1> <file2> ... # ← 显式列路径
 
 **内容无损**：7 个文件与 HEAD 逐字节一致（`git diff HEAD` 全空）、测试 27/27 复跑绿；
 并行会话那 19 个文件的内容同样未被我改动，只是 commit 归属混在一起。
+
+### §15.108 facet 滚产 sha-e8ab24c：MCP Registry 投影面上产（2026-10-31）
+
+**变更**：`add-marketplace-projection-fanout`（谦面公开发现头）。facet 服务新增官方 MCP Registry
+`server.json` 投影面：`GET /api/mcp-registry.json` + `/api/mcp-registry/<name>.json`
+（schema 2025-12-11，`groups=[]` 公开 server，单一 `visibleTo` 闸复用，remotes 无 headers，
+`CREDENTIAL_RE` 整批拒写，Cache-Control ≤1h）。代码入册：`roll/marketplace-fanout`@`f7b0cd75`
+（基线=origin/main，与现产 facet 面逐字节核对不回退；roll worktree `/Users/chengsishi/paas-fanout-roll`，
+门控 16/16 绿+biome 净）。branch 代码面早前已随并行提交 `84f451e8` 入册 feat 线。
+
+**出片实录（两条线，一红一绿）**：
+- 池线尝试（红，弃用，报备）：`fd-build-snapshot … -R testaction001/build-pool --namespace yizuo
+  --image platform` → 快照 `30ac2dd` 推送成功但 run 41139362307 红——池 workflow 按
+  `web/Dockerfile` 建镜像，platform 用根 Dockerfile，池线不适配 platform。**副作用报备**：
+  池仓 main 现被我这份 platform 快照覆盖（通用池按设计每次快照替换 main，下一位使用者照常覆盖回去，
+  但若在池上排查近期红 run 会看到 `yizuo/platform` 字样，非故障）。
+- 正规公开快照线（绿）：`scs001/platform-image-verify`，快照 `e8ab24c`（06:26 run 41138093163
+  `build-push` 成功，`image size: 2.47GB`）→ hkccr push digest `5bdcab7b` → relay 手动补单
+  06:32 `OK yizuo/platform:sha-e8ab24c (21s)` → ccr skopeo 硬门 **digest 全等**。
+  注：该快照 commit 后被同仓开源 v1.3.0 force-push 掩成孤儿提交，但树内容经 API 核验
+  含 fanout 三面（`facet/mcp-registry-json.js` blob `4965298` 与本地一致、
+  `credential-pattern.js` 在位、`index.js` 挂载×2、`visibleTo` 导出×1）；镜像 tag 不随 git 历史消失。
+
+**滚版**：GitOps `fd-infra-deploy`@`2167bab`（facet 单清单 bump，注释含基线超集声明；gitee 已在，
+origin 本段补推双端）。ArgoCD `all-services-prod` Synced/Healthy；pod `facet-dbf66cdb9-g6hzj`
+Running 12m restarts=0；容器内文件与特征串 grep 全中。
+
+**生产实证**：`GET https://facet.finddatatech.cloud/api/mcp-registry.json` = 200，
+**21 个公开 server** 投影，命名空间/占位版本/漏斗文案全对，`remotes[]` 零 headers，
+单条路由 200/404 姿态正确；`publish-mcp-registry.mjs --dry-run` 对生产全绿。
+
+**6.3 发布挂账（待拍，公开即不可撤回）**：dry-run 报告揪出投影 21 条中 **7 条内网端点**
+（`*.mesh.finddata.cn:3xxxx`：facet-market-mcp/facet-ops-mcp/fd-paper-trading/fd-quant/
+wanxing-ops-mcp/wire-build-mcp/wire-ops-mcp）与 **3 条疑似测试 cell**（fd-wire-cell-drillcust001/
+pgauto001/wiretester2）。发布前须在 registry 源侧对这类条目加组/停用（或发布侧排除白名单），
+再由 FindDataTechnology Owner dispatch `mcp-registry-publish.yml -f confirm=publish`。

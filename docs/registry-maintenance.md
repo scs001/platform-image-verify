@@ -5489,3 +5489,21 @@ GitHub 匿名 API 60 次/小时（一枚约 5–8 次请求，批量必须配 to
 
 **change 代码面状态**：1.1–1.4 ✅ / 2.1–2.5 ✅ / 3.1–3.2 ✅ / 5.1–5.3 ✅；余 **4.x（真实发布 + pod 物化
 + 浏览器眼见）**，依赖出片，属下一班。测试 **153/153**，`validate --strict` valid，`check-locales` 五语言绿。
+
+**归属事故第二犯 + 真实解法（2026-10-31，必读）**
+
+`84f451e8`（本 change 1.4/5.3 的提交）**再次**把并行会话的 19 个文件（`add-marketplace-projection-fanout`
+全套、`.github/workflows/mcp-registry-publish.yml`、`facet/mcp-registry-json.js` 等）一并带走。
+上一轮（`0a2bcd4b`）记的纪律是「add 后立刻 commit，不留窗口」——**本轮证明这条不够**：
+我确实是 add 完立刻 commit 的，仍然是并行会话的 `git add` 插在两者之间，把 index 整体改了。
+
+**真正有效的解法：pathspec 提交，绕开共享索引。**
+```bash
+git commit -q -F - <<'EOF' -- <file1> <file2> ... # ← 显式列路径
+```
+`git commit <paths>` 等价于 `git commit --only <paths>`：它只提交点名的路径，
+**忽略 index 里其他任何东西**，并行会话同期 add 什么都进不来。
+本轮已用此法验证（见下条提交）。以后本仓多文件提交**一律用 pathspec 形式**，不再依赖 `git add` + `git commit` 两步。
+
+**内容无损**：7 个文件与 HEAD 逐字节一致（`git diff HEAD` 全空）、测试 27/27 复跑绿；
+并行会话那 19 个文件的内容同样未被我改动，只是 commit 归属混在一起。

@@ -4576,6 +4576,7 @@ account_select_failed: no available OpenAI accounts supporting model:
 | 坑 | ①shell 宿主 zsh ENOENT 2h（机器级，非会话内可修，中断点记忆在册）②快照无 image.yml 会删 scs001 仓 push:main 触发器→抓回正位 ③shell cwd 重置致 mkdir 嵌套+image.yml 落错路径（git mv+amend 修复）④**facet-proxy 模式发现**：本地 registerPackRoutes 的改动要生效必须滚 facet 面（mirror remote 之前加在嵌套目录里也一并修正）⑤ArgoCD 同步延迟 rollout 假绿（须核 imageID）⑥并行会话竞速：他们先推快照仓（8cf22be）被我 force push 覆盖，但镜像已在 ccr——bump 核祖先链后前进滚 |
 | 4 红 | 广覆盖 867 测 4 红：install-fetch×3（HEAD 对照同红=pre-existing install 链路债，原车道归因）+decision-lane/fleet-runs（并发假红单跑绿） |
 | 遗留 | 词表 v4 的 facet/registry 侧文案与品牌串（对侧仓）；存量市场包改名+category 归位（运营班）；#7 技能自进化/#8 starter 序列已立案未实施；真机 UI 走查（浏览器）留给用户 |
+
 ### §15.94 账号池修复实录：46 号元数据丢失 + sub2api 内存态陈旧；判据三态真机全过、构造集四份重封（2026-10-30）
 
 §15.92 把 503 归到「账号池真空」后留给词元站处置。本节是那个处置的真因与落地，
@@ -4679,3 +4680,37 @@ pool=3, filtered: model_not_supported=2 runtime_blocked=1
    （账号含该名但上游不供）是两件事，前者能靠补元数据修，后者只能靠上游供给；
    日志里两个计数并存时不要当一个故障处理。
 
+### §15.90 统一机队控制台真机走查：九个真缺陷 + Windows 装机腿根因（2026-10-30）
+
+`add-unified-fleet-console`（期望态拉取/统一机队名册）上产后处理三项挂账。真机走查
+（本地真 `server.js` + 真 reporter + 真合并循环，十一条腿）与 Windows 装机 e2e 合计
+揪出九个真缺陷，**全部是单测绿而生产红**的类型：
+
+| # | 缺陷 | 为什么单测逮不到 | 修 |
+|---|---|---|---|
+| 1 | `steward-reporter` 的 `pullDesired` 没写 `method`，而 `defaultFetch` 默认 **POST**，撞到 GET-only 门 → 通用鉴权层回 401「Authentication required」→ 报数环当成「配对被撤」→ **首拍即自焚烧掉配对** | 测试夹具把 `opts` 原样记账，从不断言动词；且夹具返回 `{status,json}` 而生产返回 `{status,body}` | 88e0bda6 两条腿都改 GET；`res.json()` → `res.body`；夹具与断言钉死动词+形状 |
+| 2 | `mp-bindings.load()` 重建条目时**丢掉 `kind`** → 网关卡每次重启（生产几分钟滚一次）后 steward 配对降级为 `app` → 名册整屏变空、PUT 期望 404 `machine_not_found` | 单测从不重启网关卡 | c352cb3d round-trip 断言 kind 存活 |
+| 3 | `PUT /api/machines/:id/desired` **缺 `express.json()`** → 两个挂载点都用裸 handler，`req.body` 恒 undefined → 前端存期望必 400 | 测试套件自己 `app.use(express.json())` 把缺口盖住 | f4777920 路由自带 parser + 一条**无全局 parser** 的裸挂载测试 |
+| 4 | 单进程 auth-off（桌面默认）下 `callerEmail` 返回 null → **整个机队面 401** | 测试都显式给身份头 | server.js 走 `owner@local` 兜底（随并行会话 814d50c0 入库） |
+| 5 | `fleet-machines-store` 的 `recordDesired/clearDesired` **只改内存、从不 persist()**，连存储文件都不生成 → 用户设的期望在网关卡重启后静默消失，下一拍合并把云行全删 | 测试 1.3 自己调了 `persist()`，正好补上生产没有的那一步 | 48bc85f9 写即落盘；PUT `await flush` 后才回 200 |
+| 6 | `mergeDesired` 在库未就绪时**仍记账** `desiredVersionSeen`：`listDeployments()` 在 `!isDbReady()` 时静默回 `[]`，撤回扫描空转却把版本标成已应用 → 云行永久残留 | 单测总在库就绪后调用 | 48bc85f9 库未就绪直接 `return null` 不记账 |
+| 7 | `startDesiredMergeLoop` 首拍在 `server.js:311` 打出而 `db.initDb()` 在 1089 行 → 首拍必失败且被 `catch{}` 吞掉，「重启即收敛」实测退化为**正好等 60s** | 同上 | 48bc85f9 失败每秒重试直至真合并一次；`null` 视为未完成继续重试 |
+| 8 | Windows 装机腿 `app never attached to the resident steward`：boot 步用 `-RedirectStandardOutput/-Error` 起常驻 steward，**管道归本步 shell 所有**，step 结束即关闭 → 宿主下次写日志就死 | 本机（unix socket + 同 step 前台）无法复现 | 改 `.cmd` 包装器自持文件句柄，仍 detached 且保留日志 |
+| 9 | 该诊断版 workflow 里 here-string 的 `@` 落在 **YAML 块标量第 1 列**，把整个 workflow 截断（GitHub 报 `workflow file issue`，run 5 秒即终） | `yaml.safe_load_all` 是生成器，不消费就打印「ok」——我第一次自检就是这么被骗过的 | 改显式字符串数组 |
+
+**判红两分法新增一条**：run **5-10 秒即终且摘要写 "workflow file issue"** = YAML 解析失败
+（与额度耗尽同样是秒终，但摘要不同），看 `gh run view` 首屏即可分辨。
+
+**撤销一条此前的误判**：走查中途曾断定「边缘（Caddy/雷池）对 Node TLS 客户端剥离
+authorization」，证据是同一 token curl 202 / node 401。**假警**：我 `TOKEN=$(...)` 没
+`export`，node 里 `process.env.TOKEN` 是 undefined，实际发的是 `Bearer undefined`。
+补 `export` 后 node 经边缘 202/200。**教训：跨运行时对照测试，先打印被测凭据长度。**
+
+**Windows 装机腿终验（run 40978856005，reuse 模式 7 分钟，不重建）**：22 项探针断言
+全绿，含 desired 握手三腿（901 云期望落地标 cloud / 902 本地手动覆盖优先 / 903 撤收后
+被采用的手工行存活）、detail 信标带 source+merge、单栈 rooted at steward。
+
+**pool 仓通道注记（新）**：池仓 main 若不含 `release.yml`，GitHub 会拒绝 dispatch 任意
+ref（`Workflow does not have 'workflow_dispatch' trigger`）；而靠推 tag 触发会跑**完整
+139 分钟构建**。正解=池仓 main 放一份**只留 `workflow_dispatch`、去掉 `push:tags`** 的
+副本，e2e 一律 `-f artifact_run_id=<既有run>` 复用产物。

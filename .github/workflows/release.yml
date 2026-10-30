@@ -304,15 +304,33 @@ jobs:
           "STEWARD_DATA=$data" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "STEWARD_NODE=$node" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $env:PLATFORM_DATA_DIR = $data
-          # -WindowStyle Hidden = a detached console: a -NoNewWindow child dies
-          # when this step's console closes (test-harness artifact only —
-          # production launches via schtasks, which is detached by nature).
-          # Capture the resident host's stdout/stderr so a failed boot is
-          # DIAGNOSABLE: the hidden window discards it otherwise (the v1.3.25
-          # SETTINGS_KEYS ReferenceError was invisible until this was added).
+          # Detached launch, with the resident host's output captured to a file
+          # WITHOUT handing its stdout/stderr pipes to this step's shell.
+          #
+          # Why the indirection: -RedirectStandardOutput/-Error makes the child
+          # inherit pipes owned by this step, and when the step ends those
+          # pipes close — the resident host then dies on its next log write,
+          # BETWEEN steps. That is exactly how v1.3.26 lost its steward: the
+          # boot step went green, then attach step two minutes later found
+          # `steward.json (missing)`, `pid not alive`, and the app logging
+          # "stale steward discovery removed — embedded fallback" (2026-10-30,
+          # run 40974644674 diagnosis dump).
+          #
+          # A .cmd wrapper owns its own file handles, so the host outlives the
+          # step while a failed boot stays diagnosable (the v1.3.25
+          # SETTINGS_KEYS ReferenceError was invisible without this capture).
           $bootOut = Join-Path $data 'steward-boot.out.log'
           $bootErr = Join-Path $data 'steward-boot.err.log'
-          Start-Process -FilePath $node -ArgumentList @($entry) -WindowStyle Hidden -RedirectStandardOutput $bootOut -RedirectStandardError $bootErr
+          $runner = Join-Path $data 'boot-steward.cmd'
+          # Plain string assembly, NOT a here-string: an "@ at column 1 inside
+          # this YAML block scalar terminates it and GitHub rejects the whole
+          # workflow ("workflow file issue", runs 40975995536/40976219026).
+          $cmdLines = @(
+            '@echo off',
+            ('"{0}" "{1}" > "{2}" 2> "{3}"' -f $node, $entry, $bootOut, $bootErr)
+          )
+          Set-Content -Path $runner -Value $cmdLines -Encoding ascii
+          Start-Process -FilePath $runner -WindowStyle Hidden
           $json = Join-Path $data 'steward.json'
           # 180s: comfortably exceeds the supervisor's own 120s health window, so a
           # slow-but-successful cold start is not mistaken for a dead control plane.
@@ -362,6 +380,7 @@ jobs:
         run: |
           $log = Join-Path $env:APPDATA 'platform\main.log'
           $before = if (Test-Path $log) { (Get-Content $log).Count } else { 0 }
+          Write-Host "main.log before: $before line(s) at $log"
           Start-Process -FilePath $env:APP_EXE
           $attached = $false
           for ($i = 0; $i -lt 60 -and -not $attached; $i++) {
@@ -369,7 +388,31 @@ jobs:
             $tail = if (Test-Path $log) { Get-Content $log | Select-Object -Skip $before } else { @() }
             if ($tail -match 'ATTACHED to steward') { $attached = $true }
           }
-          if (-not $attached) { throw "app never attached to the resident steward" }
+          if (-not $attached) {
+            # The attach decision is invisible without these: the app either
+            # fell back embedded ("constructed embedded"), hit the
+            # alive-but-socket-dead branch (error window, NO log line at all),
+            # or never booted. Dump every witness before throwing.
+            Write-Host "=== attach diagnosis ==="
+            Write-Host "STEWARD_PID=$env:STEWARD_PID STEWARD_DATA=$env:STEWARD_DATA"
+            Write-Host "--- Platform processes ---"
+            Get-Process -Name 'Platform' -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Host
+            Write-Host "--- steward.json (discovery) ---"
+            $disc = Join-Path $env:STEWARD_DATA 'steward.json'
+            if (Test-Path $disc) { Get-Content $disc -Raw | Write-Host } else { Write-Host "(missing) $disc" }
+            Write-Host "--- steward pid alive? ---"
+            if ($env:STEWARD_PID) { Write-Host "alive=$( [bool](Get-Process -Id $env:STEWARD_PID -ErrorAction SilentlyContinue) )" }
+            Write-Host "--- steward socket exists? ---"
+            if (Test-Path $disc) {
+              $sock = (Get-Content $disc -Raw | ConvertFrom-Json).socket
+              Write-Host "socket=$sock exists=$( [bool](Test-Path $sock) )"
+            }
+            Write-Host "--- main.log (last 120 lines) ---"
+            if (Test-Path $log) { Get-Content $log -Tail 120 | Write-Host } else { Write-Host "(missing) $log" }
+            Write-Host "--- app userData dir ---"
+            Get-ChildItem (Join-Path $env:APPDATA 'platform') -ErrorAction SilentlyContinue | Select-Object Name, Length | Format-Table -AutoSize | Out-String | Write-Host
+            throw "app never attached to the resident steward"
+          }
 
           # Exactly ONE stack, rooted at the resident steward (moved here from
           # win-install-smoke Phase D, 2026-10-28 consolidation): the attached

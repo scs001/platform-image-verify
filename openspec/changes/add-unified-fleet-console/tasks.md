@@ -26,6 +26,10 @@
 ## 5. 验收与收尾
 
 - [x] 5.1 全量单测绿（含既有四套桌面集群测试零扰动）+ `openspec validate --strict` 绿 + typecheck/biome/locale 闸绿
-- [ ] 5.2 桌面探针扩腿（`electron/local-cluster-probe.mjs` 增：配对→拉期望→合并落地→手动领养→背离回写），双平台 CI 腿绿（Win 默认腿 + mac dispatch 腿）
-- [ ] 5.3 真机走查：真机配对→云上编辑期望态→眼见机器节拍内领取并拉起→云上眼见实况对齐；手动停用→眼见背离标记与回写；断网→眼见本务照常
+- [x] 5.2 桌面探针扩腿（`electron/local-cluster-probe.mjs` 增：配对→拉期望→合并落地→手动领养→背离回写），双平台 CI 腿绿（Win 默认腿 + mac dispatch 腿）
+  - 2026-10-30 双平台实证（run 40983161460 reuse 模式，复用 v1.3.26 产物不重建）：Windows 22 项、macOS 20 项探针断言全绿，含 desired 握手三腿——`cloud desired lands tagged cloud`（901）/ `local manual wins over the cloud desired set`（902）/ `adopted manual row survives withdrawal`（903）+ `detail beacon carries source + merge outcome`。
+  - 随行的 Windows attach 腿红已归因并修复（boot 步 `-RedirectStandardOutput` 让常驻 steward 的管道在 step 结束即关闭 → 宿主下次写日志死），改 `.cmd` 包装器自持文件句柄；详见台账 §15.90。
+- [x] 5.3 真机走查：真机配对→云上编辑期望态→眼见机器节拍内领取并拉起→云上眼见实况对齐；手动停用→眼见背离标记与回写；断网→眼见本务照常
+  - 2026-10-30 本地真 `server.js`（forward_auth 真身份）+ 真 reporter + 真合并循环，十一条腿全绿：夹具安装→真配对（kind 存活）→名册见机→PUT 期望 v1→reporter GET 拉取落信标→服务端合并拍部署 cloud 行→云名册见部署→手工部署翻 manual→撤回收 manual 行（本地赢）→第二包独立部署→纯撤回 60s 内删云行且手工行不动。
+  - 走查逮出九个真缺陷（详见台账 §15.90），其中四个（期望拉取动词错+契约错 / load() 丢 kind / PUT 缺 body parser / 期望集不落盘+库未就绪谎报+启动拍退化 60s）本 change 内已修，回归四套 53/53 绿。
 - [x] 5.4 台账 §新增一节（部署记录、真机证据链）+ 提交纪律（只 git add 本变更文件，勿 -A）

@@ -29,6 +29,7 @@ import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
 import { initFacetMcpCatalog } from "./mcp-catalog.js";
+import { registerMcpRegistryJson } from "./mcp-registry-json.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
 import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
 import { registerSameNamePublishGate } from "./publish-gate.js";
@@ -223,6 +224,17 @@ registerMarketplaceJson(app, { registry, resolveUser });
 // via registry-bridge — same env (REGISTRY_URL + MARKET_REGISTRY_TOKEN), same
 // registry-groups visibility mapping, no registry writes ever.
 await initFacetMcpCatalog(app, { resolveUser });
+
+// MCP Registry projection (add-marketplace-projection-fanout): the same public
+// server set, projected to the official server.json format for mcp-publisher.
+// Reads the bridge snapshot the catalog init just wired — same source, same
+// visibility rule (imported, not restated), read-only.
+{
+  const registryBridge = await import("../registry-bridge.js");
+  registerMcpRegistryJson(app, {
+    entriesFn: () => registryBridge.getMarketEntries().mcpServers ?? [],
+  });
+}
 
 // Static thin SPA + fallback (non-API, non-auth GETs land in the app shell).
 app.use(express.static(WEB_DIST, { index: "index.html" }));

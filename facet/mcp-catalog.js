@@ -14,19 +14,23 @@
 // depth routes carry the tool surface and provenance on demand. The skills
 // catalog rides the same visibility rule over the bridge's skill entries.
 
+// The one visibility rule every MCP-server surface shares: no required groups =
+// public, groups = a viewer carrying one of them (group names or org ids).
+// Module-level and exported so other projections (the MCP Registry server.json
+// face) consume THIS function instead of restating the predicate — a second
+// copy is exactly the drift pack-marketplace forbids (design C2).
+export function visibleTo(entry, viewer) {
+  const required = Array.isArray(entry.groups) ? entry.groups : [];
+  const groups = new Set(viewer?.groups ?? []);
+  return required.length === 0 || required.some((g) => groups.has(g));
+}
+
 export function registerFacetMcpRoutes(app, {
   resolveUser,
   entriesFn, // injection seam; default reads the registry bridge snapshot
   skillsFn = () => [], // injection seam for the skills catalog
   refreshFn = null, // optional forced refresh before serving (tests inject noop)
 }) {
-  // The one visibility rule both surfaces share: no groups = public, groups =
-  // a viewer carrying one of them (group names or org ids).
-  const visibleTo = (entry, viewer) => {
-    const required = Array.isArray(entry.groups) ? entry.groups : [];
-    const groups = new Set(viewer?.groups ?? []);
-    return required.length === 0 || required.some((g) => groups.has(g));
-  };
 
   const listVisible = (entries, viewer) =>
     entries

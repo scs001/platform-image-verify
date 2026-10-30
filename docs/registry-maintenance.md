@@ -4863,3 +4863,43 @@ OIDC trusted publishing **19s 绿**（run 41023095669，免任何令牌）→ �
 | CMS | Strapi v5 **content-manager 路径无 /admin 前缀**（`/admin/content-manager/*` 被 SPA 兜底页吞掉返回 200 HTML——json 解析炸在半路；upload 在 `/upload` 顶层所以此前能用）。zh create+publish → en 挂同 documentId（`yj97nehisbnbalohc43kq8tj`）publish。**坑：en variant 落地会把 zh 打回 modified**——重新 publish zh 才双绿；**坑：admin API 限流 429**——反复 login 触发，重试脚本要 90s 退避且一次会话做完。图片双传重复（-1 后缀）无害，正文引用首套 |
 | 官网 | 双推 github（CI `image` run 绿）→ **fd-deploy 宿主 dist 整替**（docker create+cp 抽 dist 222 html、备份 dist.bak-20261030-1616、**保留 live calibers.json 728B**、nginx -t+reload）+ `fd-web.yaml` bump `fa33ed8`（回退线）→ ArgoCD `fd-web` Synced+rollout 绿。公网三层眼见：www zh/en 双页 200、学院列表在列、正文关键词眼见、CMS 图链 200 |
 | 待办 | ①教程**人工终审**未做（agent 代发，xingyan 纪律要求明示）②四份真场景包+「投研晨会」同名冲突（§15.99 遗留）待产品裁 ③minimax 车道恢复后可从 UI 重跑试跑把投研晨会回绿（laneError 处置=重跑）④CMS 媒体库 -1 重复图可清 |
+
+### §15.101 挂账收口：陈旧指针自愈 + 同名冲突落地 + 演示包全下线 + CMS 重复图清零（2026-10-30）
+
+§15.100 留了四条挂账，逐条办：
+
+**① 逮出并修了一个我自己引入的死锁（真缺陷，paas `77f52bad`）**
+「投研晨会」试跑报 `trial aborted: Pack version not found`。根因是**市场 packId 每部署
+随机铸造**（`gateway/packs.js` randomBytes），改名/重建流程发新版会换 id——蓝图记的
+`castPackId` 指向的旧包在 facet 已 404。于是：试跑必 404（先 fetchManifest 再装台），
+而**我昨天加完的「再铸」按钮又要求先有绿签报告**（只能由试跑产出）→ **死锁，蓝图永久卡死**。
+这是新增能力带来的新死锁，不是老债。
+- 服务端：以旧 packId 发版被 **404** 拒时，丢掉旧 id 重发一枚并把指针改到新 id，响应
+  `cast.rebuilt: true` 可见；其它错误码（403/409/5xx）一律不动（不掩盖真错）。
+- 前端：报告里出现 `Pack (version) not found` 时，「再铸」按钮改文案
+  「再造并修复指针（原市场包已不存在）」并恢复可用——解锁死锁的另一半。
+- 新测试钉住两级行为（先按旧 id 试 → 404 → 不带 id 重发 → 指针改新 + rebuilt=true）。
+**律：凡是「每部署随机铸造的 id」被长期记在别处，就必须有陈旧指针自愈；否则一次
+改名就能让引用方永久卡死。**
+
+**② 同名冲突已由并行会话解掉，我补齐收尾**
+改名实录（`ffeb63fc`）里留的两枚「投研晨会」：并行会话已把我的演示包改名
+「投研晨会（已退役）」并 unlist，官方种子 `YMSt-…` 拿回本名「投研晨会」（4 岗完整版，
+cat=fleet，5 版历史）。核实：匿名面只剩官方那枚，我的演示包 404。
+
+**③ 四份真场景演示包全线下线（产品一致性）**
+`内容工厂`/`客服工单分诊` 此前仍对外可见，与官方种子（`内容流水线`/`客服班组`）同名近义，
+客户面上是噪声。用作者通道 `POST /api/packs/:id/unpublish` 下线四枚演示包
+（Bo2MW/MnViPe6/RgQzSlZ/_PGsJcBw）。终态：匿名面四枚全 404、市场 0 命中，
+官方种子全在。**律：造数据用的演示包做完即下线，别和官方种子摆在同一个货架上。**
+
+**④ CMS 媒体库重复图清零**
+建课期两次上传造成 12 张（每图一对）。按正文实际引用（6 张）反查，删掉未引用的 6 张，
+剩余 6 张全部 200；正文引用链未受影响。
+
+**⑤ 教程终审（agent 可做部分完成）**
+逐步对真 UI 核实：13 个按钮/徽章词（保存/校验/批准/铸造上架/再铸上架（刷新绿色报告）/
+试跑/载入/对报告签字/撤签/全绿/模型：判绿/模型：未跑成（车道不可用）/表单/起草）与
+`zh-CN` 资源逐字相符；三条断言性说法在代码里核实为真（批准人本人校验
+`routes/blueprints.js:290`、编辑即作废 `canApprove = verdict.ok && !verdictStale && !dirty`、
+收费闸五码 `gateway/pack-sellability-gate.js`）。**人工终审仍待用户过目措辞**。

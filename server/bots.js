@@ -11,6 +11,7 @@
 // no bots configured, every adapter call is failure-isolated, and a broken bot
 // is logged and skipped rather than crashing the server or stalling the others.
 
+import { stripReasoningLeak } from "./reasoning-leak.js";
 import crypto from "node:crypto";
 import { adapterForBot, validateCredentials } from "./bots/adapter.js";
 import { isGenericBotType, packBotMeta, PACK_BOT_CREDENTIAL_KEY } from "../lib/generic-bot-types.js";
@@ -355,16 +356,8 @@ async function deliverAskAttempt(entry, text) {
 // and the collector already drops those; this is the defensive net for models
 // that fold the trace into text. Chat platforms have no collapsible UI, so any
 // surviving trace is user-visible noise.
-const REASONING_BLOCK_RE = /<(thinking|reasoning|thought)>[\s\S]*?<\/\1>/gi;
-const REASONING_OPEN_RE = /<(thinking|reasoning|thought)>[\s\S]*$/i;
-function stripReasoningLeak(body) {
-  let s = String(body ?? "");
-  s = s.replace(REASONING_BLOCK_RE, "");
-  // An unterminated trace (stream cut mid-thought) swallows the rest of the
-  // message: drop from the stray open tag to the end rather than leak it.
-  s = s.replace(REASONING_OPEN_RE, "");
-  return s.trim();
-}
+
+
 
 // Collect one turn's outcome off the session's notification stream. Registered
 // BEFORE prompt() so no early event is missed; always unregistered. With

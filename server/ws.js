@@ -92,7 +92,40 @@ export function attachWebSocket(ctx) {
     return left === null ? {} : { budgetLeft: left };
   };
 
-  // ── Dispatch helpers (concurrent-chat-sessions) ───────────────────────────
+  // First-use readiness gate (fix-external-team-chat-lane B6): the runtime
+// answers "Agent is still initializing" while it is still coming up — the
+// walkthrough hit it three times in a row on a freshly installed persona,
+// because a background roster sync restarts the child (dsh-profile logs
+// "runtime restarted for 63 catalog agent preset(s)") right when the visitor
+// typed. Waiting BEFORE dispatch is the fix that works: a prompt dispatched
+// into a restarting runtime is lost, while a prompt dispatched after
+// readiness lands normally. Bounded wait; over the budget the honest error
+// stands.
+const FIRST_USE_READY_WAIT_MS = 120_000;
+const FIRST_USE_READY_POLL_MS = 1_000;
+
+function firstUseWaitMs() {
+  const n = Number(process.env.CHAT_FIRST_USE_WAIT_MS);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : FIRST_USE_READY_WAIT_MS;
+}
+
+// True when the runtime is up (or the deployment has no runtime at all —
+// then the caller's own guard decides).
+function runtimeReady(ctx) {
+  return ctx.dshBridge?.isReady?.() !== false;
+}
+
+async function waitForRuntimeReady(ctx, { waitMs = firstUseWaitMs() } = {}) {
+  if (runtimeReady(ctx)) return true;
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, FIRST_USE_READY_POLL_MS));
+    if (runtimeReady(ctx)) return true;
+  }
+  return false;
+}
+
+// ── Dispatch helpers (concurrent-chat-sessions) ───────────────────────────
   // A session is busy for a NEW prompt when its own turn is open or it already
   // has a prompt queued behind another session's turn. Another session's open
   // turn is deliberately NOT busy here — that prompt is queued by the
@@ -600,7 +633,35 @@ ctx.wss.on("connection", (ws, req) => {
                 // injected block lives only in the outgoing prompt; the history
                 // row above keeps the raw text, same contract as @doc expansion.
                 const promptOut = await chatPromptWithMemory(ws.identity?.email, promptWithDocs);
-                await ctx.session.prompt(promptOut, sid);
+                // Chat-lane team context (fix-external-team-chat-lane B1): the
+                // live persona may be a fleet post — give it the trimmed roster
+                // (team identity + members + dispatchable targets) so it can
+                // name teammates and dispatch to them by title. Attribution is
+                // server-side; no team ⇒ null ⇒ the prompt is byte-identical.
+                const teamContext = ctx.resolveFleetChatContext?.(ctx.currentPreset) ?? null;
+                const finalPrompt = teamContext ? `${teamContext}\n\n${promptOut}` : promptOut;
+                // First-use wait (fix-external-team-chat-lane B6): switching to
+                // a pack persona restarts the runtime, and a prompt that lands
+                // while the child is still coming up used to fail the turn
+                // with "Agent is still initializing" — the walkthrough saw it
+                // three times in a row on a freshly installed persona. Wait
+                // for readiness (bounded) and retry ONCE; a second failure
+                // surfaces honestly.
+                const ready = await waitForRuntimeReady(ctx);
+                if (!ready) {
+                  ctx.sendToViewers(sid, { type: "error", message: "Agent is still initializing" });
+                  return;
+                }
+                try {
+                  await ctx.session.prompt(finalPrompt, sid);
+                } catch (err) {
+                  // A restart that lands between the readiness check and the
+                  // dispatch still costs the turn — retry ONCE after the
+                  // runtime settles. A second failure surfaces honestly.
+                  if (!/still initializing|runtime not ready/i.test(err?.message ?? "")) throw err;
+                  await waitForRuntimeReady(ctx);
+                  await ctx.session.prompt(finalPrompt, sid);
+                }
               }
             } catch (err) {
               // An explicit stop cancelled the run; the resulting RPC rejection

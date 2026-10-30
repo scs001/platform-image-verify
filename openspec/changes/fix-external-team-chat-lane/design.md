@@ -36,8 +36,11 @@
 ### 派发寻址（配套）
 `POST /api/fleets/dispatch` 的 `to` 目前只接受 member id（`db.getMember(toRef)`）。模型拿到的是
 ref/title 名单，于是它去猜数据库 id（走查实证：猜了**另一支队**的 id）。
-**决策**：`to` 接受本队成员的 **ref 或 title**（大小写不敏感、限本队内解析），member id 继续支持；
+**决策**：`to` 接受本队成员的 **title**（大小写不敏感、限本队内解析），member id 继续支持；
 歧义（同名多个）时 400 并列出候选。
+**实施注**：成员行只存 id 与 title（模板的 ref 在建队时被映射成 member id，不落库），
+所以寻址面是「title + member id」两形；注入给模型的名单也据此给 title（人/模型读得懂的），
+并标注哪个可派发。
 
 ## 3. B3：对外 pack 的工具面收敛
 
@@ -53,13 +56,16 @@ paper-trading/facet-market/facet-ops/fd-*）的工具名与描述会进模型上
 ### 决策
 manifest MAY 声明 `publicFacing: true`。声明后：
 1. **MCP 面**：只保留 `fleet` 桥 + 市场/目录公开面；内部业务面默认剔除。
-   「公开面」名单需要产品拍板——**默认名单建议**：`fleet`、`websearch`（若装）、
-   市场目录类（`market-catalog`/`fd-official-web` 一类公开面）；**默认剔除**：
-   `wire-ops`、`lex-ops`、`paper-trading`、`facet-market`、`facet-ops`、`fd-*`（内部分析面）、
-   `pack-author`、`blueprint-author`。
-2. **工作区文件工具**：`publicFacing` 下默认不挂 glob/grep/read/bash 的**本机项目目录**访问；
-   保留最小必要（如无）。
-3. 未声明的 pack **行为完全不变**——既有五枚官方种子、在产舰队零回归。
+   **默认名单**（用户 2026-10-30 拍板）：`fleet` + 市场/目录类前缀（`market*`、`market-catalog`、
+   `fd-official-web`）+ `websearch`；**默认剔除**：`wire-ops`、`lex-ops`、`paper-trading`、
+   `facet-market`、`facet-ops`、`fd-*`（内部分析面）、`pack-author`、`blueprint-author`。
+   名单以 `PACK_PUBLIC_FACE_MCP` 环境变量可配（不配即默认）。
+2. **工作区文件工具 + 名册枚举工具**：`publicFacing` 下禁用
+   `glob`/`grep`/`read`/`bash`（读本机项目文件）与
+   `list_agents`/`list_mcp_resources`/`tool_search`（**枚举内部工具名——走查里 wire-ops 就是这么被发现的**）。
+   这两类不是 MCP 服务器，工具面闸管不到它们；闸在 **tool-scope 桥的 deny 通道**
+   （`tool-filter.json` 的 `denyTools` 段 → 桥的 guard 拒调 + restrict 移出名册）。
+3. 未声明的 pack **行为完全不变**——既有五枚官方种子、在产舰队零回归（`denyTools` 段缺省即不拒）。
 
 ### 文案侧兜底（已在 v1.0.2 落）
 六岗 persona 均已加「不得提及内部车道名/模块名/工具名」「不要为回答访客而检索本机项目文件」的
@@ -89,9 +95,13 @@ manifest MAY 声明 `publicFacing: true`。声明后：
 | dispatch 寻址放宽引入歧义 | 同名歧义 400 + 列候选；跨队成员仍 400 |
 | 排队语义变更影响前端 | 复用既有 queued 语义，不新增前端状态机 |
 
-## 7. 未决（需产品拍板）
+## 7. 未决（**2026-10-30 用户拍板定案**）
 
-1. **公开面名单**：B3 的默认名单需确认（建议见 §3）。
-2. **是否默认公开**：`publicFacing` 是显式声明（推荐），还是按 pack category/作者自动推断？
-3. **注入粒度**：chat 车道注入是否需要与任务车道**完全同文**，还是 chat 车道可裁剪（只留成员名单
-   与可派发目标，不带报数/拍板等任务语义）？——推荐**裁剪版**（任务语义在 chat 里无用且占 token）。
+1. **公开面名单**：采纳默认名单——**只留 `fleet` 桥 + 市场/目录公开面**；
+   **默认剔除**内部业务面：`wire-ops`、`lex-ops`、`paper-trading`、`facet-market`、`facet-ops`、
+   `fd-*`（内部分析面）、`pack-author`、`blueprint-author`。名单以配置为准，单测钉住。
+2. **`publicFacing` 显式声明**：采纳——manifest 里写 `publicFacing: true` 才收敛；
+   未声明的包行为完全不变（既有五枚官方种子与在产团队零回归）。不按类目/作者自动推断。
+3. **注入粒度**：采纳**裁剪版**——chat 车道只注入「本队成员清单（ref + title + 目标）+ 可派发目标集合」，
+   **不带**报数/拍板/自己近轮等任务语义（任务语义在对话里无用且占 token）。
+   注入段用独立渲染函数（与任务车道的 `applyFleetContext` **同源数据、不同裁剪**）。

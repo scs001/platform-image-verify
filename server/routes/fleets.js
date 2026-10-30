@@ -12,6 +12,7 @@ import * as cron from "../../cron.js";
 import * as catalog from "../../catalog.js";
 import * as chatHistory from "../../chat-history.js";
 import { rosterPresetId } from "../../dsh-profile.js";
+import { resolveDispatchTarget } from "../../server/fleet-chat-context.js";
 import { getClusterDatabase } from "./clusters-db.js";
 import {
   getFleetDatabase,
@@ -950,10 +951,15 @@ export function createFleetRoutes(app, ctx = null) {
 
       // Guard 1: same fleet. Guard 2: no self-dispatch (attribution already
       // implies it, but the ref could be the caller's own post).
-      const target = db.getMember(toRef);
-      if (!target || target.fleetId !== fleet.id) {
-        return res.status(400).json({ error: `post '${toRef}' is not a member of ${fleet.name}` });
+      // Addressing (fix-external-team-chat-lane B1): the caller is a persona
+      // that reads a ROSTER — it types a title or a member id, not a database
+      // id it cannot see. A title resolves within THIS fleet only; an
+      // ambiguous title refuses and lists the candidates (never a guess).
+      const resolved = resolveDispatchTarget(db, fleet.id, toRef);
+      if (!resolved.ok) {
+        return res.status(400).json({ error: resolved.error });
       }
+      const target = resolved.member;
       if (target.id === from.id) {
         return res.status(400).json({ error: "a post cannot dispatch to itself" });
       }

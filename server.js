@@ -77,6 +77,7 @@ import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
+import { renderChatFleetContext } from "./server/fleet-chat-context.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
@@ -1157,6 +1158,20 @@ attachCronRunner(ctx);
 // or several (ambiguous), yields null so the turn runs unchanged. Cluster
 // posts are out of scope — the fan-out picks the member after this seam runs.
 ctx.resolveFleetIdentity = (presetId, { turn } = {}) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId, turn });
+
+// Chat-lane team context (fix-external-team-chat-lane B1): a visitor chatting
+// with a fleet persona gets the TRIMMED team roster (identity + members +
+// dispatchable targets) so the persona can name its teammates and dispatch to
+// them by title. Same server-side attribution as the identity above — no
+// attribution ⇒ null ⇒ the prompt stays byte-identical.
+ctx.resolveFleetChatContext = (presetId) => {
+  try {
+    return renderChatFleetContext(getFleetDatabase(), presetId, { rosterPresetId });
+  } catch (err) {
+    console.warn("[fleets] chat fleet context render failed:", err.message);
+    return null;
+  }
+};
 
 // Fleet post model (add-fleet-post-model D3): the persona turn path asks for
 // this post's resolution plan (chain candidates + notices) right before the

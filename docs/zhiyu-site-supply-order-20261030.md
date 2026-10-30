@@ -167,3 +167,65 @@ cp /srv/zhiyu-site/index.html.bak-pre-20261030 /srv/zhiyu-site/index.html && cad
 清掉它需要 admin 权限（`/deployments/:id/kill` 返 `Admin group required`，当前身份
 `isAdmin=false`、`adminGroups=["platform"]`），留作待办；不做也不会恶化——
 runner 每次 reconcile 只报一行 warn，不动别的席位。
+
+
+## 九、路线 A 执行结果：runner-c 复活成功，两席被计费门 park（2026-10-31）
+
+### 9.1 做了什么（全部已上产，GitOps 提交 `8bd55e0`，推 gitee main — Argo 的源）
+
+| 动作 | 值 | 状态 |
+|---|---|---|
+| `compute-quota.yaml` `limits.memory` | 30Gi → **32Gi**（cpu/pods/requests 三项未动） | 已同步（used 31968Mi/32Gi） |
+| `agent-runner-c.yaml` `replicas` | 0 → **1** | pod `1/1 Running` |
+| `agent-runner-c` 镜像 | `sha-51c33c3`（落后 18 天）→ **`sha-90275ea`**（与 serving 同代） | 同代，避免两分片对新 registry 契约判读不一致 |
+| `intro-lex` / `intro-wire` 投放 | `runnerId=runner-c`，registry 确认 `runner=runner-c`、绑定 `:8903` 等 | 端口无冲突 |
+| 两席邀入房间 | 已接受 | 在席：产品向导 / 壹座专家 / 识律专家 / 柏讯专家 |
+
+**关键前置核对**（上次端口事故的必查项）：runner-c 的 secret 里 `AGENT_RUNNER_PORT_BASE=8891`、`SPAN=32`，
+与网关名册行 `agent_runners.port_base=8891, port_span=32` **完全一致**——所以不需要像上次那样改 span。
+
+### 9.2 两席被 park：`INVALID_API_KEY` 的真伪
+
+真站点点名 `@识律专家` 两次失败，错误逐层暴露：
+
+```
+第一次  A2A: Connection error.
+第二次  A2A: agent parked: key-invalid (INVALID_API_KEY) since 2026-10-30T21:17:02.092Z
+runner  parked — the billing gate rejected its key (key-invalid); inbound turns fail with -32012
+        until the gate accepts the key again
+```
+
+但直接探这四把钥匙：**全部 `live=true`、owner 均为 `aloadtree@gmail.com`（部署者）**。
+所以**不是钥匙失效，是 runner-c 这一侧的计费校验判它无效**。
+
+两分片的环境差异就是嫌疑面：
+
+| 项 | runner-serving | runner-c |
+|---|---|---|
+| `AGENT_RUNNER_MODEL` / `AGENT_RUNNER_PROVIDER` | 未设 | **已设** |
+| `LLM_PROVIDERS_STORE` + `llm-providers.json` 挂载 | 无 | **有** |
+| `AGENT_RUNNER_RESIDENT_BUDGET_MB` | 3328 | **768**（仅够 1 个 ≈600MB 的 dsh 进程） |
+
+**未继续改**：再动就是在共享分片上猜。修复方向二选一——
+(a) 对齐 runner-c 的 LLM 来源（统一 `llm-providers.json` 与 serving 的上游口径，或摘掉该挂载让它走同路径）；
+(b) 若上游口径必须以「部署时那把 sk- 钥匙」为准，则检查该 store 里映射是否缺 provider 条目 → 401 被译成 `key-invalid`。
+改完重启 runner-c，parked 态即清（自愈是同一次 reconcile 里做的），再复测点名。
+
+### 9.3 配额的账（含一处我先前判错，已更正）
+
+- **判错并更正**：我一度把 `fd-info` cron 作业失败归因于自己的配额改动。查事件后实为
+  **`limits.cpu=1` 超限**（`used 22800m/23`），CPU 我根本没动，属**既有**问题。
+- **确实欠的账**：2Gi 吃掉了内存余量，现 `used 31968Mi / 32Gi`，**1Gi 的作业已放不下**
+  （31968+1024 > 32768）—— 与当年 `5fc4d8b` 缩零 runner-b/c 的原因同形。
+  还账二选一：runner-c `limits.memory` 2Gi→1.5Gi（够 1 个 dsh 进程），或配额再抬 2Gi。
+
+### 9.4 回退
+
+`agent-runner-c` replicas 回 0 + `compute-quota` 回 30Gi（同一 commit 内两句，Argo 自愈即生效）。
+**房间两席（产品向导/壹座专家）完全不受影响**——它们在 runner-serving 上，本次未触碰。
+
+### 9.5 对外影响：无
+
+官网真房间仍是 **2 席正常应答**（多轮真站复验通过、零 JS 错）。
+识律/柏讯在席但停用，访客点名得到「接待席位暂时无法应答」的**如实**提示——按
+`fleet-room-bridge` 的纪律，这比装作能答更正确。

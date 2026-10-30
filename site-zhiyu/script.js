@@ -154,7 +154,10 @@
     entrance.forEach(function (el) { el.classList.add('in'); });
   }
 
-  /* ---------- 活演示：真令牌在场即挂载 widget，否则留合成演示 ---------- */
+  /* ---------- 活演示：真房间以 iframe 内嵌在本节 ---------- */
+  /* 用 /zhiyu/embed 直嵌而非浮标 widget.js：浮标是 position:fixed 全局覆盖，
+     且白底硬编码，与本页暗夜世界冲突；iframe 落在 room-shell 里，
+     「这一页本身就是一间房」这句话才立得住。 */
   var room = document.getElementById('liveRoom');
   if (room) {
     var token = room.getAttribute('data-room');
@@ -163,10 +166,12 @@
       if (note) note.remove();
       var syn = document.getElementById('synDialog');
       if (syn) syn.remove();
-      var s = document.createElement('script');
-      s.src = 'https://wanxing.finddatatech.cloud/zhiyu/widget.js';
-      s.setAttribute('data-room', token);
-      room.appendChild(s);
+      var f = document.createElement('iframe');
+      f.src = 'https://platform.finddatatech.cloud/zhiyu/embed/' + encodeURIComponent(token);
+      f.title = '智语 · 现场演示房间';
+      f.loading = 'lazy';
+      f.setAttribute('allow', 'clipboard-write');
+      room.appendChild(f);
     }
   }
 })();

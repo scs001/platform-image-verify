@@ -684,6 +684,11 @@ test("重新封印：铸造态下内容未变+报告已签 → 允许再铸一�
 
 test("评审模型选择：在册放行、不在册校验面指名、向后兼容", async () => {
   const { server, base } = mount();
+  // 名册来源是部署侧状态（cell 名册文件 / default 指针 / 部署 env）。裸仓与 CI
+  // 上三者皆空 → 校验面按设计降级为「不校验」，本断言就失去被测对象。故自备
+  // 一条部署 env 名册，让「不在册要指名」这条判据有确定的被测前提。
+  const prevRoster = process.env.BLUEPRINT_JUDGE_MODEL;
+  process.env.BLUEPRINT_JUDGE_MODEL = "roster-model-in-test";
   try {
     // 未声明 judgeModel：校验行为不变（既有蓝图兼容）。
     const plain = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
@@ -706,6 +711,8 @@ test("评审模型选择：在册放行、不在册校验面指名、向后兼�
     const ap = await fetch(`${base}/api/blueprints/${ghost.blueprint.id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
     assert.equal(ap.status, 422);
   } finally {
+    if (prevRoster === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL;
+    else process.env.BLUEPRINT_JUDGE_MODEL = prevRoster;
     await close(server);
   }
 });

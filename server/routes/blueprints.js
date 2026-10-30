@@ -75,6 +75,27 @@ export function createFacetPublishClient({ env = process.env, fetchImpl = fetch 
       }
       return { ok: true, packId: body?.id ?? body?.packId ?? packId ?? null, version: body?.version ?? null, body };
     },
+    // 读一枚包（自愈认回用）：同名闸只回文本，认回前必须证明这枚同名包确实是
+    // 本蓝图铸的（manifest._casting.blueprintId），否则会把别人的同名产品覆盖掉。
+    async getPack({ packId, user }) {
+      const base = (env.FACET_BASE_URL || "").replace(/\/+$/, "");
+      if (!base || !packId) return null;
+      const identity = typeof user === "string" ? { email: user, groups: [] } : { email: user?.email, groups: user?.groups ?? [] };
+      try {
+        const upstream = await facetRequest({
+          base,
+          token: env.FACET_INTERNAL_TOKEN || "",
+          user: identity,
+          path: `/api/packs/${encodeURIComponent(packId)}`,
+          method: "GET",
+          fetchImpl,
+        });
+        if (!upstream.ok) return null;
+        return await upstream.json().catch(() => null);
+      } catch {
+        return null;
+      }
+    },
   };
 }
 
@@ -341,15 +362,41 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     // 已不存在、重新建这一份），cast 响应里 `rebuilt: true` 让调用方与台账可见。
     let published = await publisher.publish({ manifest, packId: blueprint.castPackId ?? undefined, user });
     let rebuilt = false;
+    let reclaimedPackId = null;
     if (!published.ok && published.status === 404 && blueprint.castPackId) {
       published = await publisher.publish({ manifest, user });
       rebuilt = published.ok;
+      // 第三刀（2026-10-30 真机实录）：重建被「同名包已存在」409 拒——旧 id 失效但
+      // 本蓝图**自己的活包**仍占着名（改名/重建时新 id 早发出来了，只是指针没跟上）。
+      // 盲发新包撞闸 → 指针仍卡死。正确自救=认回自己名下那枚同名活包并在其下发新版。
+      // 认回必须证provenance：读那枚包的 manifest._casting.blueprintId 必须等于本蓝图，
+      // 否则它是**别人的／另一款同名产品**（如官方种子占回本名），一律不碰、如实透传 409。
+      if (!published.ok && published.status === 409 && typeof publisher.getPack === "function") {
+        const hint = String(published.body?.packId ?? published.body?.error ?? published.error ?? "").match(/\b([A-Za-z0-9_-]{16,})\b/);
+        const candidates = [...new Set([
+          ...(published.body?.packId ? [published.body.packId] : []),
+          ...(hint ? [hint[1]] : []),
+        ])];
+        for (const candidate of candidates) {
+          const row = await publisher.getPack({ packId: candidate, user });
+          const ownerBlueprint = row?.manifest?._casting?.blueprintId;
+          const authorEmail = row?.authorEmail ?? row?.author_email ?? null;
+          if (ownerBlueprint !== blueprint.id || (authorEmail && authorEmail !== user.email)) continue;
+          const adopt = await publisher.publish({ manifest, packId: candidate, user });
+          if (adopt.ok) {
+            published = adopt;
+            rebuilt = true;
+            reclaimedPackId = candidate;
+            break;
+          }
+        }
+      }
     }
     if (!published.ok) {
       return res.status(published.status ?? 502).json({ error: published.error, upstream: published.body ?? undefined });
     }
     const cast = store.stampCast(blueprint.id, { packId: published.packId, packVersion: published.version });
-    res.json({ blueprint: cast, cast: { packId: published.packId, version: published.version, selfPending, rebuilt } });
+    res.json({ blueprint: cast, cast: { packId: published.packId, version: published.version, selfPending, rebuilt, reclaimedPackId } });
   });
 
   // ── 试跑（task 4.1 执行器，design D8）：装一台跑一轮 → 断言判绿 → 报告落账 ──

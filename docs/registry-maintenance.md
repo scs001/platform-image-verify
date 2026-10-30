@@ -4617,6 +4617,8 @@ GET×2、kind×2、persist×2、express.json×2、isDbReady×2）。从 feat 分
 fa4adf77 种子自测表豁免）后 `make-public-snapshot --init` → 补回 image.yml → 强推 mirror。
 feat 分支上的 lint 精修（e74f2330/09987b26/68bb63ed）不再搬 main——main 的 39f31eb4 更净（0 警告）。
 
+**§15.95 补记（全门 CI 首次跑到 Unit，归因在册）**：干净快照 ea29873（源 main fa4adf77）的 CI 史上首次越过 lint→dsh→typecheck 三步（全绿），Unit 步红 **17 条**——对拍纯私有树复现且 **1a38885d 基线同样红**（role-gated/local-agent-feed/demo-reap/hosted-onboarding/market/vendor-supply/boot-latch/supply-owner-live）→ **全部为 main 线预存红，非本变更引入**；后经并行班 `f1e8f835` 清十项（含三处生产真缺陷，见 §15.96）达成公开 CI 首次全绿（run 41004167754）。教训：**预存红会被上游门遮蔽**——dsh 边界不修，这 17 条永远藏在「CI 红」一个词后面；门修通一层才看清下一层。
+
 ### §15.96 技能自进化(#7)+官方 starter(#8) 两班滚产，公开 CI 首次全绿，途中清十项 unit 既存红（含三处生产真缺陷）（2026-10-30）
 
 | 项 | 内容 |
@@ -4631,3 +4633,24 @@ feat 分支上的 lint 精修（e74f2330/09987b26/68bb63ed）不再搬 main—�
 | 坑 | ①**快照泄漏门两次正确拦停**：先拦 `fd-craw-private` 自指泄漏，逼出排除件而非绕过②**种子 en 副轨撞车**：我的防漂移门逮住 `product-intro-fleet.seed.json` 缺 `i18n.en`，正要补时并行会话已带同名改动落地（命名用 Base 系）→ rebase 冲突取**他们的**（三门 31/31 复验绿），我那份作废③**rebase/push 三次被并行竞速**（010f2c5d→7d544e6b→154fd04e→b5c03b26），每次先 `--left-right --count` 核快进再动④**僵尸 test 进程**：壳故障期遗留的 `node --test` 挂 3.5h 抢端口/库，制造假红（zhiyu-router 40 分钟 pending），先清进程再判红⑤**镜像 push 与 GitOps bump 之间生产被并行班插了一代**（21bdd57）→ bump 前重新核祖先链，确认前进滚非回退 |
 | 归档 | `add-skill-self-evolution`（3 需求）+`add-official-starter-teams`（3 需求）**双归档**（纯 ADDED，主 spec 新建两能力目录，无 delta 合并）；`openspec validate --specs --strict` 见本节末提交 |
 | 遗留 | ①真机走查三棒留用户节奏：skill 4.3（真实回合→propose→A/B→接受→下回合见新技能）、starter 4.2（新账号首启→引导→装客服班组→点燃→首轮报数）、skill 4.4 成本账（一次 A/B=2+1 次判道调用，随首个真实 propose 记）②market 侧存量包改名/类目归位（运营班）③facet/registry 侧 v4 文案（对侧仓）|
+
+### §15.97 生产全链走查 + 桌面 v1.3.27 双平台证据链（2026-10-30）
+
+**生产实证（机队控制台，九腿全过，云端=真生产边缘、机器=本 Mac 仓底 cell）**：
+铸 cookie 打 `platform.finddatatech.cloud`——bindcode 200 → `pairSteward` 对生产配对 →
+首拍 reporter 拉期望（GET 修复在生产边缘成立，配对不再自焚）→ `PUT /api/machines/mac-prod-walk-01/desired` **200**，
+**pod 内 `/data/cells/fleet-machines.json` 眼见落盘**（desired.version=3 持久化=缺陷⑤生产实证；
+presence=running/darwin、detail.deployments=[acceptance-fixture]、divergenceStreak=0、merge.desiredVersionSeen=1）→
+本地合并节拍部署 cloud 行 → 明细回传 → **云名册 GET 见部署**（desiredV depCount=1 presence online）→
+手动领养后撤期望：cloud 行删、manual 行存活（本地赢律生产成立）。走查机留册作控制台眼见证据；
+本机会话终即转 offline=设计内失联态。
+
+**坑两枚**：①合并节拍读 `PLATFORM_DATA_DIR` 而非 CELL_DATA_ROOT——本地 cell server 忘设则 beacon 恒 null（走查静默不落地，先核环境变量名再疑代码）；②生产 pod 在调用间隙被 ArgoCD 滚掉——secret 从已死 pod 读回空串仍铸出「看似合法」的 token（len 一样），首个 401 应立刻重读活 pod 重铸（`kubectl exec` 失败必须显式查 rc，别信空回显）。
+
+**桌面 v1.3.27（源=main 154fd04e，含 GET 修复——v1.3.26 产物建于 64f4b307 不可上架）**：
+fd-build-snapshot→池 testaction005@desktop-release/v1.3.27 sha=38486ef→**验树竞态律执行**（version 1.3.27/GET×2/boot-steward.cmd 三关键位先核才打 tag）→修剪到 release+win-smoke+steward-smoke→tag v1.3.27 触发：
+矩阵 run `41003728368` **全绿**（dmg-x64/dmg-arm64/exe + publish GitHub Release + **windows 装机 e2e 随 tag 自动腿首跑即绿**=.cmd 包装器修复在真 Windows runner 实证，缺陷⑧清账）。
+复用模式 dispatch run `41006283698`（artifact_run_id=41003728368 + installer_e2e_mac=true）**双平台全绿**：macOS 20 断言、windows 21 断言（desired 握手 901/902/903 腿在内）。
+产物：池 Release v1.3.27 三件套（exe 261.8MB/dmg×2）+ exe 已落本 Mac `~/Downloads/`。
+
+**余账**：上架（dl-publish 镜像轨 hkccr/yizuo/desktop-installers:1.3.27 → cheap3 /srv/dl → release-sync 写 fd-official-web desktop-releases.json + 双推）=待用户拍板；laptop 真机升级=用户取 exe 安装后，配对走查腿已在生产演过可即刻复跑。

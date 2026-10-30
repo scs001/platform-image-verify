@@ -7,6 +7,7 @@
     "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
+      "edit": "Edit",
     "close": "Close",
     "disconnect": "Disconnect",
     "retry": "Retry",
@@ -83,6 +84,7 @@
     "workspaces": "Projects",
     "searchChats": "Search chats…",
     "ungrouped": "Ungrouped",
+    "defaultProject": "Default project",
     "showMore": "Show {{count}} more",
     "showLess": "Show less",
     "newWorkspace": "New project",
@@ -507,7 +509,10 @@
       "noDocuments": "No documents.",
       "addDocPlaceholder": "Add document…",
       "add": "Add file or command",
-      "confirmDelete": "Delete this collection?"
+      "confirmDelete": "Delete this collection?",
+      "projectFilter": "Filter by project",
+      "projectAll": "All projects",
+      "emptyFiltered": "No collections in this filter."
     },
     "startConversation": "Start conversation…",
     "stuckWarning": "Taking too long — ingest may have stalled"
@@ -787,7 +792,14 @@
         "outputs": "Outputs — charts and files the agent produces for you, saved automatically.",
         "experts": "Experts — conversational roles that know a trade; pick or create them on the Agents page.",
         "packs": "Industry Agents — one-click bundles of an expert plus tools."
-      }
+      },
+      "starterTitle": "Official starter teams (recommended order)",
+      "starterRole": {
+        "preferred": "Start here",
+        "secondary": "Next demos",
+        "advanced": "Domain deep-dives"
+      },
+      "starterNote": "Installing is a per-pack explicit action — subscribe by name in the agent market, provision, then confirm in the cockpit before igniting."
     },
     "guidesEmpty": "No scenario guides yet."
   },
@@ -1230,6 +1242,8 @@
   "tasks": {
     "title": "Automation",
     "empty": "No tasks yet — create a scheduled task to run on a plan.",
+    "projectFilter": "Filter by project",
+    "projectAll": "All projects",
     "status": {
       "scheduled": "Scheduled",
       "running": "Running",
@@ -1289,8 +1303,18 @@
       "namePlaceholder": "Name (optional) — becomes the session title",
       "promptPlaceholder": "What should the agent do on this schedule?",
       "tz": "Timezone",
+      "every": "every",
+      "maxRuns": "Max runs",
+      "maxRunsPlaceholder": "unbounded",
+      "onceAbsolute": "Specific time",
+      "onceRelative": "Relative to now",
+      "minutesAfterNow": "minutes from now",
+      "unit": { "minute": "minutes", "hour": "hours", "day": "days", "week": "weeks" },
       "errors": {
         "prompt": "A prompt is required",
+        "maxRuns": "Max runs must be a positive integer",
+        "intervalNumber": "Interval must be an integer 1–200",
+        "delayMinutes": "Delay must be an integer ≥ 1 (minutes)",
         "weekday": "Pick at least one weekday",
         "cron": "Enter a cron expression",
         "when": "Pick a date and time"
@@ -1300,6 +1324,12 @@
       "title": "Scheduled task",
       "created": "Task created from chat",
       "notFound": "Job state unavailable — open the Tasks page."
+    },
+    "history": {
+      "title": "Run history ({{count}})",
+      "progress": "{{runs}}/{{cap}} run",
+      "missed": "missed {{count}}",
+      "state": { "done": "done", "failed": "failed", "interrupted": "interrupted", "skipped": "skipped", "missed": "missed" }
     },
     "trigger": {
       "schedule": "Scheduled",
@@ -1681,10 +1711,15 @@
       "agentSizeValue": "{{value}} agents",
       "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant agent is not installed on this cell — install it to focus the guide.",
       "official": "Official",
-      "officialBadge": "Official"
+      "officialBadge": "Official",
+      "officialAdoptedBadge": "Official Pick · Reviewed"
     },
     "detail": {
       "notFound": "Agent not found or unlisted",
+      "adoptedUpstream": "Upstream {{name}}",
+      "adoptedLicense": "License {{license}}",
+      "adoptedRevision": "Pinned {{sha}}",
+      "adoptedHint": "Third-party material, reviewed and republished",
       "skills": "Skills",
       "mcp": "MCP Servers",
       "toolFaceDeclared": "{{declared}} / {{total}} tools declared",
@@ -3262,7 +3297,7 @@
     "views": {
       "overview": "Overview",
       "manage": "Manage",
-      "owner": "Owner board"
+      "owner": "Operations"
     },
     "overview": {
       "summaryTitle": "All agent teams",
@@ -3312,6 +3347,21 @@
       "kindTemplate": "Team template",
       "kindFeatured": "Official pick",
       "hint": "Sign in to subscribe and install — use the sign-in button above."
+    }
+  },
+  "skillEvo": {
+    "title": "Skill candidates (AI-proposed)",
+    "subtitle": "Repeatable paths the agent proposed after turns — gated by an anonymous A/B eval; only your acceptance makes one live. A failed eval is not a pass.",
+    "evidence": "Evidence: {source} (solved: {solved})",
+    "verdict": "Blind rank: {best} won",
+    "evaluate": "Run eval",
+    "promote": "Accept & enable",
+    "reject": "Reject",
+    "status": {
+      "candidate": "pending eval",
+      "evaluated": "evaluated, awaiting you",
+      "promoted": "live",
+      "rejected": "rejected"
     }
   }
 }

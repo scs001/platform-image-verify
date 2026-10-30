@@ -56,6 +56,13 @@ export function registerMarketplaceJson(app, { registry, resolveUser }) {
   // Relative plugin sources resolve against this manifest's directory, so the
   // manifest lives under /api/marketplace/ and plugin trees under
   // /api/marketplace/packs/<id>/v<version>/.
+  //
+  // Adopted provenance (add-official-adopted-agents 3.2) rides the SAME
+  // projection the platform surface uses — `official` (roster) ∧ `adopted`
+  // (SQL-projected provenance flag) — so the two faces can never disagree.
+  // Presentation only: it does not touch admission (loadListedPacks) or
+  // ordering (the registry's own sort), and community packs emit no key, so
+  // every pre-existing entry's payload stays byte-identical.
   app.get("/api/marketplace/marketplace.json", (req, res) => {
     const viewer = resolveUser(req);
     const plugins = loadListed(viewer).map((p) => ({
@@ -69,6 +76,7 @@ export function registerMarketplaceJson(app, { registry, resolveUser }) {
       // ignores unknown keys harmlessly.
       category: p.category || "",
       featured: Boolean(p.featured),
+      ...(p.official === true && p.adopted === true ? { provenance: { source: "official-adopted" } } : {}),
     }));
     res.set("Cache-Control", CACHE);
     res.json({

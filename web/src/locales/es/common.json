@@ -7,6 +7,7 @@
     "add": "Agregar",
     "edit": "Editar",
     "delete": "Eliminar",
+      "edit": "Editar",
     "close": "Cerrar",
     "disconnect": "Desconectar",
     "retry": "Reintentar",
@@ -83,6 +84,7 @@
     "workspaces": "Proyectos",
     "searchChats": "Buscar chats…",
     "ungrouped": "Sin agrupar",
+    "defaultProject": "Proyecto predeterminado",
     "showMore": "Mostrar {{count}} más",
     "showLess": "Mostrar menos",
     "newWorkspace": "Nuevo proyecto",
@@ -507,7 +509,10 @@
       "noDocuments": "No hay documentos.",
       "addDocPlaceholder": "Añadir documento…",
       "add": "Añadir archivo o comando",
-      "confirmDelete": "¿Eliminar esta colección?"
+      "confirmDelete": "¿Eliminar esta colección?",
+      "projectFilter": "Filtrar por proyecto",
+      "projectAll": "Todos los proyectos",
+      "emptyFiltered": "No hay colecciones en este filtro."
     },
     "startConversation": "Iniciar conversación…",
     "stuckWarning": "Tarda demasiado — la ingesta pudo detenerse"
@@ -787,7 +792,14 @@
         "outputs": "Resultados — gráficos y archivos que el agente produce para ti, guardados automáticamente.",
         "experts": "Expertos — roles de conversación que conocen un oficio; elígelos o créalos en Agentes.",
         "packs": "Agentes sectoriales — conjuntos de experto y herramientas en un clic."
-      }
+      },
+      "starterTitle": "Equipos iniciales oficiales (orden recomendado)",
+      "starterRole": {
+        "preferred": "Empieza aquí",
+        "secondary": "Siguientes demos",
+        "advanced": "Profundización"
+      },
+      "starterNote": "La instalación es una acción explícita por paquete — suscríbete por nombre en el mercado de agentes, provisiona y confirma en la cabina antes de encender."
     },
     "guidesEmpty": "Aún no hay guías por escenario."
   },
@@ -1230,6 +1242,8 @@
   "tasks": {
     "title": "Automatización",
     "empty": "Aún no hay tareas: crea una tarea programada y se ejecutará según el plan.",
+    "projectFilter": "Filtrar por proyecto",
+    "projectAll": "Todos los proyectos",
     "status": {
       "scheduled": "Programada",
       "running": "Ejecutando",
@@ -1289,8 +1303,18 @@
       "namePlaceholder": "Nombre (opcional) — será el título de la sesión",
       "promptPlaceholder": "¿Qué debe hacer el agente en este horario?",
       "tz": "Zona horaria",
+      "every": "cada",
+      "maxRuns": "Ejecuciones máx.",
+      "maxRunsPlaceholder": "sin límite",
+      "onceAbsolute": "Hora concreta",
+      "onceRelative": "Relativo a ahora",
+      "minutesAfterNow": "minutos desde ahora",
+      "unit": { "minute": "minutos", "hour": "horas", "day": "días", "week": "semanas" },
       "errors": {
         "prompt": "Se necesita un mensaje",
+        "maxRuns": "Las ejecuciones máximas deben ser un entero positivo",
+        "intervalNumber": "El intervalo debe ser un entero 1–200",
+        "delayMinutes": "El retraso debe ser un entero ≥ 1 (minutos)",
         "weekday": "Elige al menos un día",
         "cron": "Escribe una expresión cron",
         "when": "Elige fecha y hora"
@@ -1300,6 +1324,12 @@
       "title": "Tarea programada",
       "created": "Tarea creada desde el chat",
       "notFound": "Estado de la tarea no disponible: abre la página de Tareas."
+    },
+    "history": {
+      "title": "Historial ({{count}})",
+      "progress": "{{runs}}/{{cap}} ejecutadas",
+      "missed": "{{count}} omitidas",
+      "state": { "done": "hecho", "failed": "falló", "interrupted": "interrumpido", "skipped": "omitido", "missed": "perdido" }
     },
     "trigger": {
       "schedule": "Programada",
@@ -1681,10 +1711,15 @@
       "agentSizeValue": "{{value}} agentes",
       "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El agente asistente no está instalado en esta celda — instálalo para enfocar la guía.",
       "official": "Oficial",
-      "officialBadge": "Oficial"
+      "officialBadge": "Oficial",
+      "officialAdoptedBadge": "Selección oficial · Revisado"
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",
+      "adoptedUpstream": "Origen {{name}}",
+      "adoptedLicense": "Licencia {{license}}",
+      "adoptedRevision": "Fijado {{sha}}",
+      "adoptedHint": "Material de terceros, revisado y republicado",
       "skills": "Habilidades",
       "mcp": "Servidores MCP",
       "toolFaceDeclared": "{{declared}} / {{total}} herramientas declaradas",
@@ -3262,7 +3297,7 @@
     "views": {
       "overview": "Resumen",
       "manage": "Gestionar",
-      "owner": "Panel del propietario"
+      "owner": "Operaciones"
     },
     "overview": {
       "summaryTitle": "Todos los equipos de agentes",
@@ -3312,6 +3347,21 @@
       "kindTemplate": "Plantilla de equipo",
       "kindFeatured": "Selección oficial",
       "hint": "Inicia sesión para suscribirte e instalar — usa el botón de acceso."
+    }
+  },
+  "skillEvo": {
+    "title": "Candidatas de habilidades (propuestas por IA)",
+    "subtitle": "Rutas reutilizables propuestas tras turnos — con puerta A/B anónima; solo tu aceptación las activa. Una evaluación fallida no es un pase.",
+    "evidence": "Evidencia: {source} (resolvió: {solved})",
+    "verdict": "Ciego: ganó {best}",
+    "evaluate": "Ejecutar evaluación",
+    "promote": "Aceptar y activar",
+    "reject": "Rechazar",
+    "status": {
+      "candidate": "pendiente",
+      "evaluated": "evaluada, espera",
+      "promoted": "activa",
+      "rejected": "rechazada"
     }
   }
 }

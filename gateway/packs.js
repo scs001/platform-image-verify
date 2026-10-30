@@ -512,6 +512,14 @@ export function createPackRegistry({ file }) {
       ...(version.has_fleet !== undefined && version.has_fleet !== null
         ? { badge: badgeFromFlags(version) }
         : {}),
+      // Adopted flag (add-official-adopted-agents): the SOURCE axis, projected
+      // in SQL exactly like is_facade so a list row can render 官方精选·已审校
+      // without parsing the manifest. Same absent-when-not-selected convention:
+      // callers whose query didn't project it keep their exact previous shape.
+      // An adopted record ALONE never means official — the roster still decides.
+      ...(version.is_adopted !== undefined && version.is_adopted !== null
+        ? { adopted: Boolean(version.is_adopted) }
+        : {}),
     };
   }
 
@@ -776,6 +784,7 @@ export function createPackRegistry({ file }) {
                 CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade,
                 CAST(json_extract(v.manifest, '$.fleet') IS NOT NULL AS INTEGER) AS has_fleet,
                 CAST(json_extract(v.manifest, '$.cluster') IS NOT NULL AS INTEGER) AS has_cluster,
+                CAST(json_extract(v.manifest, '$.provenance.kind') = 'official-adopted' AS INTEGER) AS is_adopted,
                 EXISTS(SELECT 1 FROM json_each(v.manifest, '$.agents') je
                        WHERE json_extract(je.value, '$.serving') IS NOT NULL) AS has_serving
          FROM packs p JOIN pack_versions v

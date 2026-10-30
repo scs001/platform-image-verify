@@ -386,6 +386,18 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 {t("packs.detail.private")}
               </span>
             )}
+            {/* Adopted provenance (add-official-adopted-agents): 官方精选·已审校
+                是**来源轴**，与类型徽章（结构）和官方性（roster）并列不相交。
+                只有服务端投影判定为 official-adopted 时才出现（community 态
+                不下发键，旧 payload 逐字节不变）。 */}
+            {pack?.provenance?.source === "official-adopted" && (
+              <span
+                data-testid="pack-adopted-badge"
+                className="ml-2 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-normal text-primary align-middle"
+              >
+                {t("packs.market.officialAdoptedBadge")}
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription>
             {pack ? `${pack.authorEmail} · v${pack.version}` : ""}
@@ -434,6 +446,42 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 {pack.tags.map((tag) => (
                   <Badge key={tag}>{tag}</Badge>
                 ))}
+              </div>
+            )}
+
+            {/* Adopted provenance detail (add-official-adopted-agents): the
+                audit trail the curation review produced — upstream source,
+                license, and the pinned revision the snapshot was taken at.
+                Rendered only for official-adopted reads. The pinned revision
+                is shown so "how stale is this" is answerable at a glance
+                (same honesty posture as a facade's 语料截至). */}
+            {pack.provenance?.source === "official-adopted" && pack.provenance.adopted && (
+              <div
+                className="rounded-md border border-border bg-muted/40 px-3 py-2 space-y-1"
+                data-testid="pack-adopted-provenance"
+              >
+                <p className="text-xs font-medium text-foreground">
+                  {t("packs.detail.adoptedHint")}
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <a
+                    href={pack.provenance.adopted.upstreamUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline"
+                    data-testid="pack-adopted-upstream"
+                  >
+                    {t("packs.detail.adoptedUpstream", { name: pack.provenance.adopted.upstreamName })}
+                  </a>
+                  <span data-testid="pack-adopted-license">
+                    {t("packs.detail.adoptedLicense", { license: pack.provenance.adopted.license })}
+                  </span>
+                  <span data-testid="pack-adopted-revision" title={pack.provenance.adopted.revision}>
+                    {t("packs.detail.adoptedRevision", {
+                      sha: String(pack.provenance.adopted.revision).slice(0, 8),
+                    })}
+                  </span>
+                </div>
               </div>
             )}
 

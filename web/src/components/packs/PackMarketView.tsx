@@ -324,8 +324,18 @@ export function PackMarketView({
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-foreground flex items-center gap-1.5">
                 {pack.name}
-                {pack.official === true && (
-                  <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
+                {/* Adopted provenance (add-official-adopted-agents): needs BOTH
+                    the roster's official flag AND the adopted record — an
+                    adopted record alone never grants official status. Rendered
+                    separately from the plain 官方 badge so the three kinds
+                    (official-original / official-adopted / community) stay
+                    distinguishable at a glance. */}
+                {pack.official === true && pack.adopted === true ? (
+                  <Badge data-testid={`pack-adopted-badge-${pack.id}`}>{t("packs.market.officialAdoptedBadge")}</Badge>
+                ) : (
+                  pack.official === true && (
+                    <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
+                  )
                 )}
                 {pack.badge ? (
                   <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>

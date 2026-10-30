@@ -15,8 +15,8 @@
 
 ## 3. 展示面
 
-- [ ] 3.1 详情页与列表经 `describeProvenance` 渲染 adopted provenance：上游 URL、上游名、许可证、钉定 revision；验证=UI 眼见三态并列可辨（官方原创 / adopted / 生态·未审）。**半**：服务端投影已接（详情 payload 带 `provenance.{source,adopted}`）；前端未见。
-- [ ] 3.2 facet 侧同构渲染（调同一 `describeProvenance`），且不削弱既有 curated 准入/排序（对拍开启与关闭该展示的 curated 列表逐字节一致）；验证=facet 单测对拍通过。**未做**。
+- [x] 3.1 详情页与列表经 `describeProvenance` 渲染 adopted provenance：上游 URL、上游名、许可证、钉定 revision；验证=UI 眼见三态并列可辨（官方原创 / adopted / 生态·未审）。**已实施**：列表行 SQL 投影 `is_adopted` → `summaryOf` 出 `adopted` 布尔（与 `is_facade` 同一 absent-when-not-selected convention）；`PackMarketView` 用 `official===true && adopted===true` 才渲染「官方精选·已审校」，否则回落「官方」；`PackDetailDialog` 出 `pack-adopted-badge` + `pack-adopted-provenance` 明细块（上游外链 / 许可证 / revision 前 8 位，完整 sha 走 title）。五语言键已补齐（`market.officialAdoptedBadge` + `detail.adopted{Upstream,License,Revision,Hint}`），`check-locales` 全绿。**未做**：浏览器 UI 眼见（随出片班）。
+- [x] 3.2 facet 侧同构渲染（调同一 `describeProvenance`），且不削弱既有 curated 准入/排序（对拍开启与关闭该展示的 curated 列表逐字节一致）；验证=facet 单测对拍通过。**已实施**：`facet/marketplace-json.js` 用与平台面**同一判定**（`official ∧ adopted`）在 plugins 行按需附 `provenance:{source:"official-adopted"}`；community 不下发键。`test-adoption-display.mjs` 6/6：三态可辨 / 自报无 roster 不给官方 / 旧行键集逐字节不变 / 准入不放宽（未 curated 即使 official+adopted 也不进清单）/ 排序不重排。
 
 ## 4. 阶段一：手工转正 2–3 枚真案例
 

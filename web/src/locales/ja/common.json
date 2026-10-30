@@ -7,6 +7,7 @@
     "add": "追加",
     "edit": "編集",
     "delete": "削除",
+      "edit": "編集",
     "close": "閉じる",
     "disconnect": "切断",
     "retry": "再試行",
@@ -83,6 +84,7 @@
     "workspaces": "プロジェクト",
     "searchChats": "チャットを検索…",
     "ungrouped": "未分類",
+    "defaultProject": "デフォルトプロジェクト",
     "showMore": "さらに {{count}} 件表示",
     "showLess": "折りたたむ",
     "newWorkspace": "プロジェクトを新規作成",
@@ -507,7 +509,10 @@
       "noDocuments": "ドキュメントはありません。",
       "addDocPlaceholder": "ドキュメントを追加…",
       "add": "ファイルまたはコマンドを追加",
-      "confirmDelete": "このコレクションを削除しますか？"
+      "confirmDelete": "このコレクションを削除しますか？",
+      "projectFilter": "プロジェクトで絞り込む",
+      "projectAll": "すべてのプロジェクト",
+      "emptyFiltered": "この絞り込みにコレクションはありません。"
     },
     "startConversation": "会話を開始…",
     "stuckWarning": "処理に時間がかかっています — 中断した可能性"
@@ -787,7 +792,14 @@
         "outputs": "成果 — エージェントが作ったグラフやファイル。自動で保存されます。",
         "experts": "エキスパート — 業種に詳しい対話ロール。エージェントページで選択・作成します。",
         "packs": "業界エージェント — エキスパートとツールのセットをワンクリックで導入。"
-      }
+      },
+      "starterTitle": "公式スターターチーム（推奨順）",
+      "starterRole": {
+        "preferred": "最初にこれ",
+        "secondary": "次のデモ",
+        "advanced": "領域別の深掘り"
+      },
+      "starterNote": "インストールはパックごとの明示的操作です——エージェント市場で名前を検索して購読し、実体化後、コックピットで確認してから点火します。"
     },
     "guidesEmpty": "シナリオガイドはまだありません。"
   },
@@ -1230,6 +1242,8 @@
   "tasks": {
     "title": "自動化",
     "empty": "タスクはまだありません。予定タスクを作成すると計画に従って実行されます。",
+    "projectFilter": "プロジェクトで絞り込む",
+    "projectAll": "すべてのプロジェクト",
     "status": {
       "scheduled": "予約済み",
       "running": "実行中",
@@ -1289,8 +1303,18 @@
       "namePlaceholder": "名前(任意)— セッションのタイトルになります",
       "promptPlaceholder": "このスケジュールでエージェントに何をさせますか?",
       "tz": "タイムゾーン",
+      "every": "間隔",
+      "maxRuns": "最大実行回数",
+      "maxRunsPlaceholder": "無制限",
+      "onceAbsolute": "指定日時",
+      "onceRelative": "現在から相対",
+      "minutesAfterNow": "分後に実行",
+      "unit": { "minute": "分", "hour": "時間", "day": "日", "week": "週" },
       "errors": {
         "prompt": "プロンプトを入力してください",
+        "maxRuns": "最大実行回数は正の整数である必要があります",
+        "intervalNumber": "間隔は 1〜200 の整数である必要があります",
+        "delayMinutes": "遅延は 1 以上の整数（分）である必要があります",
         "weekday": "曜日を 1 つ以上選んでください",
         "cron": "cron 式を入力してください",
         "when": "日時を選択してください"
@@ -1300,6 +1324,12 @@
       "title": "定期タスク",
       "created": "チャットから作成されたタスク",
       "notFound": "タスク状態を取得できません。タスクページを開いてください。"
+    },
+    "history": {
+      "title": "実行履歴（{{count}} 件）",
+      "progress": "{{runs}}/{{cap}} 実行済み",
+      "missed": "{{count}} 件未実行",
+      "state": { "done": "成功", "failed": "失敗", "interrupted": "中断", "skipped": "スキップ", "missed": "未実行" }
     },
     "trigger": {
       "schedule": "定期",
@@ -1681,10 +1711,15 @@
       "agentSizeValue": "{{value}} エージェント",
       "assistantHint": "マーケットガイド：右下のコパイロットは「謙面助手」フォーカスで応答します。このセルにアシスタントエージェントが未インストールです——インストールするとガイドが自動フォーカスします。",
       "official": "公式",
-      "officialBadge": "公式"
+      "officialBadge": "公式",
+      "officialAdoptedBadge": "公式セレクト · 審査済み"
     },
     "detail": {
       "notFound": "エージェントが見つからないか公開終了しました",
+      "adoptedUpstream": "提供元 {{name}}",
+      "adoptedLicense": "ライセンス {{license}}",
+      "adoptedRevision": "固定 {{sha}}",
+      "adoptedHint": "第三者素材を審査のうえ再配布",
       "skills": "スキル",
       "mcp": "MCP サーバー",
       "toolFaceDeclared": "{{declared}} / 全量 {{total}} ツールを宣言",
@@ -3262,7 +3297,7 @@
     "views": {
       "overview": "サマリー",
       "manage": "管理",
-      "owner": "オーナーボード"
+      "owner": "経営"
     },
     "overview": {
       "summaryTitle": "全エージェントチーム",
@@ -3312,6 +3347,21 @@
       "kindTemplate": "チームテンプレート",
       "kindFeatured": "公式ピックアップ",
       "hint": "ログインして購読・インストール——上のログインボタンからどうぞ。"
+    }
+  },
+  "skillEvo": {
+    "title": "スキル候補（AI 提案）",
+    "subtitle": "ターン後にエージェントが提案した再利用可能な手順——匿名 A/B 評価のゲート付き。あなたの承認で初めて有効になります。評価失敗は合格ではありません。",
+    "evidence": "根拠：{source}（解決：{solved}）",
+    "verdict": "ブラインド：{best} が勝ち",
+    "evaluate": "評価を実行",
+    "promote": "承認して有効化",
+    "reject": "却下",
+    "status": {
+      "candidate": "評価待ち",
+      "evaluated": "評価済み・確認待ち",
+      "promoted": "有効",
+      "rejected": "却下"
     }
   }
 }

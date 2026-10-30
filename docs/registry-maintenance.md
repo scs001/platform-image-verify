@@ -5361,3 +5361,29 @@ LICENSE 原文 + commits 解析，约 5-8 次请求/枚。**运营批量转正�
 4. **公网首查必假阴性**：`MISS` 时回的可能是 rollout 完成前缓存的 SPA 兜底壳（10269 字节
    首页 title），而 pod 内真文件 15224 字节。**判据=比 size 和 title，别看 HTTP 200**；
    等 max-age（300s）过一轮再验，别急着改代码。
+
+**续 §15.106 · 3.1/3.2 展示面落地：三态在界面上可辨（2026-10-31）**
+
+数据齐了不渲染，这条 lane 对用户就不可见。本轮把「官方精选·已审校」落到两个面，判定**只读同一投影**、绝不各自拼装。
+
+- **三轴并列、互不相交**（这是整个展示面的纪律）：
+  - 类型徽章 `badge`（`lib/pack-badge.js`，结构推导）
+  - 官方性 `official`（部署 roster，作者不可自报）
+  - 来源 `provenance.source`（manifest adopted 记录）
+  「官方精选·已审校」出现当且仅当 `official===true ∧ adopted===true`。缺一分三种结局：
+  只有 roster → 「官方」（官方原创）；只有 adopted 记录 → **什么都不出**（社区），且不下发键。
+- **列表行**：SQL 投影加 `CAST(json_extract(v.manifest,'$.provenance.kind')='official-adopted' AS INTEGER) AS is_adopted`，
+  `summaryOf` 按 `is_facade` 同一 absent-when-not-selected convention 出 `adopted` 布尔——
+  没投影该列的调用方 payload 逐字节不变。
+- **详情页**：`pack-adopted-badge` 徽章 + `pack-adopted-provenance` 明细块（上游外链 / 许可证 / revision 前 8 位，
+  完整 sha 放 title）。钉定 revision 直接摆出来，「这条有多旧」一眼可答（同 facade 的「语料截至」诚实姿态）。
+- **facet 同构**：`marketplace-json.js` 用**同一判定**附 `provenance:{source:"official-adopted"}`；
+  社区条目不下发键。边界测试直证 **准入不放宽、排序不重排**（未 curated 即使 official+adopted 也不进清单）。
+- **i18n**：五语言各补 5 键（`market.officialAdoptedBadge` + `detail.adoptedUpstream/License/Revision/Hint`），
+  `check-locales` 全绿（含代码侧键存在性检查）。
+
+**测试**：新增 `scripts/test-adoption-display.mjs` 6/6（三态可辨 / 自报无 roster 不给官方 / 旧行键集逐字节不变 /
+准入不放宽 / 排序不重排）；全套 **150/150** 绿。web `tsc` 仅 `TasksPage.tsx` 报错，属并行会话在途改动
+（该文件 341 行未提交 diff），我的三个前端文件 0 错。
+
+**未完**：浏览器 UI 眼见（随出片班）、1.4 桥消费侧、真实发布 + pod 物化实证、运营端点层身份注入。

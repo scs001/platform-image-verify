@@ -48,6 +48,30 @@ export interface PackSummary {
    *  the deployment's author roster — never author-declared. Absent on
    *  pre-upgrade servers (pass-through, unfiltered). */
   official?: boolean;
+  /** Adopted flag (add-official-adopted-agents): the latest version's manifest
+   *  carries an adopted-provenance record. List rows project this in SQL the
+   *  same way `facade` is projected; detail rows carry the full `provenance`
+   *  object below. Combine with `official` to render 官方精选·已审校 — an
+   *  adopted record alone never grants official status. */
+  adopted?: boolean;
+  /** Adopted provenance (add-official-adopted-agents): the SOURCE axis, kept
+   *  orthogonal to `official` (roster) and `badge` (structure). Present only
+   *  when the server's one projection says the pack reads as an adopted
+   *  official asset or carries an adopted record; `source` names which kind.
+   *  `community` never ships a key, so legacy payloads stay byte-identical. */
+  provenance?: {
+    source: "official-original" | "official-adopted" | "community";
+    adopted?: {
+      kind: "official-adopted";
+      upstreamUrl: string;
+      upstreamName: string;
+      license: string;
+      revision: string;
+      adoptedBy: string;
+      reviewedBy: string;
+      reviewedAt: string;
+    };
+  };
   /** Structure-derived type badge (add-ai-native-lexicon): blueprint =
    *  fleet/cluster organization block; facade = facade block or a serving
    *  agent; assistant = agents only; toolkit = no agents. Computed by the

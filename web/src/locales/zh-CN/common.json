@@ -7,6 +7,7 @@
     "add": "添加",
     "edit": "编辑",
     "delete": "删除",
+      "edit": "编辑",
     "close": "关闭",
     "disconnect": "断开",
     "retry": "重试",
@@ -83,6 +84,7 @@
     "workspaces": "项目",
     "searchChats": "搜索对话…",
     "ungrouped": "未分组",
+    "defaultProject": "默认项目",
     "showMore": "显示更多 {{count}} 条",
     "showLess": "收起",
     "newWorkspace": "新建项目",
@@ -507,7 +509,10 @@
       "noDocuments": "暂无文档。",
       "addDocPlaceholder": "添加文档…",
       "add": "添加文件或命令",
-      "confirmDelete": "删除此集合？"
+      "confirmDelete": "删除此集合？",
+      "projectFilter": "项目筛选",
+      "projectAll": "全部项目",
+      "emptyFiltered": "该筛选下暂无集合。"
     },
     "startConversation": "开启对话…",
     "stuckWarning": "处理时间过长，可能已中断"
@@ -787,7 +792,14 @@
         "outputs": "成果——智能体帮你做出来的图表和文件，自动保存在这里。",
         "experts": "专家——懂某个行当的对话角色，在「智能体」页挑选或创建。",
         "packs": "行业方案——一键装好一套「专家 + 工具」的组合。"
-      }
+      },
+      "starterTitle": "官方 starter 团队（推荐顺序）",
+      "starterRole": {
+        "preferred": "首选",
+        "secondary": "进阶示范",
+        "advanced": "领域进阶"
+      },
+      "starterNote": "安装是逐包的显式动作——从智能体市场搜索包名订阅安装，实化后先在驾驶舱确认再点燃。"
     },
     "guidesEmpty": "还没有可用的场景教程。"
   },
@@ -1230,6 +1242,8 @@
   "tasks": {
     "title": "自动化",
     "empty": "还没有自动化。创建一个定时任务，让智能体按计划自动干活——比如每周一早上生成周报。",
+    "projectFilter": "项目筛选",
+    "projectAll": "全部项目",
     "status": {
       "scheduled": "已排程",
       "running": "运行中",
@@ -1289,8 +1303,18 @@
       "namePlaceholder": "名称(可选)——将作为会话标题",
       "promptPlaceholder": "智能体在这个时间要做什么?",
       "tz": "时区",
+      "every": "每",
+      "maxRuns": "最多运行次数",
+      "maxRunsPlaceholder": "不限",
+      "onceAbsolute": "指定时刻",
+      "onceRelative": "相对现在",
+      "minutesAfterNow": "分钟后执行",
+      "unit": { "minute": "分钟", "hour": "小时", "day": "天", "week": "周" },
       "errors": {
         "prompt": "请填写提示词",
+        "maxRuns": "最多运行次数须为正整数",
+        "intervalNumber": "间隔须为 1-200 的整数",
+        "delayMinutes": "延迟须为 ≥1 的整数（分钟）",
         "weekday": "至少选择一个星期",
         "cron": "请填写周期表达式",
         "when": "请选择日期和时间"
@@ -1300,6 +1324,12 @@
       "title": "定时任务",
       "created": "在对话中创建的任务",
       "notFound": "任务状态暂不可用——请打开「自动化」页查看。"
+    },
+    "history": {
+      "title": "执行记录（{{count}} 次）",
+      "progress": "已跑 {{runs}}/{{cap}}",
+      "missed": "{{count}} 次错过",
+      "state": { "done": "成功", "failed": "失败", "interrupted": "中断", "skipped": "跳过", "missed": "错过" }
     },
     "trigger": {
       "schedule": "定时",
@@ -1681,10 +1711,15 @@
       "agentSizeValue": "{{value}} 个 agent",
       "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手智能体——安装后向导自动聚焦。",
       "official": "官方",
-      "officialBadge": "官方"
+      "officialBadge": "官方",
+      "officialAdoptedBadge": "官方精选 · 已审校"
     },
     "detail": {
       "notFound": "智能体不存在或已下架",
+      "adoptedUpstream": "上游 {{name}}",
+      "adoptedLicense": "许可 {{license}}",
+      "adoptedRevision": "钉定 {{sha}}",
+      "adoptedHint": "第三方素材，经平台审校后上架",
       "skills": "技能",
       "mcp": "外部工具",
       "toolFaceDeclared": "声明 {{declared}} / 全量 {{total}} 工具",
@@ -3262,7 +3297,7 @@
     "views": {
       "overview": "综合看板",
       "manage": "管理",
-      "owner": "经营坞"
+      "owner": "经营"
     },
     "overview": {
       "summaryTitle": "全部智能体团队",
@@ -3312,6 +3347,21 @@
       "kindTemplate": "团队模板",
       "kindFeatured": "官方精选",
       "hint": "登录后即可订阅安装——点右上角登录。"
+    }
+  },
+  "skillEvo": {
+    "title": "技能候选（AI 提议）",
+    "subtitle": "智能体在回合后提议的可复用路径——先过 A/B 评测门（匿名盲评），你接受才生效。评测没跑成不算过。",
+    "evidence": "依据：{source}（解决：{solved}）",
+    "verdict": "盲评：{best} 胜",
+    "evaluate": "跑评测",
+    "promote": "接受并生效",
+    "reject": "驳回",
+    "status": {
+      "candidate": "待评测",
+      "evaluated": "评测通过待确认",
+      "promoted": "已生效",
+      "rejected": "已驳回"
     }
   }
 }

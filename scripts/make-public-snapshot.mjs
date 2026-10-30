@@ -125,6 +125,11 @@ const EXCLUDE_PATHS = new Set([
   // internal ops test: fleet-scheduler fixtures carry tailnet IPs and cluster
   // node names (add-fleet-scheduler); same class as the board test above.
   "scripts/test-fleet-scheduler.mjs",
+  // internal leak-guard test (add-product-intro-team): its FORBIDDEN list is
+  // itself the leak — the regex literals spell out internal repo/credential
+  // words so a reader of the public drop could enumerate them. The guard stays
+  // in the private repo; shipping it would defeat the scan that caught it.
+  "scripts/test-product-intro-seed.mjs",
   // internal planning docs: 双星伞文档与市场线路线图 carry live-ops facts
   // (cluster node names, law-ai-official relay line, production shas) and
   // change with every internal slice — not curated for the public drop.

@@ -76,6 +76,19 @@ function startFacetStub() {
     };
     seen.push({ path: url.pathname, headers: req.headers });
     if (url.pathname === "/__seen") return json(200, { seen });
+    // Detail face (the install purchase gate's source — fetchMarketDetail):
+    // same visibility rules, free default (pricing null never gates).
+    const dm = url.pathname.match(/^\/api\/packs\/([^/]+)$/);
+    if (dm) {
+      const id = decodeURIComponent(dm[1]);
+      const latest = [...packs.entries()].filter(([k]) => k.startsWith(`${id}@`)).pop();
+      if (!latest || latest[1].mode === "500") return json(latest?.[1].mode === "500" ? 500 : 404, { error: "Pack not found" });
+      const armedD = req.headers["x-facet-token"] === FACET_TOKEN;
+      let viewerD = null;
+      if (armedD && req.headers["x-facet-user"]) viewerD = JSON.parse(Buffer.from(String(req.headers["x-facet-user"]), "base64url").toString("utf8"));
+      if (latest[1].visibility === "private" && viewerD?.email !== latest[1].authorEmail) return json(404, { error: "Pack not found" });
+      return json(200, { id, pricing: latest[1].pricing ?? null, purchased: false });
+    }
     const m = url.pathname.match(/^\/api\/packs\/([^/]+)\/versions\/([^/]+)$/);
     if (!m) return json(404, { error: "not found" });
     // The proxy channel: identity is only honored under the internal token,
@@ -196,12 +209,16 @@ test("1.2 private visibility: owner succeeds, stranger gets the market's not-fou
     // The stub saw the internal credential + the forwarded identity header;
     // the LAST call is the owner's (the stranger's was refused server-side).
     const { seen } = await fetch(`${stub.url}/__seen`).then((r) => r.json());
+    // Two faces ride the channel: the detail gate (both viewers reach it) and
+    // the version retrieval (only the owner gets past the gate — the stranger
+    // is refused at detail and nothing further is fetched).
+    const details = seen.filter((s) => s.path === "/api/packs/pack-priv");
     const calls = seen.filter((s) => s.path === "/api/packs/pack-priv/versions/1");
-    assert.equal(calls.length, 2, "both installs reached the market");
-    assert.equal(calls[0].headers["x-facet-token"], FACET_TOKEN);
-    assert.equal(calls[1].headers["x-facet-token"], FACET_TOKEN);
-    const asStranger = JSON.parse(Buffer.from(calls[0].headers["x-facet-user"], "base64url").toString("utf8"));
-    const asOwner = JSON.parse(Buffer.from(calls[1].headers["x-facet-user"], "base64url").toString("utf8"));
+    assert.equal(details.length, 2, "both installs reached the market's detail face");
+    assert.equal(calls.length, 1, "only the owner's install reaches the version face");
+    for (const c of [...details, ...calls]) assert.equal(c.headers["x-facet-token"], FACET_TOKEN);
+    const asStranger = JSON.parse(Buffer.from(details[0].headers["x-facet-user"], "base64url").toString("utf8"));
+    const asOwner = JSON.parse(Buffer.from(calls[0].headers["x-facet-user"], "base64url").toString("utf8"));
     assert.equal(asStranger.email, "stranger@x");
     assert.equal(asOwner.email, "author@x");
   } finally {

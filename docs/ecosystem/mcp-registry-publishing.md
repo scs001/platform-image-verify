@@ -103,7 +103,7 @@ OAuth discovery，静态 header 塞进去只会让没有凭据的客户端**装�
 ## 5. 上架流程
 
 > **管道宿仓（重要）**：`workflow_dispatch` 要求 workflow 在**默认分支**，而主仓
-> `fd-craw-private` 是 PRIVATE 且其账号私有 Actions 额度已耗尽（2011/2000，run 5 秒即红）。
+> 主仓（私有）是 PRIVATE 且其账号私有 Actions 额度已耗尽（2011/2000，run 5 秒即红）。
 > 所以实际执行仓是 **`FindDataTechnology/mcp-registry-publish`**（公开、只放管道）：
 > 公开仓标准 runner 免费无限，OIDC 又按**仓库所属组织**授权命名空间。
 > 脚本与 workflow 的**源仍在主仓**（`scripts/publish-mcp-registry.mjs` +

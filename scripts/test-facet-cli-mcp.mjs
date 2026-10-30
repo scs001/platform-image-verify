@@ -87,12 +87,12 @@ test("install 持键 + --no-write-mcp：提示持键但零写入", async () => {
   } finally { server.close(); }
 });
 
-test("install 持键 + --write-mcp：五 target 各写原生形状", async () => {
+test("install 持键 + --write-mcp：六 target 各写原生形状", async () => {
   const server = await stubFacet();
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
     await withFakeHome((home) => seedKey(home, base), async (home, _proj) => {
-      for (const target of ["claude-code", "cursor", "zcode", "gemini-cli", "codex"]) {
+      for (const target of ["claude-code", "cursor", "zcode", "gemini-cli", "codex", "workbuddy"]) {
         const { stdout } = await install(home, ["--target", target, "--registry", base, "--base", base, "--write-mcp"]);
         assert.match(stdout, /MCP 连接配置已写入/, `${target} 应报告写入`);
       }
@@ -115,6 +115,10 @@ test("install 持键 + --write-mcp：五 target 各写原生形状", async () =>
       assert.match(toml, /\[mcp_servers\.law-bench\]/);
       assert.match(toml, /http_headers = \{ "Authorization" = "Bearer wgk-good" \}/);
       assert.equal(toml.match(/\[mcp_servers\.law-bench\]/g).length, 1); // 幂等，无重复块
+      // workbuddy：独立 dotdir，http 形状
+      const wb = JSON.parse(await readFile(path.join(home, ".workbuddy", "mcp.json"), "utf8"));
+      assert.equal(wb.mcpServers["law-bench"].type, "http");
+      assert.equal(wb.mcpServers["law-bench"].url, `${base}/law-bench/mcp`);
     });
   } finally { server.close(); }
 });
@@ -130,4 +134,60 @@ test("install 持键 + --write-mcp + --project：claude-code 写项目级 .mcp.j
       await assert.rejects(() => stat(path.join(home, ".claude.json"))); // 用户级未被误写
     });
   } finally { server.close(); }
+});
+
+// ── WorkBuddy (add-workbuddy-mcp-lane) ──────────────────────────────────────
+// Two roots on purpose: skills ride the client's CodeBuddy configuration tree
+// (.codebuddy), MCP has its own dotdir (.workbuddy). Both are the client's
+// own documented locations — see docs/ecosystem/workbuddy.md.
+test("install 持键 + --write-mcp：workbuddy 写 .workbuddy/mcp.json 的 http 形状", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome((home) => seedKey(home, base), async (home, _proj) => {
+      const { stdout } = await install(home, ["--target", "workbuddy", "--registry", base, "--base", base, "--write-mcp"]);
+      assert.match(stdout, /MCP 连接配置已写入/);
+      const doc = JSON.parse(await readFile(path.join(home, ".workbuddy", "mcp.json"), "utf8"));
+      const entry = doc.mcpServers["law-bench"];
+      assert.equal(entry.type, "http");
+      assert.equal(entry.url, `${base}/law-bench/mcp`);
+      assert.equal(entry.headers.Authorization, "Bearer wgk-good");
+      // The sibling client's file must not be touched by this target.
+      await assert.rejects(() => stat(path.join(home, ".claude.json")));
+      await assert.rejects(() => stat(path.join(home, ".codebuddy", "mcp.json")));
+    });
+  } finally { server.close(); }
+});
+
+test("install 持键 + --write-mcp + --project：workbuddy 写项目级 .workbuddy/mcp.json", async () => {
+  const server = await stubFacet();
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    await withFakeHome((home) => seedKey(home, base), async (home, proj) => {
+      await install(home, ["--target", "workbuddy", "--project", proj, "--registry", base, "--base", base, "--write-mcp"]);
+      const pj = JSON.parse(await readFile(path.join(proj, ".workbuddy", "mcp.json"), "utf8"));
+      assert.equal(pj.mcpServers["law-bench"].url, `${base}/law-bench/mcp`);
+      assert.equal(pj.mcpServers["law-bench"].type, "http");
+      await assert.rejects(() => stat(path.join(home, ".workbuddy", "mcp.json"))); // 用户级未被误写
+    });
+  } finally { server.close(); }
+});
+
+test("workbuddy 技能落盘在 .workbuddy/skills（用户级与项目级；真机实测）", async () => {
+  await withFakeHome(null, async (home, proj) => {
+      // No skills in DETAIL, so this asserts the resolved directory itself
+      // rather than a file (the target resolution is what can drift).
+      const { targetDir } = await import("../facet/cli/facet.js");
+      // The module resolves FACET_HOME per call, but this process's env is the
+      // harness's — point it at the sandbox home for the duration.
+      const prevHome = process.env.FACET_HOME;
+      process.env.FACET_HOME = home;
+      const user = targetDir({ target: "workbuddy", project: null });
+      assert.equal(user.dir, path.join(home, ".workbuddy", "skills"));
+      assert.equal(user.scope, "用户级");
+      const inProject = targetDir({ target: "workbuddy", project: proj });
+      assert.equal(inProject.dir, path.join(path.resolve(proj), ".workbuddy", "skills"));
+      assert.equal(inProject.scope, "项目级");
+      process.env.FACET_HOME = prevHome;
+  });
 });

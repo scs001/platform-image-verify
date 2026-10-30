@@ -7,7 +7,7 @@ npx @finddatatechnology/facet install <packRef>
 ```
 
 - `<packRef>`：功能集 id（市场详情页可见），或任何含 id 的 URL。
-- `--target claude-code|cursor|zcode|codex|gemini-cli`：五家编辑器（默认 claude-code），各按其原生布局落盘（如 `~/.claude/skills/<skill>/SKILL.md`、`~/.codex/skills/…`、`~/.gemini/skills/…`）。
+- `--target claude-code|cursor|zcode|codex|gemini-cli|workbuddy`：六家编辑器（默认 claude-code），各按其原生布局落盘（如 `~/.claude/skills/<skill>/SKILL.md`、`~/.codex/skills/…`、`~/.gemini/skills/…`、`~/.workbuddy/skills/…`）。
 - `--project <dir>`：改为项目级（`<dir>/.<target>/skills/…`）。
 - `--base <url>`：换谦面部署地址（默认 `https://facet.finddatatech.cloud`）。
 - `--registry <url>`：注册处地址（默认 `https://mcp.finddatatech.cloud`）。
@@ -57,6 +57,18 @@ npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --clear all
 - 键不进 shell 历史、不回显全文（`--show` 只露头尾四位）。
 - 不安装到对话运行时——那是壹座的工作面：订阅功能集后在 壹座 → 设置 → 功能集 → 我的功能集
   一键安装（MCP 凭据在壹座内已打通）。
+
+## 版本说明
+
+**0.3.0** — 新增第六个安装目标 `workbuddy`（技能落 `~/.workbuddy/skills/`，MCP 落
+`~/.workbuddy/mcp.json`，均经真机实证）。用法与其余目标一致：
+
+```bash
+npx @finddatatechnology/facet install <packRef> --target workbuddy --write-mcp
+```
+
+远端 MCP 条目按 `{"type": "http", "url": …, "headers": {"Authorization": …}}` 写入；
+该客户端也支持 OAuth 发现连接，可不贴键（见 `docs/ecosystem/workbuddy.md`）。
 
 ## 隐私
 

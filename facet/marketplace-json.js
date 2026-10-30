@@ -18,34 +18,40 @@
 
 const CACHE = "public, max-age=3600";
 
-export function registerMarketplaceJson(app, { registry, resolveUser }) {
-  const curatedIds = () =>
-    (process.env.FACET_MARKETPLACE_PACK_IDS || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+// Operator whitelist, comma-separated. Read per call so a restart-free
+// config change is observed on the next request.
+export function curatedPackIds(env = process.env) {
+  return (env.FACET_MARKETPLACE_PACK_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  const loadListed = (viewer) => {
-    const whitelist = curatedIds();
-    // Default admission = curated (category ∨ featured); a set whitelist
-    // replaces the curation filter outright, not intersects it (operator
-    // override keeps pre-change behavior byte-identical where configured).
-    const listed = (p) =>
-      whitelist.length > 0 ? whitelist.includes(p.id) : Boolean(p.category || p.featured);
-    const out = [];
-    let page = 1;
-    for (;;) {
-      const { packs = [], total = 0 } = registry.list({ page, pageSize: 100, viewer });
-      for (const p of packs) {
-        if (listed(p)) out.push(p);
-      }
-      // Filtering can hold out.length below total forever — also stop when
-      // the registry stops returning pages.
-      if (out.length >= total || packs.length === 0 || page > 50) break;
-      page += 1;
+// The ONE listing rule. Every marketplace-shaped surface (the Claude-format
+// endpoint and the repository export) calls this — a second copy would drift,
+// and a listing that disagrees with the browse face has already happened once
+// (wire-marketplace-json-curation). Admission = public, non-unlisted, and
+// curated (category ∨ featured); a configured operator whitelist REPLACES the
+// curation filter outright rather than intersecting it.
+export function loadListedPacks(registry, { viewer = null, env = process.env } = {}) {
+  const whitelist = curatedPackIds(env);
+  const listed = (p) =>
+    whitelist.length > 0 ? whitelist.includes(p.id) : Boolean(p.category || p.featured);
+  const out = [];
+  for (let page = 1; page <= 50; page += 1) {
+    const { packs = [], total = 0 } = registry.list({ page, pageSize: 100, viewer });
+    for (const p of packs) {
+      if (listed(p)) out.push(p);
     }
-    return out;
-  };
+    // Filtering can hold out.length below total forever — also stop when the
+    // registry stops returning pages.
+    if (out.length >= total || packs.length === 0) break;
+  }
+  return out;
+}
+
+export function registerMarketplaceJson(app, { registry, resolveUser }) {
+  const loadListed = (viewer) => loadListedPacks(registry, { viewer });
 
   // Relative plugin sources resolve against this manifest's directory, so the
   // manifest lives under /api/marketplace/ and plugin trees under

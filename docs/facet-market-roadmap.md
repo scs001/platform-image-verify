@@ -27,7 +27,7 @@
 | 能力 | 事实 | 出处 |
 |---|---|---|
 | 市场骨架 | 独立部署+匿名浏览+策展+用量代理+作者面 `#/mine` | add-pack-marketplace（09-29）、add-facet-platform（10-03）、add-facet-content-management（10-12） |
-| 多客户端分发 | CLI 五 target（claude-code/cursor/zcode/codex/gemini-cli）+ Claude 原生 `marketplace.json` 端点 + MCP OAuth 发现（零贴 key） | add-ecosystem-bridge（10-08），specs: facet-editor-cli / ecosystem-access |
+| 多客户端分发 | CLI 六 target（claude-code/cursor/zcode/codex/gemini-cli/workbuddy）+ CodeBuddy/WorkBuddy 兼容市场仓 + Claude 原生 `marketplace.json` 端点 + MCP OAuth 发现（零贴 key） | add-ecosystem-bridge（10-08）、add-workbuddy-mcp-lane / add-pack-marketplace-git-channel（10-30），specs: facet-editor-cli / ecosystem-access / pack-marketplace |
 | 壹座优先 | 订阅→cell 一键安装、MCP 凭据已接线，天然第一公民 | specs: pack-marketplace / pack-installation |
 | pack 教法 | manifest.guide 三步指南 + 示例提问 + 安装向导 | add-pack-tutorials-and-wizard（10-11） |
 | 计费闭环 | 结算 v2 分成（收入×70%、幂等入账） | add-deployer-revenue-share（10-11） |

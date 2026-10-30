@@ -32,6 +32,9 @@ const SKILLS_DIR = {
   zcode: ".zcode",
   codex: ".codex",
   "gemini-cli": ".gemini",
+  // WorkBuddy: skills and MCP both under .workbuddy (real-install verified
+  // 2026-10-30 — see docs/ecosystem/workbuddy.md).
+  workbuddy: ".workbuddy",
 };
 
 // What each target's native MCP entry must look like (the matrix's
@@ -57,6 +60,10 @@ const MCP_EXPECT = {
   codex: {
     file: (h) => path.join(h, ".codex", "config.toml"),
     check: (text) => TOML_ENTRY.test(text),
+  },
+  workbuddy: {
+    file: (h) => path.join(h, ".workbuddy", "mcp.json"),
+    check: (doc) => Object.entries(doc.mcpServers ?? {}).some(([, e]) => e.type === "http" && typeof e.url === "string" && /^Bearer wgk-/.test(e.headers?.Authorization ?? "")),
   },
 };
 

@@ -24,7 +24,7 @@ const DOCS_REPO_BASE = "https://github.com/FindDataTechnology/platform/blob/main
 export const FACET_CLIENT_GUIDE_URL = (target: string) => `${DOCS_REPO_BASE}/ecosystem/${target}.md`;
 export const FACET_CREATING_GUIDE_URL = `${DOCS_REPO_BASE}/creating-packs.md`;
 
-export type FacetTargetId = "claude-code" | "cursor" | "zcode" | "codex" | "gemini-cli";
+export type FacetTargetId = "claude-code" | "cursor" | "zcode" | "codex" | "gemini-cli" | "workbuddy";
 
 // One row per editor target. The target ids, skills directories, and MCP
 // config paths mirror facet/cli/facet.js SKILLS_SUBDIR / MCP_TARGETS
@@ -43,6 +43,11 @@ export const FACET_TARGETS: FacetTargetFacts[] = [
   { id: "zcode", skillsDir: "~/.zcode/skills", mcpFile: "~/.zcode/cli/config.json" },
   { id: "codex", skillsDir: "~/.codex/skills", mcpFile: "~/.codex/config.toml" },
   { id: "gemini-cli", skillsDir: "~/.gemini/skills", mcpFile: "~/.gemini/settings.json" },
+  // WorkBuddy keeps both under .workbuddy — verified on a real install
+  // (2026-10-30): a probe skill under ~/.workbuddy/skills was picked up by the
+  // client (source "userSettings"); the same probe under ~/.codebuddy/skills
+  // was not. MCP resolves via getMcpConfigPath() = <configDir>/mcp.json.
+  { id: "workbuddy", skillsDir: "~/.workbuddy/skills", mcpFile: "~/.workbuddy/mcp.json" },
 ];
 
 // ── Capability matrix (add-facet-client-matrix, F2.2) ─────────────────────────
@@ -68,4 +73,5 @@ export const FACET_CAPABILITIES: FacetCapabilityFacts[] = [
   { id: "zcode", mcpProjectFile: null, marketplace: false, verified: "full" },
   { id: "codex", mcpProjectFile: null, marketplace: false, verified: "config-only" },
   { id: "gemini-cli", mcpProjectFile: null, marketplace: false, verified: "config-only" },
+  { id: "workbuddy", mcpProjectFile: "<dir>/.workbuddy/mcp.json", marketplace: true, verified: "config-only" },
 ];

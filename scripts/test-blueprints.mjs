@@ -684,6 +684,11 @@ test("重新封印：铸造态下内容未变+报告已签 → 允许再铸一�
 
 test("评审模型选择：在册放行、不在册校验面指名、向后兼容", async () => {
   const { server, base } = mount();
+  // 名册来源是部署侧状态（cell 名册文件 / default 指针 / 部署 env）。裸仓与 CI
+  // 上三者皆空 → 校验面按设计降级为「不校验」，本断言就失去被测对象。故自备
+  // 一条部署 env 名册，让「不在册要指名」这条判据有确定的被测前提。
+  const prevRoster = process.env.BLUEPRINT_JUDGE_MODEL;
+  process.env.BLUEPRINT_JUDGE_MODEL = "roster-model-in-test";
   try {
     // 未声明 judgeModel：校验行为不变（既有蓝图兼容）。
     const plain = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
@@ -706,6 +711,8 @@ test("评审模型选择：在册放行、不在册校验面指名、向后兼�
     const ap = await fetch(`${base}/api/blueprints/${ghost.blueprint.id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
     assert.equal(ap.status, 422);
   } finally {
+    if (prevRoster === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL;
+    else process.env.BLUEPRINT_JUDGE_MODEL = prevRoster;
     await close(server);
   }
 });
@@ -748,6 +755,62 @@ test("judge-default：静态路由不被 /:id 吞掉，如实回解析结果", a
     // 指定一个不在册的模型：有可见名册时应判 unavailable；名册不可见时按指定模型发。
     const asked = await fetch(`${base}/api/blueprints/judge-default?for=definitely-not-a-model`, as("alice@x")).then(j);
     assert.ok("resolved" in asked || "unavailable" in asked);
+  } finally {
+    await close(server);
+  }
+});
+
+// 陈旧指针自愈（2026-10-30 生产实录）：市场的 packId 每部署随机铸造，改名/重建
+// 流程换 id 后蓝图记的旧 id 在市场 404 → 试跑一律 `Pack version not found`，而
+// 「再铸」又要求先有绿签报告（只能由试跑产出）= 死锁。铸造面必须能自救：以旧 id
+// 发版被 404 拒时，如实再发一枚并把指针改到新 id，响应带 rebuilt:true。
+test("铸造：旧 packId 已失效时重建新包并改指针（rebuilt 可见），非 404 不动", async () => {
+  const publishCalls = [];
+  const store = createBlueprintDatabase({ file: path.join(mkdtempSync(path.join(tmp, "db-")), "blueprints.db") });
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use((req, _res, next) => {
+    const email = req.headers["x-test-user"];
+    req.user = typeof email === "string" && email ? { email, groups: [] } : null;
+    next();
+  });
+  // 首铸成功给 pk_first；以 packId 续铸一律 404（模拟 id 已被改名流程换掉）。
+  let seq = 0;
+  const publishClient = {
+    async publish(args) {
+      publishCalls.push(args);
+      if (args.packId) return { ok: false, status: 404, error: "Pack not found", body: { error: "Pack not found" } };
+      seq += 1;
+      return { ok: true, packId: `pk_rebuilt_${seq}`, version: 1, body: {} };
+    },
+  };
+  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver: async () => ({}) });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    const first = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(first.blueprint.castPackId, "pk_rebuilt_1");
+    assert.equal(first.cast.rebuilt, false);
+
+    // 再铸（陈旧指针）：先拿到已签报告才允许续铸——这里直接写库模拟已签绿报告。
+    store.saveTrialReport(id, {
+      ranAt: 111,
+      green: true,
+      assertions: [{ id: "a", kind: "post-materialized", pass: true }],
+      judged: [{ id: "j", kind: "llm-judged", verdict: "pass", pass: true }],
+      errors: [],
+      signoff: { by: "alice@x", at: 222, reportRanAt: 111 },
+    });
+    const again = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })).then(j);
+    // 第一次以旧 id 发版 → 404 → 重建新包，指针跟着改，且 rebuilt 如实标出。
+    assert.equal(again.cast.rebuilt, true, "陈旧指针必须触发重建并标 rebuilt");
+    assert.equal(again.blueprint.castPackId, "pk_rebuilt_2");
+    assert.equal(publishCalls.filter((c) => c.packId === "pk_rebuilt_1").length, 1, "先按旧 id 试一次");
+    assert.equal(publishCalls.filter((c) => c.packId === undefined).length, 2, "被 404 拒后不带 id 重发");
   } finally {
     await close(server);
   }

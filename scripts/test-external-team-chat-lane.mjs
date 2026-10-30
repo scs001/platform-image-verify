@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,6 +120,101 @@ test("B3: the composition denies the workspace + discovery tools for a public-fa
     assert.ok(src.includes(`"${tool}"`), `the denied list names ${tool}`);
   }
   assert.match(src, /scope\.publicFacing \? PUBLIC_FACING_DENIED_TOOLS : null/, "the list rides the publicFacing flag");
+});
+
+// ── B3 read side: the bridge must actually ENFORCE what the writer declared ──
+// The test above pins the write side only. Here the bridge is loaded against an
+// anchored temp filter file so the guard reason and the roster narrowing are
+// exercised behaviorally — including the case the first cut got wrong: an
+// empty mcpTools map reads as "no filter", which must NOT resurrect the denied
+// built-ins into the roster (the guard blocks calls; B3 blocks visibility).
+const DENIED = ["bash", "glob", "grep", "list_agents", "list_mcp_resources", "read", "tool_search"];
+
+async function loadScope(doc) {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "b3-scope-"));
+  process.env.TOOL_FILTER_PATH = path.join(tmpRoot, "tool-filter.json");
+  fs.writeFileSync(process.env.TOOL_FILTER_PATH, JSON.stringify(doc));
+  // Cache-busting import: the module anchors FILTER_FILE at load time, so every
+  // case gets a fresh copy under a distinct query key.
+  const scope = await import(
+    `../dsh-profile-template/platform-tool-scope.js?v=${encodeURIComponent(tmpRoot)}`
+  );
+  return { scope, cleanup: () => fs.rmSync(tmpRoot, { recursive: true, force: true }) };
+}
+
+function stubCtx(roster, opts = {}) {
+  const calls = { restrict: [] };
+  return {
+    calls,
+    logger: { warn: () => {} },
+    tools: {
+      schemas: () => roster.map((name) => ({ name })),
+      restrict: (patch) => {
+        if (opts.restrictThrows) throw new Error("reserved name collision");
+        calls.restrict.push(patch);
+      },
+    },
+  };
+}
+
+test("B3 read side: the guard rejects a denied built-in with the external-role reason", async () => {
+  const { scope, cleanup } = await loadScope({ mcpTools: {}, denyTools: DENIED });
+  try {
+    for (const tool of DENIED) {
+      assert.equal(
+        scope.mcpToolGuardReason(tool),
+        "this tool is not available to an external-facing role",
+        `${tool} is denied for an external-facing role`,
+      );
+    }
+    // Names that are not on the deny list are untouched by this layer.
+    assert.equal(scope.mcpToolGuardReason("fleet"), undefined);
+    assert.equal(scope.mcpToolGuardReason(undefined), undefined);
+  } finally { cleanup(); }
+});
+
+test("B3 read side: denied built-ins leave the roster even with NO MCP faces", async () => {
+  // The regression this pins: applyMcpToolRestrict used to return as soon as
+  // the allowlist map read as null, so a public-facing persona whose focus left
+  // zero MCP servers kept bash/read/grep VISIBLE to the model.
+  const { scope, cleanup } = await loadScope({ mcpTools: {}, denyTools: DENIED });
+  try {
+    const ctx = stubCtx(["bash", "read", "grep", "mcp__fleet__dispatch_post"]);
+    scope.applyMcpToolRestrict(ctx);
+    assert.equal(ctx.calls.restrict.length, 1, "restrict runs even when the allowlist map is empty");
+    assert.deepEqual(
+      [...ctx.calls.restrict[0].deny].sort(),
+      ["bash", "grep", "read"],
+      "only the denied built-ins are removed; the fleet bridge stays visible",
+    );
+  } finally { cleanup(); }
+});
+
+test("B3 read side: no denyTools section changes composition byte-for-byte", async () => {
+  // Absent declaration = every pre-change pack keeps its current behavior:
+  // the guard must not reject built-ins and the roster must be untouched.
+  const { scope, cleanup } = await loadScope({ mcpTools: { "law-bench": ["read"] } });
+  try {
+    assert.equal(scope.mcpToolGuardReason("bash"), undefined, "no denyTools ⇒ built-ins are never denied");
+    const ctx = stubCtx(["bash", "read", "mcp__law-bench__delete_corpus"]);
+    scope.applyMcpToolRestrict(ctx);
+    assert.deepEqual(
+      ctx.calls.restrict.map((c) => [...c.deny].sort()),
+      [["mcp__law-bench__delete_corpus"]],
+      "only the allowlist stage narrows — no built-in is added to the deny set",
+    );
+  } finally { cleanup(); }
+});
+
+test("B3 read side: a roster read failure never breaks composition", async () => {
+  const { scope, cleanup } = await loadScope({ mcpTools: {}, denyTools: DENIED });
+  try {
+    const ctx = {
+      logger: { warn: () => {} },
+      tools: { schemas: () => { throw new Error("registry unavailable"); }, restrict: () => assert.fail("must not run") },
+    };
+    assert.doesNotThrow(() => scope.applyMcpToolRestrict(ctx));
+  } finally { cleanup(); }
 });
 
 test("B5: the one-shot stripper removes closed and unterminated reasoning blocks", () => {

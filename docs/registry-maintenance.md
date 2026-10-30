@@ -4831,3 +4831,18 @@ GitOps `d8d99246`（gitee+github 双推）加镜像 bump + env，ArgoCD hard-ref
 解=用户在网页生成新 bypass GAT（勾 Bypass 2FA + Read and write + 仅 @finddatatechnology scope、
 短有效期）后 `npm publish`（发包时 ego 会话页已见「Confirm Password」再鉴权门）。**发版后动作**：
 轮询 `npm view @finddatatechnology/facet version`=0.3.0（0.0.0-stage ~5min 窗属正常）。
+
+### §15.97 补记：facet@0.3.0 已上架——正路是 tag→OIDC，本会话先前绕了令牌弯路（2026-10-30）
+
+**销账**：`facet-cli-v0.3.0` 标签推上公开仓 `FindDataTechnology/platform` → `facet-cli-publish.yml`
+OIDC trusted publishing **19s 绿**（run 41023095669，免任何令牌）→ 轮询第 4 次（~90s 处理窗）
+`npm view @finddatatechnology/facet version` = **0.3.0**；provenance attestation 在档
+（SLSA v1，公开仓签名）；全新 `npx -y @finddatatechnology/facet@0.3.0` 实测
+`--version`=0.3.0、`--help` 已带 `--oauth` 两层状态文案。发布提交=侧分支 `facet-cli-v0.3.0`
+（commit 401d0df，不并 main——沿用 0.2.1 侧提交+tag 先例；tag 与分支同名时须用
+`refs/tags/...` 完整 refspec 推）。发布前脱敏：facet.js 内 fork 补丁 sha/内部谱系字样移除
+（公开副本改「accepted-audiences env」表述）；占位键形状（wgk-…/sk-…/<signing-secret>）为文档面，非真凭据。
+
+**流程教训**：facet CLI 的既定发布路=**tag→OIDC trusted publishing**（工作流头注释写清、
+0.2.1 即此路），本会话先按「bypass 令牌」老配方走到 401 才回头查工作流——**发版类任务第一步
+读仓内发布工作流**，别默认上轮会话的令牌路。bypass GAT 仅剩「新包 bootstrap 首发」用。

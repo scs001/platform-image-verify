@@ -5550,3 +5550,131 @@ Running 12m restarts=0；容器内文件与特征串 grep 全中。
 wanxing-ops-mcp/wire-build-mcp/wire-ops-mcp）与 **3 条疑似测试 cell**（fd-wire-cell-drillcust001/
 pgauto001/wiretester2）。发布前须在 registry 源侧对这类条目加组/停用（或发布侧排除白名单），
 再由 FindDataTechnology Owner dispatch `mcp-registry-publish.yml -f confirm=publish`。
+
+#### §15.108 续记：内网端点泄漏是真缺陷——可达性闸 + 滚产 sha-f9c81fa（2026-10-31）
+
+首轮上产后按惯例把 dry-run 报告逐条核了一遍，**结论从「运营待拍」改判为「代码缺陷」**：
+那 7 条内网端点不是「要不要发布」的判断题，而是 spec 明文要求的 violation——
+`ecosystem-access` 写的是 remotes 指向 server 的 **public** MCP endpoint。
+两个后果任一都不可接受：①公共 Registry 的读者在公网解析不到 `.mesh.finddata.cn`，
+也到不了 `cheapN` 节点端口 → 死链；②目录是公开且「公开即不可撤回」的 →
+内网主机名与端口布局**永久**留在那儿。所以修在投影层，不等运营。
+
+**修法（三层，均落在 `add-marketplace-projection-fanout`）**
+1. 投影器 `isPubliclyReachable(url)`：只认 `https://` + 非私有主机
+   （RFC1918 / loopback / link-local / `.local` / `.internal` / `mesh.finddata.cn` / 裸 `cheapN`）；
+   不合格 → 该条 `skipReason()` 记 `endpoint not publicly reachable (internal host or non-https)`
+   并跳过，**其余照出**（不毒化整批）。
+2. 发布脚本 `validateDoc` **二次拒**：命中即整批不发布（last-good 保持）。防投影回归溜过去。
+3. 单测补第 8 条场景：4 个负样本条目 + 7 个负样本 URL + 1 个正样本 URL，断言
+   `projectAllServers` 只留公网那条、`skipped` 原因逐条相等、单条路由返 null。
+
+**刻意不做的**：不在投影层把内网地址"改写成" `https://mcp.finddatatech.cloud/<server>/mcp`。
+那会凭空造出一个我们没验证过的端点（该 server 可能根本没挂在网关后面）。正确修法是把该
+server 的**注册地址**改成公网网关——那是 registry 侧的运营动作，已写进
+`docs/ecosystem/mcp-registry-publishing.md` §6。
+
+**出片（正规公开快照线，绿）**：`scs001/platform-image-verify` 分支 `fanout-v2`（**不碰 main**——
+该仓 main 已被并行会话 force-push 成开源 v1.3.0 发布树，覆盖会毁人家东西）→
+`workflow_dispatch` run 41140340974 `build-push` 成功 7m2s，三道 smoke 门全绿
+（`image size: 2.47GB (sha-f9c81fa)` / `/api/config healthy` / `/api/ready {"ready":true,"dshInitError":null}` /
+`browser-lane-smoke: MCP handshake + tools/list ok (24 tools)`）→ hkccr digest `2c513040`
+→ relay 手动补单 06:55 `OK yizuo/platform:sha-f9c81fa (29s)` → ccr skopeo **digest 全等**。
+
+**池线二次报备（红，弃用）**：本轮又试了一次 `testaction001/build-pool`，
+run 41139986023 红在 `failed to read dockerfile: open Dockerfile: no such file or directory`
+——池 workflow 写死 `--file web/Dockerfile`。**结论固化：通用池不适用于 platform 镜像**，
+以后别再试（两次踩同一坑）。
+
+**祖先链两坑（本轮新发现，都靠核祖先躲过）**
+- **分支不可直接出片**：`feat/zhiyu-official-site` 与 `origin/main` 双向分叉
+  （49 ahead / 55 behind），`903a9dbe`（蓝图身份归一修复，在 main 与生产树 `85980ad` 里）
+  **不在该分支**。从分支出片 = 回退别人刚上的修复。判据：`git merge-base --is-ancestor <生产树源> HEAD`。
+- **正确基座**：生产运行 facet = `acd8d6a`，生产树 = `85980ad`（其超集，`acd8d6a ⊂ 85980ad` 已验）。
+  本轮快照基座继续用 `85980ad` + 本变更补丁 → 零回退。两个值都靠
+  `git diff --name-only <base> HEAD -- facet/ Dockerfile` 逐文件核过只含本变更。
+
+**滚版**：`fd-infra-deploy`@`b2bcd81`（facet 单清单 bump）→ ArgoCD `all-services-prod`
+hard refresh → Synced/Healthy → `rollout status` 绿 → **pod `facet-5c6c99464b-4h6dw`
+imageID = `sha256:2c513040…` 与构建 digest 逐字节相等、restarts=0**（非 rollout 假绿）。
+
+**生产实证（v2）**：`GET /api/mcp-registry.json` = 200，**14 条公开 server，内网端点 0 条**
+（21 − 7）；单条 `fd-info.json` 200 + `Cache-Control: public, max-age=3600`；
+被丢弃的 `fd-quant.json` 返 **404**（沿用「探测不给信息」姿态）；
+`publish-mcp-registry.mjs --dry-run` 对生产 **14/14 全绿**。
+
+**仍挂账**：① `mcp-publisher publish` 本体需组织 Owner 的 GitHub OIDC（硬约束，运营窗动作），
+未执行故 6.3 保持未勾选；② 3 条测试 cell（`fd-wire-cell-*`）端点公网可达但「该不该进公共目录」
+是运营判断，建议发布前在 registry 侧停用或加组；③ 那 7 条内网 server 若确实希望被公开发现，
+需在 registry 侧把注册地址改为 `https://mcp.finddatatech.cloud/<server>/mcp`。
+
+### §15.105 知识·记忆面实施（部分）：车道实证 + 检索边界 + 蓝图钉库 + 三项展示（2026-10-31）
+
+change `add-knowledge-memory-surface` **部分实施 7/13 棒，未归档**（validate 绿，留有未完成棒）。
+
+**① Spike 推翻需求书前提（重要）**
+任务书假设「library MCP 没进团队车道、需新造薄启动器」。实证相反：`mcp.json` 顶层已注册
+`library`（stdio），`server.js#seedStartupMcpConfigs` seed 进扩展库，dsh 桥从该库生成 profile
+patch → **同 cell 每个回合（含团队/智语成员）本就带 `mcp__library__*` 四工具**；且 library-mcp
+自带 streamable-http 双模。**真缺口只有两处：检索边界、游客隔离**。结论已回写 change 的
+design.md「Spike 结论」节。
+
+**② 已落（7 棒）**
+- **检索边界（2.2，服务端强制）**：`server/library-mcp.js` 按 `LIBRARY_PROJECT_ID` 环境变量
+  划界——可见 = 本项目 collections ∪ 无归属(shared) collections；越界 `read_document`/
+  `list_library`/`fetch_document_file` 一律答「does not exist」（**不泄存在性**，不用 forbidden）；
+  无该变量 = 全量（向后兼容）。四条读工具全部设闸（含 fetch——否则字节成了存在性预言机）。
+- **蓝图钉库（3.1）**：`dataSources[].ref` 新增第三引用种类 `library:<collectionId>`；
+  `validateBlueprint` 增可选 `resolveLibrary` 回调（保持模块 DB-free），`blueprint-author`
+  用 `getCollection` 解析，悬空/不可见**指名拒绝**；无 DB 时降级不阻断。
+- **展示三件（4.1/4.2/4.3）**：`surfaces.ts` 导出 `NAV_FAMILIES`（知识族 knowledge/resources/
+  memory、构建族 fleets/blueprints），侧栏渲染可折叠族（当前路由族强制展开、折叠态
+  localStorage 持久化、单成员族展平、路由零变化）；记忆面板加蒸馏漏斗（L0/L1/L2 计数+占比、
+  段点击=预置筛选、与列表同口径、降级不画假漏斗），晋升箱保持在列表上方；集合卡加
+  「用它造 agent」→ 深链 `/blueprints?fromCollection=<id>` 并预填 `dataSources`（纯种子不铸造，
+  种完即清参防覆盖编辑）。
+- i18n 五语言齐（族名/漏斗/钉库/直链），locale 门绿。
+
+**③ 证据**
+`library-tools` e2e 5/5（**新增 project boundary 用例**：scoped 子进程只见本集∪shared、
+越界 read 答「does not exist」、无 scope 时全量）；`test-blueprints` 22/22（含一处断言随措辞
+超集更新）；`test-blueprint-library-ref` 7/7（合法/悬空指名/无解析器不误拒/畸形 ref）；
+`test-project-container` 11/11；web typecheck + biome + locale 门绿；`sidebar-workspaces`
++`documents-react` e2e 10 通过（1 条真实 workspace 切换用例并行跑时 flaky，单跑 4.8s 绿，
+属既有时序问题，非本刀引入）。
+
+**④ 未完成（6 棒，如实挂账）**
+2.1 三车道（chat/fleet/room）名册回归断言 · 2.3 游客/匿名 embed 车道排除 library 工具 ·
+3.2 实化链把库引用编译为成员车道过滤参数 · 3.3 构造间选库下拉 UI + 钉库试跑闭环 ·
+5.2 全量回归汇总 · 5.3 真机走查。**该 change 仍处 in-progress，不得归档。**
+
+
+### §15.105 补记：km 面补完至 9/13——集合白名单 + 挂载链钉 + 选库 UI；三处如实挂账（2026-10-31）
+
+**① 3.2 工具层机制落地**：`server/library-mcp.js` 增 `LIBRARY_COLLECTIONS`（逗号分隔
+collection id 白名单），语义按 spec=所钉集合 ∪ shared（NULL 归属），优先级高于
+`LIBRARY_PROJECT_ID`。首版实现漏了 ∪shared（e2e 逮到：pinned child 看不到 Shared 集合），
+按 spec 修正后 5/5 绿。**实化编译半截挂账**：`assembleManifest` 有意不携带 dataSources
+（包不携带库内容本体，设计纪律），pin 要传到部署面需扩包 manifest/部署描述符契约——
+跨仓决策，待拍后接。
+
+**② 2.1 挂载链回归钉**：`test-library-mount-chain` 2/2——mcp.json 的 `library` 声明 +
+boot seed 进部署名册（enabled、origin=user）。spike 结论自此有测试钉住：chat/fleet/room
+同 cell 共享一份 deployment 级 patch，四工具全员可见。
+
+**③ 3.3 构造间 UI 落地**：dataSources 段加选库下拉（本人可见集合，一键写
+`library:<id>`，与手输共存）；叠加此前的 fromCollection 深链种子。**试跑闭环挂账**
+（依赖 3.2 实化编译）。
+
+**④ 2.3 blocked（如实）**：a2a 回合执行在 gateway→registry→runner backend 链的 runner
+侧，工具挂载属部署主配置；游客回合元数据已带 `visitor_scope`（gateway/zhiyu/
+agent-lane.js）。正确实现 = runner 按 `visitor_scope` 拒绝 library 工具调用——该执行面
+不在本仓可及范围，待探明 runner 供给端点后补。
+
+**⑤ 证据**：`library-tools` e2e 5/5（含集合白名单新用例）、`test-library-mount-chain` 2/2、
+`test-blueprint-library-ref` 7/7、`test-blueprints` 22/22、`test-project-container` 11/11、
+`test-fleet-core` 21/21、`test-cron-parity` 7/7；e2e 汇总 16/16（sidebar/documents/library）；
+typecheck + biome + locale 门绿。
+
+**km change 状态：9/13，validate 绿，未归档**。余四棒（2.3/3.2 实化半截/3.3 试跑闭环/5.3
+真机走查）已在上文写明落点与依赖。

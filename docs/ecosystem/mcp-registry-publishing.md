@@ -119,11 +119,20 @@ workflow：`dry-run` → `publish`（`permissions: id-token: write` → `mcp-pub
 curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology" | head -c 800
 ```
 
-> **当前状态（2026-10-31 上产）**：投影路由已随镜像 `sha-e8ab24c`（digest `5bdcab7b`）
-> 滚到 fd-prod/facet，`GET https://facet.finddatatech.cloud/api/mcp-registry.json` 实测 **200**。
-> 首轮返回 21 条，其中 7 条端点为集群内网（见 §6「端点公网可达」），已加闸丢弃后重出。
-> `mcp-publisher publish` 本身仍未执行——它需要组织 Owner 的 GitHub OIDC，
-> 是运营窗动作（`gh workflow run mcp-registry-publish -f confirm=publish`）。
+> **当前状态（2026-10-31 上产，两轮）**
+>
+> | 轮次 | 镜像 | 生产实测 |
+> |---|---|---|
+> | v1 | `sha-e8ab24c` / digest `5bdcab7b` | `GET /api/mcp-registry.json` **200**，返回 **21** 条——其中 **7 条端点是集群内网**（`http://cheapN.mesh.finddata.cn:3189x/mcp`） |
+> | v2 | `sha-f9c81fa` / digest `2c513040` | 同端点 **200**，返回 **14** 条，**内网端点 0 条**；单条 `fd-info.json` 200 + `Cache-Control: public, max-age=3600`，被丢弃的 `fd-quant.json` 返 **404**（不给信息）；`publish-mcp-registry.mjs --dry-run` **14/14 全绿** |
+>
+> v1 的 7 条内网条目是**真缺陷**（见 §6「端点公网可达」）：上公共 Registry 既对陌生人是
+> 死链，又把内网主机名与端口永久写进公开目录。v2 在投影器加闸后清零。
+>
+> `mcp-publisher publish` 本体仍未执行——它需要组织 Owner 的 GitHub OIDC，
+> 是运营窗动作：`gh workflow run mcp-registry-publish -f confirm=publish`。
+> 另有 3 条测试 cell（`fd-wire-cell-drillcust001/pgauto001/wiretester2`）端点公网可达、
+> 但**是否该进公共目录是运营判断**，发布前建议在 registry 侧停用或加组。
 
 ## 6. 发布前核对门（每次发布都要过）
 

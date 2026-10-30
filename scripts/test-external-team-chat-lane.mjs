@@ -50,6 +50,21 @@ test("B1: the chat lane injects the trimmed team context for an attributed prese
   assert.ok(!/cheap-|节点|成本|凭据/.test(segment), "no operations data leaks into the segment");
 });
 
+test("B1: the roster addresses by TITLE and carries NO database id", () => {
+  // Regression: the first cut rendered `岗位引用 <member.id>` (the live row has
+  // no `ref`), so the front desk quoted a raw primary key — `m_1793334491977_…`
+  // — straight into a visitor-facing answer. The dispatch route resolves titles
+  // within the fleet, so the title is the handle and the id never appears.
+  const segment = renderChatFleetContext(fakeDb(), "intro-guide");
+  assert.ok(!/m_guide|m_lex|m_wire|m_other/.test(segment), "no database member id in the segment");
+  assert.ok(!/岗位引用/.test(segment), "the id-bearing '岗位引用' line is gone");
+  assert.match(segment, /原样填.*岗位标题/, "the rule tells the model to type the title verbatim");
+  // …and a title typed back at the dispatcher resolves to the same post.
+  const r = resolveDispatchTarget(fakeDb(), "f1", "识律专家");
+  assert.equal(r.ok, true);
+  assert.equal(r.member.targetId, "intro-lex");
+});
+
 test("B1: an unattributed preset gets NO segment (prompt stays byte-identical)", () => {
   assert.equal(renderChatFleetContext(fakeDb(), "some-random-preset"), null);
   assert.equal(renderChatFleetContext(fakeDb(), null), null);

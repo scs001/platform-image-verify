@@ -4714,3 +4714,40 @@ authorization」，证据是同一 token curl 202 / node 401。**假警**：我 
 ref（`Workflow does not have 'workflow_dispatch' trigger`）；而靠推 tag 触发会跑**完整
 139 分钟构建**。正解=池仓 main 放一份**只留 `workflow_dispatch`、去掉 `push:tags`** 的
 副本，e2e 一律 `-f artifact_run_id=<既有run>` 复用产物。
+
+### §15.95 判据线账面收口：spec 补账 + locale 缺键清零 + 真机 UI 眼见（逮出公开面泄漏）（2026-10-30）
+
+**① 主 spec 补账（paas `b5186ef9`，change 已归档）**
+§15.89–94 的四项真跑修复（laneError 区分、judgeSource 三分、集群身份证据、尾引号解析）
+实现走在主 spec 前面——随班修没有 change 过闸，归档门没机会同步。本次新建
+`sync-blueprint-judge-lane-veracity`（只补 spec，行为零改），MODIFIED 用脚本算
+「主 spec 场景 − delta 场景」差集（5+1 条既有场景零丢失才放行），
+`validate --specs --strict` 同步前后同为 208/9（9 条全为 agent-runner 既有 warning）。
+新增需求：`GET /api/blueprints/judge-default` 探测端点入册（含「不得被 /:id 吞」场景）。
+
+**② locale 缺键清零（paas `4eb43ffd`）——先修门再修账**
+独立复核自己上的代码侧 locale 门时发现**门自己误报**：i18next 把 `t("x.y",{count})`
+解析成 `x.y_one/_other`，首版只按字面查，把真存在的 `fleet.live.summary` 报成缺失。
+补 PLURAL_SUFFIXES 后剩 7 处真缺：
+- `chat.composer.attachments` 是**代码路径写错**（真键在 `composer.attachments`）——
+  与 §15.89 的 judge.model 同类事故：键在、路径错、按字面查也发现不了，改代码侧；
+- 其余 6 处（configBar.trafficHint / botsPage.disabled / packs.detail.fleetWizardBtn /
+  earnings.periodKind/onceKind / common.dismiss）补五语文案。门复验 5 语言 2535 键全绿。
+
+**③ 真机 UI 眼见（浏览器走查，`sha-dcfa000`）**
+构造间两处只能靠 API 证实的语义第一次肉眼看到：
+- 评审模型下拉：「跟随部署默认——**实际解析为 minimax-m3.1-flash**」（不再「未知」/谎称回落）；
+- 判决徽章「模型：判绿」+ 理由引用证据原文 + 审计行「由 minimax-m3.1-flash 评审 · 部署默认」
+  + 签字行「由 aloadtree@gmail.com 签字」+ 撤签按钮。
+- 差点误判一处：列表显示「投研晨会 v1」而再铸日志说 v5——查 API 证实 `version`（蓝图）与
+  `castPackVersion`（包）**本就两个计数**，蓝图未再 PUT 不涨版本，非显示缺陷。
+- 走查坑：铸的 cookie 属主必须是**铸造账号**（aloadtree cell `1da519d4…` 才见 6 份蓝图，
+  用 chengsishi 的铸币登进去是空列表）；cell 哈希=sha256(email) 前 16 hex，可反查归属。
+
+**④ 走查逮出的对外泄漏（已清）**
+「重封构造集」四份之外，早期两枚**调试残件**（`LLM判据探针`/`评审模型端到端`——名字
+直接把内部测试方法论摆给客户）也在铸造时被推上了公开市场（作者=aloadtree 走查号）。
+走查发现后用作者通道 `POST /api/packs/:id/unpublish` 下线（http 200、`unlisted=true`、
+facet 公开 JSON 通道不再吐它们；存在 re-list 通道、订阅/版本史不级联，属可逆处置）。
+**律：调试用蓝图铸完即下架；「试跑→再铸」链天然会推市场，测试残留不会自己消失。**
+四份真场景包（免费、走查号名下）去留属商业决定，留待用户拍板。

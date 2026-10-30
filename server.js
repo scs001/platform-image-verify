@@ -72,6 +72,7 @@ import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js
 import { createBlueprintRoutes } from "./server/routes/blueprints.js";
 import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
 import { registerPackAuthorRoutes } from "./server/pack-author.js";
+import { createSkillEvolutionRoutes } from "./server/skill-evolution-routes.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
@@ -364,6 +365,11 @@ createBlueprintRoutes(app, ctx);
 // pools. Loopback-only credential (auth.js), owner resolved server-side.
 registerBlueprintAuthorRoutes(app, ctx);
 registerPackAuthorRoutes(app, ctx);
+// Skill self-evolution (add-skill-self-evolution): the propose face for the
+// in-cell MCP child (loopback bridge) + the owner's evaluate/promote/reject
+// REST face. Candidates live outside custom_skills; promotion is the only
+// bridge and it is human-only.
+createSkillEvolutionRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)

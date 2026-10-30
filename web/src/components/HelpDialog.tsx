@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { PACK_GUIDES } from "@/lib/packGuides";
+import { PACK_GUIDES, STARTER_TEAMS } from "@/lib/packGuides";
 import { replayTour } from "@/components/OnboardingTour";
 import { cn } from "@/lib/utils";
 
@@ -126,6 +126,31 @@ export function HelpDialog({ open, onOpenChange }: Props) {
               >
                 {t("help.start.replay")}
               </button>
+            </section>
+
+            {/* Official starter teams (add-official-starter-teams): the
+                recommended first-team sequence. Presentation over the market —
+                installing stays a per-pack explicit action. */}
+            <section className="flex flex-col gap-2" data-testid="help-starter-teams">
+              <h3 className="text-sm font-medium text-foreground">{t("help.start.starterTitle")}</h3>
+              <ul className="flex flex-col gap-1.5">
+                {STARTER_TEAMS.map((team: { packId: string; name: string; role: "preferred" | "secondary" | "advanced"; oneLine: string }) => (
+                  <li key={team.packId} className="flex items-start gap-2 text-xs" data-testid={`help-starter-${team.role}`}>
+                    <span
+                      className={`mt-px shrink-0 rounded-full px-2 py-0.5 text-[10px] ${
+                        team.role === "preferred" ? "bg-primary/15 font-medium text-primary" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {t(`help.start.starterRole.${team.role}`)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="font-medium text-foreground">{team.name}</span>
+                      <span className="block text-muted-foreground">{team.oneLine}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">{t("help.start.starterNote")}</p>
             </section>
 
             {/* Glossary — the R1 naming, one line each. */}

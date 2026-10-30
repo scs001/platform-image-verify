@@ -786,7 +786,14 @@
         "outputs": "Resultados — gráficos y archivos que el agente produce para ti, guardados automáticamente.",
         "experts": "Expertos — roles de conversación que conocen un oficio; elígelos o créalos en Agentes.",
         "packs": "Agentes sectoriales — conjuntos de experto y herramientas en un clic."
-      }
+      },
+      "starterTitle": "Equipos iniciales oficiales (orden recomendado)",
+      "starterRole": {
+        "preferred": "Empieza aquí",
+        "secondary": "Siguientes demos",
+        "advanced": "Profundización"
+      },
+      "starterNote": "La instalación es una acción explícita por paquete — suscríbete por nombre en el mercado de agentes, provisiona y confirma en la cabina antes de encender."
     },
     "guidesEmpty": "Aún no hay guías por escenario."
   },
@@ -3299,6 +3306,21 @@
       "kindTemplate": "Plantilla de equipo",
       "kindFeatured": "Selección oficial",
       "hint": "Inicia sesión para suscribirte e instalar — usa el botón de acceso."
+    }
+  },
+  "skillEvo": {
+    "title": "Candidatas de habilidades (propuestas por IA)",
+    "subtitle": "Rutas reutilizables propuestas tras turnos — con puerta A/B anónima; solo tu aceptación las activa. Una evaluación fallida no es un pase.",
+    "evidence": "Evidencia: {source} (resolvió: {solved})",
+    "verdict": "Ciego: ganó {best}",
+    "evaluate": "Ejecutar evaluación",
+    "promote": "Aceptar y activar",
+    "reject": "Rechazar",
+    "status": {
+      "candidate": "pendiente",
+      "evaluated": "evaluada, espera",
+      "promoted": "activa",
+      "rejected": "rechazada"
     }
   }
 }

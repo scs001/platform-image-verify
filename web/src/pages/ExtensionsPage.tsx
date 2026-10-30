@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { McpInstalledView } from "@/components/extensions/McpInstalledView";
 import { McpMarketView } from "@/components/extensions/McpMarketView";
 import { SkillsInstalledView } from "@/components/extensions/SkillsInstalledView";
+import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
 import { SkillsMarketView } from "@/components/extensions/SkillsMarketView";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { useEffect } from "react";
@@ -105,7 +106,12 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
         {!loading && !error && (
           <div className="p-6">
             {activeTab === "installed" &&
-              (type === "mcp" ? <McpInstalledView /> : <SkillsInstalledView />)}
+              (type === "mcp" ? <McpInstalledView /> : (
+                <div className="p-6">
+                  <SkillCandidatesView />
+                  <SkillsInstalledView />
+                </div>
+              ))}
             {activeTab === "market" &&
               (type === "mcp" ? (
                 <McpMarketView onInstalled={() => setActiveTab("installed")} />

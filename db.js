@@ -919,6 +919,34 @@ const MIGRATIONS = [
     ],
   },
   {
+    // add-skill-self-evolution: the candidate store (AI-proposed skills) and
+    // the lineage column on custom_skills. Candidates live OUTSIDE
+    // custom_skills on purpose (D1): the materializer mirrors custom_skills
+    // verbatim, so a status column there would be one missed filter away from
+    // a candidate going live. Promotion is a one-way write with audit.
+    // lineage records "superseded by X per eval Y" on the OLD row (never
+    // delete — 永不删页只 lineage).
+    version: 109,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS skill_candidates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        body TEXT NOT NULL,
+        evidence TEXT NOT NULL,
+        supersedes TEXT,
+        status TEXT NOT NULL DEFAULT 'candidate',
+        eval_report TEXT,
+        proposed_by TEXT,
+        created_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_skill_candidates_status ON skill_candidates(status)`,
+      `ALTER TABLE custom_skills ADD COLUMN evolution_lineage TEXT`,
+    ],
+  },
+  {
     // add-unified-fleet-console: a deployment row remembers WHO established it
     // — 'manual' (user action on this machine, wins over cloud desired state)
     // or 'cloud' (applied by the desired-state merge, keeps following the

@@ -786,7 +786,14 @@
         "outputs": "Outputs — charts and files the agent produces for you, saved automatically.",
         "experts": "Experts — conversational roles that know a trade; pick or create them on the Agents page.",
         "packs": "Industry Agents — one-click bundles of an expert plus tools."
-      }
+      },
+      "starterTitle": "Official starter teams (recommended order)",
+      "starterRole": {
+        "preferred": "Start here",
+        "secondary": "Next demos",
+        "advanced": "Domain deep-dives"
+      },
+      "starterNote": "Installing is a per-pack explicit action — subscribe by name in the agent market, provision, then confirm in the cockpit before igniting."
     },
     "guidesEmpty": "No scenario guides yet."
   },
@@ -3299,6 +3306,21 @@
       "kindTemplate": "Team template",
       "kindFeatured": "Official pick",
       "hint": "Sign in to subscribe and install — use the sign-in button above."
+    }
+  },
+  "skillEvo": {
+    "title": "Skill candidates (AI-proposed)",
+    "subtitle": "Repeatable paths the agent proposed after turns — gated by an anonymous A/B eval; only your acceptance makes one live. A failed eval is not a pass.",
+    "evidence": "Evidence: {source} (solved: {solved})",
+    "verdict": "Blind rank: {best} won",
+    "evaluate": "Run eval",
+    "promote": "Accept & enable",
+    "reject": "Reject",
+    "status": {
+      "candidate": "pending eval",
+      "evaluated": "evaluated, awaiting you",
+      "promoted": "live",
+      "rejected": "rejected"
     }
   }
 }

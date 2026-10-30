@@ -786,7 +786,14 @@
         "outputs": "成果——智能体帮你做出来的图表和文件，自动保存在这里。",
         "experts": "专家——懂某个行当的对话角色，在「智能体」页挑选或创建。",
         "packs": "行业方案——一键装好一套「专家 + 工具」的组合。"
-      }
+      },
+      "starterTitle": "官方 starter 团队（推荐顺序）",
+      "starterRole": {
+        "preferred": "首选",
+        "secondary": "进阶示范",
+        "advanced": "领域进阶"
+      },
+      "starterNote": "安装是逐包的显式动作——从智能体市场搜索包名订阅安装，实化后先在驾驶舱确认再点燃。"
     },
     "guidesEmpty": "还没有可用的场景教程。"
   },
@@ -3299,6 +3306,21 @@
       "kindTemplate": "团队模板",
       "kindFeatured": "官方精选",
       "hint": "登录后即可订阅安装——点右上角登录。"
+    }
+  },
+  "skillEvo": {
+    "title": "技能候选（AI 提议）",
+    "subtitle": "智能体在回合后提议的可复用路径——先过 A/B 评测门（匿名盲评），你接受才生效。评测没跑成不算过。",
+    "evidence": "依据：{source}（解决：{solved}）",
+    "verdict": "盲评：{best} 胜",
+    "evaluate": "跑评测",
+    "promote": "接受并生效",
+    "reject": "驳回",
+    "status": {
+      "candidate": "待评测",
+      "evaluated": "评测通过待确认",
+      "promoted": "已生效",
+      "rejected": "已驳回"
     }
   }
 }

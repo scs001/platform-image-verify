@@ -786,7 +786,14 @@
         "outputs": "Résultats — graphiques et fichiers produits pour vous, enregistrés automatiquement.",
         "experts": "Experts — rôles de conversation qui connaissent un métier ; à choisir ou créer dans Agents.",
         "packs": "Agents sectoriels — un expert et ses outils installés en un clic."
-      }
+      },
+      "starterTitle": "Équipes de démarrage officielles (ordre recommandé)",
+      "starterRole": {
+        "preferred": "Commencez ici",
+        "secondary": "Démos suivantes",
+        "advanced": "Approfondissements"
+      },
+      "starterNote": "L'installation est une action explicite par pack — abonnez-vous par nom dans le marché d'agents, provisionnez, puis confirmez dans le cockpit avant d'allumer."
     },
     "guidesEmpty": "Pas encore de guides par scénario."
   },
@@ -3299,6 +3306,21 @@
       "kindTemplate": "Gabarit d'équipe",
       "kindFeatured": "Sélection officielle",
       "hint": "Connectez-vous pour vous abonner et installer — bouton de connexion ci-dessus."
+    }
+  },
+  "skillEvo": {
+    "title": "Candidats de compétences (proposés par l'IA)",
+    "subtitle": "Des chemins réutilisables proposés après les tours — porte A/B anonyme ; seule votre acceptation les active. Un échec d'éval n'est pas un passage.",
+    "evidence": "Preuve : {source} (résolu : {solved})",
+    "verdict": "Aveugle : {best} gagne",
+    "evaluate": "Lancer l'éval",
+    "promote": "Accepter & activer",
+    "reject": "Rejeter",
+    "status": {
+      "candidate": "en attente",
+      "evaluated": "évaluée, à confirmer",
+      "promoted": "active",
+      "rejected": "rejetée"
     }
   }
 }

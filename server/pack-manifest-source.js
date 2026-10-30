@@ -40,12 +40,18 @@ export async function fetchMarketManifest({
 }) {
   const base = (env.FACET_BASE_URL || "").replace(/\/+$/, "");
   if (base) {
+    // 身份头必须传对象：facetForwardHeaders 读的是 user.email，传裸邮箱字符串会解出
+    // undefined 邮箱 → facet 判匿名 → private 包一律 404（报成误导性的 "Pack version
+    // not found"）。试跑传的正是 blueprint.ownerEmail（字符串），2026-10-31 真机逮住：
+    // 结构样例包因 private 而永远拉不到 manifest，看上去像「指针失效」。
+    // 同坑在 createFacetPublishClient 里已于 2026-10-28 修过，读面这处漏了。
+    const identity = typeof viewer === "string" ? { email: viewer, groups: [] } : viewer;
     let upstream;
     try {
       upstream = await facetRequest({
         base,
         token: env.FACET_INTERNAL_TOKEN || "",
-        user: viewer,
+        user: identity,
         path: `/api/packs/${encodeURIComponent(packId)}/versions/${encodeURIComponent(String(version))}`,
         fetchImpl,
         timeoutMs,

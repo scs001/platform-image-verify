@@ -5333,3 +5333,31 @@ LICENSE 原文 + commits 解析，约 5-8 次请求/枚。**运营批量转正�
 `upstream-error`，运营看得见是限额而非内容问题。
 
 **测试**：`test-adoption` 增至 18/18；全套 **129/129** 绿。
+
+### §15.106 星研新课《免密钥连上数据》双语上线（2026-10-31）
+
+把 §15.105 的免键落地写成读者能照做的一课，走完星研四条腿：
+
+| 腿 | 结果 |
+|---|---|
+| 起草 | `~/finddata/docs/xingyan/academy/{zh,en}/facet-keyless-connect.md`（order 7，`level: build`，双语成对） |
+| 脱敏 | `sanitize_check.py` 77 文件 **0 命中** |
+| CMS | 双语 `published`（documentId `amxfnid0hkcspkak89mzkfno`）；官网内容门 **199 文件 0 命中** |
+| 官网 | 提交 `40804d5` → 推送 GitHub+gitee；镜像 `sha-8cc5283`（首次 run `41134607465` 被**并行会话新提交顶掉**，改由 `41134775998` 出片，含我的内容） |
+| 滚版 | relay 手动补单 `06:00:52 OK`（cron 05:55 那轮早于镜像构建）→ bump `58a7ddd` → ArgoCD `Synced` → rollout 成功 |
+
+**三层验证全过**：pod 内 `zh=2/en=2` 命中；源站 30442 `size=15224`；公网
+`size=15224` + 标题正确、英文页 `size=15588`、两个列表页各收录 1 次。
+
+**四坑复现（都在本仓 skill 的预料之内，值得再记一次）**
+1. **CMS 建 en 变体会把 zh 打回 `modified`**：先发 zh、建 en、发布 en，之后 zh 的
+   `status` 是 `modified` 不是 `published`——必须**再发一次 zh**。`locale=*` 聚合视图看到
+   `modified` 是展示差异，判真值必须**单 locale** 查。
+2. **镜像 run 会被并行会话顶掉**：`41134607465` 2m50s 后 `cancelled`，因为别的会话推了
+   `8cc5283`。处置=核 `merge-base --is-ancestor 40804d5 8cc5283` 证明我的内容在，然后
+   **等新 run**，不要重推。
+3. **relay cron 早于镜像**：05:55 那轮跑在我镜像 05:58 构建之前，等下一轮要 5 分钟 →
+   用手动补单 `tcr-relay-sync.sh fd-web/official-web sha-8cc5283`（13s 完成）。
+4. **公网首查必假阴性**：`MISS` 时回的可能是 rollout 完成前缓存的 SPA 兜底壳（10269 字节
+   首页 title），而 pod 内真文件 15224 字节。**判据=比 size 和 title，别看 HTTP 200**；
+   等 max-age（300s）过一轮再验，别急着改代码。

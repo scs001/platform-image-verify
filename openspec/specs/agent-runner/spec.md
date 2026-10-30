@@ -558,7 +558,6 @@ An ask SHALL be bounded by the turn budget: its deadline is the turn's budget en
 - **WHEN** `/ask-answer` is posted without the deployment's backend credential while the runner has one configured
 - **THEN** the request is rejected with the same unauthorized response the turn methods give, and the pending ask is unaffected
 
-
 ### Requirement: 部署 agent 的工作记忆经平台缝代采与挂载
 
 承载部署 agent 的 runner SHALL 在平台缝上接入舰队记忆：回合观测由 manager 以该部署的记忆令牌投递到舰队记忆 capture API——与 usage 事件同缝、不要求 harness 自带 hooks。观测 SHALL 覆盖回合边界与工具调用两层：回合开始（`user-prompt-submit`，携带入站意图摘要）、每次工具调用（`pre-tool-use`，携带 `tool_name` 与参数摘要）、每次工具结果（`post-tool-use`，携带 `tool_name`、结果摘要与错误标记）、回合结束（`stop`，携带结果 / token / 时长）；工具层事件经 harness adapter 的可选事件回调取得（dsh 自 `session.event` 的 `tool/call` / `tool/result`，ACP 自 `session/update` 的 `tool_call` / `tool_call_update`），adapter 不支持该回调时观测退化为仅回合边界而非失败。摘要 MUST 在 runner 侧按部署配置的上限截断、在舰队记忆侧过既有脱敏；capture API 的事件形状不变。
@@ -607,8 +606,6 @@ An ask SHALL be bounded by the turn budget: its deadline is the turn's budget en
 - **WHEN** 舰队记忆服务不可达
 - **THEN** 部署回合照常执行、计费照常，manager 记录代采缺口并在服务恢复后继续投递
 
-
-
 ### Requirement: A listener bind failure isolates to its own agent
 
 When a per-agent A2A listener fails to bind its port (address in use or any other listen error), the runner SHALL keep serving every other hosted agent: the failing listener SHALL be released, the failure SHALL be logged as a named warning (agent key, port, and the port_override remediation hint), and the process SHALL NOT crash. The runner MAY retry the bind on later reconcile cycles; repeated warnings for the same agent SHALL be rate-limited so a persistently occupied port cannot flood the log. A skipped listener SHALL leave the agent's reachability honestly degraded (its registered port answers nothing) rather than silently mis-routed.
@@ -627,3 +624,24 @@ When a per-agent A2A listener fails to bind its port (address in use or any othe
 
 - **WHEN** the same agent fails to bind on every reconcile cycle
 - **THEN** the named warning is rate-limited per agent rather than emitted on every cycle
+
+### Requirement: 对外可见文本不含推理痕迹
+
+面向用户的文本输出（对话信道的文本增量）SHALL NOT 含模型推理痕迹（如 `<thinking>`/`<reasoning>`
+等标记及其内容）。运行时 SHALL 在文本输出路径剥离闭合的推理块，未闭合的推理块 SHALL 剥至结尾，
+剥离后为空时 SHALL 回兜底文本而非输出空回答。该剥离 SHALL 与出站通道（机器人渠道）共用同一实现。
+
+#### Scenario: 闭合推理块被剥离
+
+- **WHEN** 模型在文本增量中输出一段闭合的推理标记内容
+- **THEN** 用户可见文本不含该标记与内容，其余文本原样呈现
+
+#### Scenario: 未闭合推理块剥至结尾
+
+- **WHEN** 模型输出的推理标记未闭合
+- **THEN** 标记及其后内容一并被剥离，用户可见文本不以推理内容结尾
+
+#### Scenario: 剥空回兜底
+
+- **WHEN** 一条输出在剥离推理痕迹后为空
+- **THEN** 系统输出兜底文本，SHALL NOT 输出空回答

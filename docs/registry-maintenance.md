@@ -5288,3 +5288,48 @@ upstream-license 7 + pack-validate 16 + pack-badge 12 + official-showcase 5 + ex
 external-install 14 + preset-pack-bridge 6 + custom-presets 13 + official-locale-gate 5）。
 
 **未完**：1.4 桥消费侧、2.x 的真实发布与 pod 物化实证、3.x 前端/facet 渲染、运营端点层身份注入。
+
+**续 §15.106 · 真实端到端探针：第一枚真转正跑通 + 三个真问题（2026-10-31）**
+
+跑真上游（不打桩）验证转正管线，结论比预期重要得多。
+
+**成功的完整链路**（`smithery/nano-pdf`）：
+```
+取包 432 字符 → repo:LICENSE = MIT(primary) → 钉定 4d2a9f8bb4c47da0daae7fd820cab33fa450ef7b
+→ 合法 manifest（validatePackManifest 零错）→ toolFace=chat → provenance 五字段齐全
+```
+这是「货架条目 → 官方 Agent 草稿」第一次在真实数据上全链闭环。
+
+**真问题 ①：`nano-pdf` 是个 CLI 工具，chat 面装不下它 —— 差点静默产出残废 Agent**
+正文第一行就是 `nano-pdf edit deck.pdf 1 "改标题"`，frontmatter 声明 `requires.bins: ["nano-pdf"]`。
+默认 `toolFace:"chat"` 裁掉全部触手 → 产物会「叫用户跑命令，自己却没有 shell」。
+这是 design 里「工具面默认过严」那条风险**第一次在真机被证实**，而且不是理论风险：大量热门技能都是 CLI 驱动。
+修法（`detectCapabilityNeeds` + `toolface-insufficient` 拒绝）：
+- 探测 `requires.bins`（任意命名空间深度，agentskills/openclaw 惯例）→ 强信号；
+  正文 shell 代码块/反引号命令 → 弱信号，仅作提示不强拒。
+- 需要执行能力 且 未显式 `widenFullToolFace` → **拒绝**（422 `toolface-insufficient`，点名 bins）。
+  绝不静默产出残废包。审校者显式放宽时，产物**不声明** toolFace（= 全工具面），
+  因为 `SERVING_TOOL_FACES` 目前只有 `"chat"` 一个收窄档位。
+- 预览面直接给一句 `verdict`（`adoptionVerdict`），运营不必自己拼裁决。
+
+**真问题 ②：SkillHub 源全部不可钉定**
+`skillhub` 的 `originUrl` 是市场页（`https://skillhub.cn/skills/<slug>`），不是 git 树 →
+`parseGitTreeUrl` 返回 null → `unpinnable-upstream` 拒绝。
+**结论：当前只有 Smithery 源能转正**（其 originUrl 是 `github.com/.../tree/<ref>/<path>`）。
+SkillHub 要转正必须补一条「从市场页反查上游仓库」的路径，属后续班；本 change 不开这个口子
+（宁可拒绝，也不要钉不住上游就上架）。
+
+**真问题 ③：许可质量分布 —— 多数条目只有自述，没有 LICENSE 文件**
+- `smithery/phodal#pdf` → repo LICENSE = **GPL** → `copyleft` 硬拒（分层裁决在真上游生效）。
+- `skillhub/pdf-skill`、`skillhub/mainpdf` → 只有 `package:frontmatter` 的 `license: MIT`
+  → `declared-only`，判定 `decidedBy:"declared"` 并记 notes 提醒复核。
+  这正是分层裁决存在的意义：自述能过但没有凭证，运营必须知道这一点。
+- `smithery/nano-pdf` → `repo:LICENSE` 的 MIT（primary，最硬）。
+
+**真问题 ④（运维）：GitHub 匿名 API 限额 60 次/小时会被打满**
+连续探针几枚后即 `github contents HTTP 403`。转正管线一次要打 contents（父目录逐段）+
+LICENSE 原文 + commits 解析，约 5-8 次请求/枚。**运营批量转正必须配 token**
+（或复用既有 codehost 凭据），否则第 8 枚左右开始 403。已在错误文案里保留
+`upstream-error`，运营看得见是限额而非内容问题。
+
+**测试**：`test-adoption` 增至 18/18；全套 **129/129** 绿。

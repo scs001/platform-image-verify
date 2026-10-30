@@ -276,3 +276,70 @@ test("build: draft persona names the capability and encodes the honesty discipli
   assert.match(persona, /不在我的能力范围内/);
   assert.match(persona, /不编造|不要编造/);
 });
+
+// ── 5. 能力探测与工具面（2026-10-31 真机发现） ──────────────────────────────
+//
+// 首个真实候选 nano-pdf 依赖 CLI（正文写 `nano-pdf edit ...`，frontmatter 声明
+// requires.bins）。若照旧给 chat 面，产物就是「能说不能做」的残废 Agent。
+
+import { detectCapabilityNeeds, adoptionVerdict } from "../lib/adoption.js";
+
+const PACK_WITH_BINS = {
+  ...PACK,
+  frontmatter: {
+    description: "编辑 PDF",
+    metadata: { openclaw: { requires: { bins: ["nano-pdf"] }, install: [{ id: "uv" }] } },
+  },
+  body: "# nano-pdf\n\n```bash\nnano-pdf edit deck.pdf 1 \"改标题\"\n```\n",
+};
+
+test("capability: required bins are detected from nested frontmatter", () => {
+  const n = detectCapabilityNeeds(PACK_WITH_BINS);
+  assert.equal(n.requiresExecution, true);
+  assert.deepEqual(n.bins, ["nano-pdf"]);
+});
+
+test("capability: a plain doc skill needs no execution", () => {
+  const n = detectCapabilityNeeds({ body: "# 文档\n\n介绍一下流程。", frontmatter: { description: "d" } });
+  assert.equal(n.requiresExecution, false);
+  assert.deepEqual(n.bins, []);
+});
+
+test("adopt: a CLI-dependent skill is refused rather than silently crippled", async () => {
+  const reg = {
+    async fetchPackage() { return PACK_WITH_BINS; },
+    async getEntry() { return { entry: ENTRY }; },
+  };
+  await assert.rejects(
+    () => adoptExternalSkill({ source: "smithery", slug: "demo-skill", registry: reg, fetchImpl: fakeUpstream(), ...OP }),
+    (err) => {
+      assert.equal(err.code, "toolface-insufficient");
+      assert.deepEqual(err.bins, ["nano-pdf"]);
+      return true;
+    },
+  );
+});
+
+test("adopt: the same skill adopts when a reviewer explicitly widens the tool face", async () => {
+  const reg = {
+    async fetchPackage() { return PACK_WITH_BINS; },
+    async getEntry() { return { entry: ENTRY }; },
+  };
+  const { manifest, report } = await adoptExternalSkill({
+    source: "smithery", slug: "demo-skill", registry: reg, fetchImpl: fakeUpstream(), ...OP, widenFullToolFace: true,
+  });
+  const agent = manifest.agents[0];
+  assert.equal(agent.serving.toolFace, undefined, "widened = no chat narrowing declared");
+  assert.deepEqual(validatePackManifest(manifest), []);
+  assert.equal(report.toolFace, "full");
+  assert.equal(report.capabilityNeeds.requiresExecution, true);
+  assert.ok(report.mustReview.some((m) => m.includes("nano-pdf")), "reviewer must be told about the required bin");
+});
+
+test("verdict: one-line decision text reflects each blocker", () => {
+  assert.match(adoptionVerdict({ license: { state: "rejected", axis: "copyleft" }, pin: {}, needs: {} }), /拒绝.*copyleft/);
+  assert.match(adoptionVerdict({ license: { state: "not-declared" }, pin: {}, needs: {} }), /未声明许可/);
+  assert.match(adoptionVerdict({ license: { state: "admitted", governing: "MIT" }, pin: { revision: null }, needs: {} }), /不可钉定/);
+  assert.match(adoptionVerdict({ license: { state: "admitted" }, pin: { revision: "abc" }, needs: { requiresExecution: true, bins: ["x"] } }), /放宽工具面/);
+  assert.match(adoptionVerdict({ license: { state: "admitted" }, pin: { revision: "abc" }, needs: { requiresExecution: false } }), /可转正/);
+});

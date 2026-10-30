@@ -3195,7 +3195,8 @@
       "clear": "Retirer",
       "cleared": "Signature retirée."
     },
-    "recast": "Republier (rapport vert)"
+    "recast": "Republier (rapport vert)",
+    "recastRepair": "Reconstruire (le pack publié n'existe plus)"
   },
   "machines": {
     "title": "Machines",

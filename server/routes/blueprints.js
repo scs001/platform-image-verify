@@ -323,12 +323,23 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (missing.length) {
       return res.status(409).json({ error: `dependency pack references unresolved (drift): ${missing.join(", ")}`, missing });
     }
-    const published = await publisher.publish({ manifest, packId: blueprint.castPackId ?? undefined, user });
+    // 陈旧指针自愈（2026-10-30 生产实录）：市场的 packId 是每部署随机铸造的
+    // （gateway/packs.js randomBytes），改名/重建流程换 id 后，蓝图记的旧 id 在
+    // 市场里 404——此后试跑一律 `Pack version not found`，而「再铸」又要求先有
+    // 绿色签字报告（只能由试跑产出）→ 死锁，蓝图永久卡死。故：以旧 id 发版被
+    // 404 拒时，如实再发一枚新包并把指针改到新 id（不是静默换名，而是承认旧包
+    // 已不存在、重新建这一份），cast 响应里 `rebuilt: true` 让调用方与台账可见。
+    let published = await publisher.publish({ manifest, packId: blueprint.castPackId ?? undefined, user });
+    let rebuilt = false;
+    if (!published.ok && published.status === 404 && blueprint.castPackId) {
+      published = await publisher.publish({ manifest, user });
+      rebuilt = published.ok;
+    }
     if (!published.ok) {
       return res.status(published.status ?? 502).json({ error: published.error, upstream: published.body ?? undefined });
     }
     const cast = store.stampCast(blueprint.id, { packId: published.packId, packVersion: published.version });
-    res.json({ blueprint: cast, cast: { packId: published.packId, version: published.version, selfPending } });
+    res.json({ blueprint: cast, cast: { packId: published.packId, version: published.version, selfPending, rebuilt } });
   });
 
   // ── 试跑（task 4.1 执行器，design D8）：装一台跑一轮 → 断言判绿 → 报告落账 ──

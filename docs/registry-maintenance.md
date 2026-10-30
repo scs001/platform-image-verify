@@ -5678,3 +5678,124 @@ typecheck + biome + locale 门绿。
 
 **km change 状态：9/13，validate 绿，未归档**。余四棒（2.3/3.2 实化半截/3.3 试跑闭环/5.3
 真机走查）已在上文写明落点与依赖。
+
+### §15.109 OpenSpec 台账清账：归档欠账补交 + 两个 change 归档 + 空壳清理 + 4.2/4.3 事后回填（2026-10-31）
+
+**起因**：用户问「是不是有很多已完成没 archive 的 change」。普查后发现的问题比「没归档」更脏——
+**归档动作做了但没提交**，11 个 change 的归档结果悬在工作树上。
+
+#### ① F 类：11 个 change 的归档半成品收口（`e7a37b90`）
+
+```
+形态 A（8 个）：HEAD 里源目录 + 归档目录同时在
+  add-agent-teams-first-class / add-blueprint-judge-model-choice
+  add-blueprint-llm-assertions / add-builder-team-templates
+  add-legacy-pack-rebrand / add-official-pack-showcase
+  add-official-packs-i18n / add-zhiyu-team-memory
+  根因：cp 进 archive 并提交了，rm 源目录没提交（工作树 ' D'，43 个文件）
+
+形态 B（3 个）：源目录已从工作树消失，归档副本还没 git add（'??'）
+  archive/2026-10-31-add-cron-automation-parity
+  archive/2026-10-31-add-web-project-container
+  archive/2026-10-31-polish-agent-teams-hub-navigation
+```
+
+**风险**：任何一次 `git checkout .` / `git stash` 都会让这 11 个变成「源回来了、归档丢了」的两不像。
+
+#### ② F 类更深一层：3 个归档的主 spec 同步也没提交（`955bfa7d`）
+
+原以为只需补 `rm`，实做时发现那 3 个 10-31 归档**只做了 cp**，主 spec 合并没有提交。补交前逐份做
+delta 超集校验（需求 + 场景标题级差集），八处全合规才落笔：
+
+```
+add-cron-automation-parity    agent-scheduling-tools 2/6  cron-module 5/10  scheduled-tasks-ui 3/7
+add-web-project-container     project-container 4/4(新建)  project-workspace 1/1  sidebar-workspaces 1/5
+polish-agent-teams-hub-nav    agent-teams-overview 2/5  native-lexicon 1/8
+                                              全部 OK 全部在册
+```
+
+#### ③ B 类：两个已完成 change 归档（`6e688e8e`）
+
+| change | 进度 | 主 spec 变化 |
+|---|---|---|
+| `add-unified-fleet-console` | 17/17 | cell-lifecycle 9→10 需求 / 23→29 场景（MOD presence 上行 3→4，ADD 期望态拉取与合并 5）；desktop-fleet-console 14→16（MOD 本地部署写面闭环 4→6）；device-pairing-auth 19→20（MOD Steward device kind 3→4）；**fleet-machine-console 新建** 6 需求 / 14 场景，Purpose 齐全（无 TBD 十红） |
+| `add-wecom-group-chat` | 15/16 | social-bot-channels 17→22 需求 / 37→50 场景（ADD 五条逐条在册） |
+
+`add-wecom-group-chat` 唯一未勾的 5.4 就是「执行 archive 本身」（自指项，归档时 toolkit 报
+1 incomplete 属预期）。
+
+**归档前均做场景标题级差集校验**（`MODIFIED` 的 delta 必须是主 spec 超集），三处 MODIFIED 差集为空。
+`openspec validate --specs`：**219 → 220 passed / 0 failed**。
+
+#### ④ `add-pack-anonymous-showcase` 空壳删除
+
+**性质**：废弃脚手架，从未填写。`rm -r`，git 无感知（从未被跟踪）。
+
+**取证**（零独有内容）：
+
+| 检查 | 结果 |
+|---|---|
+| 文件数 | 0（连 proposal/tasks/.openspec.yaml 都没有；正常 scaffold 必产 .openspec.yaml） |
+| 全仓引用 | 0 处（docs / openspec / 代码） |
+| 共享 cap `pack-marketplace` | 已由 `add-official-pack-showcase` 覆盖 |
+| **专属 cap `registry-product-home`** | 已由 `polish-facet-interactions` 覆盖（该主 spec 即那次归档所建），在册 4 需求 12 场景 |
+
+**意图还原**：两个 cap 目录 = 匿名面的两面——`pack-marketplace`（市场引擎匿名读）+
+`registry-product-home`（根路径落地页）。两半分别被上述两个 change 各做一半，空壳失效。
+
+**过程坑（自查更正两次，入册）**：
+- ❌ 首判「就是 add-official-pack-showcase 改名重来」→ ✅ 错。两者 cap 集合不同，`registry-product-home`
+  只在空壳里，姊妹 change 根本没覆盖落地页那半。
+- ❌ 首证「www.finddatatech.cloud/api/packs -> 200 证明匿名读在产」→ ✅ 无效。`www` 是 Astro 营销站，
+  任意路径都返 HTML 200（`content-type` 不校验就会被假绿骗）。真网关是 `platform.finddatatech.cloud`。
+  **律：判匿名 API 必须看 content-type / 首字符，不能只看 status。**
+
+#### ⑤ `add-official-pack-showcase` 4.2 / 4.3 事后回填（原归档时留 [ ]）
+
+该 change 归档时 4.2（部署验收）与 4.3（空名单空态）两条未勾。今日真机实测，4.2 四条判据**全部达成**：
+
+```
+$ curl https://platform.finddatatech.cloud/api/packs            -> 200  {"total":75,...}  纯匿名
+$ curl https://platform.finddatatech.cloud/api/packs/official   -> 200  三段齐 templates 16 / assistants 35 / featured 2
+$ curl -X POST https://platform.finddatatech.cloud/api/packs    -> 401  写路由照旧拦住匿名
+$ curl https://platform.finddatatech.cloud/api/packs/<public>   -> 200  公开包匿名可读
+$ curl https://platform.finddatatech.cloud/api/packs/ZZZZ…      -> 404  不存在 id 不泄存在性
+```
+
+**4.3 部分达成**：空名单空态由单测钉住（`scripts/test-official-showcase.mjs:154`
+「showcase with an empty roster: official segments empty; curated featured stays (D5)」），
+线上是名单已配置（16/35/2 非空），空态无真机可眼见——比原判据「真机眼见」弱一档，如实记录。
+
+**开关说明**：`PACK_ANONYMOUS_READ` 在本仓 yaml/env 内 grep 不到，由 GitOps 侧配置；本仓只能证线上行为，
+不能证开关被显式打开。`/api/packs/official` 代码注释明确「readable regardless of the anonymousRead
+switch」（只暴露公开面字段），故其 200 不依赖该开关。
+
+#### ⑥ flaky 如实记录
+
+`node --test scripts/test-official-showcase.mjs` 首跑 1 红（`official badge derives from the roster`
+→ `TypeError: Cannot read properties of undefined (reading 'map')`，第 96 行用例，`list.body.packs`
+为 undefined），连跑三次 **5/5 全绿**。代码面本次零改动（只动 `openspec/`），判定为**既有 flaky**
+（测试文件由 `814d50c0` 引入），非本次引入、非产品回归。**未修**，留观察。
+
+#### ⑦ 剩余 12 个 active change 的分档（不动，各有所属）
+
+```
+A 类 main 已归档的影子（4，交给合并 origin/main，绝不在本分支重复 archive：
+                        本分支 54 ahead / 55 behind，重复 archive 会造第二份归档目录）
+   add-fleet-self-round-context / add-official-starter-teams
+   add-skill-self-evolution / fix-external-team-chat-lane
+C 类 代码面完成，等对外发布动作
+   add-marketplace-projection-fanout 25/26（6.3 需 mcp-publisher publish；
+        投影面已通 GET /api/mcp-registry.json -> 200 21 server，但官方 Registry
+        search=FindDataTechnology 仍 0 条 —— 真 publish 未执行）
+D 类 挂账=真机/滚版验收，归档会把未验收需求固化成既定 spec
+   add-official-adopted-agents 16/18 / add-product-intro-team 10/12 / fix-fleet-model-drift 9/11
+E 类 排期中（五件套批次最后两棒，依赖今日刚落地）
+   add-knowledge-memory-surface 9/13 / add-teams-hub-formation-board 0/11
+F'  定时待办（切换日 11-01~11-05）
+   add-fleet-service-account-cutover 5/11
+```
+
+**五件套依赖序核对**（2026-10-30 定案）：polish ✅ 归档 → web-project-container ✅ 归档 →
+cron ✅ 归档 → knowledge-memory-surface（依赖 project）→ formation-board（依赖 polish）。
+前三个今日全部归档，**后两个的阻塞已解除**，下一步是 `openspec apply add-knowledge-memory-surface`。

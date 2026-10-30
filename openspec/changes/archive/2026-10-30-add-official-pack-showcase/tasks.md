@@ -33,6 +33,18 @@
 - [x] 4.1 `openspec validate --strict` 绿 + 单测（新 5/5+回归 77/77）+ typecheck/biome（触碰文件）绿 + locale 闸绿
 - [ ] 4.2 部署验收（env 打开后随滚版班）：匿名开壹座产品页眼见官方团队模板卡片非空；
       匿名 `GET /api/packs/official` 200 三段；匿名写 401；private pack 匿名 404
+  - **2026-10-31 事后回填（台账 §15.109）：四条 API 判据全部达成。** 真网关是
+    `platform.finddatatech.cloud`（**坑**：`www.finddatatech.cloud` 是 Astro 营销站，任意路径都返
+    HTML 200，只看 status 会被假绿骗；判匿名 API 必须看 content-type / 首字符）：
+    匿名 `GET /api/packs` → 200（total 75）；`GET /api/packs/official` → 200 三段齐
+    templates 16 / assistants 35 / featured 2；匿名 `POST /api/packs` → 401；
+    公开包详情匿名 → 200，不存在 id → 404（不泄存在性）。
+  - **仍未验**：首条「匿名产品页**眼见**官方团队模板卡片非空」——SSR 壳内无该文案（SPA 渲染），
+    本次未做浏览器眼见。故本条**不勾**，只记 API 侧达成。
 - [ ] 4.3 名单未配置的部署眼见「暂无官方资产」空态（服务端已证 200 空段；真机眼见随班）
+  - **2026-10-31 事后回填（台账 §15.109）：降一档达成。** 空名单空态由单测钉住
+    （`scripts/test-official-showcase.mjs:154`「showcase with an empty roster: official segments
+    empty; curated featured stays (D5)」）；线上名单已配置（16/35/2 非空），空态**无真机可眼见**。
+    比原判据「真机眼见」弱一档，如实记录，故本条**不勾**。
 - 注：`e2e/packs.spec.js` 两条既有失败（body-form installs / subscribe report wizard）经定向 stash
   实证为 pre-existing（HEAD 服务端代码同样复现），非本批引入，随原车道归因。

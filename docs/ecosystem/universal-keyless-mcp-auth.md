@@ -101,17 +101,24 @@ facet auth --refresh                           # 静默续期并原地改写配�
    断言 `initialize` 200 且 `tools/list` 非空——这是服务端是否买账的唯一判据。
 3. **版本哨兵**：客户端版本变化 → 能力表标记 `stale`，CLI 自动降级到 L2 并打印升级提示，**不静默失败**。
 
-### 2.2 服务端补齐 refresh_token（L2 的生命线）
+### 2.2 refresh_token 与续期（L2 的生命线）
 
-现状实测：token 回来的 `scope` 为空、**没有 refresh_token** → L2 会退化成「每 8h 人工重授权」，
-不能算彻底解决。根因与修法（Logto 已知行为）：
+早前实测只拿到「`scope` 为空、没有 refresh_token」，结论是 L2 会退化成「每 8h 人工重授权」。
+**该结论已被真机推翻**，现在是通的，但只有照下面两条做才通：
 
-- 授权请求必须带 `offline_access` **且 `prompt=consent`**，否则 Logto 不发 refresh_token；
-- native 应用需开启 refresh token rotation；
-- scope 为空要单独查：`gateway:access` 是否作为 API resource scope 正确绑定（现在鉴权不受影响，
-  因为组门看 `roles`、计费看 `username`——但这掩盖了 scope 协商的问题，必须查清）。
+- **授权时必须带 `offline_access` 且 `prompt=consent`**。只带 `offline_access` 不够——Logto 只在
+  强制 consent 时才发 refresh_token。这是唯一能验证这一点的地方：桩测试永远看不出「没给 refresh_token」。
+- **续期时只重放 `resource`，绝不可重放 `scope`**（生产实测两条硬约束）：
+  - 不带 `resource` → 回**客户端绑定的 opaque token**（无 `aud`），网关不认：形如「续期成功却连不上」；
+  - 带任意 `scope` → `400 oidc.invalid_scope / refresh token missing requested scope`。
+    `gateway:access` 是**授权时刻授予的 resource scope**，不在 refresh token 可刷新集合里。
 
-补齐后 L2 的令牌可**静默续期**（refresh 只走 token endpoint，无浏览器），才够资格叫「彻底」。
+真机终验：`AUTHED {"min":60,"renewable":true}` → `REFRESH: OK {"min":60,"rotated":true,
+"user":"…","aud":"https://mcp.finddatatech.cloud"}`——refresh token 轮换、身份与受众回位、用户零操作。
+故 L2 的令牌**可静默续期**（refresh 只打 token endpoint，无浏览器）。
+
+仍待查（不影响鉴权，但是协商缺陷）：授权响应里的 `scope` 字段为空。组门看 `roles`、计费看
+`username`，所以鉴权不受影响——正因为不受影响才更容易漏掉，**必须单独查清**。
 
 ### 2.3 市场渠道 × 每个宿主客户端的连接块
 
@@ -163,11 +170,11 @@ npx @finddatatechnology/facet auth --target workbuddy --write-mcp
 4. 失败可诊断：401 时给出「令牌过期 / 组不匹配 / 服务停用」三分类，而不是一句 401；
 5. 能力表对该客户端版本有**机器实证记录**（不是文档推断）。
 
-第 3 条是当前最大缺口（无 refresh_token），第 5 条是避免"再误判一次"的制度保障。
+第 3 条今天已通（真机 refresh 轮换实证，见 §2.2）；第 5 条是避免"再误判一次"的制度保障。
 
 ## 5. 与既有工作的关系
 
 - 已上产：静态 client_id 车道（服务端）、六 target CLI、Git 市场仓、npm 0.3.0、Claude 市场 JSON 端点。
-- 本方案**新增**：L2 代持令牌道、能力表与自动探针、refresh 补齐、市场产物的 `connect/` 分客户端连接块。
+- 本方案**新增**：L2 代持令牌道（已落地）、能力表与自动探针、refresh 续期约束、市场产物的 `connect/` 分客户端连接块。
 - 明确的非目标：不要求任何客户端改代码；不引入自建授权代理去伪造 DCR（DCR 已被规范弃用，
   为它建代理是把技术债固化成架构债）。

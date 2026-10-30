@@ -19,8 +19,10 @@ import { realpathSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import crypto from "node:crypto";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { LANE, LANE_LABEL, findCapability, selectLane } from "./mcp-auth-capability.js";
 
 // Version lives in package.json only — a hardcoded copy shipped 0.1.0 for
 // three releases (caught by `npx @finddatatechnology/facet@0.1.2 --version`).
@@ -56,6 +58,8 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
                           [--project <dir>] [--base <url>] [--registry <url>]
                           [--write-mcp|--no-write-mcp] [--oauth [--oauth-client <id>]]
   facet update [packRef] [--target <t>] [--base <url>]   # 重取最新版快照（无订阅副作用）
+  facet auth [packRef] [--target <t>] [--project <dir>] [--write-mcp]
+                          [--server <name>] [--status] [--refresh] [--no-open]
   facet connect [--key wgk-…] [--registry <url>] [--clear] [--show] [--no-open]
   facet prefs <agent-slug> [--key sk-…] [--wanxing <url>]
                           [--set-callback <url> <secret>] [--set-reap <minutes>]
@@ -73,6 +77,11 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
              客户端连接器模板同形）。服务端侧已端到端实证；5.9.3 客户端的用户文件加载
              器暂不消费该块——今日真连接用贴键（connect + --write-mcp）。暂仅 workbuddy
   --oauth-client 覆盖免键条目的 OAuth client_id（默认 facet-mcp-keyless 应用）
+
+  auth 子命令（免键连接，add-universal-keyless-mcp-auth）：按能力表选道—
+  L1 原生 OAuth（写静态 client_id，客户端自己授权，零凭据落盘）/
+  L2 代持令牌（CLI 授权后写短 Bearer，兼容所有客户端）/
+  L3 调用键。--status 看令牌余期与可续期性；--refresh 静默续期。
 
   connect 子命令（ecosystem-bridge）：铸取并验活 wgk- 调用键，存本地后
   install 可写各编辑器的 MCP 连接配置。--key 免交互粘贴；缺省打开铸造页
@@ -140,6 +149,10 @@ function parseArgs(argv) {
     else if (a === "--no-write-mcp") out.noWriteMcp = true;
     else if (a === "--oauth") out.oauth = true;
     else if (a === "--oauth-client") out.oauthClient = rest.shift();
+    else if (a === "--refresh") out.refresh = true;
+    else if (a === "--status") out.status = true;
+    else if (a === "--server") out.server = rest.shift();
+    else if (a === "--auth-url") out.authUrl = rest.shift();
     else if (a === "--show") out.show = true;
     else if (a === "--help" || a === "-h") out.command = "help";
     else if (a === "--version" || a === "-v") out.command = "version";
@@ -529,6 +542,331 @@ export async function deviceFlow(_registry, meta, { noOpen = false, onCode = () 
     throw new Error(`设备授权未完成：${t.error || `HTTP ${tr.status}`}`);
   }
   throw new Error("设备授权超时（5 分钟）");
+}
+
+// ── auth: 免键连接（add-universal-keyless-mcp-auth D1/D2） ───────────────────
+// Three lanes, chosen by the capability table rather than by hope:
+//   L1 原生 OAuth   — write the static client id; the client authorizes.
+//   L2 代持令牌     — we authorize, then write a SHORT access token into the
+//                     target's static Authorization header. Needs no client
+//                     OAuth support, so it covers every client that honours
+//                     static headers (today: all six targets).
+//   L3 调用键       — device-flow wgk-, unchanged.
+// The L2 refresh token is kept in ~/.facet/oauth.json (0600) and is NEVER
+// written into a client config — a client config gets an access token only.
+const DEFAULT_AUTH_URL = process.env.FACET_AUTH_URL || "https://auth.finddatatech.cloud/oidc";
+
+function oauthTokenPath() {
+  return path.join(path.dirname(credentialsPath()), "oauth.json");
+}
+
+export async function loadOAuthToken() {
+  try {
+    const doc = JSON.parse(await readFile(oauthTokenPath(), "utf8"));
+    if (typeof doc?.access_token === "string" && doc.access_token) return doc;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveOAuthToken(doc) {
+  const file = oauthTokenPath();
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify(doc, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  await chmod(file, 0o600); // mode applies at creation only; enforce on rewrite
+}
+
+export async function clearOAuthToken() {
+  await rm(oauthTokenPath(), { force: true });
+}
+
+const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+function decodeJwtClaims(token) {
+  try {
+    const part = String(token).split(".")[1];
+    if (!part) return null;
+    return JSON.parse(Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/** Expiry/claims view of a stored token — what --status prints. */
+export function describeToken(doc) {
+  const claims = doc?.access_token ? decodeJwtClaims(doc.access_token) : null;
+  let expiresAt = null;
+  if (claims?.exp) expiresAt = new Date(claims.exp * 1000);
+  else if (doc?.obtained_at && doc?.expires_in) expiresAt = new Date(doc.obtained_at + doc.expires_in * 1000);
+  const expired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
+  return {
+    claims,
+    expiresAt,
+    expired,
+    minutesLeft: expiresAt ? Math.round((expiresAt.getTime() - Date.now()) / 60000) : null,
+    renewable: typeof doc?.refresh_token === "string" && doc.refresh_token.length > 0,
+    audience: claims?.aud ?? null,
+    username: claims?.username ?? null,
+    roles: Array.isArray(claims?.roles) ? claims.roles : [],
+  };
+}
+
+// Standard authorization-code + PKCE, against a pre-registered static client.
+// The callback is a random-port loopback (RFC 8252 port-agnostic matching), so
+// the same registered URI works every run. `prompt=consent` is deliberate: our
+// Logto only issues a refresh token when consent is forced (D4).
+export async function pkceAuthorize({ authBase, clientId, scope, resource, noOpen = false, onAuthorizeUrl = null }) {
+  const verifier = b64url(crypto.randomBytes(48));
+  const challenge = b64url(crypto.createHash("sha256").update(verifier).digest());
+  const state = crypto.randomBytes(8).toString("hex");
+
+  const { codeP, redirectUri } = await new Promise((resolve) => {
+    let settle;
+    const codeP = new Promise((res, rej) => { settle = { res, rej }; });
+    const server = http.createServer((req, res) => {
+      const u = new URL(req.url, "http://127.0.0.1");
+      if (u.pathname !== "/oauth/callback") { res.writeHead(404).end(); return; }
+      const err = u.searchParams.get("error");
+      const code = u.searchParams.get("code");
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(`<p>${err ? `授权失败：${err}` : "授权完成，可以关闭此页面。"}</p>`);
+      if (err) settle.rej(new Error(`授权被拒：${err}`));
+      else if (code) settle.res(code);
+      server.close();
+    });
+    server.listen(0, "127.0.0.1", () => {
+      resolve({ codeP, redirectUri: `http://127.0.0.1:${server.address().port}/oauth/callback` });
+    });
+  });
+
+  const url = new URL(`${authBase}/auth`);
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("scope", scope);
+  url.searchParams.set("code_challenge", challenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "consent");
+  if (resource) url.searchParams.set("resource", resource);
+
+  console.log(`\n授权端点：${url.origin}${url.pathname}　回调：${redirectUri}`);
+  if (onAuthorizeUrl) {
+    // Test seam: the caller drives the authorization URL itself (no browser).
+    Promise.resolve(onAuthorizeUrl(url.toString())).catch(() => {});
+  } else if (noOpen) {
+    console.log(`请手动打开下面的地址完成授权：\n${url.toString()}\n`);
+  } else {
+    const { execFile } = await import("node:child_process");
+    const openCmd = process.platform === "darwin" ? "open" : "xdg-open";
+    execFile(openCmd, [url.toString()], () => {}); // best-effort; the URL is printed above
+    console.log("已在浏览器打开授权页；完成后回到终端。");
+  }
+
+  const code = await codeP;
+  const form = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: clientId,
+    code,
+    redirect_uri: redirectUri,
+    code_verifier: verifier,
+  });
+  if (resource) form.set("resource", resource);
+  const r = await fetch(`${authBase}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+  const doc = await r.json().catch(() => ({}));
+  if (!r.ok || !doc.access_token) {
+    throw new Error(`换取令牌失败（HTTP ${r.status}）${doc?.error ? `：${doc.error}` : ""}`);
+  }
+  return { ...doc, obtained_at: Date.now(), redirect_uri: redirectUri, client_id: clientId, resource: resource || null, scope };
+}
+
+// Silent renewal: refresh hits the token endpoint only, no browser.
+//
+// Two live constraints, both measured against production Logto:
+//   1. `resource` MUST be replayed. Without it the response is a client-bound
+//      opaque token with no `aud` — it would not authenticate at the gateway.
+//   2. `scope` MUST NOT be replayed. Our Logto rejects any refresh that names a
+//      scope the refresh token does not carry (`invalid_scope: refresh token
+//      missing requested scope`) — and it never carries `gateway:access`, since
+//      that is a resource scope granted at authorization time, not an
+//      refreshable OIDC scope.
+export async function refreshOAuthToken({ authBase, clientId }) {
+  const current = await loadOAuthToken();
+  if (!current?.refresh_token) return null;
+  const form = new URLSearchParams({
+    grant_type: "refresh_token",
+    client_id: clientId,
+    refresh_token: current.refresh_token,
+  });
+  if (current.resource) form.set("resource", current.resource);
+  const r = await fetch(`${authBase}/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+  const doc = await r.json().catch(() => ({}));
+  if (!r.ok || !doc.access_token) return null;
+  const next = { ...current, ...doc, obtained_at: Date.now() };
+  if (!doc.refresh_token) next.refresh_token = current.refresh_token; // rotation may omit on reuse
+  await saveOAuthToken(next);
+  return next;
+}
+
+function printTokenStatus(doc, { target } = {}) {
+  if (!doc) {
+    console.log("\n免键令牌：未登录（先跑 facet auth <packRef> --target <t> --write-mcp）");
+    return;
+  }
+  const s = describeToken(doc);
+  console.log("\n免键令牌：");
+  console.log(`  账号    ${s.username ?? "（令牌无 username 声明）"}`);
+  console.log(`  受众    ${s.audience ?? "（无 aud）"}`);
+  console.log(`  角色    ${s.roles.length ? s.roles.join("、") : "（无）"}`);
+  console.log(
+    `  有效期  ${s.expiresAt ? `${s.expiresAt.toLocaleString()}（${s.expired ? `已过期 ${Math.abs(s.minutesLeft)} 分钟` : `剩 ${s.minutesLeft} 分钟`}）` : "未知"}`,
+  );
+  console.log(`  可续期  ${s.renewable ? "是（有 refresh_token，--refresh 静默续期）" : "否（无 refresh_token——需重跑授权）"}`);
+  if (target) {
+    const rec = findCapability(target);
+    if (rec) {
+      console.log(`  ${target} 能力表：原生 OAuth ${rec.oauthClientId === true ? "✅" : rec.oauthClientId === false ? "❌" : "未验"}　静态头 ${rec.headerStatic ? "✅" : "❌"}　证据 ${rec.evidence.build}${rec.stale ? "（stale）" : ""}`);
+    }
+  }
+}
+
+// 401 三分类（spec: Refusal is classified）。The gateway's refusals differ in
+// text and status; guessing "bad token" for all three is what makes a group
+// problem look like a credential problem.
+export function classifyRefusal(status, body = "") {
+  const text = String(body).toLowerCase();
+  if (status === 401) {
+    if (/expired|invalid_token|jwt expired/.test(text)) return { kind: "expired", advice: "令牌过期或被吊销——跑 facet auth --refresh（无 refresh_token 时重跑授权）" };
+    return { kind: "expired", advice: "凭据未被接受——跑 facet auth --refresh；仍失败请核对是否用了别的部署" };
+  }
+  if (status === 403) {
+    if (/group|role|scope|forbidden/.test(text)) return { kind: "group", advice: "账号不持该 server 要求的组/角色——到注册处申请组，或换账号授权" };
+    return { kind: "group", advice: "调用被拒（403）——多为组/角色不匹配" };
+  }
+  if (status === 405) return { kind: "disabled", advice: "该 server 在你的组里已停用（405），属注册处侧判定" };
+  return { kind: "other", advice: `未分类拒绝（HTTP ${status}）` };
+}
+
+/**
+ * `facet auth` — pick a lane, establish it, write the target's config.
+ *   facet auth <packRef> --target workbuddy --write-mcp   # authorize + write
+ *   facet auth --status                                   # token + capability view
+ *   facet auth --refresh                                  # silent renewal
+ */
+export async function authRun(opts) {
+  const authBase = opts.authUrl || DEFAULT_AUTH_URL;
+  const clientId = opts.oauthClient || DEFAULT_OAUTH_CLIENT_ID;
+
+  if (opts.show || opts.status) {
+    printTokenStatus(await loadOAuthToken(), { target: opts.target });
+    return;
+  }
+
+  if (opts.refresh) {
+    const refreshed = await refreshOAuthToken({ authBase, clientId });
+    if (refreshed) {
+      const s = describeToken(refreshed);
+      console.log(`✓ 已静默续期（剩 ${s.minutesLeft} 分钟）`);
+      return;
+    }
+    console.log("无 refresh_token 或续期失败——需要重新授权一次：");
+    const doc = await pkceAuthorize({
+      authBase, clientId, scope: DEFAULT_OAUTH_SCOPE, resource: opts.registry, noOpen: opts.noOpen,
+    });
+    await saveOAuthToken(doc);
+    const s = describeToken(doc);
+    console.log(`✓ 已重新授权（剩 ${s.minutesLeft} 分钟${s.renewable ? "，可静默续期" : "，无 refresh_token"}）`);
+    return;
+  }
+
+  // `--no-open` means "print the URL instead of launching a browser" — the
+  // browser still exists, so it must NOT demote the lane. Only an explicit
+  // headless environment (FACET_NO_BROWSER) does that.
+  const hasBrowser = process.env.FACET_NO_BROWSER !== "1";
+  const pick = selectLane(opts.target, { hasBrowser, hasCallerKey: Boolean(await loadCredentials()) });
+  console.log(`\n选道：${LANE_LABEL[pick.lane]}`);
+  console.log(`  理由：${pick.reason}`);
+
+  if (pick.lane === LANE.KEY) {
+    console.log("\n该客户端走调用键：facet connect 铸 wgk- 调用键，然后 install --write-mcp。");
+    return;
+  }
+
+  if (pick.lane === LANE.NATIVE) {
+    if (!opts.packRef) throw new Error("原生 OAuth 写入需要 <packRef>（从功能集详情页取 id）");
+    const detail = await fetchJson(`${opts.base}/api/packs/${encodeURIComponent(extractPackId(opts.packRef))}`).catch((e) => {
+      throw new Error(`取不到功能集 ${opts.packRef}：${e.message}`);
+    });
+    const servers = detail.manifest?.mcpServers ?? [];
+    if (!servers.length) { console.log("\n该功能集没有 MCP 引用，无需连接。"); return; }
+    const files = await writeMcpConfig(opts.target, {
+      registry: opts.registry, servers, project: opts.project, oauth: clientId,
+    });
+    console.log("\nMCP 免键配置已写入（零凭据落盘）：");
+    for (const f of [...new Set(files)]) console.log(`  ✓ ${f}`);
+    return;
+  }
+
+  // L2 brokered token: authorize here, write a short access token.
+  let doc = await loadOAuthToken();
+  let s = doc ? describeToken(doc) : null;
+  if (!doc || s.expired) {
+    doc = await pkceAuthorize({
+      authBase, clientId, scope: DEFAULT_OAUTH_SCOPE, resource: opts.registry, noOpen: opts.noOpen,
+    });
+    await saveOAuthToken(doc);
+    s = describeToken(doc);
+  }
+  if (!s.renewable) {
+    console.log("  注：本次授权未返回 refresh_token（静默续期不可用）——过期后需重跑一次授权；");
+    console.log("      这是身份侧配置缺陷，已在 add-universal-keyless-mcp-auth 任务 3.1/3.2 跟踪。");
+  }
+
+  if (!opts.packRef && !opts.server) {
+    console.log(`\n已取得令牌（剩 ${s.minutesLeft} 分钟，账号 ${s.username ?? "?"}）。`);
+    console.log("要写入某个功能集的 MCP 配置：facet auth <packRef> --target <t> --write-mcp");
+    console.log("要看状态：facet auth --status");
+    return;
+  }
+
+  const servers = opts.server
+    ? [{ registryName: opts.server }]
+    : (await fetchJson(`${opts.base}/api/packs/${encodeURIComponent(extractPackId(opts.packRef))}`)).manifest?.mcpServers ?? [];
+  if (!servers.length) { console.log("\n该功能集没有 MCP 引用，无需连接。"); return; }
+
+  const shouldWrite = opts.writeMcp === true || (opts.noWriteMcp !== true && process.stdin.isTTY
+    ? await (async () => {
+        const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin });
+        try {
+          const a = (await rl.question("写入 MCP 连接配置（Bearer 短令牌）？[y/N] ")).trim().toLowerCase();
+          return a === "y" || a === "yes";
+        } finally { rl.close(); }
+      })()
+    : false);
+  if (!shouldWrite) {
+    console.log("\n未写入。加 --write-mcp 启用写入。");
+    for (const sv of servers) console.log(`  · ${sv.registryName} — ${opts.registry}/${sv.registryName}/mcp`);
+    return;
+  }
+
+  const files = await writeMcpConfig(opts.target, {
+    registry: opts.registry, servers, project: opts.project, key: doc.access_token,
+  });
+  console.log(`\nMCP 连接配置已写入（L2 代持令牌，剩 ${s.minutesLeft} 分钟）：`);
+  for (const f of [...new Set(files)]) console.log(`  ✓ ${f}`);
+  console.log("  续期：facet auth --refresh（有 refresh_token 时静默，否则一步重授权）");
+  for (const sv of servers) {
+    if (sv.requiredGroup) console.log(`  注：${sv.registryName} 需要组 ${sv.requiredGroup}——授权账号不持该角色时调用会被拒。`);
+  }
 }
 
 export async function connectRun(opts) {
@@ -1018,6 +1356,7 @@ if (isMain) {
     else if (opts.command === "version") console.log(VERSION);
     else if (opts.command === "install") await install(opts);
     else if (opts.command === "connect") await connectRun(opts);
+    else if (opts.command === "auth") await authRun(opts);
     else if (opts.command === "prefs") await prefs(opts);
     else if (opts.command === "update") await update(opts);
     else if (opts.command === "publish") await publishRun(opts);

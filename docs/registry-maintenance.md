@@ -5027,3 +5027,45 @@ drill 才逮出致命假设错误——这是本次最值钱的一课：
 **证据**：`sha-29b24a0` 三面 CI+image+check 全绿（重跑后）；relay OK（3s，digest
 `3550ce52`）；ArgoCD `Synced|Healthy`；两 pod `sha-29b24a0` 同代 `sameNameHint` grep 在场；
 测试 22→23→25→26 全绿；真机反例/正例/试跑/签字/reseal/可售闸六段全实证。
+
+### §15.105 免键令牌车道 L2 落地 + 续期两条生产硬约束（2026-10-31）
+
+承接 §15.96/§15.97。免键 MCP 鉴权的服务端早已在产（authorize → token `aud=https://mcp.finddatatech.cloud`
+→ `initialize` 200 → `tools/list` 161），但**「服务端能发令牌」≠「客户端会用」**：WorkBuddy 5.9.3
+的**用户级 `mcp.json` 加载器丢弃 `oauth` 块**（`parseMcpServerEntry` 只留 transport/trust 字段，
+`UserMcpProvider` 的 `toAuth$2` 只传 `provider:{name}` → 回落 DCR → 我们无 DCR → 失败）。连接器/
+市场模板那条加载器才读 `descriptor.oauth.clientId`，与 `mcp.json` 不是同一条路。
+
+**因此「整体方案」落成三道，选道靠机器证据而非文档**（`add-universal-keyless-mcp-auth`）：
+
+| 道 | 形态 | 覆盖 |
+|---|---|---|
+| L1 原生 OAuth | 写静态 `clientId`，客户端自己跑授权，零凭据落盘 | 仅限能力表**实证**消费 static client_id 的客户端 |
+| **L2 代持令牌** | CLI 跑 PKCE，把**短命 access token** 写进客户端静态 `Authorization` 头 | **今天 100% 客户端**（凡认静态头者） |
+| L3 调用键 | `wgk-` 设备流键 | headless / CI / 企业内部 |
+
+已落地：`facet/cli/mcp-auth-capability.js`（能力表，**每条必须带 `{probe,at,build}` 证据，缺证据视为记录不存在而不是 false**；`installedBuild` 与证据不符即 `stale` → 一律不选 L1，只降级并提示「待复验」）+ `facet auth` 子命令（`--status/--refresh/--write-mcp`，选道理由逐条打印，客户端侧限制永远不会被误当成服务端故障）+ 10 条单测全绿。
+
+**两条续期硬约束（生产实测，写进代码注释与单测，防回归）**
+
+真机第一次续期拿到「成功」但 `aud`/`username` 全空——差点当成 Logto 的怪癖放过，实测才定案：
+
+1. **refresh 必须重放 `resource`**。不带 `resource` 时 Logto 回**客户端绑定的 opaque token**
+   （`scope=openid offline_access`，无 `aud`），网关根本不认——这是「续期成功但连不上」的真形态。
+2. **refresh 绝不可重放 `scope`**。带任何 scope（含仅 `openid offline_access` 之外的
+   `gateway:access`）一律 `400 oidc.invalid_scope / refresh token missing requested scope`——
+   `gateway:access` 是**授权时刻授予的 resource scope**，不在 refresh token 的可刷新 scope 集合里。
+
+四组组合一次打穿（`resource` only → 200 `jwt=1 aud=https://mcp.finddatatech.cloud`；`resource`+任意
+`scope` → 400），修法=授权时把 `resource`/`scope` 存进令牌文档，续期只重放 `resource`。
+**真机终验**：`AUTHED {"min":60,"renewable":true}` → `REFRESH: OK {"min":60,"rotated":true,
+"user":"aloadtree@gmail.com","aud":"https://mcp.finddatatech.cloud"}`——refresh token 轮换、
+身份与受众都回来了，用户零操作。
+
+**顺带钉死的一条事实**：`prompt=consent` 是拿到 `refresh_token` 的前提（不强制 consent 时
+Logto 不回 refresh token，「可续期」直接为假）。这一条只在真授权里能验证，桩测试永远看不出来。
+
+**证据**：`node --test scripts/test-facet-mcp-auth.mjs` 10/10 绿；`biome check` 三文件净；
+`openspec validate add-universal-keyless-mcp-auth` valid；L2 写入形状
+`{type:"http",url,headers.Authorization:"Bearer h.…"}`、文件模式 `0600`、配置内无 refresh token
+（单测断言）；生产 PKCE 全链由 CLI 自身代码路径跑通（不是旁路脚本）。

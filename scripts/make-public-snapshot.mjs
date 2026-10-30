@@ -149,6 +149,13 @@ const EXCLUDE_PATHS = new Set([
   // not part of the OSS distribution (2026-10-16, forbidden-pattern scan hit).
   "docs/ciyuan/home-content.html",
   "docs/ciyuan/home-content.baseline-2026-10-05.html",
+  // 生态选品调研三份（2026-10-31 forbidden-pattern scan hit）：文中对照说明主源码仓
+  // `fd-craw-private` 是 PRIVATE、不能作为被第三方爬取的源——这是内部发布门判断依据，
+  // 不是在描述对外能力。同 zhiyu 运维材料一类：真源在私有仓，属内部规划文档，
+  // 不入公开快照。
+  "docs/ecosystem/client-matrix.md",
+  "docs/ecosystem/marketplace-landscape.md",
+  "docs/ecosystem/skill-market-registration.md",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).
@@ -310,6 +317,10 @@ const SCRUBS = [
     "an OpenAI-compatible endpoint (model `deepseek-v4-pro`)",
     1,
   ],
+  // 生产 facet-mcp 免键车道的 OAuth clientId（2026-10-31 gitleaks generic-api-key
+  // 命中两处）：这是线上真实 DCR 客户端标识，不能随公开快照发布。断言语义与
+  // 具体值无关（只验证它是被写进客户端配置的那个 id），脱敏成占位符即可。
+  ["scripts/test-facet-cli-mcp.mjs", '"tvmzkpz3ld5kqlmse5se9"', '"<keyless-client-id>"', 2],
 ];
 
 // Deliberate exceptions: content that matches a forbidden pattern but is

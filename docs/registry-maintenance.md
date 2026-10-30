@@ -4903,3 +4903,88 @@ cat=fleet，5 版历史）。核实：匿名面只剩官方那枚，我的演示
 `zh-CN` 资源逐字相符；三条断言性说法在代码里核实为真（批准人本人校验
 `routes/blueprints.js:290`、编辑即作废 `canApprove = verdict.ok && !verdictStale && !dirty`、
 收费闸五码 `gateway/pack-sellability-gate.js`）。**人工终审仍待用户过目措辞**。
+
+### §15.102 智能体团队 hub：切换条常显 + 选中即路由 + 经营坞→「经营」（2026-10-30）
+
+change `polish-agent-teams-hub-navigation` 实施完成（openspec 全四件套、validate 绿）。
+
+**① 用户报「点细分页面会消失」的根因 = 实现偏离 spec**
+`FleetsPage` 用页内 `selectedId` 展开驾驶舱并 `!selected` 隐藏三视图切换条；而
+`agent-teams-overview`「一点进驾驶舱」本就要求点卡片→路由 `/fleets/:id`。两套机制并存：
+切换条消失、URL 不变、浏览器后退出不来。修法不是新造，是**归位到路由驱动**。
+
+- 选中即路由：rail 卡片 / 管理面「进驾驶舱」/ 经营面行 / 综合看板卡片 / 建队回调
+  一律走 `openFleet()` → `navigate('/fleets/:id')`（路由 effect 成为选中唯一写手）；
+  解散团队亦改为导航回 hub。
+- 切换条常显：删 `!selected` 隐藏分支，团队态照常渲染；团队态高亮「来源视图」
+  （sessionStorage `fleets.hubSourceView`，裸深链无来源则不高亮——回到 hub 时清键，
+  防止旧来源被后续深链继承）；团队态点任一 tab = 离开团队落回该 hub 视图。
+- 滚动回位：hub 滚动位置记在内存 memo（组件在 `/fleets ↔ /fleets/:id` 间不卸载），
+  后退落回卡片原位。
+
+**② 终词改名「经营坞」→「经营」**（用户裁决）五语言落值：zh「经营」/ en "Operations" /
+es "Operaciones" / fr "Opérations" / ja「経営」；键、路由、`?view=owner` 全不动
+（lexicon delta 已入 change）。活面残留 grep 清零，三处代码注释列为例外未改
+（`OwnerBoardStrip.tsx:1`、`fleet-owner-api.ts:1`、`server/routes/fleets.js:1128`）。
+
+**③ 测试面逮出两个既有 latent 缺陷（e2e fixture 从未覆盖经营面）**
+经营面 e2e 首次建制时连续两红，皆 fixture 缺字段而组件无条件读取：
+`f.board[].counts.onDuty`（`OwnerBoardStrip.tsx:201`）与 `f.spend.windows["7d"|"30d"]`
+（同文件 206 行）。真实 payload 两字段都带，故属**测试夹具债**而非产品缺陷——已补齐
+fixture（`spendWindows()` helper），并留注释钉住"这两处是无条件读取"。
+
+**证据**：`fleet-hub` e2e 6/6（新增：团队态切换条可见+来源高亮+点 tab 离队；
+经营面→点行→后退回 `?view=owner`）／合同套 fleet-core 21 + batch 6 + architect 11 +
+decision-lane 10 全绿／web typecheck + biome + locale 门（五语言 2542 键）+ validate 绿。
+
+**挂账**：真机走查（滚版后眼见：团队态切换条、来源高亮、后退回位、「经营」tab 五语言）。
+
+### §15.103 蓝图陈旧指针死锁：三刀连补到真机走通（2026-10-30）
+
+**病灶回顾（我自己引入的）**：市场 packId 每部署随机铸造（`gateway/packs.js`
+`randomBytes`），改名/重建流程换 id 后蓝图记的旧 id 在 facet 404 → 试跑恒
+`trial aborted: Pack version not found`；而 10-30 白天我加的「再铸」按钮要求先有
+绿+签报告（只能由试跑产出）→ **死锁，蓝图永久卡死**。
+
+**三刀（每刀都是真机或测试逮出来的，不是纸面推演）**
+
+1. **服务端 404→重建 + 前端解锁按钮**（`77f52bad`，镜像 `sha-4dc08d9`）：以旧 id
+   发版被 404 拒时丢掉旧 id 重发一枚新包、指针改新 id、响应 `rebuilt:true`；前端
+   报告命中 `Pack (version) not found` 时按钮改文案「再造并修复指针」并恢复可用。
+2. **cast 前置闸第二例外**（`d18085a9`，镜像 `sha-d834020`）：真机实走 4dc08d9 后
+   仍 409 —— 坏试跑把旧绿签报告**覆盖**（`signoff` 消失、`errors` 带 404 文案），
+   `reseal` 前置不成立，自愈代码根本轮不到跑。测试当时造的是绿+签报告（reseal 成立）
+   所以 22/22 绿没暴露这半。加第二例外：报告带陈旧指针错误且批准人本人即放行；
+   普通 cast 态无此错误照旧 409（反例钉住）。
+3. **同名闸前 provenance 认回**（`fbe179d0`）：再走真机，重建撞「同名包已存在」
+   409 —— 因为本蓝图**自己的活包**仍占着名（改名时新 id 早发出了，只是指针没跟上）。
+   盲发新包必然撞闸 → 指针照样卡死。正解=认回那枚同名活包在其下发新版；认回前必须
+   证 provenance（读该包 `manifest._casting.blueprintId === 本蓝图` 且作者是本人），
+   不符则一律不碰、如实透传 409、指针不动（官方种子 `YMSt-…` 占回「投研晨会」本名
+   正是这个形态，靠这条不误伤）。响应新增 `reclaimedPackId` 让台账可见。
+
+**为什么认回必须验 provenance**：同名闸只回文本不含结构化身份；若不验就认回，
+「别人的同名产品」会被我们覆盖一版（官方种子有 5 版 4 席，被覆盖=真数据损坏）。
+这是**写覆盖面**的判断，宁可 409 让人接手，也不自动越权。
+
+**过程教训（写进配方）**
+- **出片链的分叉债**：生产跑的一直是 worktree cherry-pick 出的快照，`7e6e2eca`/
+  `39f88c13`/`77f52bad` **从未进过 main**——每次出片都得重新叠一遍且随时可能卷掉别人。
+  这次把整链快进推回 main（`c82bf398..8ab6fffa` 起），代码线与镜像线对齐。
+- **核祖先**：bump 前必须 `git merge-base --is-ancestor <生产镜像源码> <我的 HEAD>`。
+  本次生产 `acd8d6a` 源码=`main a3c470ef`⊕两枚 UI 修复，`a3c470ef` 已是 main 祖先
+  → 我的树是真超集，不会回退并行会话。
+- **sed 分隔符撞注释**：`sed 's#…#…#'` 遇上行内 `#` 注释直接 `bad flag in substitute
+  command`（BSD 二犯）。改 yaml 行一律用 python 整行替换 + `assert hit==1`。
+- **relay 只能在 cheap3 上跑**：本机跑 `tcr-relay-sync.sh` 报 `flock: command not found`
+  /`/run/tcr-relay.lock` 不存在——脚本是 cheap-3 上装的正规 cron 件。
+- **argoCD CLI 无 server 配置会挂死**（不是报错）：改用
+  `kubectl --context cheap -n argocd annotate application all-services-prod
+  argocd.argoproj.io/refresh=hard --overwrite`。
+- **验收口径**：pod 同代 `sha-<tag>` + `grep pointerStale /app/server/routes/blueprints.js`
+  + dist 内「再造并修复指针」字样，三处眼见才算上了产。
+
+**证据**：三班构建 CI+image+image-build-check 全绿（`4104045xxx`／`4104279xxx`／
+`4112651xxxx`）；relay digest 两面一致（`7bc489a3`→`b40e7a71`→第三班）；ArgoCD
+`Synced|Healthy`；两 pod 同代；测试 22→23→25 全绿；locale 五语 2542 键绿；typecheck
++ biome 绿。

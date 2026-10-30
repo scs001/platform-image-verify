@@ -4452,8 +4452,8 @@ node scripts/export-marketplace-repo.mjs --db <packs.db> --dry-run
 
 **用户面指引**：`docs/ecosystem/workbuddy-marketplace.md`（添加地址 → 浏览 → 安装 → 更新 → 下架语义）。
 
-**测试**：`node --test scripts/test-facet-marketplace-repo.mjs`（12 项：清单/插件树/同源/白名单/指引边界/
-路径安全/凭据扫描/自检三态/落盘/HTTP 跨面一致 + 三个端到端 git 用例）。
+**测试**：`node --test scripts/test-facet-marketplace-repo.mjs`（13 项：清单/插件树/同源/白名单/指引边界/
+路径安全/凭据扫描/自检三态/落盘/HTTP 跨面一致 + 三个端到端 git 用例 + plugin.json 显式 skills 声明）。
 
 **已抓到的三个真缺陷（都在端到端用例里钉住）**：
 1. 按字节比对判"无变化" → 空仓（无 HEAD）首跑永不提交。改成以 `git status --porcelain` 为准。
@@ -4563,3 +4563,16 @@ account_select_failed: no available OpenAI accounts supporting model:
 
 **留给词元站（sub2api）处置**：要么给组 3 补 `composite_model_routes` 把裸名映射到账号认的
 上游名，要么把账号上游清单刷成含裸名，要么把 46 号重新纳入调度。
+
+### §15.93 路线重定义六 change 一次出片滚产（2026-10-30）
+
+| 项 | 内容 |
+|---|---|
+| 内容 | 路线重定义「AI Agents Teams 执行平台」第一批落地：①团队双看板（`/fleets` 综合看板 + `?view=manage` 管理 + 批量端点 `POST /api/fleets/batch`）②词表 v4 五语言（集群→智能体团队/阵列→小组/能力包→智能体/能力市场→智能体市场/品牌→壹座·智能体基础设施；键零动）③官方资产公开面（gateway `PACK_ANONYMOUS_READ` 开关 + `OFFICIAL_AUTHOR_EMAILS` 名册 + 三段聚合 + pre-login 官方段 + 市场官方徽章筛选）④官方资产 en 副轨 12 份 + `test-official-locale-gate` 防漂移门 ⑤在仓改名（团队架构师/萬星机群助手）⑥Builder 四员（blueprint-author/pack-author 两桥两桥子，工具面窄化无 approve/publish）⑦团队×智语×永忆（`f/` 记忆捕获+fleetContext 记忆段+`zy_fleet_subs` 拉取式房间桥+一键召唤） |
+| 提交 | paas **814d50c0**（91 文件；server.js 同文件相邻的 machines auth-off isAdmin 修复随行）；openspec 六 change 立案+实施记录同批 |
+| 出片 | 公开免费线 scs001/platform-image-verify run 40974582365 绿 → **sha-fbe31c2**；digest **5bb18ebf**；relay 07:46 OK(3s) |
+| 滚版 | platform+platform-demo → fbe31c2（ArgoCD 5c4a96c）；**facet → fbe31c2 + `OFFICIAL_AUTHOR_EMAILS` env（29f8aa1）**——生产 `/api/packs` 走 **facet-proxy 模式**（`FACET_BASE_URL` 已设，本地 showcase 路由不挂载），官方面真源在 facet 侧，双 pod imageID 全等 5bb18ebf |
+| 生产实证 | pod grep 六特征串全过（智能体团队/Saving is NOT publishing/fleet-room-bridge/blueprint-author/api/fleets/batch/本团队工作记忆；zh locale 集群=0）；`GET /api/packs/official`（gateway 代理链）**200 三段 templates 19 / assistants 35 / featured 2**，官方徽章=名单内（aloadtree+admin 两面）；`/api/zhiyu/health` ok；batch 无身份 401 鉴权正确 |
+| 坑 | ①shell 宿主 zsh ENOENT 2h（机器级，非会话内可修，中断点记忆在册）②快照无 image.yml 会删 scs001 仓 push:main 触发器→抓回正位 ③shell cwd 重置致 mkdir 嵌套+image.yml 落错路径（git mv+amend 修复）④**facet-proxy 模式发现**：本地 registerPackRoutes 的改动要生效必须滚 facet 面（mirror remote 之前加在嵌套目录里也一并修正）⑤ArgoCD 同步延迟 rollout 假绿（须核 imageID）⑥并行会话竞速：他们先推快照仓（8cf22be）被我 force push 覆盖，但镜像已在 ccr——bump 核祖先链后前进滚 |
+| 4 红 | 广覆盖 867 测 4 红：install-fetch×3（HEAD 对照同红=pre-existing install 链路债，原车道归因）+decision-lane/fleet-runs（并发假红单跑绿） |
+| 遗留 | 词表 v4 的 facet/registry 侧文案与品牌串（对侧仓）；存量市场包改名+category 归位（运营班）；#7 技能自进化/#8 starter 序列已立案未实施；真机 UI 走查（浏览器）留给用户 |

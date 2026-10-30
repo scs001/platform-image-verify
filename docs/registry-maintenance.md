@@ -5799,3 +5799,75 @@ F'  定时待办（切换日 11-01~11-05）
 **五件套依赖序核对**（2026-10-30 定案）：polish ✅ 归档 → web-project-container ✅ 归档 →
 cron ✅ 归档 → knowledge-memory-surface（依赖 project）→ formation-board（依赖 polish）。
 前三个今日全部归档，**后两个的阻塞已解除**，下一步是 `openspec apply add-knowledge-memory-surface`。
+
+### §15.106 看板编队视图实施（部分 6/11）：formation 载荷 + mini 阵形 + 视图切换 + 副驾接线（2026-10-31）
+
+change `add-teams-hub-formation-board` **实施 6/11 棒，未归档**（validate 绿）。
+
+**① 聚合载荷（1.1/1.2）**：`GET /api/fleets/overview` 每队加 `formation` 紧凑摘要——
+members 四元组（id/title/kind/status）+ 编排边（declared + supervisor 读时展开、implicit
+标记），与驾驶舱画布同源（expandedEdges，不造第二份状态计算）；`FORMATION_NODE_CAP=24`
+超限置 `truncated`。合同测试 `test-fleet-formation` 3/3：两队一次取齐（无 N+1）、
+handoff+implicit dispatch 齐、无编排队空边表、26 岗 truncated。
+
+**② 编队视图（2.1/2.2/2.3）**：`FleetGraph.tsx` 追加 `MiniFleetFormation`——**同一布局
+函数与 kind 调色**（design D2 单几何双密度），点节点+状态环（missing/vacant/failing 红/琥珀
+直接上板可见）、implicit 边不画（与驾驶舱聚合横幅同语义）。`TeamsOverviewBoard` 加视图
+切换（卡片↔编队，localStorage 持久化，默认卡片=改前面原样）；编队栅格单 round-trip 渲染、
+点击直达驾驶舱深链；overview 读面失败只降级编队视图（retry 可用），卡片列表照常（三路独立
+降级条款）。biome 逮 noArrayIndexKey 一处已改坐标复合键。
+
+**③ 看板副驾（3.1）**：`/api/fleets/copilot` 按 **agent id="fleet-architect"** 解析安装包
+（每部署铸造 id 会漂、agent id 是稳定契约；无架构师 → `{copilot:null}` 如实不假装）；
+`CopilotDock` 增 fleets 线（/fleets 与 /fleets/:id 打开即带线、preset 等取回再放行 iframe、
+fleets 线不走线板门）；FleetsPage 广播 `fleets:selection`，dock postMessage 转发选中队上下文。
+
+**④ 证据**：`fleet-hub` e2e **9/9**（新增三条：切换持久+断线上板+点开进舱；编队独立降级；
+副驾降级打开无 preset）+ 合同套 formation 3 + core 21 + batch 6 + architect 11 全绿；
+typecheck + biome + locale 门（五语言 formation 键）绿；validate 绿。
+
+**⑤ 未完成（5 棒，如实）**：3.2 调线闭环 e2e（需真装架构师走 a2a，降级路径已有 e2e 断言）、
+3.3 批准纪律对照走查（本刀零新增 apply 手势，按构造成立；清单走查随 3.2 真机班）、
+4.2 全量回归汇总、4.3 真机走查、外加 km 面四棒（§15.105）。**两 change 均未归档。**
+
+### §15.108 官方精选转正上产：祖先核验拦下生产回退 + 合基重出片 sha-be368d1（2026-10-31）
+
+**出片链**：`fd-build-channel` 判路 = 公开仓免费线（零成本无限）→ `make-public-snapshot --init`
+→ 推 `scs001/platform-image-verify` → `image` run 绿（5 项 smoke 全过）→ relay `07:11:35 OK`（3s）
+→ hkccr/ccr digest 双等 `sha256:736a5ae2` → GitOps `924afe8` 双清单（platform.yaml:54 +
+platform-demo.yaml:71）→ gitee/github 双推 → ArgoCD `all-services-prod` hard-refresh
+→ 两 deploy rollout 成功 → **pod imageID 逐字节等于构建 digest** → platform `/health`
+`{status:ok, db:ok, redis:ok, providers:3}`。
+
+**本轮最大的一刀：祖先核验拦下了一次生产回退（差 46 个提交）**
+第一次出片（`sha-03a9d7f`）全链技术通过，但 `git merge-base --is-ancestor 903a9dbe HEAD`
+判**假**：本会话全程在 `feat/zhiyu-official-site` 上提交，与生产线（`roll/*`）自
+`4587726f` 后分叉，我的树**缺线上 46 个提交**（blueprint 死锁四刀、身份归一修复、marketplace 投影…）。
+若照常 bump，生产指针会切到我的分支并把那些修复全部回退。**镜像没问题，基线不对，不能上线。**
+
+> **纪律再钉一遍**：出片前后各核一次祖先——「被替换镜像的源提交必须是新镜像源提交的祖先」。
+> 技术全绿 ≠ 可以 bump；这条判据与构建成败无关，只与提交图有关。
+
+**合基做法**：以 `roll/marketplace-fanout`（三分支超集：manifest-identity ⊂ ledger-audit ⊂ fanout）
+为基线开 worktree `adopt-roll`，cherry-pick 全部 8 笔 adoption 提交。三处冲突按语义解：
+`DU`（基线无此文件、我方新增）取我方；`UU` tasks.md 取已勾版；台账 `UU` 两边都在同位置
+追加 §15.106 → 保留双方（我方 adoption + 对方星研课程）。
+
+**cherry-pick 漏文件（重要）**：`lib/pack-provenance.js` + 两份测试 + `validateProvenance` 当初是被
+并行会话 `0a2bcd4b` 顺手扫进提交的，我按自己的提交清单 cherry-pick 就会漏掉它们。补齐后
+又踩一条作用域错：把 `describeProvenance` 接进 registry 的 `get()`（`createPackRegistry` 作用域），
+而 `isOfficial` 定义在路由注册函数里 → 会 ReferenceError。**详情路由侧（`pack.official` 之后）
+是唯一正确落点**，已撤回。
+
+**快照门又抓两处对外泄漏（都不是我的代码，但都会随快照出公网）**
+1. `docs/zhiyu-*.md` 四份 + `docs/ecosystem/*.md` 三份：公网 IP、`fd-craw-private`、
+   集群节点名 → 补齐排除表（合基树当时缺这批规则）。
+2. `scripts/test-facet-cli-mcp.mjs` 硬编码生产 OAuth clientId → SCRUBS 脱敏。
+   随之暴露一个机制问题：**强制次数 scrub 在「本来就没有该泄漏」的分支上会误报 scrub rot**。
+   给 SCRUBS 加 `expect === null` 的**可选匹配**语义（默认仍是强制次数——那才是抓「规则悄悄失效」的手段）。
+
+**合基树验证**：13 套里 12 套全绿 **138/138**（`test-facet-marketplace-repo.mjs` 只存在于主仓、不在 roll 分支，
+非本变更文件）；`check-locales` 五语言绿。worktree 无 node_modules 导致首轮 10 套假失败，
+软链主仓 `node_modules` 后全绿——**worktree 验证的固有坑，记下**。
+
+**未做**：浏览器 UI 眼见（精选市场「官方精选·已审校」徽章）、铸一枚真官方 Agent 上架、上游 diff 演练（4.2/4.4）。

@@ -38,6 +38,10 @@ export interface PackSummary {
   visibility?: "public" | "private";
   unlisted?: boolean;
   category?: string;
+  /** 归位展示线词 (add-legacy-pack-rebrand 2.x): the browse facet groups by this,
+   *  NOT by `category` (the stored slug stays the write/install identity, zero-migrated).
+   *  Absent on pre-upgrade servers → the view falls back to category (pass-through). */
+  line?: string;
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;

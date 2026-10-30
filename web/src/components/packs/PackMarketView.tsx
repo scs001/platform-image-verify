@@ -152,10 +152,19 @@ export function PackMarketView({
   }, [refresh]);
 
   // Chip set from the live catalog (v1 volumes: one page is the catalog).
+  // add-legacy-pack-rebrand 2.x: the facet shows归位 LINE words (server's `line`),
+  // never the raw category slugs — clicking a line sends it as the category filter
+  // and the server expands it back to the slugs it stands for. company→no line
+  // (the facade badge carries those); unmapped slugs pass through as themselves.
   useEffect(() => {
     api
       .listPacks({ pageSize: 100 })
-      .then((r) => setCategories([...new Set(r.packs.map((p) => p.category).filter((c): c is string => Boolean(c)))].sort()))
+      .then((r) =>
+        setCategories(
+          [...new Set(r.packs.map((p) => (p.line === undefined ? p.category : p.line) || "").filter(Boolean))]
+            .sort(),
+        ),
+      )
       .catch(() => {});
   }, []);
 

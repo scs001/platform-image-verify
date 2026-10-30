@@ -127,7 +127,7 @@ async function collectPublishVerdict(manifest, { shortCircuit = false, pricing =
   // server-side from the verified binding, NEVER written into the manifest —
   // a manifest's vendor key is an author-controlled identity claim and fails
   // the gate outright (same for legacy packs: they simply never carry one).
-  if (manifest && Object.prototype.hasOwnProperty.call(manifest, "vendor")) {
+  if (manifest && Object.hasOwn(manifest, "vendor")) {
     push("attribution", 400, {
       error: "Manifests may not carry a vendor attribution claim — attribute at publish time with the verified vendor slug",
       code: "manifest-attribution-forbidden",

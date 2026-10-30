@@ -3088,7 +3088,10 @@
       "invalid": "Validación fallida: vea los problemas abajo.",
       "approved": "Aprobado: la forja está desbloqueada.",
       "cast": "Forjado al mercado (agente {{packId}}).",
-      "conflict": "Conflicto de versión: recargue el plano para continuar."
+      "conflict": "Conflicto de versión: recargue el plano para continuar.",
+      "trialGreen": "La prueba está en verde: firma el informe y vuelve a publicar para integrarlo en el paquete.",
+      "trialNotGreen": "La prueba no está en verde: cada aserción aparece en el informe; corrige la evidencia o la rúbrica.",
+      "trialFailed": "La prueba no se ejecutó (fallo de canal o sandbox): no se escribió informe; vuelve a intentarlo."
     },
     "editor": {
       "pick": "Elija un plano a la izquierda o cree uno.",
@@ -3140,7 +3143,9 @@
       "pass": "Cumple",
       "fail": "No cumple",
       "ranAt": "ejecutado {{when}}",
-      "judgedCount": "{{count}} evaluadas por modelo"
+      "judgedCount": "{{count}} evaluadas por modelo",
+      "run": "Ejecutar prueba",
+      "running": "Prueba en curso — los puestos se crean de verdad y la primera ronda se dispara de verdad"
     },
     "castPack": "agente {{packId}}",
     "draft": {
@@ -3189,7 +3194,8 @@
       "by": "Firmado por {{who}} · {{when}}",
       "clear": "Retirar firma",
       "cleared": "Firma retirada."
-    }
+    },
+    "recast": "Volver a publicar (informe verde)"
   },
   "machines": {
     "title": "Máquinas",

@@ -3088,7 +3088,10 @@
       "invalid": "Validation échouée : voir les problèmes ci-dessous.",
       "approved": "Approuvé : la forge est déverrouillée.",
       "cast": "Forgé vers le marché (agent {{packId}}).",
-      "conflict": "Conflit de version : rechargez le plan pour continuer."
+      "conflict": "Conflit de version : rechargez le plan pour continuer.",
+      "trialGreen": "L'essai est vert — signez le rapport, puis publiez à nouveau pour l'intégrer au pack.",
+      "trialNotGreen": "L'essai n'est pas vert — chaque assertion est listée dans le rapport ; corrigez la preuve ou le critère.",
+      "trialFailed": "L'essai ne s'est pas exécuté (canal ou sandbox en panne) — aucun rapport écrit ; relancez."
     },
     "editor": {
       "pick": "Choisissez un plan à gauche, ou créez-en un.",
@@ -3140,7 +3143,9 @@
       "pass": "Conforme",
       "fail": "Non conforme",
       "ranAt": "exécuté {{when}}",
-      "judgedCount": "{{count}} évaluées par le modèle"
+      "judgedCount": "{{count}} évaluées par le modèle",
+      "run": "Lancer l'essai",
+      "running": "Essai en cours — les postes sont réellement créés et le premier tour réellement déclenché"
     },
     "castPack": "agent {{packId}}",
     "draft": {
@@ -3189,7 +3194,8 @@
       "by": "Signé par {{who}} · {{when}}",
       "clear": "Retirer",
       "cleared": "Signature retirée."
-    }
+    },
+    "recast": "Republier (rapport vert)"
   },
   "machines": {
     "title": "Machines",

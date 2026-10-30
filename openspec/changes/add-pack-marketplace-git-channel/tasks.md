@@ -49,8 +49,19 @@
   `plugin.json of <name> disagrees with marketplace.json` 直接 reject）；带技能的插件显式声明
   `"skills": ["./skills"]` —— **已据实补齐**并有单测钉住
 - [ ] 5.1 在真实 WorkBuddy 客户端「插件 → + → 输入市场地址」添加该仓；验证：市场出现在列表且可浏览
+  （**远端仓已上线**：`FindDataTechnology/facet-marketplace`（公开 GitHub，2026-10-30 自生产
+  packs.db 投影 75 功能集/509 文件，`--push` 成功）。清洁 HTTPS 克隆机检：marketplace.json
+  `name=facet`/owner/75 条目、60 条带 `skills:["./skills"]`+SKILL.md、plugin.json 与条目
+  name+version 全一致、键形状泄漏扫描零命中。客户端 `parseSource` 代码级确认
+  `owner/repo`→GitHub 源、https→Git 源。剩「插件→+→输入地址」一键浏览属真机 UI 步——
+  模拟注册（写 known_marketplaces.json+物化克隆）试过一轮：目录为惰性加载，日志无 facet
+  证据即回滚（不留污染状态），故此项保持未勾，配方已写入 `docs/ecosystem/workbuddy-marketplace.md`）
 - [ ] 5.2 安装一个带技能的插件；验证：技能出现在「已安装」且对话中可被调用，无"路径未找到"错误
+  （依赖 5.1 的真机添加；安装/物化流客户端代码路径与 5.0 对拍结构一致）
 - [ ] 5.3 发一版新版本后刷新仓库再更新；验证：客户端显示新版本并可更新，旧版本仍可回退
+  （重投影即 `node scripts/export-marketplace-repo.mjs --db <packs.db> --out <仓工作树> --push`，
+  last-good 契约保证坏投影不落盘；更新流属真机 UI）
 
-> 5.1–5.3 未做：需要一个可访问的远端 Git 仓。本轮只在本地生成并提交（本地 bare 仓模拟远端），
-> 未对外发布任何市场仓。5.0 的结构对拍是**已做**的实证，其余保持未勾。
+> 5.1–5.3 状态更新（2026-10-30 第二轮）：原「需要可访问远端仓」阻塞**已解除**——公开仓
+> `FindDataTechnology/facet-marketplace` 已上线并克隆机检通过。三项的**仓侧/代码侧**证据齐；
+> **UI 一键**（添加地址→浏览→安装→更新）待真机操作，保持未勾。

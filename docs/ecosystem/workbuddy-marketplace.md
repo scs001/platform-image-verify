@@ -15,9 +15,15 @@ WorkBuddy（及同族的 CodeBuddy）的插件市场支持**按地址添加外�
 ## 用法
 
 1. 打开 WorkBuddy → 左侧**插件** → 市场区域右上角 `+` → 输入市场地址。
-2. 地址填这份市场仓的 Git 地址（推荐 `owner/repo` 或 HTTPS 形式）。注意该客户端的仓库地址以
-   "包含 `.codebuddy-plugin/marketplace.json` 的仓库"为准。
+2. 谦面官方市场仓地址（公开 GitHub，免鉴权克隆）：**`FindDataTechnology/facet-marketplace`**
+   （等价 HTTPS：`https://github.com/FindDataTechnology/facet-marketplace`）。客户端地址解析器
+   代码级确认：`owner/repo` 形状走 GitHub 源、https 仓库 URL 走 Git 源（5.9.3 出厂 bundle `parseSource`）。
+   注意该客户端的仓库地址以"包含 `.codebuddy-plugin/marketplace.json` 的仓库"为准——本仓正是该形状。
 3. 添加成功后即可浏览与安装条目。可选：为该市场打开**自动更新**（第三方市场默认关闭，官方市场默认开启）。
+4. 维护方（我们）：内容投影自谦面生产库——从 facet pod 取 `packs.db`
+   （`kubectl --context cheap -n fd-prod cp <facet-pod>:/data/facet/packs.db …`），跑
+   `node scripts/export-marketplace-repo.mjs --db <packs.db> --out <市场仓工作树> --push`；
+   自检不过不落盘（last-good 契约），仓里**永不出现凭据形状字符串**（出现即上游发布闸门失守，导出器拒写）。
 
 ## 装进去之后
 

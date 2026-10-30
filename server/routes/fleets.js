@@ -39,6 +39,8 @@ import {
   OPEN_QUEUE_LIMIT,
 } from "../fleet-decisions.js";
 import {
+  DEFAULT_DELEGATION_POLICY,
+  DELEGATION_CATEGORIES,
   normalizeDelegationPolicy,
   normalizeQuestion,
   routeForItem,
@@ -1651,7 +1653,7 @@ export function createFleetRoutes(app, ctx = null) {
 
   // Deputy 队列：route=deputy 的 open 项 + 每项的来源岗位上下文（标题/状态/
   // 近期报数摘要）与主人过往同类判例（resolved_by=owner 的历史裁决）。
-  router.post("/deputy/queue", async (_req, res) => {
+  router.post("/deputy/queue", async (req, res) => {
     try {
       const db = getFleetDatabase();
       const personaMembers = [];

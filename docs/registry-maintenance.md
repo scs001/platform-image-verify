@@ -4810,3 +4810,24 @@ GitOps `d8d99246`（gitee+github 双推）加镜像 bump + env，ArgoCD hard-ref
 - **律（升级版）**：「服务端 + SDK 语义可行」≠「目标客户端消费我们的配置文件形状」——客户端侧
   结论必须按**出厂代码逐加载路径**核，不许用 SDK 级证据代表整客户端。三跳全程：
   判死（缺 DCR）→ 翻案（静态 client_id 短路，服务端三件套+e2e）→ 再修正（用户文件加载器不递 clientId）。
+
+### §15.97 WorkBuddy 市场仓上线 + facet 0.3.0 发版挂账（2026-10-30）
+
+**市场 Git 仓（add-pack-marketplace-git-channel 的远端缺口清零）**：备用仓盘点结论=出片线同款
+**org 公开仓**（免费无限、与私有池额度无关、GitHub 裸 HTTPS 免鉴权克隆正是客户端市场 Git 源所需）→
+新建 `FindDataTechnology/facet-marketplace`（public）。投影自**生产库**：
+`kubectl --context cheap -n fd-prod cp <facet-pod>:/data/facet/packs.db` →
+`node scripts/export-marketplace-repo.mjs --db … --out … --push` → **75 功能集/509 文件**。
+机检：清洁 HTTPS 克隆 marketplace.json 形状对（`name=facet`/owner/75 条目）、60 条带
+`skills:["./skills"]`+SKILL.md、plugin.json name+version 全一致、凭据形状扫描零命中。
+客户端侧代码级确认：`parseSource` 认 `owner/repo`（GitHub 源）与 https URL（Git 源）。
+**真机「添加地址」走查（5.1-5.3）待用户一键**：模拟注册（写 known_marketplaces.json+物化克隆）
+试过一轮——目录惰性加载、日志无 facet 证据 → 即回滚不留污染（配方与证据写入
+`docs/ecosystem/workbuddy-marketplace.md` 用法节与归档 change tasks）。
+
+**facet@0.3.0 npm 发版挂账**：包已备好（`facet/cli` dry-run 绿：facet.js+README+package 3 文件、
+19.4kB），但 `~/.npmrc` 旧 bypass-2FA 令牌失效（whoami 401，10-27 那枚 7 天期到期），且 npm 站
+2026-08 起**建令牌也要再鉴权**（配方记忆「建 token 不拦」已过时——账户变更被纳入 2FA 拦截面）。
+解=用户在网页生成新 bypass GAT（勾 Bypass 2FA + Read and write + 仅 @finddatatechnology scope、
+短有效期）后 `npm publish`（发包时 ego 会话页已见「Confirm Password」再鉴权门）。**发版后动作**：
+轮询 `npm view @finddatatechnology/facet version`=0.3.0（0.0.0-stage ~5min 窗属正常）。

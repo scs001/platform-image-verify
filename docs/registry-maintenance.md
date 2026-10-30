@@ -4700,3 +4700,17 @@ B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更
 4. **并行 bump 竞速**：期间对方连推 `21bdd57`→`02588e6`（源 `1a38885d`/`f1e8f835`）。
    我 `git pull` 后先 `merge-base --is-ancestor` 证明我的 `b5c03b26` 是其**超集**，
    才覆盖其 image 行——否则「只滚自己那一面」会变成踩掉别人的生产修复。
+
+### §15.98 官网下载中心上架 v1.3.27（2026-10-30，镜像轨全流程）
+
+| 环节 | 实况 |
+|---|---|
+| dl-publish | 005 池 dispatch run `41007566553` 绿：三件套打成 scratch 镜像 → `hkccr/yizuo/desktop-installers:1.3.27` digest `5f3eb1af`（**tag 无 v 前缀**口径） |
+| relay→ccr | `desktop-installers` **不在 repos.conf 白名单**（grep=0），cron 全量轮永不携带 → **手动补单** `tcr-relay-sync.sh yizuo/desktop-installers 1.3.27`（与 cron 撞 flock 时脚本静默 SKIP——重试循环至 `CCR-LANDED`，skopeo 核 digest 与推送端**全等**=硬门过） |
+| 卸件 | cheap3 从 **ccr** 内网 pull → docker create+cp → `/srv/dl/platform/1.3.27/` 三件套字节与 Release 资产全等（261884107/332658120/344074119）；dl-caddy 内网 200、**公网 range 206** |
+| 数据面 | `GH_REPO=testaction005/build-pool release-sync v1.3.27 --dl-live --skip-rsync`：desktop-releases.json 头插 1.3.27（arm64 dmg+exe 直链 dl，x64 同步不链=设计 D3）→ 双推 github+gitee |
+| 官网出片（**用户令「要测就用 GitHub 测」**） | 官网 CI `image.yml` run `41008634838` **绿** = `fd-web/official-web:sha-50b333d` digest `6f96055a`；CI 的站侧校验即测试场，本地零手工测 |
+| 站点滚版 | fd-deploy(124.220.7.175) root docker 从 hkccr pull → **镜像是 nginx 底座**：dist 在 `/usr/share/nginx/html` 非 /dist 也非 /app/dist（§15.70 记的抽法这次两处都扑空，靠 ls / 重定位）→ 备份 `dist.bak-<date>` → 整替 `/opt/fd/web/dist` → **回填 live `data/calibers.json`**（镜像内是构建桩）→ `nginx -t`+reload |
+| 眼见 | `dist/products/base/index.html` 含 `…/dl/platform/1.3.27/Platform-1.3.27-arm64.dmg` + `Platform.Setup.1.3.27.exe` 两真链；公网 exe range 206 |
+
+**坑三枚**：①`finddatatech.cloud` **裸域 443 证书 SNI 不匹配**（curl 直连 code=000），`www.finddatatech.cloud` 才 200——核站一律带 www，裸域证书属既有挂账；②脚本重跑第二遍 `nothing to commit` 红=**幂等正态**（首遍已双推），勿当真败；③release-sync 的 GH_REPO 默认 FindDataTechnology/platform，**桌面 Release 在池仓**，必须显式 `GH_REPO=testaction005/build-pool`（1.3.24 班亦此口径）。

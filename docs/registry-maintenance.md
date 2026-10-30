@@ -5920,3 +5920,10 @@ platform-demo.yaml:71）→ gitee/github 双推 → ArgoCD `all-services-prod` h
 软链主仓 `node_modules` 后全绿——**worktree 验证的固有坑，记下**。
 
 **未做**：浏览器 UI 眼见（精选市场「官方精选·已审校」徽章）、铸一枚真官方 Agent 上架、上游 diff 演练（4.2/4.4）。
+
+**§15.108 续记三：重发布幂等修复 + 验证绿 run（2026-10-31）**
+复跑 run 41143983762 的 `failure` 是**脚本缺陷非发布缺陷**：8 条新发全中，6 条 `duplicate version
+already exists`（首发已上架）被误计为失败 → exit 1。修法=发布循环把该形状识别为「已在名录·幂等跳过」
+（不改写 registry 状态，不静默吞其它错误）；三处同步：paas `e1703363`、roll 分支、公开管道仓
+`ee971ce`（源在 paas，管道仓为 vendor 副本）。验证 dispatch run **41145036723 绿**：
+`✓ 发布完成：新发 0、已在名录 14（共 14）`——重发布从此安全可重入，weekly dry-run 哨兵不受影响。

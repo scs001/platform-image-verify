@@ -4654,3 +4654,49 @@ fd-build-snapshot→池 testaction005@desktop-release/v1.3.27 sha=38486ef→**�
 产物：池 Release v1.3.27 三件套（exe 261.8MB/dmg×2）+ exe 已落本 Mac `~/Downloads/`。
 
 **余账**：上架（dl-publish 镜像轨 hkccr/yizuo/desktop-installers:1.3.27 → cheap3 /srv/dl → release-sync 写 fd-official-web desktop-releases.json + 双推）=待用户拍板；laptop 真机升级=用户取 exe 安装后，配对走查腿已在生产演过可即刻复跑。
+
+## §18 发布记录：对外团队 chat 车道（fix-external-team-chat-lane，2026-10-30，两班出片）
+
+**范围**：真机对外走查（`docs/product-intro-walkthrough-2026-10-30.md`）逮出六缺陷，平台面四条
+（B1 chat 车道不注入本队上下文→派发打不中/turns=0；B3 对外人格可见内部工具面；
+B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更上产。
+
+| 班 | 真源 paas | 快照 | 镜像 tag | ccr digest | GitOps | 面 |
+|---|---|---|---|---|---|---|
+| 一 | `7a4910f7` | `fa6d044` | `sha-fa6d044` | `2f3a4307` | `82c4516`+`5b7e7de` | platform×2 |
+| 二 | `b5c03b26` | `dcfa000` | `sha-dcfa000` | `87b61dd7` | `1e5d457` | platform×2 |
+
+**第二班是两刀真缺陷的回修**（都由只读排查/真机复测暴露，非计划内）：
+- `e3481f14` **B3 名册可见性**：`applyMcpToolRestrict` 原在允许名单为空
+  （`readMcpToolFilter()` 返 null）时整体早退 ⇒ 零 MCP 面的 publicFacing 人格
+  仍把 bash/read/grep 留在**模型可见名册**（guard 只拦调用）。生产实证：走查 cell
+  的 `tool-filter.json` 恰为 `mcpTools: {}` + `denyTools: 七项`——正是该分支。
+  改法=deny 集恒算。补 4 枚**读侧行为单测**（此前只有正则钉写入面）。
+- `b5c03b26` **注入名单去主键**：成员行不存模板 ref，首版回落 `岗位引用 ${member.id}`，
+  真机第一发里模型把 `m_1793334491977_6y40f9` **原样讲给访客**。改为按岗位标题寻址
+  （派发侧已支持本队内标题大小写不敏感解析），名单整行不含主键。
+
+**真机复测（生产 cell `1da519d4c1c0bf89`，WS 直驱 gateway，铸 cookie 免密通道）**：
+前台派发给「识律专家」→ `tool_start args.to = "识律专家"`（不再是猜测的 id）、
+`tool_end ok`、`GET /api/fleets/:id/turns` 回读 **2 条 `source=delegation status=ok`**
+（deepseek-v4.1-flash）——B1 的「turns=0」阻断级缺陷终结；正文 190 字符**无 `<thinking>`**
+（818 字符走合法 `thinking` 信道）；本轮无「still initializing」；访客回答内**无任何成员主键**。
+复测毕已 `PATCH /api/fleets/:id {"state":"archived"}` 归档测试团队（包 1.0.3 留在机上作验收物）。
+
+**包**：`v8rZ8F7E92MrssZ92ygnXQ` 重铸 **manifest 1.0.3**（facet store v4）——补
+`publicFacing: true` + `i18n.en`/`fleet.i18n.en` 两级英文 overlay（**locale 门抓住的新种子漏网**：
+官方种子必须带全 en overlay）；两步法续版仍走 pod 内 `x-facet-token`+`x-facet-user` 通道。
+
+**本轮入律的坑**：
+1. **GitOps 替换串必须含 `image: ` 前缀**——`82c4516` 我用「路径 # 注释」整行替换，
+   丢掉 `image:` 键，python `yaml.safe_load_all` 当场判非法、ArgoCD
+   `Failed to unmarshal platform-demo.yaml` 全站比较错误（`5b7e7de` 补回）。
+   **律**：bump 后必 `yaml.safe_load_all` 回验 + 断言容器 image 字段等于目标 tag，再 commit。
+2. **快照必须 `--ref <已提交 sha>`**：`make-public-snapshot` 默认取 HEAD，而共享工作树在
+   `feat/zhiyu-official-site`——首建快照**不含本变更任何修复**（grep publicFacing=0）。
+   推前用特征串 grep 快照内容自证（本次三处 marker），否则等于发旧码。
+3. **在飞出片先查再推**：`image.yml` 带 `cancel-in-progress`，force-push 会掐断并行会话的
+   build；本窗口两次 `gh run list --status in_progress` 为空才推。
+4. **并行 bump 竞速**：期间对方连推 `21bdd57`→`02588e6`（源 `1a38885d`/`f1e8f835`）。
+   我 `git pull` 后先 `merge-base --is-ancestor` 证明我的 `b5c03b26` 是其**超集**，
+   才覆盖其 image 行——否则「只滚自己那一面」会变成踩掉别人的生产修复。

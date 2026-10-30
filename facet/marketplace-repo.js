@@ -40,8 +40,11 @@ export const DEFAULT_MARKET_NAME = "facet";
 
 // Credential shapes that must never appear in exported bytes. The generator
 // refuses rather than sanitizes: a match means a pack somehow carried a key,
-// which is a publish-gate bug, not something to quietly strip.
-const CREDENTIAL_RE = /\b(wgk-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{16,}|skh_[A-Za-z0-9]{16,})\b/;
+// which is a publish-gate bug, not something to quietly strip. Defined once in
+// credential-pattern.js so the runtime projection face can share it without
+// importing this exporter (and, through it, facet/cli/ which is not shipped in
+// the image); re-exported below for existing importers (scripts/, tests).
+import { CREDENTIAL_RE } from "./credential-pattern.js";
 
 export class MarketplaceRepoError extends Error {
   constructor(message, { code = "EXPORT_REJECTED", detail = null } = {}) {
@@ -253,6 +256,14 @@ function renderReadme(pack, { registry, manifest }) {
       "",
     );
   }
+  // Funnel hook (add-marketplace-projection-fanout, design D6): prose only —
+  // the manifest keeps its machine contract untouched.
+  lines.push(
+    "---",
+    "",
+    "装好只是开始。想让这套能力 **7×24 常驻**（定时运行、多岗协作、产出直接交付），到萬星开一支智能体团队：<https://finddatatech.cloud>",
+    "",
+  );
   return lines.join("\n");
 }
 

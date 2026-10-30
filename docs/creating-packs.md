@@ -136,6 +136,75 @@
   版本历史与每版说明。
 - 部署成 7×24 agent（带服务契约的角色）→ 萬星；订阅者经 CLI 或壹座装进自己的编辑器。
 
+### 官方转正（operator only）
+
+**这是运营侧动作，不是创作者路径。** 目的：把外部市场里真正好的热门技能，经审校后变成
+**平台的官方 Agent** 上架。它不改变 `#/packs` 的任何准入规则——转正是「先审后上」，不是绕过审校。
+
+#### 三条硬约束
+
+| 约束 | 说明 |
+|---|---|
+| **许可** | 只接受 MIT / Apache-2.0 / BSD / ISC。AGPL / GPL / 非商用 / 无声明**硬拒**。判定**读上游 LICENSE 原文**，不读外部货架的 `licenseState`（那字段两源都恒为 `unknown`）。 |
+| **快照** | 转正那一刻把技能正文 + 辅助文件整棵内联进包版本，并钉定上游 commit。运行期不回源——上游删了，官方资产仍然完整。 |
+| **可归因** | 每次转正记 `adoptedBy` / `reviewedBy` / `reviewedAt`，随版本冻结。发布账号必须在部署的官方 roster（`OFFICIAL_AUTHOR_EMAILS`）内，否则「官方」标记不亮。 |
+
+#### 许可分层（凭证 > 自述）
+
+```
+LICENSE / COPYING 文件        → primary（授权凭证）
+frontmatter / package.json    → declared（作者自述）
+
+有 primary  → 只认 primary；自述仅入审计记录（记 declared-license ignored）
+无 primary  → 才退到 declared，并记 declared-only 提醒复核
+```
+
+为什么分层：一个 AGPL 仓库的技能若在 `SKILL.md` 里写 `license: MIT`，同级合并会把它洗白放行。
+**凭证优先于自述**，这是代码里的裁决顺序。
+
+#### 工具面：CLI 技能必须显式放宽
+
+转正产物默认 `serving.toolFace: "chat"`（无 shell / 文件 / 浏览器 / 子代理）。
+但**大量热门技能靠 CLI 干活**——正文写 `nano-pdf edit deck.pdf 1 "..."`、
+frontmatter 声明 `requires.bins: ["nano-pdf"]`。此时 chat 面会让产物「叫用户跑命令、自己没 shell」。
+
+管线会探测 `requires.bins`：
+- 探测到 + 未显式放宽 → **拒绝**（`toolface-insufficient`），绝不静默产出残废包；
+- 审校者显式放宽（`widenFullToolFace`）→ 产物不声明 `toolFace`（= 全工具面），并记入审校提示。
+
+#### 三轴互不相交（展示面）
+
+```
+类型徽章 badge      ← 结构推导（蓝图/分身/助手/工具）
+官方性  official    ← 部署 roster，作者不可自报
+来源    provenance  ← manifest 的 adopted 记录
+```
+
+「官方精选 · 已审校」在界面上出现**当且仅当** `official === true ∧ adopted === true`。
+只带 adopted 记录的包仍读作社区条目——manifest 里写再多也不能给自己发官方身份。
+
+#### manifest 形状
+
+```json
+"provenance": {
+  "kind": "official-adopted",
+  "upstreamUrl": "https://github.com/acme/repo/tree/main/skills/x",
+  "upstreamName": "x",
+  "license": "MIT",
+  "revision": "4a93985763241755401a10678395303de4e720ba",
+  "adoptedBy": "ops@finddata.cloud",
+  "reviewedBy": "reviewer@finddata.cloud",
+  "reviewedAt": "2026-10-31T02:00:00.000Z"
+}
+```
+
+#### 已知边界（运维）
+
+- **只有 Smithery 源可转正**：其 `originUrl` 是 `github.com/.../tree/<ref>/<path>`，可钉定。
+  SkillHub 的 originUrl 是市场页，钉不住 → 直接拒绝（宁可不上架，也不钉不住就上）。
+- **GitHub 匿名 API 60 次/小时**：一次转正约 5–8 个请求，批量转正必须配 token，
+  否则第 8 枚左右开始 403。
+
 ### 回流官方市场（自部署者）
 
 包发布在**你自己的实例**上时，用 CLI 把它一键搬到官方市场——跨实例传输体就是 CLI：

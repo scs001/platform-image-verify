@@ -3,7 +3,7 @@
 - [x] 1.1 在 pack manifest 校验器（`lib/pack-manifest.js`）新增可选 `provenance` 结构 `{kind:"official-adopted", upstreamUrl, upstreamName, license, revision, adoptedBy, reviewedBy, reviewedAt}`，缺省保持旧行为；验证=旧 manifest 逐字节通过、新结构通过、`kind` 非法值被拒（单测）。**已实施**：`validateProvenance` + `PROVENANCE_KEYS/KINDS/LICENSE_RE/REVISION_RE/URL_RE`，`scripts/test-official-adoption.mjs` 6 条形状用例绿。
 - [x] 1.2 实现唯一投影函数 `describeProvenance(pack)` 合成三轴（类型徽章来自 `lib/pack-badge.js` / 官方性来自 roster `OFFICIAL_AUTHOR_EMAILS` / 来源来自 manifest `provenance`），平台面与 facet 面都只读它；验证=类型×官方性×来源组合矩阵各一条断言；`deriveBadge` 与 roster 判定零改动（回归对拍）。**已实施**：`lib/pack-provenance.js`（`describeProvenance` / `describeShelfProvenance` / `PROVENANCE_SOURCE`），详情读 `GET /api/packs/:id` 已接；`community` 态不置键 → 旧 payload 逐字节不变。
 - [x] 1.3 实现许可门：仅 MIT / Apache-2.0 / BSD 系放行，AGPL / 非商用 / 无声明硬拒且记失败轴与观测到的许可原文（或显式「未声明」）；**许可来源必须是上游包本身**，**不得读货架 `licenseState`（实测恒 unknown）**；多许可取最宽松；验证=四类样本 + 「货架 unknown 但上游 MIT 放行」+ 「MIT OR 非商用取 MIT」用例，拒绝时零副作用。**已实施**：`lib/license-gate.js`（`scanLicenseText` / `evaluateLicense` / `assertLicenseAdmissible`），含真实夹具（MCP 仓 NOASSERTION 元数据 + MIT/Apache 原文）。
-- [ ] 1.4 让 provenance 越过 `preset-pack-bridge.js` 而不被丢弃——转正路径显式携带（不改桥自身语义）；验证=走转正路径产出的草稿含完整 provenance，走自建预设路径行为逐字节不变（回归）。**未做**：桥的消费侧尚未接（转正 mint 通道未建，见 2.x/阶段二）。
+- [x] 1.4 让 provenance 越过 `preset-pack-bridge.js` 而不被丢弃——转正路径显式携带（不改桥自身语义）；验证=走转正路径产出的草稿含完整 provenance，走自建预设路径行为逐字节不变（回归）。**已实施**：`compileDraftManifest`（web 唯一草稿→清单编译器，publish 与 export 共用）与 `server/routes/packs.js` 的 import-bundle 反向编译都在 entries↔manifest 之间双向携带 provenance；`PackDraft.entries.provenance` 与 `PackManifest.provenance` 类型已补。`test-adoption.mjs` 三条往返用例（含「普通草稿不出 provenance 键 → 旧 manifest 逐字节不变」）。**未做**：`preset-pack-bridge.js` 本体零改动（有意的——它服务自建预设一键流，语义不动；转正走自己的携带路径）。
 
 ## 2. 取包与审校（复用既有链路）
 
@@ -27,6 +27,6 @@
 
 ## 5. 收口
 
-- [ ] 5.1 `openspec validate add-official-adopted-agents --strict` 全绿；验证=命令输出 0 错。
-- [ ] 5.2 全量相关测试套（manifest / external-sources / curator 对拍）通过；验证=测试命令输出全绿。
-- [ ] 5.3 更新 `docs/creating-packs.md` 增一节「官方转正（operator）」，写清许可门与 provenance 三态；验证=文档存在且与 spec 用语一致。
+- [x] 5.1 `openspec validate add-official-adopted-agents --strict` 全绿；验证=命令输出 0 错。**已验证**：`Change 'add-official-adopted-agents' is valid`。
+- [x] 5.2 全量相关测试套（manifest / external-sources / curator 对拍）通过；验证=测试命令输出全绿。**已验证**：13 套 / 153 断言全绿（adoption 21 + adoption-display 6 + official-adoption 20 + upstream-license 7 + pack-validate 16 + pack-badge 12 + official-showcase 5 + external-sources 13 + external-install 14 + preset-pack-bridge 6 + custom-presets 13 + official-locale-gate 5 + facet-marketplace-repo 15）；`check-locales` 五语言全绿。
+- [x] 5.3 更新 `docs/creating-packs.md` 增一节「官方转正（operator）」，写清许可门与 provenance 三态；验证=文档存在且与 spec 用语一致。**已实施**：§5 下新增「官方转正（operator only）」——三条硬约束（许可/快照/可归因）、许可分层（凭证>自述）、CLI 技能须显式放宽、三轴互不相交、manifest 形状、两条运维边界（仅 Smithery 可钉定 / GitHub 匿名限额 60 次每小时）。

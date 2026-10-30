@@ -1,0 +1,98 @@
+# MCP Registry publish — official community registry (add-marketplace-projection-fanout).
+#
+# Publishes the facet's public MCP servers (groups = []) to
+# registry.modelcontextprotocol.io under the organization namespace
+# io.github.FindDataTechnology/*.
+#
+# Why OIDC and not `mcp-publisher login github`: the interactive device flow
+# issues a GitHub-App token that cannot read organization membership, so the
+# registry only ever grants it *personal* io.github.<username>/* (upstream
+# Warning + registry issue #1468). Publishing under an organization name has
+# exactly two paths — this OIDC flow, or a read:org PAT from an org Owner. OIDC
+# is the free, credential-free one, which is why this workflow is the channel's
+# only supported publish path (design D4).
+#
+# One-time bootstrap, per maintainer:
+#   1. the GitHub account running this workflow must be an Owner of
+#      FindDataTechnology (OIDC grants the namespace by org role, not by name);
+#   2. run the `mcp-registry-dry-run` job first — it validates the whole
+#      projection batch and writes nothing;
+#   3. dispatch `publish` with confirm=publish. The first publish claims the
+#      namespace; later runs update it.
+# Local `mcp-publisher login github` cannot publish these names. Do not use it
+# as a fallback — it silently publishes to a different namespace.
+name: mcp-registry-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      facet_url:
+        description: "Facet base URL serving /api/mcp-registry.json"
+        required: false
+        default: "https://facet.finddatatech.cloud"
+      confirm:
+        description: "Type `publish` to actually publish (anything else = dry-run)"
+        required: false
+        default: ""
+  schedule:
+    # Weekly drift check: dry-run only, so a projection regression surfaces as a
+    # red workflow rather than as a stale registry listing for months.
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+  id-token: write # the credential: GitHub OIDC → registry namespace grant
+
+jobs:
+  dry-run:
+    name: validate projection (no writes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Project + validate (writes nothing)
+        run: |
+          node scripts/publish-mcp-registry.mjs \
+            --facet-url "${{ inputs.facet_url || 'https://facet.finddatatech.cloud' }}" \
+            --dry-run
+
+  publish:
+    name: publish to MCP Registry
+    needs: dry-run
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm == 'publish'
+    runs-on: ubuntu-latest
+    environment: mcp-registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # mcp-publisher ships as a Go binary; the release bundle below is the
+      # official distribution path.
+      - name: Install mcp-publisher
+        run: |
+          set -euo pipefail
+          curl -sSL \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar -xz mcp-publisher
+          install -m 0755 mcp-publisher /usr/local/bin/mcp-publisher
+          mcp-publisher --help >/dev/null
+
+      # login github-oidc mints the registry token from the workflow's OIDC
+      # identity. No secret is stored anywhere.
+      - name: Log in with GitHub OIDC
+        run: mcp-publisher login github-oidc
+
+      # Pre-publish visibility gate: the source must be the public projection.
+      # The script only ever reads /api/mcp-registry.json (groups = [] servers,
+      # no credential headers), and re-validates the whole batch before any
+      # write, so a malformed or leaky document aborts the run.
+      - name: Publish public servers
+        run: |
+          node scripts/publish-mcp-registry.mjs \
+            --facet-url "${{ inputs.facet_url || 'https://facet.finddatatech.cloud' }}" \
+            --out mcp-registry-out \
+            --publish

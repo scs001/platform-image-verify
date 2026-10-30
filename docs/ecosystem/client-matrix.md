@@ -20,6 +20,19 @@
 `facet/cli/mcp-auth-capability.js`（`selectLane` 的返回值才是结论）；本行只是 2026-10-31 的一次快照。
 矩阵给"当前走哪条"，能力表给"凭什么这么走"——两者不一致时以能力表为准，并修这一行。
 
+## 公开发现面（不分客户端）
+
+上面那张表是「装进某个客户端之后」的能力；这张表是「还没装、怎么被搜到」。
+两行都属于 `add-marketplace-projection-fanout`，是分发漏斗的顶（发现 → 免键试用 → 想常驻则去萬星）。
+
+| 面 | 状态 | 地址 / 端点 | 判据与出处 |
+|---|---|---|---|
+| **MCP Registry 公开发现**（官方 `registry.modelcontextprotocol.io`） | 代码就绪，**待首次上架** | 投影端点 `GET /api/mcp-registry.json`（`{servers:[…]}`）；单条 `GET /api/mcp-registry/<server>.json` | 只投 `visibleTo(entry, null)`（= `groups` 为空）的公开 server，形状 `2025-12-11`，`name` = `io.github.FindDataTechnology/<server>`，`remotes[]` 指向免键端点且**无 `headers` 块**。实现 `facet/mcp-registry-json.js`；发布 `scripts/publish-mcp-registry.mjs` + `.github/workflows/mcp-registry-publish.yml`（GitHub OIDC，唯一能发组织 namespace 的免费路径）。指南：[mcp-registry-publishing.md](mcp-registry-publishing.md)。`version` 固定 `0.0.1` 占位（registry 侧无 server 版本语义） |
+| **技能市场可索引**（skills.sh / SkillHub 等爬公开仓） | 形状核验通过 + **解析已实证**（收录仍由平台决定） | `https://github.com/FindDataTechnology/facet-marketplace`（另有 `fd-mcp-registry`、`fd-vertical-packs`） | 标准形状：`SKILL.md`（frontmatter 带 `name`/`description`）+ `.codebuddy-plugin/marketplace.json`；2026-10-31 三仓 221/221 合规核验。主源码仓 `fd-craw-private` 为 PRIVATE 不可作源。零 facet 侧适配代码。实证：`npx skills add FindDataTechnology/facet-marketplace` 本机落盘 152 技能、frontmatter 完整（`skill-market-registration.md` §3 实证记录）；`npx skills use …@facet-gateway-ops` 全文解析成功。指南：[skill-market-registration.md](skill-market-registration.md) |
+
+两行的「状态」列刻意不写 ✅：**形状与代码完成 ≠ 已上架/已收录**——收录时机由对方平台决定，
+这是能力矩阵里唯一允许长期停在「就绪待发布」的两格，理由见各自指南的「诚实边界」节。
+
 三道含义：**L1** 客户端自己消费静态 `clientId` 跑授权（零凭据落盘）；**L2** CLI 跑授权，
 把短命 access token 写进客户端静态 `Authorization` 头（今天覆盖全部六家）；
 **L3** `wgk-` 调用键（headless/CI）。之所以六家当前全落 L2：各家 `headerStatic` 都已实证为真，

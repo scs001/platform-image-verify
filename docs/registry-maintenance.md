@@ -5387,3 +5387,105 @@ LICENSE 原文 + commits 解析，约 5-8 次请求/枚。**运营批量转正�
 （该文件 341 行未提交 diff），我的三个前端文件 0 错。
 
 **未完**：浏览器 UI 眼见（随出片班）、1.4 桥消费侧、真实发布 + pod 物化实证、运营端点层身份注入。
+
+### §15.104 定时任务对齐自动化模型：相对一次性/interval/maxRuns/update/执行史（2026-10-31）
+
+change `add-cron-automation-parity` 实施完成（13/13 棒、validate 绿）。
+
+**① 三形态调度（服务端为真源）**
+- 相对一次性：`delayMinutes`（1–525600）由**服务端真实时钟**锚定成绝对 `when` 再落库；
+  客户端只提交延迟、从不自算 wall time（自算时刻一旦过期会静默滚一年——ZCode 同款坑）。
+- every-N interval：`interval{number 1–200, unit minute|hour|day|week}` 为**规则真值**，
+  不向 cron 凑近似（"每 40 天"五字段表达不了）；`anchor` = 创建接受时刻，发生序列
+  anchor + k×step（k≥1）。**实施中发现并修掉一个自造缺陷**：首版把 anchor 本身当首个发生，
+  interval 任务会"创建即触发一次"——测试逮到（runs 立刻变 1、进程被定时器挂住），
+  改为 k≥1 后 7/7 绿。
+- maxRuns：完成执行计数（run-now/重跑计入），达 cap 自动 `completed` 并取消定时器。
+- `updateJob`：改 schedule 重锚/重算、改 cap 低于已跑数即 completed；id/历史/暂停态全保留。
+
+**② 通道**
+WS：`cron_add` 扩 interval/delayMinutes/maxRuns/projectId；新增 `cron_update` → `cron_updated`。
+REST：`PATCH /api/cron/:id`。MCP：`cron_create` 参数面扩展（工具描述明文钉"相对延迟别自算时刻"），
+新增 `cron_update` 工具，`cron_list` 输出 interval 人读 + `(已跑/上限)`。
+
+**③ Web**
+表单：进度条增 interval 构造器（数 1–200 × 单位）、一次性增「指定时刻/相对现在」双模
+（相对提交 delay 并只做显示近似）、maxRuns 可选字段；任务卡增「编辑」（重开表单预填 →
+走 cron_update，保 id/历史）与执行史展开（时刻/结局/耗时/tokens/补跑标记/错误，
+纯读既有 history 条目，不新增端点）。五语言键全齐。
+
+**④ 证据**
+`test-cron-parity` 7/7（相对锚定/互斥/interval 40 天/上限/update 保 id 与暂停态）、
+回归 cron-catchup 5 + round-rotation 5 + task-engine 23 + cluster-tasks 21 +
+project-container 11 全绿；`cron-ui`+`cron-tools` e2e 5/5；web typecheck + biome +
+locale 门（五语言）绿。
+
+**挂账**：真机走查（「N 分钟后」上眼、every-40-days 列出人读短语、maxRuns 收口、
+编辑后历史仍在）。
+
+### §15.107 星研读者转向 AI：把「AI 可读性」做成机检门（2026-10-31）
+
+**用户判断（原话）**：「星研的读取对象有点问题……以后读星研的对象可能更多的是 AI，而不是人，
+所以以后写文章要优化下。」这不是措辞偏好，是**读者模型变了**，因此标准也得换：
+
+> 人读文章靠前后文自己补指代；AI 拿到的是**切片**，切出去之后「它」「上面那个按钮」
+> 「如前所述」全部指空。所以对 AI 读者，可读性＝**每节自足、实体写全、术语唯一、断言可验证**。
+
+**只写进文档没用**（下次照样写回人类读法），所以落成机检门 `scripts/ai_readable_check.py`
+＋规则清单 `scripts/ai-readability-rules.txt`＋存量基线 `scripts/ai-readability-baseline.txt`：
+
+| 规则 | 判据 | 为什么 |
+|---|---|---|
+| A1 必备字段 | 按**发布分区**取要求（academy 要 level/order；briefings/research 要 date/kind） | 第一版把 level 套到内参上，误报 171 处——**规则定错比文章写错更贵** |
+| A2 正文 H1 / A3 跳级 | 禁用 h1；标题不得跳级 | h1 与 frontmatter 重复；跳级会让切片丢父级 |
+| B1 跨节指代 | 禁「如上所述/如前所述/见下文…」 | 切片后必然落空 |
+| B2 方位指代 | 禁「那个按钮/上面那个…」，**同行有「具名控件」则放行** | 位置描述对人有用、对 AI 无用 |
+| C1 术语族 | 同文件出现同一概念的多个变体即报 | 两名并用让关键词检索对不上 |
+| D1 超长段落 | >600 字符无结构 → warn | 长段落常在半句处被切断 |
+| E1 图像无释义 | 图片 alt < 6 字符 → error | AI 读不到图，alt 是唯一语义载体 |
+| D0 非发布稿 | 无 frontmatter → 单条 warn 跳过 | 草稿/口径落档按发布标准判错会制造假债务；README 等索引文件直接不参与 |
+
+**基线棘轮**：存量 8 篇（`academy/zh/` 的旧课术语混用）登记为 `ai-readability-baseline.txt`，
+**只许减不许增**——改到哪个文件就从基线删掉，新文件一律不得进。`--changed` 是发布门默认模式，
+存量债不阻塞发布，但新稿一篇都躲不过。
+
+**同批改造**：`academy/{zh,en}/facet-keyless-connect.md` 按新标准整篇重写（步骤改「输入/动作/产出」
+三段、前置条件与失败面全部表格化、新增术语表）；`templates/course-template.md` 换成新结构（否则
+下次套模板又写回人类读法）；README 增第 6 条纪律 + 「为什么是 AI 可读性」五条硬要求表 + 发布流
+改为「机检二连」。自检 `--self-test` 7/7（含两条负例：具名控件放行、无控件名拦截）。
+
+**证据**：`--changed` 扫描 31 文件 **0 错误**（29 条段落提示属存量）；`sanitize_check.py` 77 文件
+0 命中；重写稿两版各 0 错误 0 提示；CMS 双语 `published`（body 3124/7708）；官网内容门 199 文件
+0 命中。
+
+**留账**：relay 手动补单 `sha-26fdcf6` 被 cron 全量轮的 403 风暴占锁，ccr 尚无该 tag（`manifest
+unknown`）——bump 未做，重写稿的**线上可见性待下一轮 relay**。这是发布链卡点，不是内容问题。
+
+**续 §15.106 · 1.4 桥往返 + 5.3 运营文档，change 代码面收官（2026-10-31）**
+
+**1.4 provenance 越过草稿桥（此前是整条 lane 最隐蔽的漏点）**
+`preset-pack-bridge.js` 的既有缺口是「内联 files/frontmatter 但不带 origin_meta」——直接复用会把
+归属与许可丢干净，等于无授权再分发。本轮把携带路径补齐到**三条往返面**：
+- `compileDraftManifest`（web 唯一草稿→清单编译器，publish 与 export 共用）
+- `server/routes/packs.js` 的 import-bundle 反向编译
+- `PackDraft.entries.provenance` / `PackManifest.provenance` 类型补全（tsc 先红才补的）
+普通草稿不带该键 → 旧 manifest 逐字节不变（用例直证键集）。**`preset-pack-bridge.js` 本体零改动**，
+这是有意的：它服务自建预设一键流，语义不动；转正走自己的携带路径。
+
+**5.3 `docs/creating-packs.md` 新增「官方转正（operator only）」**
+写明三条硬约束（许可/快照/可归因）、**许可分层（凭证 > 自述）**、CLI 技能须显式放宽、
+**三轴互不相交**、manifest 形状，以及两条运维边界：只有 Smithery 可钉定（SkillHub originUrl 是市场页）、
+GitHub 匿名 API 60 次/小时（一枚约 5–8 次请求，批量必须配 token）。开篇即标注「这是运营侧动作，
+不是创作者路径」，避免创作者误以为这是一条自助通道。
+
+**交付面（本轮全部提交）**
+| 提交 | 内容 |
+|---|---|
+| `da337743` | 立案（proposal/design/2 specs/tasks） |
+| `a495be17` | 转正管线 2.3/2.4/2.5 + 许可分层裁决 |
+| `2fbd2127` | 能力探测闸（CLI 技能禁止静默产残废 Agent）+ entry id/slug 修正 |
+| `a7fa28b9` | 展示面 3.1/3.2（三轴可辨，判定只读同一投影） |
+| 本次 | 1.4 桥往返 + 5.3 运营文档 |
+
+**change 代码面状态**：1.1–1.4 ✅ / 2.1–2.5 ✅ / 3.1–3.2 ✅ / 5.1–5.3 ✅；余 **4.x（真实发布 + pod 物化
++ 浏览器眼见）**，依赖出片，属下一班。测试 **153/153**，`validate --strict` valid，`check-locales` 五语言绿。

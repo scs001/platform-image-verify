@@ -232,6 +232,20 @@ export interface PackManifest {
     members?: { ref: string; title?: string; titleKey?: string }[];
     i18n?: Record<string, FleetLocaleOverrides>;
   };
+  // Adopted provenance (add-official-adopted-agents D1): present only on a pack
+  // whose content was adopted from an upstream third-party skill. A SOURCE
+  // annotation, not an authority claim — it never grants official status (the
+  // deployment roster does), and the server validator owns the shape.
+  provenance?: {
+    kind: "official-adopted";
+    upstreamUrl: string;
+    upstreamName: string;
+    license: string;
+    revision: string;
+    adoptedBy: string;
+    reviewedBy: string;
+    reviewedAt: string;
+  };
 }
 
 // Bot units (pack-bot-units): the pack's third content primitive — a generic
@@ -302,6 +316,10 @@ export interface PackDraft {
     // the publish path lifts only a COMPLETE guide into the manifest, where
     // the strict three-tuple applies.
     guide?: { steps: { title: string; body: string }[] };
+    // Adopted provenance draft (add-official-adopted-agents 1.4): an adoption
+    // draft carries its audit trail here so the publish path lifts it into the
+    // manifest. Plain authoring drafts never set it → byte-identical manifests.
+    provenance?: PackManifest["provenance"];
   };
   publishedPackId: string | null;
   createdAt: string;

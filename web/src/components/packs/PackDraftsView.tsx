@@ -171,6 +171,7 @@ export function compileDraftManifest(
   const entries = draft.entries as PackDraft["entries"] & {
     guide?: { steps: { title: string; body: string }[] };
     bots?: PackManifestBot[];
+    provenance?: PackManifest["provenance"];
   };
   // The guide travels ONLY when all three steps are complete — the server
   // validator rejects a malformed one outright.
@@ -189,6 +190,12 @@ export function compileDraftManifest(
     mcpServers: entries.mcpServers ?? [],
     agents: entries.agents ?? [],
     ...(Array.isArray(entries.bots) && entries.bots.length > 0 ? { bots: entries.bots } : {}),
+    // Adopted provenance (add-official-adopted-agents 1.4): rides the entries
+    // JSON so an adoption draft published through this editor keeps its audit
+    // trail (upstream source, license, pinned revision, operator/reviewer).
+    // Plain authoring drafts never carry the key, so their manifests stay
+    // byte-identical; the server validator decides whether the shape is legal.
+    ...(entries.provenance ? { provenance: entries.provenance } : {}),
   };
 }
 

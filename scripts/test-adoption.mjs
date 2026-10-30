@@ -343,3 +343,79 @@ test("verdict: one-line decision text reflects each blocker", () => {
   assert.match(adoptionVerdict({ license: { state: "admitted" }, pin: { revision: "abc" }, needs: { requiresExecution: true, bins: ["x"] } }), /放宽工具面/);
   assert.match(adoptionVerdict({ license: { state: "admitted" }, pin: { revision: "abc" }, needs: { requiresExecution: false } }), /可转正/);
 });
+
+// ── 6. 1.4 桥往返：provenance 不得在草稿⇄清单之间丢失 ──────────────────────
+//
+// 三条往返路径：编辑器编译器（web compileDraftManifest）、导入 bundle 的反向
+// 编译（server import-bundle）。二者都必须在 entries 里携带 provenance，否则
+// 一个转正包重新发布时归属会静默消失 —— 那等于无授权再分发。
+// 这里用与两条路径同构的组装逻辑断言：带 provenance 的 entries 组出的 manifest
+// 必须通过校验且字段 completo；不带 provenance 的必须与旧行为逐字节相同。
+
+import { validateProvenance } from "../lib/pack-manifest.js";
+
+function compileLikeEditor({ draft, entries }) {
+  return {
+    name: draft.name,
+    description: draft.description,
+    visibility: draft.visibility ?? "public",
+    tags: draft.tags,
+    skills: entries.skills ?? [],
+    mcpServers: entries.mcpServers ?? [],
+    agents: entries.agents ?? [],
+    ...(Array.isArray(entries.bots) && entries.bots.length > 0 ? { bots: entries.bots } : {}),
+    ...(entries.provenance ? { provenance: entries.provenance } : {}),
+  };
+}
+
+const ADOPT_PROVENANCE = {
+  kind: "official-adopted",
+  upstreamUrl: "https://github.com/acme/repo/tree/main/skills/x",
+  upstreamName: "x",
+  license: "MIT",
+  revision: SHA,
+  adoptedBy: "ops@finddata.cloud",
+  reviewedBy: "reviewer@finddata.cloud",
+  reviewedAt: "2026-10-31T00:00:00.000Z",
+};
+
+test("bridge: an adoption draft compiles into a manifest that keeps provenance intact", () => {
+  const manifest = compileLikeEditor({
+    draft: { name: "X", description: "d", tags: ["t"] },
+    entries: {
+      skills: PACK.skills ? PACK.skills : [{ name: "x", description: "d", content: "body" }],
+      provenance: ADOPT_PROVENANCE,
+    },
+  });
+  assert.deepEqual(manifest.provenance, ADOPT_PROVENANCE, "every audit field must survive the bridge");
+  const errors = [];
+  validateProvenance(manifest, errors);
+  assert.deepEqual(errors, [], "the round-tripped block must still be a legal shape");
+});
+
+test("bridge: a plain authoring draft emits no provenance key (byte-identical legacy manifest)", () => {
+  const manifest = compileLikeEditor({
+    draft: { name: "Y", description: "d", tags: [] },
+    entries: { skills: [{ name: "y", description: "d", content: "body" }] },
+  });
+  assert.equal("provenance" in manifest, false);
+  assert.deepEqual(validatePackManifest(manifest), []);
+});
+
+test("bridge: import reverse-compile carries provenance the same way (server path equivalence)", () => {
+  // 与 server/routes/packs.js import-bundle 的 entries 构造同构
+  const manifestFromBundle = {
+    name: "X", skills: [{ name: "x", description: "d", content: "body" }],
+    provenance: ADOPT_PROVENANCE,
+  };
+  const entries = {
+    skills: manifestFromBundle.skills ?? [],
+    mcpServers: manifestFromBundle.mcpServers ?? [],
+    agents: manifestFromBundle.agents ?? [],
+    ...(manifestFromBundle.provenance ? { provenance: manifestFromBundle.provenance } : {}),
+  };
+  assert.deepEqual(entries.provenance, ADOPT_PROVENANCE);
+  // 再正向编译回去，仍然在
+  const back = compileLikeEditor({ draft: { name: "X", description: "", tags: [] }, entries });
+  assert.deepEqual(back.provenance, ADOPT_PROVENANCE);
+});

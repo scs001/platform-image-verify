@@ -90,6 +90,8 @@ F1.3 文档面），谦面域内自解释闭环成立。
 | F2.1 | `add-facet-client-walkthroughs` | ✅ 2026-10-12（dcb761d+OSS d645590）：五客户端真环境 walkthrough——console 铸 wgk 键→connect 验活 0600→五 target install --write-mcp 技能+配置形状逐字节验证→wire initialize 200（fd-cn-report）；实证回填 docs/ecosystem/*.md+公开仓。三诚实边界入档：停用 server=405（fd-daas/fd-open-data location 当前注释，运维项）、设备流 facet-cli 未注册 IdP（粘贴键为可用路径）、双 Accept 要求 |
 | F2.2 | `add-facet-client-matrix` | ✅ 2026-10-12（dd2506b，sha-5c99ea2 三面滚+OSS 34da38e）：逐格出处矩阵（深文档+#/docs 表[cliFacts 单源]+冒烟脚本生产 PASS 5/5；事实单测咬合能力表↔MCP_TARGETS） |
 | F2.3 | `add-facet-cli-update` | ✅ 2026-10-12（dd2506b）：installed.json 记录+`facet update`（三态/零订阅副作用/v0.2.2）；**npm 发布挂账** org GHA 账单（仓库内 CLI 可用） |
+| F2.4 | `add-marketplace-projection-fanout` | ✅ 2026-10-31（代码面）：**MCP Registry 公开发现**——`GET /api/mcp-registry.json` 把公开 server（`groups=[]`）投影为官方 `server.json`（schema `2025-12-11`，`name=io.github.FindDataTechnology/<server>`，`remotes[]` 免键无 headers），复用 `mcp-catalog.js` 的同一 `visibleTo` 闸（不写第二份规则）；`scripts/publish-mcp-registry.mjs` + `mcp-registry-publish.yml`（GitHub OIDC——组织 namespace 的唯一免费正路）。**代码与 dry-run 就绪，首个 server 上架待运营窗**（`mcp-publisher` 实际 publish 未执行，见 tasks 6.3） |
+| F2.5 | `add-marketplace-projection-fanout` | ✅ 2026-10-31（形状面）：**技能市场可索引**——`facet-marketplace` / `fd-mcp-registry` / `fd-vertical-packs` 三个 PUBLIC 仓已是 skills.sh / SkillHub 可爬的标准形状（`SKILL.md` frontmatter + `.codebuddy-plugin/marketplace.json`），零 facet 侧适配代码。**登记与收录时间不可控**，验收仅锚定 `npx skills add` 可解析（见 tasks 3.3 / 6.4） |
 
 **出口判据**：五客户端各有生产实证 walkthrough ✅；矩阵公开在 `#/docs` ✅；update 可用 ✅
 （npm 渠道待 org 账单恢复——2026-10-12）。**F2 全片完结**（出口判据达成，npm 发行为

@@ -174,6 +174,11 @@ export function registerPackRoutes(ctx) {
           agents: manifest.agents ?? [],
           ...(manifest.bots ? { bots: manifest.bots } : {}),
           ...(manifest.guide ? { guide: manifest.guide } : {}),
+          // Adopted provenance (add-official-adopted-agents 1.4): an imported
+          // bundle round-trips its audit trail too — dropping it here would let
+          // an adopted pack be re-published with attribution silently gone.
+          // Absent on ordinary packs, so their drafts stay byte-identical.
+          ...(manifest.provenance ? { provenance: manifest.provenance } : {}),
         };
         const draft = packStore.createDraft({
           name: String(manifest.name),

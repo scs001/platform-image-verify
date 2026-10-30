@@ -119,6 +119,13 @@ const KEY_ALLOWLIST = new Set();
 // 本 change（蓝图构造间）负责的界面键前缀。
 const ENFORCED_PREFIXES = ["blueprints."];
 
+// i18next 把 `t("x.y", { count })` 解析成 `x.y_one` / `x.y_other`（以及
+// `_zero`/`_two`/`_few`/`_many`）。代码写的是不带后缀的基名，资源里只有带后缀
+// 的复数形式——只按字面查会把真存在的键报成缺失（首版就这样误报了
+// `fleet.live.summary`）。任一带复数后缀的形式在场即视为已解析。
+const PLURAL_SUFFIXES = ["_zero", "_one", "_two", "_few", "_many", "_other"];
+const hasKey = (base) => sourceKeys.has(base) || PLURAL_SUFFIXES.some((s) => sourceKeys.has(base + s));
+
 function* walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -140,7 +147,7 @@ if (fs.existsSync(webSrc)) {
       // 只审「像资源键」的字面量（含点）；纯单词多为变量名或非 i18n 调用。
       if (!key.includes(".")) continue;
       if (KEY_ALLOWLIST.has(key)) continue;
-      if (sourceKeys.has(key)) continue;
+      if (hasKey(key)) continue;
       if (!unknownKeys.has(key)) unknownKeys.set(key, new Set());
       unknownKeys.get(key).add(path.relative(root, file));
     }

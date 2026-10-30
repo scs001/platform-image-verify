@@ -10,7 +10,8 @@
     "close": "Close",
     "disconnect": "Disconnect",
     "retry": "Retry",
-    "more": "Load more"
+    "more": "Load more",
+    "dismiss": "Dismiss"
   },
   "nav": {
     "chat": "Chat",
@@ -845,7 +846,8 @@
       "placeholder": "room id starting with zy_",
       "bind": "Bind",
       "unbind": "Unbind"
-    }
+    },
+    "disabled": "disabled"
   },
   "assistant": {
     "name": "{{brand}} Assistant",
@@ -1795,7 +1797,8 @@
         "noBilling": "No sub2api billing account linked — finish linking first, then buy.",
         "settlementFailed": "Settlement did not complete — held for retry; try again from My Agents shortly.",
         "required": "Buy this agent before installing it."
-      }
+      },
+      "fleetWizardBtn": "Instantiate as a team"
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -1955,7 +1958,9 @@
       "pending": "Pending",
       "credit": "Credit available",
       "creditSpent": "Credit spent",
-      "myPurchases": "My recent purchases"
+      "myPurchases": "My recent purchases",
+      "periodKind": "{{days}}-day subscription",
+      "onceKind": "one-time"
     },
     "wizard": {
       "title": "Agent team template provisioning",
@@ -2782,7 +2787,8 @@
         "low": "low",
         "medium": "medium",
         "high": "high"
-      }
+      },
+      "trafficHint": "Colored by 24h edge traffic: green = success rate ≥90%, red = lower, gray = no traffic (declared edges only)"
     },
     "miniSpan": {
       "failed": "failed",

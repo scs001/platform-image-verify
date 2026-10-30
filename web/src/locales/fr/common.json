@@ -10,7 +10,8 @@
     "close": "Fermer",
     "disconnect": "Déconnecter",
     "retry": "Réessayer",
-    "more": "Charger plus"
+    "more": "Charger plus",
+    "dismiss": "Fermer"
   },
   "nav": {
     "chat": "Discussion",
@@ -845,7 +846,8 @@
       "placeholder": "room id starting with zy_",
       "bind": "Bind",
       "unbind": "Unbind"
-    }
+    },
+    "disabled": "désactivé"
   },
   "assistant": {
     "name": "Assistant {{brand}}",
@@ -1795,7 +1797,8 @@
         "settlementFailed": "La transaction nest pas finalisée — en attente ; réessayez bientôt depuis Mes agents."
       },
       "purchased": "acheté",
-      "vendorBy": "par {{name}}"
+      "vendorBy": "par {{name}}",
+      "fleetWizardBtn": "Instancier en équipe"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -1955,7 +1958,9 @@
       "pending": "En attente",
       "credit": "Crédit disponible",
       "creditSpent": "Crédit consumido",
-      "myPurchases": "Mes achats récents"
+      "myPurchases": "Mes achats récents",
+      "periodKind": "Abonnement de {{days}} jours",
+      "onceKind": "achat unique"
     },
     "wizard": {
       "title": "Provisionnement de modèle d'équipe d'agents",
@@ -2782,7 +2787,8 @@
         "low": "basse",
         "medium": "moyenne",
         "high": "haute"
-      }
+      },
+      "trafficHint": "Coloré selon le trafic des arêtes sur 24 h : vert = taux de réussite ≥90 %, rouge = inférieur, gris = aucun trafic (arêtes déclarées uniquement)"
     },
     "miniSpan": {
       "failed": "échec",

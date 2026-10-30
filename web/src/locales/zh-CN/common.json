@@ -10,7 +10,8 @@
     "close": "关闭",
     "disconnect": "断开",
     "retry": "重试",
-    "more": "加载更多"
+    "more": "加载更多",
+    "dismiss": "关闭"
   },
   "nav": {
     "chat": "对话",
@@ -845,7 +846,8 @@
       "placeholder": "zy_ 开头的房间 ID",
       "bind": "绑定",
       "unbind": "解绑"
-    }
+    },
+    "disabled": "未启用"
   },
   "assistant": {
     "name": "{{brand}} 助手",
@@ -1795,7 +1797,8 @@
         "noBilling": "尚未绑定词元宝账——请先完成绑定再购买。",
         "settlementFailed": "结算未完成——已挂账，稍后在我的智能体里重试。",
         "required": "该条目需要先购买再安装。"
-      }
+      },
+      "fleetWizardBtn": "一键装作成团队"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -1955,7 +1958,9 @@
       "pending": "待结算",
       "credit": "可抵扣",
       "creditSpent": "已耗抵扣",
-      "myPurchases": "我的近期成交"
+      "myPurchases": "我的近期成交",
+      "periodKind": "{{days}} 天订阅",
+      "onceKind": "买断"
     },
     "wizard": {
       "title": "智能体团队模板装作",
@@ -2782,7 +2787,8 @@
         "low": "低",
         "medium": "中",
         "high": "高"
-      }
+      },
+      "trafficHint": "按 24 小时边流量着色：绿=成功率≥90%，红=较低，灰=无流量（不含声明边）"
     },
     "miniSpan": {
       "failed": "失败",

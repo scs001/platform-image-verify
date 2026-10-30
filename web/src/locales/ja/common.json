@@ -10,7 +10,8 @@
     "close": "閉じる",
     "disconnect": "切断",
     "retry": "再試行",
-    "more": "さらに読み込む"
+    "more": "さらに読み込む",
+    "dismiss": "閉じる"
   },
   "nav": {
     "chat": "チャット",
@@ -845,7 +846,8 @@
       "placeholder": "room id starting with zy_",
       "bind": "Bind",
       "unbind": "Unbind"
-    }
+    },
+    "disabled": "無効"
   },
   "assistant": {
     "name": "{{brand}} アシスタント",
@@ -1795,7 +1797,8 @@
         "settlementFailed": "決済が未完了——保留中です。少し後に「マイエージェント」から再試行してください。"
       },
       "purchased": "購入済み",
-      "vendorBy": "{{name}} 提供"
+      "vendorBy": "{{name}} 提供",
+      "fleetWizardBtn": "チームとして一括構築"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -1955,7 +1958,9 @@
       "pending": "精算待ち",
       "credit": "利用可能クレジット",
       "creditSpent": "消費済みクレジット",
-      "myPurchases": "最近の購入"
+      "myPurchases": "最近の購入",
+      "periodKind": "{{days}} 日間のサブスクリプション",
+      "onceKind": "買い切り"
     },
     "wizard": {
       "title": "エージェントチームテンプレートのプロビジョニング",
@@ -2782,7 +2787,8 @@
         "low": "低",
         "medium": "中",
         "high": "高"
-      }
+      },
+      "trafficHint": "24 時間のエッジ流量で色分け：緑＝成功率 90% 以上、赤＝それ未満、灰＝流量なし（宣言済みエッジのみ）"
     },
     "miniSpan": {
       "failed": "失敗",

@@ -10,7 +10,8 @@
     "close": "Cerrar",
     "disconnect": "Desconectar",
     "retry": "Reintentar",
-    "more": "Cargar más"
+    "more": "Cargar más",
+    "dismiss": "Cerrar"
   },
   "nav": {
     "chat": "Chat",
@@ -845,7 +846,8 @@
       "placeholder": "room id starting with zy_",
       "bind": "Bind",
       "unbind": "Unbind"
-    }
+    },
+    "disabled": "deshabilitado"
   },
   "assistant": {
     "name": "Asistente de {{brand}}",
@@ -1795,7 +1797,8 @@
         "settlementFailed": "La liquidación no se completó — quedó pendiente; reintenta pronto desde Mis agentes."
       },
       "purchased": "comprado",
-      "vendorBy": "de {{name}}"
+      "vendorBy": "de {{name}}",
+      "fleetWizardBtn": "Instanciar como equipo"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -1955,7 +1958,9 @@
       "pending": "Pendiente",
       "credit": "Crédito disponible",
       "creditSpent": "Crédito gastado",
-      "myPurchases": "Mis compras recientes"
+      "myPurchases": "Mis compras recientes",
+      "periodKind": "Suscripción de {{days}} días",
+      "onceKind": "pago único"
     },
     "wizard": {
       "title": "Aprovisionamiento de plantilla de equipo de agentes",
@@ -2782,7 +2787,8 @@
         "low": "baja",
         "medium": "media",
         "high": "alta"
-      }
+      },
+      "trafficHint": "Coloreado por tráfico de aristas en 24 h: verde = tasa de éxito ≥90%, rojo = menor, gris = sin tráfico (solo aristas declaradas)"
     },
     "miniSpan": {
       "failed": "fallido",

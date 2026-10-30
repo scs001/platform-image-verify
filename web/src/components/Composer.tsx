@@ -519,7 +519,7 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
         {attachments.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground" data-testid="composer-attach-count">
-              {t("chat.composer.attachments", { count: attachments.length })}
+              {t("composer.attachments", { count: attachments.length })}
             </span>
             {attachments.map((a) => (
               <span

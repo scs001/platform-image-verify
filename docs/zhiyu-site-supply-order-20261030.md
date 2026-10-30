@@ -229,3 +229,86 @@ runner  parked — the billing gate rejected its key (key-invalid); inbound turn
 官网真房间仍是 **2 席正常应答**（多轮真站复验通过、零 JS 错）。
 识律/柏讯在席但停用，访客点名得到「接待席位暂时无法应答」的**如实**提示——按
 `fleet-room-bridge` 的纪律，这比装作能答更正确。
+
+---
+
+## 十、key-invalid 阻断的根因与修复（2026-10-31 收口）
+
+### 10.1 根因（实测，非推断）
+
+runner-c 把 Secret `agent-runner-llm` 挂到 `/data/llm-providers.json`，**覆盖**了磁盘上
+的现行版本。那份 Secret 是 **2026-09-30 的快照**，其中的 `finddata` apiKey 早已轮换失效。
+
+分片内原地 `GET {baseUrl}/models` 探测（同一个 pod 里、同一段代码）：
+
+| 分片 | store 来源 | updatedAt | 探测结果 |
+|---|---|---|---|
+| runner-serving | hostPath `/data/llm-providers.json` | 2026-10-19 | **HTTP 200** |
+| runner-c | Secret `agent-runner-llm`（覆盖同路径） | 2026-09-30 | **HTTP 401 `INVALID_API_KEY`** |
+
+两把 key 长度同为 30、指纹不同（`b1f9ec37f8d0` vs `c4256b62a7c2`）；两边模型名册**完全一致**
+（同一组 8 个模型），差异只在 key 本身。旧快照自带的 `discovery` 里
+`deepseek-v4.1-flash` 已标 `unauthorized`——它就是 parking 的判据来源。
+
+**这解释了「钥匙实测 live 却报 key-invalid」的矛盾**：我先前探的是**部署时那六把 `sk-` 面板钥匙**
+（`/api/packs/internal/deployments` 侧，确实 live），而计费闸探的是 **provider store 里那把
+provider 级 key**，两把是不同实体。这个歧义是本节最重要的教训。
+
+### 10.2 修复
+
+1. 以 runner-serving 的现行 store 为基座（有效 key + 有效 discovery），
+   把 Secret 的 `finddata` provider 整块替换——名册不缩水，旧 discovery 不迁移（防误判）。
+2. `kubectl apply` 更新 Secret（该 Secret **不在 GitOps 里**，全仓无 `kind: Secret` 定义，
+   Argo 只引用不管理，`selfHeal` 不会回滚它）。
+3. `rollout restart deployment/agent-runner-c` → 新 pod 内复探 **HTTP 200**。
+4. 两席重新 `serving`（intro-wire :8903 / intro-lex :8915），registry `health_status=healthy`。
+
+### 10.3 真机验收（访客通道，非脚本桩）
+
+用真实访客令牌进房铸席（`mem_bd881b8578257e9779`），`@` 点名提问：
+
+| 席位 | seq | 答复要点 |
+|---|---|---|
+| 识律专家 | 78 | LawBench 合同智能、法律语料库、微调法律模型；未编造具体 SLA |
+| 柏讯专家 | 80 | 「让 AI 替你读世界」：Python 数据源统一为开放数据本体，MCP 数据服务 |
+
+**四席全部可用**：产品向导 / 壹座专家（runner-serving）+ 识律专家 / 柏讯专家（runner-c）。
+
+### 10.4 配额欠账的真实性质（更正 §9.3）
+
+§9.3 判断「内存不够」，**只对了一半，且不是主因**。实际卡住 fd-info 的是 **CPU**：
+
+```
+exceeded quota: requested: limits.cpu=1, used: limits.cpu=22800m, limited: 23
+```
+
+fd-info 四条 `*/5` CronJob（cn-gov / cninfo / sse-interaction / ship-spool）**同 tick 齐发**，
+每条 `limits.cpu=1`、`limits.memory=512Mi`，需要 4 核 + 2Gi 的瞬时头寸。而 `limits.cpu`
+实占 22800m/23000m——**只剩 200m**，整批 FailedCreate，重试 3 次后 gap 内偶有抢到者成功，
+于是呈「间歇成功/间歇失败」。
+
+**这是既有缺陷**：上一版我只动了 `limits.memory`，没碰 CPU。runner-c 的 500m 只是把
+本来就贴顶的 CPU 推到临界（22300m → 22800m）。归因不能算我头上，但也没解决。
+
+事实依据：全集群 Ready 节点 **48 核 / 46.4 Gi 可分配**，真实用量仅 **CPU 2.3 核 / 内存 28.6 Gi**。
+配额是人为天花板，与物理容量差一个数量级。
+
+### 10.5 配额调整（GitOps `12b4cf1`，已推 Gitee）
+
+```yaml
+limits.cpu: "28"     # 23 → 28（留 5 核头寸给 fd-info 四源同 tick）
+limits.memory: 36Gi  # 32Gi → 36Gi（32480Mi 实占，512Mi 作业原本放不进）
+```
+
+验证：手工 `create job --from=cronjob/fd-info-fetch-cn-gov` → **1/1 Complete**（31s）；
+配额终态 `hard cpu=28 mem=36Gi`，占 `cpu=22800m mem=32480Mi`。
+
+### 10.6 教训入册
+
+1. **「钥匙 live」必须先问是哪个实体**：部署面板钥匙 ≠ provider store 的 provider 级 key。
+   两者都叫「钥匙」，报错都叫 key-invalid，却是不同存储、不同轮换节奏。
+2. **Secret 覆盖 hostPath 是隐形的版本钉**：挂载把运行态冻结在 Secret 的创建时点，
+   而 hostPath 上那份可能已被后续更新（serving 就是这样 10-19 的）。
+   判分片配置差异，先比 `updatedAt` 与 key 指纹，别只比 env 键名。
+3. **配额卡顿看事件原文里的资源项**：`requested:` 后面写的是哪一项，就是哪一项卡住；
+   `limits.cpu` 与 `limits.memory` 是**两个独立闸**，修一个不等于修好。

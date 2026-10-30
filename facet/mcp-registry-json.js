@@ -42,6 +42,37 @@ export const PLACEHOLDER_VERSION = "0.0.1";
 // contract, prose is for people.
 export const FUNNEL_COPY = "想 7×24 常驻 → 萬星";
 
+// The registry rejects a description longer than 100 characters with a 422
+// (`{"errors":[{"message":"expected length <= 100","location":"body.description"}]}`)
+// — found the hard way on the first real publish (2026-10-31): 8 of 14 servers
+// were refused while the 6 short-description ones went through. So the whole
+// description (base text + funnel tail) shares one 100-char budget: the tail
+// gets reserved first, and whatever is left is the base text's allowance.
+export const MAX_DESCRIPTION = 100;
+
+// Code-point length, not UTF-16 length: a Chinese character is one character to
+// the registry even though it is one code unit, while an emoji is one character
+// but two code units. Counting code points is the only measure that matches
+// what the server actually validates.
+const charLength = (s) => Array.from(s).length;
+
+// Truncate on code-point boundaries so a surrogate pair is never split, ending
+// with an ellipsis so the reader can see the text was cut rather than read a
+// sentence that stops mid-thought with no marker.
+function truncateChars(s, max) {
+  const chars = Array.from(s);
+  if (chars.length <= max) return s;
+  if (max <= 1) return "…".slice(0, max);
+  return `${chars.slice(0, max - 1).join("")}…`;
+}
+
+// Base text + funnel tail, fitted into the registry's 100-character budget.
+export function composeDescription(description) {
+  const tail = ` — ${FUNNEL_COPY}`;
+  const budget = MAX_DESCRIPTION - charLength(tail);
+  return `${truncateChars(description, budget)}${tail}`;
+}
+
 const CACHE = "public, max-age=3600";
 
 export class McpRegistryError extends Error {
@@ -110,7 +141,7 @@ export function projectServerJson(entry) {
   const doc = {
     $schema: SERVER_JSON_SCHEMA,
     name,
-    description: `${description} — ${FUNNEL_COPY}`,
+    description: composeDescription(description),
     version: PLACEHOLDER_VERSION,
     // No headers key, ever — see the file header.
     remotes: [{ type: "streamable-http", url }],

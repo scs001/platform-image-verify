@@ -176,10 +176,38 @@ test("单条路由：未知名字 404、同名带命名空间也命中", async (
   } finally { close(); }
 });
 
-// The registry lists for the whole internet: an internal endpoint is both a
-// dead link for a stranger and a permanent public leak of cluster hostnames and
-// ports. Production caught this (7 servers pointed at
-// http://cheapN.mesh.finddata.cn:3189x/mcp), so it gets its own scenario.
+// The registry enforces `description` <= 100 characters. Found the hard way on
+// the first real publish: 8 of 14 servers were refused with
+// `{"errors":[{"message":"expected length <= 100","location":"body.description"}]}`
+// while the 6 short ones went through. The budget is shared with the funnel
+// tail, so long descriptions must be truncated — on code-point boundaries, with
+// an ellipsis, and the result must still fit.
+test("描述超长按码点截断，整条仍在 registry 的 100 字符上限内", () => {
+  const { MAX_DESCRIPTION, composeDescription, projectAllServers } = mod;
+  assert.equal(MAX_DESCRIPTION, 100);
+
+  const long = "识律线操作 MCP（C4）：线全景导览（self-describing）+账户视图（me/usage/billing/quota）+检索凭据生命周期（list/mint/revoke，owner-only 上游判定）；Logto ID token 原样转发";
+  const doc = projectAllServers({ entriesFn: () => [server("long-desc", { description: long })] }).servers[0];
+  assert.ok(Array.from(doc.description).length <= 100, `描述超限：${Array.from(doc.description).length}`);
+  assert.ok(doc.description.includes(FUNNEL_COPY), "漏斗文案仍应在尾部");
+  assert.ok(doc.description.includes("…"), "截断处应有省略号标记");
+
+  // 短描述一字不改，只加尾缀。
+  assert.equal(composeDescription("简短描述"), `简短描述 — ${FUNNEL_COPY}`);
+
+  // 恰好边界：不截断。
+  const tail = ` — ${FUNNEL_COPY}`;
+  const exact = "a".repeat(100 - Array.from(tail).length);
+  assert.equal(composeDescription(exact), `${exact}${tail}`);
+
+  // 任意长度都不越界（含 emoji 这类代理对字符，不能截半个）。
+  for (const n of [0, 1, 50, 81, 82, 83, 99, 200]) {
+    const s = composeDescription("字".repeat(n));
+    assert.ok(Array.from(s).length <= 100, `n=${n} 超限`);
+    assert.ok(!s.includes("\uFFFD"), `n=${n} 出现截断坏字符`);
+  }
+});
+
 test("内网/非 https 端点不投影（public listing 不得泄漏集群地址）", async () => {
   const internal = [
     server("mesh-one", { configTemplate: { url: "http://cheap6.mesh.finddata.cn:31893/mcp" } }),

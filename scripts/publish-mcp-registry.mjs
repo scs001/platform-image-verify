@@ -56,6 +56,13 @@ if (PUBLISH && DRY) {
 // rule — a malformed name must never reach the filesystem as a path.
 const NAME_RE = /^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/;
 
+// The registry caps `description` at 100 characters and answers 422
+// (`{"errors":[{"message":"expected length <= 100","location":"body.description"}]}`).
+// Learned on the first real publish (2026-10-31, run 41142472745): 6 of 14 went
+// live, the other 8 were refused. The projector now fits the text into this
+// budget; this refuses again so a projection regression cannot burn a run.
+const MAX_DESCRIPTION = 100;
+
 // The official schema's required fields, checked again here so a broken
 // projection cannot be published by a CI run that skipped the unit tests.
 function validateDoc(doc) {
@@ -64,6 +71,11 @@ function validateDoc(doc) {
     problems.push(`name 不是反向 DNS 形：${JSON.stringify(doc?.name)}`);
   }
   if (typeof doc?.description !== "string" || !doc.description.trim()) problems.push("description 缺失或为空");
+  else {
+    // Code points, not UTF-16 units — that is what the registry counts.
+    const len = Array.from(doc.description).length;
+    if (len > MAX_DESCRIPTION) problems.push(`description 超 ${MAX_DESCRIPTION} 字符（实际 ${len}）`);
+  }
   if (typeof doc?.version !== "string" || !doc.version.trim()) problems.push("version 缺失");
   if (!Array.isArray(doc?.remotes) || doc.remotes.length === 0) problems.push("remotes 缺失或为空");
   for (const [i, r] of (doc?.remotes ?? []).entries()) {

@@ -22,4 +22,13 @@
 ## 5. 真机验收（apply 后）
 
 - [ ] 5.1 出片并在生产舰队上观察至少 6 轮，用 `member_turn_events.error_kind` 统计 CEO 岗 `turn_budget_exceeded` 发生率——验证：注入前后同岗位同比，占比不下降即视为未达成（本变更唯一硬验收线）
+  - ✅ 已出片并滚产（sha-a490859 → GitOps 453eab8；后被并行会话滚到 sha-eb4c93c，已核实含本提交特征串）
+  - ✅ 生产机制实证（2026-10-30 23:51 UTC，公司式集群 CEO 岗真回合）：落库 prompt 5533 字符，四段全在（巡视上下文/自身轮次/近期执行/巡逻纪律），注入的是 CEO 岗 10-29 22:06 真实往轮报数
+  - ✅ 基线已建立：全生产 997 回合，`turn_budget_exceeded` 73 次 = 7.3%（对照组：model_upstream 19.8% 为当前主导失败——近 5 小时舰队回合全部 503，模型车道故障会支配近期观测，短窗对比无意义）
+  - ⏳ 占比对比需等模型车道恢复后 ≥6 轮自然开火（小时级 cadence → 至少一天）
 - [ ] 5.2 检查自我强化退化：抽查若干轮，比对本轮 `summary` 与上一轮摘要——验证：不存在「高比例轮次仅复述上轮、无新增观测」；若出现则下调 N 或收窄注入字段
+  - ⏳ 未决：注入段在场的那个回合（23:51）被平台滚版重启打断，未走到产出；补跑轮（00:06）CEO 报数正常非复述，但该轮拿的是裸模板（见下），证据不构成对 5.2 的检验
+
+## 6. 验收中发现的生产真缺陷（超出本变更范围，待立案）
+
+- [ ] 6.1 **补跑/恢复通道绕过 fleetContext 注入**（2026-10-30 真机实证）：`task-engine.js` `drainRepairQueue`（task-engine.js:188-200，启动时恢复持久化 queued 任务）直接入队执行，**不经过 `cron.js` `applyFleetContext`**——与 10-29 修掉的「手动戳发绕过注入」同类（当时只堵了 runJobNow，漏了这条）。实证：00:04 补跑轮落库 prompt 283 字符，`{{fleetContext}}` 原样未展开，模型拿裸模板后靠工具自取上下文（该轮 ok 但多花 ~2min）。每次平台滚版/重启，凡有 persisted-queued 的舰队任务都会中招。修法方向：`drainRepairQueue` 的再入队改走与 `fireTask` 相同的注入缝（或 `runQueuedExecution` 开跑前补一次 `applyFleetContext`）；补跑前缀写入 `promptOverride` 后被渲染覆盖的次序问题（cron.js:73-77 vs applyFleetContext:241）需一并理顺

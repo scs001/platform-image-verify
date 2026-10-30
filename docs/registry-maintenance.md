@@ -5258,3 +5258,33 @@ L2 单测全绿之后上真机走 `auth → 写配置 → 客户端连上 → �
 
 **顺带确认既有卫生**：两个探针包（LLM判据探针/评审模型端到端）与两条演示包
 （内容工厂/客服工单分诊）保持 unlisted，符合「调试蓝图铸完即下架」的既有纪律。
+
+**续 §15.106 · 2.3/2.4/2.5 转正管线落地（2026-10-31）**
+
+新增 `lib/adoption.js` —— 一条链从「货架条目」到「可发布的官方 Agent manifest 草稿」：
+取包 → 采许可证据 → 许可门 → 钉定 revision → 组装 → 用发布门同一套规则自检。**不落库、不发布**：
+产出草稿与转换报告，发布仍走既有 publish 通道（roster / 定价门 / 审核门一条都不绕过）。
+
+- **2.3 快照自足**：`resolvePinnedRevision` 40-hex 直用不花请求、分支经 commits API 解析成 sha、
+  解析失败**回落 ref 并如实标 `revisionKind:"ref"`**（绝不把分支假装成钉住的提交）；
+  `buildAdoptedManifest` 把正文与辅助文件整棵内联（SKILL.md 剔除——校验器禁；`safePackagePath`
+  过滤逃逸；frontmatter 过 `sanitizeFrontmatter`）。上游 404 后转正资产仍完整可用。
+- **2.4 可归因**：operator 与 reviewer 缺一即 `adoption-unattributed` 拒绝；三字段随 manifest 版本冻结。
+  roster 约束由既有 `isOfficial` 天然生效，非 roster 恒判 community（`adopted` 置 null）。
+- **2.5 工具面**：产物 agent 固定 `serving.toolFace:"chat"`（既有唯一档位，不新增）。
+
+**实施中新逮出的两个真缺陷（都是测试先红）**
+1. `serving.card.examples` 校验器要求 **1–3 条**，传空数组直接 `manifest-invalid` → 改成由技能名生成
+   一条最小示例，并明确告知运营「定稿时替换」。
+2. **许可分层裁决**（这条重要）：原本把所有证据同级、「多许可取最宽松」。实测用例暴露风险——
+   一个 AGPL 仓库的技能若在 `SKILL.md` frontmatter 里写 `license: MIT`，同级合并会把它**洗白放行**。
+   改为**分层**：LICENSE/COPYING 文件 = `primary`（授权凭证）；frontmatter / package.json =
+   `declared`（作者自述）。有 primary 只认 primary，declared 仅入 observed 供审计并记
+   `declared-license ignored`。无 primary 才退到 declared，并记 `declared-only` 提醒复核。
+   **凭证 > 自述**，这条现在是代码里的裁决顺序。
+
+测试：`scripts/test-adoption.mjs` 13/13 新增；全套 **124/124** 绿（adoption 13 + adoption-provenance 20 +
+upstream-license 7 + pack-validate 16 + pack-badge 12 + official-showcase 5 + external-sources 13 +
+external-install 14 + preset-pack-bridge 6 + custom-presets 13 + official-locale-gate 5）。
+
+**未完**：1.4 桥消费侧、2.x 的真实发布与 pod 物化实证、3.x 前端/facet 渲染、运营端点层身份注入。

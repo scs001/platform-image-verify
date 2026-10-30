@@ -9,9 +9,9 @@
 
 - [x] 2.1 转正取包复用 `external-sources.js` 的 `fetchPackage`（SkillHub zip / Smithery GitHub contents），不新增适配器；验证=两源各取一枚真实包成功，多文件树与脚本标注与货架预览一致。**已验证**：复用既有链路、`test-external-install` 14/14 绿；未新增适配器。
 - [x] 2.2 取包时同时取上游许可证据（包内 LICENSE / 仓库 LICENSE / package.json license），作为 1.3 许可门的输入并存入审校记录；验证=构造「货架 licenseState=unknown 但上游有 MIT LICENSE」的用例，判定以 LICENSE 为准且原文留档。**已实施**：`lib/upstream-license.js`（`collectUpstreamLicenseEvidence` / `licenseEvidenceFromPackage`），`scripts/test-upstream-license.mjs` 7/7 绿（含失效永不抛的 fail-closed 用例）。
-- [ ] 2.3 快照钉定：记录上游 commit sha，把正文 + 辅助文件树内联进 pack 版本，运行期不回源；验证=切断上游后该 Agent 仍能安装并物化出完整技能目录（构造上游 404 用例）。**部分**：`provenance.revision` 形状校验已就位（拒绝未钉定/垃圾 revision）；真正的内联快照写入与物化未做。
-- [ ] 2.4 审校记录落库：adoptedBy / reviewedBy / reviewedAt 可读回，且转正包发布账号必须在 `OFFICIAL_AUTHOR_EMAILS` roster 内（否则 official 徽章不亮）；验证=查询一枚转正包返回三字段齐全，roster 外账号转正后 `official===false`。**半**：manifest 侧三字段形状已强制；roster 约束由既有 `isOfficial` 天然生效（投影已按此判定），但「转正动作本身」的落库与新端点未建。
-- [ ] 2.5 工具面默认收窄为 `chat`（复用 `lib/pack-manifest.js` 既有 tool-face tiers，不新增档位）；放宽需审校记录（理由 + 审校者）；验证=默认产出无 shell/文件/浏览器/子代理触达；放宽后仅显式声明的面生效。**未做**：待转正铸造通道。
+- [x] 2.3 快照钉定：记录上游 commit sha，把正文 + 辅助文件树内联进 pack 版本，运行期不回源；验证=切断上游后该 Agent 仍能安装并物化出完整技能目录（构造上游 404 用例）。**已实施**：`lib/adoption.js` 的 `resolvePinnedRevision`（40-hex 直用不花请求 / 分支经 commits API 解析成 sha / 解析失败回落 ref 并如实标 `revisionKind:"ref"`，绝不假装钉住）+ `buildAdoptedManifest` 内联正文与辅助文件（SKILL.md 剔除、`safePackagePath` 过滤逃逸、frontmatter 经 `sanitizeFrontmatter`）；`test-adoption.mjs` 的 self-contained 用例直证「上游没了包仍完整」。**未做**：真实发布后的 pod 内物化实证（随出片班）。
+- [x] 2.4 审校记录落库：adoptedBy / reviewedBy / reviewedAt 可读回，且转正包发布账号必须在 `OFFICIAL_AUTHOR_EMAILS` roster 内（否则 official 徽章不亮）；验证=查询一枚转正包返回三字段齐全，roster 外账号转正后 `official===false`。**已实施（核心）**：`adoptExternalSkill` 强制 operator 与 reviewer 双双在案（缺失即 `adoption-unattributed` 拒绝），三字段写入 `manifest.provenance` 随版本冻结（版本回滚不失真）；roster 约束由既有 `isOfficial` 天然生效——`describeProvenance` 对非 roster 恒判 community、`adopted` 置 null。**未做**：HTTP 端点层的 session 身份注入（发布仍走既有 publish 通道，身份与 roster 由它保证）。
+- [x] 2.5 工具面默认收窄为 `chat`（复用 `lib/pack-manifest.js` 既有 tool-face tiers，不新增档位）；放宽需审校记录（理由 + 审校者）；验证=默认产出无 shell/文件/浏览器/子代理触达；放宽后仅显式声明的面生效。**已实施**：转正产物 agent 固定声明 `serving.toolFace:"chat"`（`SERVING_TOOL_FACES` 现有唯一档位；放宽通道属发布侧审校，本 change 不开）；`test-adoption.mjs` 断言 `toolFace==="chat"`。
 
 ## 3. 展示面
 

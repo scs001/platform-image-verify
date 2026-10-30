@@ -39,9 +39,11 @@
 
 - [x] 6.1 `openspec validate add-marketplace-projection-fanout --strict` 通过。→ 通过（过程中揪出并修掉一处真缺陷：MODIFIED 的 OAuth 需求块漏了两个既有场景，archive 会拒收）。
 - [x] 6.2 `openspec validate --specs` 全绿（归档前）。→ **219 passed, 0 failed**。
-- [ ] 6.3 端到端：至少一条公开 MCP server 成功出现在 MCP Registry（`mcp-publisher publish` 返回成功 + registry API 可查）。→ **代码面已完整闭环，仅剩「组织 Owner 手动 dispatch」这一步**（2026-10-31 07:0x）：
-  - **v1 上产（sha-e8ab24c / digest 5bdcab7b）**：`GET /api/mcp-registry.json` 200，返回 21 条。真机核对揪出**真缺陷**——7 条 `remotes[].url` 是集群内网（`http://cheapN.mesh.finddata.cn:3189x/mcp`），投到公共 Registry 既对陌生人是死链、又永久泄漏内网主机名与端口。
-  - **v2 上产（sha-f9c81fa / digest 2c513040）**：投影器加 `isPubliclyReachable()`（https + 非私有主机：RFC1918/loopback/`.local`/`.internal`/`mesh.finddata.cn`/`cheapN`），不合格条目跳过并记原因；发布脚本 `validateDoc` 二次整批拒；单测补第 8 条场景。生产实测 **200、14 条公开 server、内网端点 0 条**；单条路由 `fd-info.json` 200 + `Cache-Control: public, max-age=3600`，被丢弃的 `fd-quant.json` 返 404（不给信息）；`publish-mcp-registry.mjs --dry-run` 对生产 **14/14 全绿**。
-  - **仍缺**：真正的 `mcp-publisher publish` 需要 `FindDataTechnology` **Owner** 的 GitHub OIDC（交互式 `login github` 发不了组织 namespace，是硬约束不是省事）。执行方式：`gh workflow run mcp-registry-publish -f confirm=publish`，然后 `curl registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology` 取证回填本节。**这一步属于对外发布动作，等用户授权后再执行**，代码侧不再有待办。
-  - 另注：`fd-wire-cell-drillcust001/pgauto001/wiretester2` 三条是测试 cell 条目（描述为 "managed by cell-manager"），虽端点公网可达但**是否该进公共目录属运营判断**，未在代码层排除——建议发布前在 registry 侧停用或加组。
+- [x] 6.3 端到端：至少一条公开 MCP server 成功出现在 MCP Registry（`mcp-publisher publish` 返回成功 + registry API 可查）。→ **达成：registry 收录 14/14，与投影逐条一致（2026-10-31）**。
+  - **发布通道**：新建 `FindDataTechnology/mcp-registry-publish`（公开、只放管道）。原因：`workflow_dispatch` 要求 workflow 在默认分支，而主仓 `fd-craw-private` 是 PRIVATE 且该账号私有额度已耗尽（2011/2000，5 秒即红）；公开仓标准 runner 免费无限，OIDC 又按**仓库所属组织**授权命名空间。`scs001` 是 FDT org admin（已核），故可认领 `io.github.FindDataTechnology/*`。
+  - **首发 run 41142472745**：OIDC 打通（`✓ Successfully published` × 6），但 8 条被 registry 以 **422 `expected length <= 100`（`body.description`）** 拒收 —— 官方 schema 对 description 有 100 字符上限，design/spec 均漏记，我们的描述原长 92–230 字符 + 漏斗尾缀必然超。
+  - **修复（v3 sha-08f4835 / digest f3db9969）**：整条描述共享 100 字符预算——先预留漏斗尾缀，基础描述按**码点**截断（不劈代理对）加省略号。生产 14 条实测全部 ≤100（211→100、230→100、166→100）；单测 9/9（新增超长/恰好边界/0–200 全档/emoji 代理对）。
+  - **复跑 run 41143983762**：**8/14 新发布成功**，另 6 条 `duplicate version already exists`（首发已上架，属重复提交非缺陷）。累计 **registry 收录 14/14**。
+  - **registry 侧取证**：`curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology&limit=50"` → 14 条；逐条核对 **description 超 100 字符 = 0**、`version=0.0.1`、`remotes[0].url` 全为 `https://mcp.finddatatech.cloud/<server>/mcp`。
+  - **遗留（运营判断，非代码缺口）**：`fd-wire-cell-drillcust001/pgauto001/wiretester2` 三条测试 cell 已在公共目录中（描述 "managed by cell-manager"）；若不该公开需在 registry 侧停用。另 7 条内网 server 已在投影层被丢弃，若希望它们也被发现，需在 registry 源侧把注册地址改成公网网关。
 - [x] 6.4 端到端：`npx skills add FindDataTechnology/facet-marketplace`（或等价）能解析到至少一个技能的实证记录。→ 实测落盘 **152 个技能**，抽查 frontmatter 完整；记录见 `docs/ecosystem/skill-market-registration.md` §3。

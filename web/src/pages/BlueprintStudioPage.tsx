@@ -370,23 +370,21 @@ export function BlueprintStudioPage() {
   const onRunTrial = () =>
     run("trialRun", async () => {
       if (!detail) return;
-      let out;
       try {
-        out = await runTrial(detail.id);
+        const out = await runTrial(detail.id);
+        setTrial(out.report ?? null);
+        setDetail(out.blueprint ?? null);
+        await refreshList();
+        setNotice({
+          kind: out.report?.green ? "ok" : "err",
+          text: out.report?.green
+            ? t("blueprints.notice.trialGreen")
+            : t("blueprints.notice.trialNotGreen"),
+        });
       } catch (e) {
         // 车道/沙盒故障 ≠ 判不过：报告不落，如实说「重跑即可」，并附原始错误。
         setNotice({ kind: "err", text: `${t("blueprints.notice.trialFailed")} ${String((e as Error).message).slice(0, 160)}` });
-        return;
       }
-      setTrial(out.report ?? null);
-      setDetail(out.blueprint ?? null);
-      await refreshList();
-      setNotice({
-        kind: out.report?.green ? "ok" : "err",
-        text: out.report?.green
-          ? t("blueprints.notice.trialGreen")
-          : t("blueprints.notice.trialNotGreen"),
-      });
     });
 
   const canApprove = Boolean(verdict?.ok) && !verdictStale && !dirty && status !== "cast";

@@ -119,10 +119,11 @@ workflow：`dry-run` → `publish`（`permissions: id-token: write` → `mcp-pub
 curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology" | head -c 800
 ```
 
-> **当前状态（2026-10-31，apply 收口时实测）**：`GET https://facet.finddatatech.cloud/api/mcp-registry.json`
-> 返回 **404**——本变更的投影路由尚未随镜像上线，因此 §5.3 的首次 `publish` **未执行**。
-> 代码面（投影器 + 单测 7/7 + 脚本 dry-run 校验 + workflow）已就绪；上架是发布窗的运营动作，
-> 不在代码合并范围内。tasks 6.3 因此保持未勾选，待镜像上线后跑 `dry-run` → `confirm=publish`。
+> **当前状态（2026-10-31 上产）**：投影路由已随镜像 `sha-e8ab24c`（digest `5bdcab7b`）
+> 滚到 fd-prod/facet，`GET https://facet.finddatatech.cloud/api/mcp-registry.json` 实测 **200**。
+> 首轮返回 21 条，其中 7 条端点为集群内网（见 §6「端点公网可达」），已加闸丢弃后重出。
+> `mcp-publisher publish` 本身仍未执行——它需要组织 Owner 的 GitHub OIDC，
+> 是运营窗动作（`gh workflow run mcp-registry-publish -f confirm=publish`）。
 
 ## 6. 发布前核对门（每次发布都要过）
 
@@ -131,8 +132,24 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.Fi
 | 发布源是公开投影 | 只消费 `/api/mcp-registry.json`（groups=[] 的 server），不读私有源码仓 | 脚本只接受 facet URL |
 | 零凭据形状 | 整份序列化产出跑 `CREDENTIAL_RE`，命中即整批 `PROJECT_REJECTED` | `facet/mcp-registry-json.js` |
 | 无 headers 块 | `remotes[].headers` 恒缺席；脚本二次校验 | 投影器 + 脚本 `validateDoc` |
+| **端点公网可达** | `remotes[].url` 必须 https 且非内网（`mesh.finddata.cn` / `cheapN` / RFC1918 / loopback / `.local` / `.internal`） | 投影器 `isPubliclyReachable`（运行时丢弃该条）+ 脚本 `validateDoc` 二次拒（整批不发布） |
 | 形状合法 | 必填 `name`/`description`/`version` + `remotes[]`；name 反向 DNS 恰好一个 `/` | 脚本 `validateDoc`（整批，不部分发布） |
 | last-good | 暂存目录构建 → 全过才原子替换；失败保留上一份 | 照抄 `export-marketplace-repo.mjs` |
+
+### 为什么「端点公网可达」是硬门（2026-10-31 上产实测）
+
+投影首次上产时暴露：registry 里有 **7 个 server 的 `configTemplate.url` 是集群内网地址**
+（`http://cheap6.mesh.finddata.cn:31893/mcp` 一类）。直接投出去有两条后果，任一都不可接受：
+
+1. **对陌生人是一条死链**——公共 Registry 的读者在公网上解析不到 `.mesh.finddata.cn`，
+   也到不了 `cheapN` 节点端口；
+2. **永久泄漏内网拓扑**——Registry 是公开目录，收录后主机名与端口布局就留在那儿了，
+   和「公开即不可撤回」叠加。
+
+所以这类条目**不投影**（运行时 `isPubliclyReachable()` 返回 false → 该条跳过并记原因，
+其余照出），发布脚本再拒一次（整批不发布）。修法不是在投影层"改写成公网域名"——
+那会凭空造出一个我们没验证过的地址；正确修法是把该 server 的注册地址改成公网网关
+（`https://mcp.finddatatech.cloud/<server>/mcp`），这是 registry 侧的运营动作。
 
 ## 7. 后续品牌升级路径：`cloud.finddatatech/*`
 

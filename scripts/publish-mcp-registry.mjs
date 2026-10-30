@@ -54,6 +54,30 @@ if (PUBLISH && DRY) {
 // rule — a malformed name must never reach the filesystem as a path.
 const NAME_RE = /^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/;
 
+// Second lock on reachability: the registry lists for the whole internet, so an
+// internal endpoint (cluster mesh host, bare cheapN node, RFC1918, non-https) is
+// both a dead link for a stranger and a permanent public leak of our hostnames
+// and port layout. The projector already drops these; this refuses them again
+// so a projection regression cannot publish one.
+const PRIVATE_IP_RE =
+  /^(127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0)$/;
+function isPublicUrl(u) {
+  if (typeof u !== "string" || !/^https:\/\//.test(u)) return false;
+  let host;
+  try {
+    host = new URL(u).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  if (PRIVATE_IP_RE.test(host)) return false;
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  if (host.endsWith(".local") || host.endsWith(".internal")) return false;
+  if (/(^|\.)mesh\.finddata\.cn$/.test(host)) return false;
+  if (/^cheap\d+(\.|$)/.test(host)) return false;
+  return true;
+}
+
 // The official schema's required fields, checked again here so a broken
 // projection cannot be published by a CI run that skipped the unit tests.
 function validateDoc(doc) {
@@ -67,6 +91,7 @@ function validateDoc(doc) {
   for (const [i, r] of (doc?.remotes ?? []).entries()) {
     if (!["streamable-http", "sse"].includes(r?.type)) problems.push(`remotes[${i}].type 非法：${JSON.stringify(r?.type)}`);
     if (typeof r?.url !== "string" || !/^https?:\/\//.test(r.url)) problems.push(`remotes[${i}].url 非绝对 URL`);
+    else if (!isPublicUrl(r.url)) problems.push(`remotes[${i}].url 不可公网达（内网主机/非 https）：${r.url}`);
     if (r && "headers" in r) problems.push(`remotes[${i}].headers 必须整块省略（免键端点）`);
   }
   return problems;

@@ -246,11 +246,15 @@ COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # Facet service + its built thin SPA (same-image second role; see builder note).
 # mcp-catalog.js is imported by facet/index.js (S2 registry 聚合读面); pairing.js
 # mounts the device-pairing doors (F3.2 publish bridge); publish-gate.js is the
-# same-name publish pre-route (add-mixed-fleet-packs 3.1) — a facet import NOT
-# on this list crashloops the facet role only (the platform-role smoke gate
-# cannot catch it); cli/ is deliberately NOT shipped — it is the
-# npm-published @finddata/facet package, not part of the runtime.
-COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js /app/facet/publish-gate.js ./facet/
+# same-name publish pre-route (add-mixed-fleet-packs 3.1); mcp-registry-json.js
+# is the MCP Registry server.json projection (add-marketplace-projection-fanout)
+# and credential-pattern.js is the credential shape it scans with — a facet
+# import NOT on this list crashloops the facet role only (the platform-role
+# smoke gate cannot catch it); cli/ is deliberately NOT shipped — it is the
+# npm-published @finddata/facet package, not part of the runtime. That last rule
+# is why credential-pattern.js exists: marketplace-repo.js (the offline exporter,
+# NOT shipped) imports facet/cli/, so the runtime needed the pattern without it.
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js /app/facet/publish-gate.js /app/facet/mcp-registry-json.js /app/facet/credential-pattern.js ./facet/
 COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,

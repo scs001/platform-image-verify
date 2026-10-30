@@ -175,3 +175,41 @@ test("单条路由：未知名字 404、同名带命名空间也命中", async (
     assert.equal(full.status, 200);
   } finally { close(); }
 });
+
+// The registry lists for the whole internet: an internal endpoint is both a
+// dead link for a stranger and a permanent public leak of cluster hostnames and
+// ports. Production caught this (7 servers pointed at
+// http://cheapN.mesh.finddata.cn:3189x/mcp), so it gets its own scenario.
+test("内网/非 https 端点不投影（public listing 不得泄漏集群地址）", async () => {
+  const internal = [
+    server("mesh-one", { configTemplate: { url: "http://cheap6.mesh.finddata.cn:31893/mcp" } }),
+    server("loopback", { configTemplate: { url: "http://127.0.0.1:3000/mcp" } }),
+    server("rfc1918", { configTemplate: { url: "http://10.0.3.7:8080/mcp" } }),
+    server("plain-http", { configTemplate: { url: "http://mcp.finddatatech.cloud/x/mcp" } }),
+  ];
+  const good = server("public-one");
+  const { servers, skipped } = projectAllServers({ entriesFn: () => [...internal, good] });
+
+  assert.deepEqual(servers.map((s) => s.name), [`${NAMESPACE}/public-one`], "只留公网可达的那条");
+  assert.equal(skipped.length, internal.length);
+  for (const s of skipped) {
+    assert.equal(s.reason, "endpoint not publicly reachable (internal host or non-https)");
+  }
+  // 单条也拒绝，且不留信息。
+  assert.equal(projectServerJson(internal[0]), null);
+
+  // 判据本身可独立调用（发布脚本与单测共用同一函数，不是各写一份）。
+  const { isPubliclyReachable } = await load("facet/mcp-registry-json.js");
+  for (const u of [
+    "http://cheap6.mesh.finddata.cn:31893/mcp",
+    "https://cheap5.finddata.cn/mcp",
+    "https://localhost/mcp",
+    "https://10.0.0.1/mcp",
+    "https://192.168.1.5/mcp",
+    "https://172.20.0.9/mcp",
+    "http://mcp.finddatatech.cloud/x/mcp",
+  ]) {
+    assert.equal(isPubliclyReachable(u), false, `应判不可达：${u}`);
+  }
+  assert.equal(isPubliclyReachable("https://mcp.finddatatech.cloud/fd-info/mcp"), true);
+});

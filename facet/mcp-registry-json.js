@@ -57,6 +57,41 @@ export class McpRegistryError extends Error {
 // halves restricted to a conservative charset.
 const NAME_RE = /^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/;
 
+// The registry lists servers for the WHOLE internet, so a remote URL must be
+// publicly resolvable over https. Registry entries carry a mix of endpoints:
+// the public gateway (`https://mcp.finddatatech.cloud/<server>/mcp`) and
+// cluster-internal ones (`http://cheap6.mesh.finddata.cn:31893/mcp`, plain dsh
+// cell ports). Publishing an internal URL would (a) hand a stranger an address
+// that cannot connect, and (b) leak internal hostnames and port layout into a
+// permanent public directory. Neither is acceptable, and neither is fixable at
+// publish time — so such an entry is not projectable at all.
+//
+// Deliberately narrow: only https, and only hostnames that are neither
+// loopback/RFC1918 nor our own cluster naming (mesh.*, bare cheapN nodes).
+const PUBLIC_URL_RE = /^https:\/\/[^/\s]+/;
+const PRIVATE_IP_RE =
+  /^(127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0)$/;
+
+export function isPubliclyReachable(url) {
+  const u = String(url ?? "").trim();
+  if (!u || !PUBLIC_URL_RE.test(u)) return false; // https only
+  let host;
+  try {
+    host = new URL(u).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  if (PRIVATE_IP_RE.test(host)) return false;
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  if (host.endsWith(".local") || host.endsWith(".internal")) return false;
+  // Our cluster naming: mesh.<x>.finddata.cn endpoints and bare cheapN nodes
+  // (with or without a suffix) are reachable only from inside the VPC.
+  if (/(^|\.)mesh\.finddata\.cn$/.test(host)) return false;
+  if (/^cheap\d+(\.|$)/.test(host)) return false;
+  return true;
+}
+
 // One server entry → one registry document, or null when the entry cannot be
 // projected (caller records the reason; a single bad entry never poisons the
 // batch — spec scenario "A malformed entry does not poison the batch").
@@ -67,6 +102,7 @@ export function projectServerJson(entry) {
   if (!localName) return null;
   if (!description) return null; // schema requires it; an empty description is noise
   if (!url) return null;
+  if (!isPubliclyReachable(url)) return null; // no internal hostnames in a public listing
 
   const name = `${NAMESPACE}/${localName}`;
   if (!NAME_RE.test(name) || name.split("/").length !== 2) return null;
@@ -94,7 +130,9 @@ export function projectServerJson(entry) {
 export function skipReason(entry) {
   if (!String(entry?.name ?? "").trim()) return "missing name";
   if (!String(entry?.description ?? "").trim()) return "missing description";
-  if (!String(entry?.configTemplate?.url ?? "").trim()) return "missing configTemplate.url";
+  const url = String(entry?.configTemplate?.url ?? "").trim();
+  if (!url) return "missing configTemplate.url";
+  if (!isPubliclyReachable(url)) return "endpoint not publicly reachable (internal host or non-https)";
   const name = `${NAMESPACE}/${String(entry.name).trim()}`;
   if (!NAME_RE.test(name) || name.split("/").length !== 2) return `name fails reverse-DNS pattern: ${name}`;
   return null;

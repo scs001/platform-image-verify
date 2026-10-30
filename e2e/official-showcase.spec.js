@@ -104,8 +104,6 @@ test.describe("official showcase faces", () => {
     );
     await page.route("**/api/config", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(CONFIG) }));
     await page.route("**/api/packs**", (route) => {
-      const url = new URL(route.request().url());
-      const official = url.searchParams.get("official");
       return route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ total: MARKET_ROWS.length, page: 1, pageSize: 50, packs: MARKET_ROWS }),

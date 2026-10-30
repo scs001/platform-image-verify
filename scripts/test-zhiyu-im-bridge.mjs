@@ -70,7 +70,7 @@ const waitFor = async (fn, { tries = 60, ms = 50 } = {}) => {
 };
 
 test("1.x gateway ingest: machine auth, stable seat contract, router triggered", async () => {
-  const { base, zhiyu, post, get, calls, close } = await bootGateway();
+  const { base, zhiyu, post, calls, close } = await bootGateway();
   // A room owned by owner@x with one agent seat.
   const owner = async (p, body) => {
     const r = await fetch(`${base}${p}`, { method: "POST", headers: { "x-user": "owner@x", "Content-Type": "application/json" }, body: JSON.stringify(body) });

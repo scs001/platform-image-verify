@@ -36,6 +36,7 @@ export function PluginsSection() {
     if (status === "connected") wsSend({ type: "list_plugins" });
   }, [status]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `bundles` is intentionally the trigger — a supply refresh clears any in-flight toggle; removing the dep would drop that reset (behavior preserved from the shipped section)
   useEffect(() => {
     setPending(null);
   }, [bundles]);

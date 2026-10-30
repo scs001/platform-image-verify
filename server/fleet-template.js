@@ -130,8 +130,7 @@ function parseParams(params) {
 // time (post-substitution re-parse is the structural gate).
 function collectPlaceholderError(str, declared) {
   PLACEHOLDER_RE.lastIndex = 0;
-  let match;
-  while ((match = PLACEHOLDER_RE.exec(str))) {
+  for (let match = PLACEHOLDER_RE.exec(str); match; match = PLACEHOLDER_RE.exec(str)) {
     if (!declared.has(match[1])) return `references undeclared param '${match[1]}'`;
   }
   return null;
@@ -238,7 +237,11 @@ export function parseFleetTemplate(manifest) {
         if (err) return { ok: false, error: `member '${ref}' target.${key} ${err}` };
       }
     }
-    const hasPlaceholder = (s) => typeof s === "string" && (PLACEHOLDER_RE.lastIndex = 0, PLACEHOLDER_RE.test(s));
+    const hasPlaceholder = (s) => {
+      if (typeof s !== "string") return false;
+      PLACEHOLDER_RE.lastIndex = 0;
+      return PLACEHOLDER_RE.test(s);
+    };
     if (target.kind === "pack-preset") {
       if (
         typeof target.packId !== "string" || !target.packId.trim() ||

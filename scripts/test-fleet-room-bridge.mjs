@@ -35,9 +35,7 @@ const room = store.roomCreate({ title: "桥测试房", ownerEmail: OWNER });
 
 // A controllable sample: tests mutate `sample` between ticks.
 let sample = null;
-let sampleCalls = 0;
 const sampleFleets = async (ownerEmail) => {
-  sampleCalls += 1;
   return sample;
 };
 
@@ -103,7 +101,6 @@ test("tick: first sight baselines silently; the second tick emits new facts", as
     }),
   ]);
   await registerFleetRoomBridge; // noop reference
-  const bridge = { tick: null };
   // Re-enter the tick via a fresh bridge sharing THIS store (the module returns
   // { tick } — we call it directly through a second registration on the same
   // store but route-less: simplest is to invoke the returned tick from the

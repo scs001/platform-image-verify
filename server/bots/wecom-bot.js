@@ -23,7 +23,7 @@
 // posts there. A reply whose turn outlives the window (or a proactive send
 // with no prior inbound) fails LOUDLY — never silently swallowed.
 
-import { registry as wecom, decrypt, encrypt, signature } from "./wecom.js";
+import { decrypt, encrypt, signature } from "./wecom.js";
 import { xmlField } from "./adapter.js";
 
 const DEBUG = String(process.env.WECOM_BOT_DEBUG || "").trim() === "1";

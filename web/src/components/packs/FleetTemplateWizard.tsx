@@ -177,9 +177,12 @@ export function FleetTemplateWizard({ pack, onCancel, onDone }: {
 
       {(phase === "running" || phase === "done") && (
         <ul className="text-xs space-y-1" data-testid="fleet-wizard-log">
-          {log.map((line, i) => (
-            <li key={i} className={line.startsWith("✗") ? "text-destructive" : "text-muted-foreground"}>{line}</li>
-          ))}
+          {log.map((line, i) => {
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: append-only log lines have no stable id; index is their identity
+              <li key={i} className={line.startsWith("✗") ? "text-destructive" : "text-muted-foreground"}>{line}</li>
+            );
+          })}
           {phase === "running" && <li className="text-primary">{t("common.loading")}</li>}
         </ul>
       )}

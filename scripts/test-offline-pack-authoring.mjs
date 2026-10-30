@@ -172,7 +172,7 @@ test("2.1 import creates an editable draft and installs NOTHING", async () => {
 test("2.2 round-trip: export → import → re-export is byte-deterministic", async () => {
   const app = makeApp();
   const manifest = compileManifest(FULL_ENTRIES);
-  const first = await post(app, "/api/pack-drafts/export-bundle-x", { manifest });
+  await post(app, "/api/pack-drafts/export-bundle-x", { manifest });
   // (export needs a draft id — create one and use its endpoint for both passes)
   const draft = packStore.createDraft({ name: "RT", description: "", tags: [], entries: FULL_ENTRIES });
   const e1 = await post(app, `/api/pack-drafts/${draft.id}/export-bundle`, { manifest });

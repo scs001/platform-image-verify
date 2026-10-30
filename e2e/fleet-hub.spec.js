@@ -148,13 +148,3 @@ test.describe("fleet hub", () => {
   });
 });
 
-function pollFor(get) {
-  return new Promise((resolve) => {
-    const tick = () => {
-      const v = get();
-      if (v) return resolve(v);
-      setTimeout(tick, 50);
-    };
-    tick();
-  });
-}

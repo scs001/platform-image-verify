@@ -45,6 +45,30 @@
     }
   },
   "javascript": {
-    "globals": ["process", "console", "fetch", "URL", "AbortSignal"]
-  }
+    "globals": [
+      "process",
+      "console",
+      "fetch",
+      "URL",
+      "AbortSignal"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": [
+        "site-zhiyu/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noInnerDeclarations": "off",
+            "noUnusedFunctionParameters": "off"
+          },
+          "suspicious": {
+            "noRedundantUseStrict": "off"
+          }
+        }
+      }
+    }
+  ]
 }

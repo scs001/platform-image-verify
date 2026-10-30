@@ -115,7 +115,6 @@ test("a child dying while the prompt is IN FLIGHT does not leak an unhandled rej
     clientFactory: () => () => {
       const listeners = [];
       let died = false;
-      let failPrompt = null;
       const client = {
         __die() {
           died = true;

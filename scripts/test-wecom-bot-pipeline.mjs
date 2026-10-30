@@ -24,8 +24,8 @@ delete process.env.PUBLIC_BASE_URL;
 
 const db = await import("../db.js");
 const bots = await import("../server/bots.js");
-const { registry: wecomBot } = await import("../server/bots/wecom-bot.js");
-const { decrypt, encrypt, signature } = await import("../server/bots/wecom.js");
+await import("../server/bots/wecom-bot.js");
+const { encrypt, signature } = await import("../server/bots/wecom.js");
 const { createAppContext } = await import("../server/context.js");
 const { registerAuth } = await import("../server/auth.js");
 const { registerBotRoutes, WEBHOOK_PREFIX } = await import("../server/routes/bots.js");

@@ -815,3 +815,48 @@ test("铸造：旧 packId 已失效时重建新包并改指针（rebuilt 可见�
     await close(server);
   }
 });
+
+// 真机补刀（2026-10-30 投研晨会实录）：坏试跑会把旧绿签报告**覆盖**成
+// errors=['trial aborted: Pack version not found'] 且签字消失——此时 reseal 不成立，
+// 若前置闸不认陈旧指针，cast 在门口 409，下面的 404→重建自愈永远轮不到跑（死锁的另一半）。
+test("铸造前置闸：报告被陈旧指针错误覆盖（无签字）时仍放行再铸修指针", async () => {
+  let seq = 0;
+  const publishClient = {
+    async publish(args) {
+      if (args.packId) return { ok: false, status: 404, error: "Pack not found", body: { error: "Pack not found" } };
+      seq += 1;
+      return { ok: true, packId: `pk_${seq}`, version: 1, body: {} };
+    },
+  };
+  const store = createBlueprintDatabase({ file: path.join(mkdtempSync(path.join(tmp, "db-")), "blueprints.db") });
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use((req, _res, next) => {
+    const email = req.headers["x-test-user"];
+    req.user = typeof email === "string" && email ? { email, groups: [] } : null;
+    next();
+  });
+  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver: async () => ({}) });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })); // 铸成，指针 pk_1
+    // 模拟真机现场：试跑 404 失败，报告覆盖为坏 errors，无 signoff。
+    store.saveTrialReport(id, { ranAt: 333, green: false, assertions: [], judged: [], errors: ["trial aborted: Pack version not found"] });
+    const repaired = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(repaired.cast.rebuilt, true, "陈旧指针覆盖报告也必须走重建");
+    assert.equal(repaired.blueprint.castPackId, "pk_2");
+    // 反例：报告无陈旧指针错误的普通 cast 态蓝图，前置闸照旧 409（不放水）。
+    const c2 = await fetch(`${base}/api/blueprints`, as("bob@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    await fetch(`${base}/api/blueprints/${c2.blueprint.id}/approve`, as("bob@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${c2.blueprint.id}/cast`, as("bob@x", { method: "POST" }));
+    const denied = await fetch(`${base}/api/blueprints/${c2.blueprint.id}/cast`, as("bob@x", { method: "POST" }));
+    assert.equal(denied.status, 409, "报告不含陈旧指针错误时不得绕过前置闸");
+  } finally {
+    await close(server);
+  }
+});

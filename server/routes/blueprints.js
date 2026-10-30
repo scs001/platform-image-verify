@@ -284,7 +284,17 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
       blueprint.approvedBy === user.email &&
       blueprint.trialReport?.signoff?.by === user.email &&
       blueprint.trialReport.signoff.reportRanAt === blueprint.trialReport.ranAt;
-    if (blueprint.status !== "approved" && !reseal) {
+    // 前置闸的第二例外（2026-10-30 真机补刀）：reseal 只解锁「绿+签」那一半——而
+    // 市场包 id 失效时，坏试跑会把旧报告**覆盖**成 errors=['trial aborted: Pack
+    // version not found'] 且签字消失，此时 reseal 必不成立，cast 在门口就被 409 拦死，
+    // 下面的 404→重建自愈根本轮不到跑——蓝图照样永久卡死。故：最新报告带着陈旧指针
+    // 错误时，同样允许铸造态再铸（这正是修指针的入口），批准人本人纪律不变。
+    const pointerStale =
+      blueprint.status === "cast" &&
+      Boolean(blueprint.castPackId) &&
+      Array.isArray(blueprint.trialReport?.errors) &&
+      blueprint.trialReport.errors.some((e) => /Pack (version )?not found/i.test(String(e)));
+    if (blueprint.status !== "approved" && !reseal && !pointerStale) {
       return res.status(409).json({ error: `blueprint is '${blueprint.status}' — approval must come first` });
     }
     if (blueprint.approvedBy !== user.email) {

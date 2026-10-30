@@ -87,6 +87,11 @@ connect-app/
 
 # Impeccable live-mode session journals (local iteration state)
 .impeccable/live/
+# Impeccable local render evidence (screenshots / detector scratch). The design
+# records (surfaces/, design.json) stay tracked; review captures are local only.
+.impeccable/review/
+.impeccable/questions/
+.impeccable/hook.cache.json
 
 # Scratch temp files
 .tmp-*

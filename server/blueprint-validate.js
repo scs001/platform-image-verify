@@ -333,7 +333,7 @@ export function diffBlueprint(prev, next) {
 //                       占位在发布后呈惰性）。
 
 const PACK_REF_RE = /\{\{PACK_ID:([^}]+)\}\}/g;
-const SELF_REF_RE = /\{\{PACK_ID(?::self)?\}\}/g;
+export const SELF_REF_RE = /\{\{PACK_ID(?::self)?\}\}/g;
 
 export function collectPackRefs(content) {
   const refs = new Set();

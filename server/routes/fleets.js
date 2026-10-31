@@ -303,6 +303,9 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     // turn time (against the landed model) and recorded on the turn event.
     effort: member.effort ?? null,
     contextBudget: member.contextBudget ?? null,
+    // Turn carrier (add-fleet-carrier): the CONFIGURED placement (null = auto)
+    // — the actual body lands on the turn events' carrier column.
+    carrier: member.carrier ?? null,
     // Latest real turn's usage (fleet-ops-canvas): the config bar's context
     // budget histogram buckets by this over the declared budget. null = the
     // newest real round reported none (用量字段缺失 ≠ 未超预算).

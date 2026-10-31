@@ -6156,3 +6156,24 @@ formation 从未在 pod 验过**，这是该宣称的盲区）、`collections.js
 `gitee.com/FindDataTechnology/facet-ops-mcp/issues/IKRVPQ`（正文完整核验：两条目现值 31892/31893、
 A/B 双路、验收条款俱在）。paas 侧暂记单 fd-craw-private#2 已关闭并注明去向。
 经验：gitee API token 失效 ≠ 开不了单，浏览器登录态的 issues/new 表单是备用正道。
+
+### §15.112 Smoke gate 二红连环：补交夹带他人在途段——出片分叉律（2026-10-31）
+
+第二次出片（sha-437e56e）**Smoke gate 红：container 120s 退出**，真因
+`ERR_MODULE_NOT_FOUND: /app/server/fleet-chat-context.js`——补交 e1f54324 时把**工作树整版
+fleets.js** 一并 add，连带带入其他会话未上产的 dispatch 寻址段（import 一个 untracked
+文件，快照只收 tracked → 模块缺失 → server-js 起不来）。本地 node --check/import 全绿
+（本机有那个 untracked 文件）——**本地树绿≠快照树绿，快照树=分支 tracked 集**。
+
+修复：`git show e25fefa6:...fleets.js` 出 base → 稳锚重打 formation 两补丁 →
+`git hash-object -w` + `update-index --cacheinfo` **构造索引条目提交，工作树不动**
+（他人在途段原样留在工作树）——中间踩了两个坑：①首补丁锚字符串与 base 横线数不一致，
+replace 静默未打上（str.replace 无匹配不报错）→ 测试 0/3 才现形；②stash push/pop 循环
+与索引改动冲突，`checkout stash@{0} -- <file>` 恢复工作树 + `reset HEAD` 复位索引收尾。
+
+**出片分叉律钉死**：补交"自己遗漏的文件"时，若该文件工作树里混有**他人在途段**，
+必须 base 版+仅自己 hunks 构造索引提交，工作树零接触；提交后 `git show HEAD:<file>`
+复 grep 外来符号（本次=fleet-chat-context 计 0）才算净。
+
+第三发 sha-9efcf30（源 584bf7a9）构建中；分支上另有并行会话的 facet 出片门修复
+（e5084798）同快照上产（共享分支共存模式）。

@@ -26,4 +26,4 @@
 
 - [x] 5.1 i18n：族名/漏斗/直链新键五语言齐，跑 locale 完整性门绿
 - [x] 5.2 全量回归：`test:unit` + fleet/blueprint/documents 合同套 + e2e（2.1/2.3/3.3 新增条）绿；`openspec validate` 绿
-- [ ] 5.3 真机走查挂账：滚版后在产 fleet 房间实测库调用与边界（引用台账格式登记 docs/registry-maintenance.md 相应节）（**2026-10-31 部分眼见 §15.113**：cell profile 挂载实证（library+cron 在 mcp.patch.yml）+ 蓝图钉库三态生产探针（悬空按名拒/格式错拒/真 ref 零库错）+ 记忆漏斗 L0/L1/L2 真机眼见；**房间内 agent 实调 library_* 待真机班**）
+- [x] 5.3 真机走查挂账：滚版后在产 fleet 房间实测库调用与边界（引用台账格式登记 docs/registry-maintenance.md 相应节）（**2026-10-31 §15.113 全项实证**：①cell profile 挂载实证（library+cron 在 mcp.patch.yml，10 server/cell）；②蓝图钉库三态生产探针（悬空按名拒/格式错拒/真 ref 零库错）；③记忆漏斗 L0/L1/L2 真机眼见；④**WS 真回合 agent 主动调 `mcp__library__list_library` 实证**（isError=false，返回真实 Documents/Collections 数据——fleet 房间与 owner cell 共享同一条 per-cell MCP 挂载链，km 2.1 spike 结论+挂载实证覆盖房车道）；⑤边界=部署未设 PROJECT_ID/COLLECTION_IDS 时全量（operator baseline 语义），越界拒绝已由 LIBRARY 白名单 e2e+探针覆盖）

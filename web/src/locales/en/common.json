@@ -54,6 +54,7 @@
     "fleetBadge": "Agent Team"
   },
   "agentsPage": {
+    "studio": "Studio",
     "title": "Agents",
     "agents": "Experts",
     "market": "Agents",
@@ -1708,6 +1709,7 @@
       "mine": "Mine"
     },
     "market": {
+      "galleryTitle": "Official agents — spec at a glance, full three buckets in the detail",
       "searchPlaceholder": "Search agents…",
       "search": "Search",
       "empty": "No agents in the market yet.",
@@ -1723,6 +1725,8 @@
       "officialAdoptedBadge": "Official Pick · Reviewed"
     },
     "detail": {
+      "fork": "Fork to my studio",
+      "forkHint": "Seed an editable copy in the Agent Studio from the readable manifest — lineage rides along; publishing rides the existing gates",
       "notFound": "Agent not found or unlisted",
       "adoptedUpstream": "Upstream {{name}}",
       "adoptedLicense": "License {{license}}",
@@ -2022,7 +2026,107 @@
       "lit": "Lit — team is now running.",
       "doneBtn": "Done"
     },
-    "draftsBuilderPointer": "Or let the pack author draft it in chat — it interviews you, compiles the manifest, and lands an editable draft."
+    "draftsBuilderPointer": "Or let the pack author draft it in chat — it interviews you, compiles the manifest, and lands an editable draft.",
+    "specSheet": {
+      "emptyPersona": "No persona text",
+      "emptySkills": "No skills",
+      "emptyMcp": "No tool references",
+      "skillBody": "Skill body",
+      "compactPersonaMissing": "No persona",
+      "compactSkills": "Skills {{n}}",
+      "compactSkillsZero": "No skills",
+      "compactTools": "Tools {{n}}",
+      "compactToolsZero": "No tools",
+      "forkedFrom": "Forked from {{packId}} v{{version}}"
+    }
+  },
+  "studio": {
+    "fork": {
+      "unavailable": "Cannot read this agent ({{status}}) — forking follows read visibility",
+      "seeded": "Loaded “{{name}}” as the working document — lineage stamped"
+    },
+    "title": "Agent Studio",
+    "roster": {
+       "new": "New agent",
+       "empty": "No agents yet — start with “New agent”"
+      },
+    "canvas": {
+       "empty": "Pick an agent on the left, or create one"
+      },
+    "agent": {
+       "id": "ID (assigned by the gate's rules)",
+       "name": "Display name"
+      },
+    "doc": {
+       "section": "Document info (manifest envelope)",
+       "name": "Name",
+       "description": "Description",
+       "tags": "Tags (comma-separated)"
+      },
+    "skill": {
+       "importLocal": "Import from local skills…",
+       "inline": "Inline new skill",
+       "description": "Description (≤300 chars)",
+       "content": "Skill body (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Pick a registry server…"
+      },
+    "team": {
+       "tab": "Team structure",
+       "empty": "This document has no team structure (fleet block) yet — the graph renders the document, read-only",
+       "readOnlyHint": "Read-only graph: members edit via role cards; orchestration edges ride blueprints/templates"
+    },
+    "blueprint": {
+    "pick": "Open a blueprint draft…",
+    "new": "New blueprint",
+    "untitled": "Untitled blueprint",
+    "empty": "Open a draft from the pool, or create one — the blueprint lifecycle (validate → trial → approve → cast) and its draft pool ride unchanged",
+    "status": {
+        "draft": "Draft",
+        "approved": "Approved",
+        "cast": "Cast"
+      },
+    "track": {
+        "form": "Form",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "Scene name",
+        "oneLine": "One-line positioning",
+        "outOfScope": "Out of scope"
+      },
+    "judge": "Judge model",
+    "judgeFollowDefault": "Follow deployment default",
+    "judgeFollows": "Follow deployment default (resolves to {{model}})",
+    "sources": "Data sources (knowledge collections / registry names)",
+    "pickCollection": "Pick a knowledge collection…",
+    "jsonHint": "Roster/monitoring/acceptance sections edit via the JSON track; both tracks share one source and pass the full validation chain on submit.",
+    "jsonApply": "Parse and load into the form track",
+    "saveValidate": "Save and validate",
+    "trial": "Trial run",
+    "trialReport": "Trial report",
+    "approve": "Approve",
+    "cast": "Cast to market",
+    "castRef": "Cast: pack {{packId}} v{{version}}",
+      "sign": "Sign trial report (final key)",
+      "unsign": "Unsign",
+    "savedValid": "Saved, validation green"
+    },
+    "validate": {
+       "running": "Validating…",
+       "ok": "Valid — the same validators the publish gate runs",
+       "bad": "{{n}} issue(s) (publish-gate wording)"
+      },
+    "emit": {
+       "preset": "Save as personal preset (this cell)",
+       "draft": "Save as agent draft (→ market)",
+       "busy": "Emitting…",
+       "presetOk": "Preset “{{name}}” created — pick it in the conversation selector",
+       "draftOk": "Draft created — continue publishing in “My creations”",
+       "failed": "Emit failed: {{message}}"
+      },
+    "remove": "Remove"
   },
   "overlay": {
     "title": "Resource adjustments",

@@ -208,35 +208,35 @@ export interface StarterTeam {
 export const STARTER_TEAMS: StarterTeam[] = [
   {
     packId: "EMGW14N8voa1b36LSuTxxw",
-    name: "客服班组（官方种子）",
+    name: "客服班组",
     role: "preferred",
     oneLine: "三岗客服班组：组长巡检、一线处理、质检抽检——最小满编，节奏最直观",
     seedFile: "service-desk-fleet.seed.json",
   },
   {
     packId: "aofNf6o2LR61lPK8IVVkJw",
-    name: "AI 公司（官方种子）",
+    name: "AI 公司",
     role: "secondary",
     oneLine: "全景示范：CEO 巡视 + 多部门 + 引用岗 + 降级岗，看一支「公司」怎么编",
     seedFile: "company-fleet.seed.json",
   },
   {
     packId: "tkHe8IHE0BuDYYIg5LglUw",
-    name: "内容流水线（官方种子）",
+    name: "内容流水线",
     role: "secondary",
     oneLine: "主编→策划→撰稿→审校的周流水线，看接棒与协作怎么编",
     seedFile: "content-factory-fleet.seed.json",
   },
   {
     packId: "YMSt-hRNiNWXrlLYC8PSiA",
-    name: "投研晨会（官方种子）",
+    name: "投研晨会",
     role: "advanced",
     oneLine: "三层级联晨会：研究员→首席→拍板上行，风控被动岗按需唤醒",
     seedFile: "invest-morning-fleet.seed.json",
   },
   {
     packId: "56opYgliV9FYAmhmsDIJOw",
-    name: "晨报情报站（官方种子）",
+    name: "晨报情报站",
     role: "advanced",
     oneLine: "每日晨报：双情报员分头巡检，主编 8 点合成，外加团队引用岗",
     seedFile: "intel-brief-fleet.seed.json",
@@ -246,88 +246,3 @@ export const STARTER_TEAMS: StarterTeam[] = [
 // The guide cards ride the SAME channel as every other pack guide — keyed by
 // the market pack id. Card copy is zh-authoritative content (same class as
 // personas/skills); the posts named here must match the seed manifest (test).
-PACK_GUIDES["EMGW14N8voa1b36LSuTxxw"] = {
-  name: "客服班组（官方种子）",
-  steps: [
-    {
-      title: "订阅安装并实化",
-      body: "从智能体市场订阅本包，在应用中心按模板实化——团队生而全队暂停，先确认组织再点燃。",
-    },
-    {
-      title: "直接开始",
-      body: "点燃后每 4 小时：一线客服处理工单并报数、质检员抽检合格率、组长汇总未决工单。CRM 工具未配置时岗位会如实报「未取得」——这是平台的诚实纪律，不是故障。",
-    },
-    {
-      title: "拿到班组台账",
-      body: "去驾驶舱看卡墙（未决工单/处理件数/首响时长/质检合格率）；疑难工单组长会合并成拍板项等你裁决。",
-    },
-  ],
-};
-PACK_GUIDES["aofNf6o2LR61lPK8IVVkJw"] = {
-  name: "AI 公司（官方种子）",
-  steps: [
-    {
-      title: "订阅安装并实化",
-      body: "按模板实化后先在驾驶舱看全景：CEO 巡视、开源/投资真数据岗、引用岗与两个待补岗（降级示范）。",
-    },
-    {
-      title: "确认节奏后点燃",
-      body: "各岗位节奏不同（巡视/周报/晨会），全队暂停状态确认无误再点燃；引用岗会跟随被引用对象产出。",
-    },
-    {
-      title: "拿到公司级台账",
-      body: "驾驶舱组织图呈现全公司运转；待补岗与引用关系如实呈现——这正是岗位补岗/换防的练习场。",
-    },
-  ],
-};
-PACK_GUIDES["tkHe8IHE0BuDYYIg5LglUw"] = {
-  name: "内容流水线（官方种子）",
-  steps: [
-    {
-      title: "订阅安装并实化",
-      body: "实化后看编排：主编周一选题会（定时触发），策划立项、撰稿成稿，审校为被动岗（受委托唤醒）。",
-    },
-    {
-      title: "直接开始",
-      body: "点燃后按周节奏产出：选题池、成稿数、本周字数等槽位随岗位报数滚动。",
-    },
-    {
-      title: "拿到内容台账",
-      body: "驾驶舱看接棒边与槽位趋势；审校意见经委托通道回流撰稿人——横向协作的示范。",
-    },
-  ],
-};
-PACK_GUIDES["YMSt-hRNiNWXrlLYC8PSiA"] = {
-  name: "投研晨会（官方种子）",
-  steps: [
-    {
-      title: "订阅安装并实化",
-      body: "三层级联：宏观/行业研究员晨报上行首席汇总，风控官被动岗受拍板批复唤醒。",
-    },
-    {
-      title: "直接开始",
-      body: "每晨自动跑：研究员报数（宏观判断/行业观点），首席合成晨会要点并上行人拍板。",
-    },
-    {
-      title: "拿到晨会台账",
-      body: "拍板横幅呈现首席的上行请示；批复后结论进入下一轮晨会上下文。",
-    },
-  ],
-};
-PACK_GUIDES["56opYgliV9FYAmhmsDIJOw"] = {
-  name: "晨报情报站（官方种子）",
-  steps: [
-    {
-      title: "订阅安装并实化",
-      body: "双情报员每日清晨分头巡检，情报主编 8 点合成晨报；另有团队引用岗每周做深度聚合。",
-    },
-    {
-      title: "直接开始",
-      body: "点燃后每日自动产出：科技/市场两路情报要点，主编合成晨报并报数（覆盖源数/头条）。",
-    },
-    {
-      title: "拿到晨报台账",
-      body: "驾驶舱看晨报要点与覆盖源数；需要深挖时让主编 dispatch 情报员定向补查。",
-    },
-  ],
-};

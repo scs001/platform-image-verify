@@ -54,6 +54,7 @@
     "fleetBadge": "Equipo de agentes"
   },
   "agentsPage": {
+    "studio": "Estudio",
     "title": "Agentes",
     "agents": "Expertos",
     "market": "Agentes",
@@ -1708,6 +1709,7 @@
       "mine": "Mío"
     },
     "market": {
+      "galleryTitle": "Agentes oficiales — resumen spec, los tres buckets completos en el detalle",
       "searchPlaceholder": "Buscar agentes…",
       "search": "Buscar",
       "empty": "Aún no hay agentes en el mercado.",
@@ -1723,6 +1725,8 @@
       "officialAdoptedBadge": "Selección oficial · Revisado"
     },
     "detail": {
+      "fork": "Bifurcar a mi estudio",
+      "forkHint": "Siembra una copia editable en el Estudio de agentes desde el manifiesto legible — el linaje viaja con ella; la publicación pasa los portales existentes",
       "notFound": "Paquete no encontrado o retirado",
       "adoptedUpstream": "Origen {{name}}",
       "adoptedLicense": "Licencia {{license}}",
@@ -2022,7 +2026,107 @@
       "stepPay": "Completando la compra…",
       "stepProvision": "Aprovisionando el equipo…"
     },
-    "draftsBuilderPointer": "O deja que el autor de packs lo redacte en el chat — te entrevista, compila el manifest y guarda un borrador editable."
+    "draftsBuilderPointer": "O deja que el autor de packs lo redacte en el chat — te entrevista, compila el manifest y guarda un borrador editable.",
+    "specSheet": {
+      "emptyPersona": "Sin texto de persona",
+      "emptySkills": "Sin habilidades",
+      "emptyMcp": "Sin referencias de herramientas",
+      "skillBody": "Cuerpo de la habilidad",
+      "compactPersonaMissing": "Sin persona",
+      "compactSkills": "Habilidades {{n}}",
+      "compactSkillsZero": "Sin habilidades",
+      "compactTools": "Herramientas {{n}}",
+      "compactToolsZero": "Sin herramientas",
+      "forkedFrom": "Bifurcado de {{packId}} v{{version}}"
+    }
+  },
+  "studio": {
+    "fork": {
+      "unavailable": "No se puede leer este agente ({{status}}) — la bifurcación sigue la visibilidad de lectura",
+      "seeded": "«{{name}}» cargado como documento de trabajo — linaje estampado"
+    },
+    "title": "Estudio de agentes",
+    "roster": {
+       "new": "Nuevo agente",
+       "empty": "Aún no hay agentes — empieza con «Nuevo agente»"
+      },
+    "canvas": {
+       "empty": "Elige un agente a la izquierda o crea uno"
+      },
+    "agent": {
+       "id": "ID (asignado según las reglas del portal)",
+       "name": "Nombre visible"
+      },
+    "doc": {
+       "section": "Info del documento (envelope del manifiesto)",
+       "name": "Nombre",
+       "description": "Descripción",
+       "tags": "Etiquetas (separadas por comas)"
+      },
+    "skill": {
+       "importLocal": "Importar de habilidades locales…",
+       "inline": "Nueva habilidad en línea",
+       "description": "Descripción (≤300 caracteres)",
+       "content": "Cuerpo de la habilidad (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Elegir un servidor del registro…"
+      },
+    "team": {
+       "tab": "Estructura de equipo",
+       "empty": "Este documento aún no tiene estructura de equipo (bloque fleet) — el grafo muestra el documento, solo lectura",
+       "readOnlyHint": "Grafo de solo lectura: los miembros se editan en las tarjetas de rol; las aristas de orquestación corresponden a blueprints/plantillas"
+    },
+    "blueprint": {
+    "pick": "Abrir un borrador de blueprint…",
+    "new": "Nuevo blueprint",
+    "untitled": "Blueprint sin título",
+    "empty": "Abre un borrador del pool o crea uno — el ciclo de vida del blueprint (validar → probar → aprobar → fundir) y su pool siguen igual",
+    "status": {
+        "draft": "Borrador",
+        "approved": "Aprobado",
+        "cast": "Fundido"
+      },
+    "track": {
+        "form": "Formulario",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "Nombre de escena",
+        "oneLine": "Posicionamiento en una línea",
+        "outOfScope": "Fuera de alcance"
+      },
+    "judge": "Modelo juez",
+    "judgeFollowDefault": "Seguir el predeterminado del despliegue",
+    "judgeFollows": "Seguir el predeterminado (resuelve a {{model}})",
+    "sources": "Fuentes de datos (colecciones de conocimiento / nombres del registro)",
+    "pickCollection": "Elegir una colección de conocimiento…",
+    "jsonHint": "Las secciones de organización/monitorización/aceptación se editan en la pista JSON; ambas pistas comparten fuente y pasan la cadena completa al enviar.",
+    "jsonApply": "Analizar y cargar en el formulario",
+    "saveValidate": "Guardar y validar",
+    "trial": "Prueba",
+    "trialReport": "Informe de prueba",
+    "approve": "Aprobar",
+    "cast": "Fundir al mercado",
+    "castRef": "Fundido: pack {{packId}} v{{version}}",
+      "sign": "Firmar el informe de prueba (clave final)",
+      "unsign": "Quitar firma",
+    "savedValid": "Guardado, validación verde"
+    },
+    "validate": {
+       "running": "Validando…",
+       "ok": "Válido — los mismos validadores que el portal de publicación",
+       "bad": "{{n}} problema(s) (texto del portal de publicación)"
+      },
+    "emit": {
+       "preset": "Guardar como preajuste personal (esta celda)",
+       "draft": "Guardar como borrador de agente (→ mercado)",
+       "busy": "Emitiendo…",
+       "presetOk": "Preajuste «{{name}}» creado — elígelo en el selector de conversación",
+       "draftOk": "Borrador creado — continúa la publicación en «Mis creaciones»",
+       "failed": "Fallo al emitir: {{message}}"
+      },
+    "remove": "Quitar"
   },
   "overlay": {
     "title": "Ajuste de recursos",

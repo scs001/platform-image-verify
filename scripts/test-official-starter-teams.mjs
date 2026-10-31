@@ -4,12 +4,13 @@
 // Pins:
 //   - the sequence shape: 5 teams, roles preferred×1 + secondary×2 +
 //     advanced×2, every entry carries a seedFile that EXISTS
-//   - the card↔seed alignment (D2): each starter's PackGuide exists, its
-//     name is byte-identical to the seed's display name, and the posts the
-//     card's structure implies (the guide never names a post the seed
-//     doesn't have — checked via the fleet members' titles appearing in the
-//     steps where the card narrates them)
-//   - v4 lexicon: no legacy terms (集群/阵列/能力包/舰队) in the card copy
+//   - the guide↔seed alignment, GUIDE IS DOCUMENT-SOURCED since
+//     move-pack-guides-to-manifest: the client module carries NO starter
+//     guide entries (the market manifest is the single source — v6 manifests
+//     hold the steps), and the migration staging copy keeps the alignment
+//     the old client card used to pin: 3 steps, seed display name in the
+//     narrated posts, no ghost posts
+//   - v4 lexicon: no legacy terms (集群/阵列/能力包/舰队) in the migrated copy
 //
 //   node --test scripts/test-official-starter-teams.mjs
 
@@ -37,6 +38,12 @@ const { PACK_GUIDES, STARTER_TEAMS } = await import("../web/src/lib/packGuides.t
   return mod;
 });
 
+// The migration staging copy (move-pack-guides-to-manifest): zh steps are the
+// exact text the client card used to carry, now the parity anchor.
+const STAGED = JSON.parse(
+  fs.readFileSync(path.join(root, "openspec/changes/move-pack-guides-to-manifest/staging/guides.json"), "utf8"),
+);
+
 test("sequence shape: 5 teams, one preferred, roles covered, seeds exist", () => {
   assert.equal(STARTER_TEAMS.length, 5);
   const roles = STARTER_TEAMS.map((t) => t.role);
@@ -51,26 +58,30 @@ test("sequence shape: 5 teams, one preferred, roles covered, seeds exist", () =>
   }
 });
 
-test("card↔seed alignment: name identical, posts in the card exist in the seed", () => {
+test("guide is document-sourced: client module carries no starter guide entries", () => {
+  for (const t of STARTER_TEAMS) {
+    assert.equal(PACK_GUIDES[t.packId], undefined, `${t.name}: ${t.packId} must not be a client guide key`);
+  }
+});
+
+test("migrated steps↔seed alignment: 3 steps, seed name narrated, no ghost posts", () => {
   for (const t of STARTER_TEAMS) {
     const seed = JSON.parse(fs.readFileSync(path.join(root, "docs/fleet-templates", t.seedFile), "utf8"));
-    const guide = PACK_GUIDES[t.packId];
-    assert.ok(guide, `${t.name}: guide card exists for ${t.packId}`);
-    assert.equal(guide.name, seed.name, `${t.name}: card name is byte-identical to the seed display name`);
-    assert.equal(guide.steps.length, 3, "three steps (prepare/ask/get)");
-    // The card narrates posts — every post title it names must exist in the
-    // seed's member titles (no ghost posts, no missing narrative anchors).
+    const staged = STAGED[t.packId];
+    assert.ok(staged, `${t.name}: migration staging copy exists for ${t.packId}`);
+    assert.equal(staged.guide.steps.length, 3, "three steps (prepare/ask/get)");
+    // The migrated copy narrates posts — every post title it names must exist
+    // in the seed's member titles (no ghost posts, no missing anchors).
     const titles = (seed.fleet?.members ?? []).map((m) => m.title);
-    for (const step of guide.steps) {
+    for (const step of staged.guide.steps) {
       for (const title of titles) {
         if (step.body.includes(title) || step.title.includes(title)) {
           assert.ok(titles.includes(title), `${t.name}: narrated post '${title}' exists in the seed`);
         }
       }
     }
-    // Structural sanity: the seed's member count matches what the card's
-    // market entry would show (agentCount) — the card must not claim a
-    // different crew size than the manifest declares.
+    // Structural sanity: the seed's declared agents cover every pack-preset
+    // member (the manifest the market entry will show).
     if (seed.fleet?.members) {
       const agentIds = new Set((seed.agents ?? []).map((a) => a.id));
       for (const m of seed.fleet.members) {
@@ -82,12 +93,11 @@ test("card↔seed alignment: name identical, posts in the card exist in the seed
   }
 });
 
-test("v4 lexicon: no legacy terms in the starter card copy", () => {
+test("v4 lexicon: no legacy terms in the migrated copy and the sequence", () => {
   for (const t of STARTER_TEAMS) {
-    const guide = PACK_GUIDES[t.packId];
-    const text = JSON.stringify(guide);
+    const text = JSON.stringify(STAGED[t.packId]);
     for (const term of ["集群", "阵列", "能力包", "能力市场", "舰队"]) {
-      assert.equal(text.includes(term), false, `${t.name}: card copy must not carry legacy term '${term}'`);
+      assert.equal(text.includes(term), false, `${t.name}: migrated copy must not carry legacy term '${term}'`);
     }
   }
   for (const t of STARTER_TEAMS) {

@@ -1,3 +1,5 @@
+> **入口注记（fold-blueprint-into-studio, 2026-10-31）**：蓝图构造间已并入智能体工作室团队模式（`/studio`，团队 tab）；`/blueprints` 重定向至此。本文为需求历史底稿，生命周期语义不变。
+
 # 垂直蓝图构造间（Blueprint Studio）产品化 · paas 侧需求书
 
 > 交付对象：paas 实施者。承接 2026-10-27 产品线方向会话用户裁决：「内部方法论对外开放、工具化」——L3 垂直构造器（NL→蓝图→批准→铸造→真跑，已在 fleet-packs 跑通跨境电商政策盯梢试点）要成为**客户面产品**，不是只在内部 harness 里跑的手艺。姊妹单参见《owner 经营面》《供给开放》《pack-i18n》《集群改名与货架分视图》；词表与定位承接 finddata 根 spec `pack-taxonomy-and-naming` / `fleet-platform-positioning` / `vertical-blueprint-constructor`（蓝图格式契约）。

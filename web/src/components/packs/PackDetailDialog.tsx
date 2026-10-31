@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
+import { AgentSpecSheet } from "./AgentSpecSheet";
 import { FacadeMattersPanel } from "./FacadeMattersPanel";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
 import { PackVersionList } from "./PackVersionList";
@@ -40,6 +41,11 @@ interface Props {
   // surfacing a raw error. Hosts without it (壹座 — every viewer holds a
   // session) keep the authenticated-error fallback below.
   onRequireLogin?: () => void;
+  // Fork deep link origin (add-agent-fork-lineage D5): hosts on the 壹座
+  // origin omit it (relative /studio); facet passes the 壹座 origin so the
+  // link CROSSES domains — the fork write itself happens only in the
+  // user's 壹座 cell (facet stays write-free for authoring).
+  studioOrigin?: string;
 }
 
 // The 万星 console deep link (agent-service-config): the deployment's slug and
@@ -70,7 +76,7 @@ function budgetDraftValid(text: string): boolean {
   return n > 0 && n <= BUDGET_MAX_MINUTES;
 }
 
-export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
+export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin, studioOrigin }: Props) {
   const { t } = useTranslation();
   // Tool-face disclosure (pack-tool-declaration-gate D4): the declared count
   // rides the version manifest; the per-server total comes from the catalog's
@@ -529,98 +535,37 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 links, notes when present). */}
             <PackVersionList packId={pack.id} />
 
-            {(m.skills?.length ?? 0) > 0 && (
-              <section>
-                <h4 className="font-medium mb-2">{t("packs.detail.skills")}</h4>
-                <div className="space-y-2">
-                  {m.skills!.map((s) => (
-                    <div key={s.name} className="border border-border rounded-md p-3" data-testid={`pack-skill-${s.name}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-mono text-xs text-foreground">{s.name}</div>
-                        <a
-                          href={`/api/packs/${pack.id}/versions/${pack.version}/skills/${encodeURIComponent(s.name)}.md`}
-                          download
-                          className="shrink-0 text-xs text-primary hover:underline"
-                          data-testid={`pack-skill-download-${s.name}`}
-                        >
-                          {t("packs.detail.downloadSkill")}
-                        </a>
-                      </div>
-                      <div className="text-xs text-muted-foreground mb-1">{s.description}</div>
-                      <pre className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-48 overflow-auto">
-                        {s.content}
-                      </pre>
-                      {/* File inventory (add-packaged-skills D4): the detail
-                          projection lists a tree skill's auxiliary paths —
-                          contents fetch per-file on demand, nothing hidden. */}
-                      {Array.isArray(s.files) && s.files.length > 0 && (
-                        <div className="mt-1" data-testid={`pack-skill-files-${s.name}`}>
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {t("packs.detail.skillFiles", { count: s.files.length })}
-                          </p>
-                          <ul className="mt-0.5 max-h-24 space-y-0.5 overflow-y-auto">
-                            {s.files.map((f) => (
-                              <li key={f} className="font-mono text-[10px] text-muted-foreground">· {f}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {(m.mcpServers?.length ?? 0) > 0 && (
-              <section>
-                <h4 className="font-medium mb-2">{t("packs.detail.mcp")}</h4>
-                <ul className="space-y-1">
-                  {m.mcpServers!.map((r) => {
-                    const total =
-                      marketCatalog?.mcpServers?.find((s) => s.name === r.registryName)?.toolList?.length ?? null;
-                    const declared = Array.isArray(r.allowTools) && r.allowTools.length > 0 ? r.allowTools.length : null;
-                    const face =
-                      declared !== null
-                        ? t(
-                            total === null ? "packs.detail.toolFaceDeclaredNoTotal" : "packs.detail.toolFaceDeclared",
-                            { declared, total },
-                          )
-                        : r.fullSurface === true
-                          ? t(total === null ? "packs.detail.toolFaceFullNoTotal" : "packs.detail.toolFaceFull", { total })
-                          : t(
-                              total === null
-                                ? "packs.detail.toolFaceUndeclaredNoTotal"
-                                : "packs.detail.toolFaceUndeclared",
-                              { total },
-                            );
-                    return (
-                      <li key={r.registryName} className="py-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs">{r.registryName}</span>
-                          {r.requiredGroup && (
-                            <Badge>{t("packs.detail.requiresGroup", { group: r.requiredGroup })}</Badge>
-                          )}
-                          <span
-                            className="text-xs text-muted-foreground"
-                            data-testid={`pack-mcp-tool-face-${r.registryName}`}
-                          >
-                            {face}
-                          </span>
-                        </div>
-                        {r.fullSurface === true && r.fullSurfaceReason && (
-                          <p
-                            className="mt-0.5 text-xs text-muted-foreground"
-                            data-testid={`pack-mcp-full-surface-reason-${r.registryName}`}
-                          >
-                            {t("packs.detail.toolFaceReason", { reason: r.fullSurfaceReason })}
-                          </p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
+            {/* Three-bucket spec sheet (add-agent-spec-sheet): 角色/技能/工具
+                render as ONE shared component — the bucket layout lives there,
+                not here; this surface only supplies data. testIdPrefix="pack"
+                keeps the pre-sheet e2e anchors (pack-skill-*, pack-mcp-tool-
+                face-*, pack-agent-serving-*) byte-identical. The guide card
+                above stays the dialog's own for now — its client-side
+                fallback retires with move-pack-guides-to-manifest; the sheet
+                itself takes document-sourced guides only. */}
+            <AgentSpecSheet
+              variant="full"
+              testIdPrefix="pack"
+              badge={pack.badge ?? null}
+              facade={pack.facade === true}
+              official={pack.official === true}
+              adopted={pack.adopted === true}
+              roles={(m.agents ?? []).map((a) => ({
+                id: a.id,
+                name: a.name,
+                persona: a.persona,
+                serving: a.serving != null,
+                rhythm: a.serving?.rhythm,
+              }))}
+              skills={m.skills ?? []}
+              mcp={(m.mcpServers ?? []).map((r) => ({
+                ...r,
+                totalTools:
+                  marketCatalog?.mcpServers?.find((s) => s.name === r.registryName)?.toolList?.length ?? null,
+              }))}
+              skillHref={(name) => `/api/packs/${pack.id}/versions/${pack.version}/skills/${encodeURIComponent(name)}.md`}
+              lineage={(pack.manifest?.provenance as { forkOf?: { packId: string; version: number } } | undefined)?.forkOf ?? null}
+            />
 
             {/* Facade panel (add-principal-facade): the pack declares itself a
                 principal's conversational front door. Attribution is the
@@ -741,42 +686,6 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       </>
                     )}
                   </div>
-                </div>
-              </section>
-            )}
-
-            {(m.agents?.length ?? 0) > 0 && (
-              <section>
-                <h4 className="font-medium mb-2">{t("packs.detail.agents")}</h4>
-                <div className="space-y-2">
-                  {m.agents!.map((a) => (
-                    <div key={a.id} className="border border-border rounded-md p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="text-foreground">{a.name}</div>
-                        {a.serving && (
-                          <span
-                            data-testid={`pack-agent-serving-${a.id}`}
-                            className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-primary"
-                          >
-                            A2A
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-mono text-xs text-muted-foreground">{a.id}</div>
-                      {!!a.serving?.rhythm?.length && (
-                        <div className="flex flex-wrap gap-1 mt-1" data-testid={`pack-agent-rhythm-default-${a.id}`}>
-                          {a.serving.rhythm.map((r, j) => (
-                            /* biome-ignore lint/suspicious/noArrayIndexKey: read-only chips from an immutable manifest snapshot — never reordered */
-                            <span key={j} className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-                              {r.daily ?? r.every}
-                              {r.do ? ` · ${r.do.slice(0, 18)}${r.do.length > 18 ? "…" : ""}` : ""}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-xs whitespace-pre-wrap mt-1">{a.persona}</p>
-                    </div>
-                  ))}
                 </div>
               </section>
             )}
@@ -1026,6 +935,16 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             </div>
           )}
           <div className="flex items-center gap-2">
+            {pack && (
+              <Button
+                variant="outline"
+                onClick={() => window.open(`${studioOrigin ?? ""}/studio?fork=${encodeURIComponent(pack.id)}`, "_self")}
+                data-testid="pack-fork"
+                title={t("packs.detail.forkHint")}
+              >
+                {t("packs.detail.fork")}
+              </Button>
+            )}
             <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
               {subscribing
                 ? t("common.loading")

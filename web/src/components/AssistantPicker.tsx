@@ -34,6 +34,7 @@ import type { PresetInfo } from "@platform/core";
 import type { AgentInfo } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { OverlayPanel } from "@/components/OverlayPanel";
+import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
 import { cn } from "@/lib/utils";
 
 const SHIPPED_PRESET_IDS = new Set(["standard", "code", "minimal", "cordis"]);
@@ -252,6 +253,22 @@ export function AssistantPicker({ send, variant }: Props) {
           {focusBadge(a)}
         </span>
         {a.name && a.id !== a.name && <span className="w-full truncate text-[10px] text-muted-foreground">{a.id}</span>}
+        {/* Compact spec sheet (add-agent-spec-sheet): the SAME component the
+            market detail renders, compact density. Data-driven from the
+            roster — bucket chips only when the roster carries counts
+            (resourceSummary, add-persona-resource-sets); roster roles always
+            have a persona. No type badge today: the catalog does not project
+            the pack badge onto roster entries yet. */}
+        {a.resourceSummary && (
+          <AgentSpecSheet
+            variant="compact"
+            testIdPrefix={`agent-spec-${a.id}`}
+            personaPresent={true}
+            skillCount={a.resourceSummary.skillCount}
+            mcpCount={a.resourceSummary.mcpCount}
+            className="pt-0.5"
+          />
+        )}
       </button>
       {(a.packId || a.customPreset) && (
         <button

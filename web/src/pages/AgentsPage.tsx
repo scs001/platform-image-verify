@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { PacksPage } from "@/pages/PacksPage";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
+import { Link } from "react-router-dom";
+import { Blocks } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { AgentInfo } from "@platform/core";
 
@@ -216,6 +218,16 @@ export function AgentsPage() {
               {t("agentsPage.market")}
             </button>
           )}
+          {/* 智能体工作室入口 (add-agent-studio): compose agents visually —
+              additive entry beside the tabs (design D8). */}
+          <Link
+            to="/studio"
+            data-testid="agents-studio-link"
+            className="ml-auto inline-flex items-center gap-1 border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Blocks className="h-4 w-4" />
+            {t("agentsPage.studio")}
+          </Link>
         </nav>
       </div>
 

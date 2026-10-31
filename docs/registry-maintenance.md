@@ -6506,3 +6506,13 @@ validatePackManifest 直接返回 errors 数组（非 {errors} 包装），测�
 ⑥自迭代闭环——「agents 部署后只能串行」命题的全链答案：**执行底座（并行度）+ 承载自决（carrier）
 + 记账尺子（计量/价目）+ 记忆缝合（锚/章程）+ 自迭代（提案器）**，validate --specs 225/0。
 **测试**：test-agent-self-iteration 5/5 + 回归 57/57 + lint 清。
+
+## §15.120 智能体三桶整体方案七单滚版（2026-10-31，feat/agent-spec-sheet）
+
+**内容**：「agent = 角色+技能+工具」理念的整体落地——①脊梁 define-agent-document（模型/四发射口/编辑器≠生命周期/三桶规格书/无凭据）②共享三桶规格书 AgentSpecSheet（市场详情+选择器+gallery 三消费）③guide 迁移一批（5 支官方 starter 团队 v5→v6，manifest.guide zh 逐字+en 副轨，发布门三律在案）④智能体工作室 /studio（三栏/三桶卡/只读团队图/实时校验复用 /api/packs/validate 发布门 dry-run——1.1 实施修正零新端点/双发射口）⑤蓝图并入 Studio 团队模式（AgentBucketsEditor 一个编辑器两宿主/生命周期零改/旧页两步退役已摘）⑥克隆血缘（lineage-only forkOf 块——**关键发现=provenance 是全有全无 adopted 记录**/读面种子/跨域深链 facet 零写）⑦官方 gallery（规格书卡墙/端点零改/starter 序列复用既有真源）。
+
+**出片**：四代快照（d7ac222→211ee2d→cb4c2059→**8d8a65e**）—— release 线并发窗两轮被 concurrency 取消+两轮祖先律强制 rebase（f83c6098→c8faf5ff→6db66267），**最终源 287412a7 ⊇ 6db66267 部署代双查**；池 testaction001/build-pool；relay OK 18s；digest 7633a776。GitOps 0719fc6 三面同代（platform/demo/facet；facet 从 e6ac1ef/1fc842ba 代跳齐）。imageID 双等 + pod 特征串（智能体工作室/forkOf 校验器/studio-doc-name）全在位。
+
+**真机走查 23/24 ✓**（playwright storageState=aloadtree，双态）：规格书九断言全过（三桶/三岗/空态显式/徽章/**guide v6 en 副轨眼见**）；gallery 45 卡/5 序列标记/45 克隆深链/匿名=0 如实；fold 重定向+草稿池；fork 种子+血缘行+发射草稿；facet 跨域深链。**走查逮回归一处**：studio 文档信息段（名称/描述/标签）在换共享编辑器时被误删——当场修（d8c6a1dd）随三代出片带回。唯一存疑项「studio 实时校验绿」为脚本时序假象——发射预设成功本身证明校验管线（发射前同端点再校验、按钮 docValid 前禁用）。走查产物已清（2 预设+1 草稿删）。
+
+**挂账**：guides 第二批（2 支仅原作者闸+4 支 unlisted）；studio 4.x AI 起草（工具面 HTTP 桥）；release 线 ~11 处既有 e2e（base 对照判别在案，非本流引入）。

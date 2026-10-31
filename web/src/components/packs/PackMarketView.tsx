@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
 import { publishPackInspection } from "@/lib/copilot-pack-context";
+import { STARTER_TEAMS } from "@/lib/packGuides";
+import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
 
 // Agent-count buckets (agent-cluster-platform marketplace views): the spec's
 // "cluster size" filter, expressed over the count every pack carries — a
@@ -52,6 +54,7 @@ export function PackMarketView({
   onOpenChat,
   onRequireLogin,
   onGotoMine,
+  studioOrigin,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -62,6 +65,8 @@ export function PackMarketView({
   // Signed-out signal forwarded to the detail dialog (polish-facet-
   // interactions): hosts with anonymous viewers wire it, 壹座 omits it.
   onRequireLogin?: () => void;
+  // Fork deep-link origin (add-agent-fork-lineage) — forwarded to the dialog.
+  studioOrigin?: string;
   // Host-selected "go to my packs" affordance (polish-facet-interactions
   // follow-up): forwarded to the dialog, which routes it through the login
   // guidance when the host also wired onRequireLogin and the viewer is
@@ -323,7 +328,79 @@ export function PackMarketView({
       )}
 
       <div className="grid gap-3">
-        {visiblePacks.map((pack) => (
+        {officialOnly && visiblePacks.length > 0 && (
+          <p className="text-xs font-medium text-muted-foreground" data-testid="pack-gallery-title">
+            {t("packs.market.galleryTitle")}
+          </p>
+        )}
+        {visiblePacks.map((pack) =>
+          officialOnly ? (
+            /* 官方 gallery (add-official-agent-gallery): presentation-layer
+               upgrade of the official set — the SAME list data (zero endpoint
+               change, D1), the shared spec sheet in compact density, the
+               starter sequence as a presentation marker (D2), and the fork
+               deep link (D3). Anonymous viewers see exactly the summary
+               projection — the full three-bucket sheet lives one click away
+               in the detail dialog (read visibility respected). */
+            <div
+              key={pack.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailId(pack.id)}
+              onKeyDown={(e) => e.key === "Enter" && setDetailId(pack.id)}
+              data-testid={`pack-gallery-card-${pack.id}`}
+              className="text-left border border-primary/30 rounded-lg p-4 bg-primary/5 hover:border-primary/60 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-foreground flex items-center gap-1.5">
+                  {pack.name}
+                  {pack.official === true && pack.adopted === true ? (
+                    <Badge data-testid={`pack-adopted-badge-${pack.id}`}>{t("packs.market.officialAdoptedBadge")}</Badge>
+                  ) : (
+                    pack.official === true && (
+                      <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
+                    )
+                  )}
+                  {pack.badge ? (
+                    <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
+                  ) : (
+                    pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
+                  )}
+                  {(() => {
+                    const starter = STARTER_TEAMS.find((st) => st.packId === pack.id);
+                    if (!starter) return null;
+                    return (
+                      <Badge data-testid={`pack-gallery-starter-${pack.id}`}>
+                        {t(`help.start.starterRole.${starter.role}`)}
+                      </Badge>
+                    );
+                  })()}
+                </span>
+                <span className="text-xs text-muted-foreground">v{pack.version}</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pack.description}</p>
+              <AgentSpecSheet
+                variant="compact"
+                testIdPrefix={`gallery-${pack.id}`}
+                badge={pack.badge ?? null}
+                official={pack.official === true}
+                adopted={pack.adopted === true}
+                personaPresent={(pack.agentCount ?? 0) > 0}
+                className="mt-2"
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <a
+                  href={`${studioOrigin ?? ""}/studio?fork=${encodeURIComponent(pack.id)}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-primary hover:underline"
+                  data-testid={`pack-gallery-fork-${pack.id}`}
+                >
+                  {t("packs.detail.fork")}
+                </a>
+                <span className="text-xs text-muted-foreground ml-auto">{pack.authorEmail}</span>
+              </div>
+            </div>
+          ) : (
           <button
             key={pack.id}
             onClick={() => setDetailId(pack.id)}
@@ -362,10 +439,12 @@ export function PackMarketView({
               <span className="text-xs text-muted-foreground ml-auto">{pack.authorEmail}</span>
             </div>
           </button>
-        ))}
+          )
+        )}
       </div>
 
       <PackDetailDialog
+        studioOrigin={studioOrigin}
         packId={detailId}
         onOpenChange={(open) => !open && setDetailId(null)}
         onSubscribed={(r, name, packId) => {

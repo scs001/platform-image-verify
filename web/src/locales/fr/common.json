@@ -54,6 +54,7 @@
     "fleetBadge": "Équipe d'agents"
   },
   "agentsPage": {
+    "studio": "Studio",
     "title": "Agents",
     "agents": "Experts",
     "market": "Agents",
@@ -1708,6 +1709,7 @@
       "mine": "Mien"
     },
     "market": {
+      "galleryTitle": "Agents officiels — aperçu spec, les trois buckets complets dans le détail",
       "searchPlaceholder": "Rechercher des agents…",
       "search": "Rechercher",
       "empty": "Aucun agent sur le marché pour l'instant.",
@@ -1723,6 +1725,8 @@
       "officialAdoptedBadge": "Sélection officielle · Vérifié"
     },
     "detail": {
+      "fork": "Forker vers mon studio",
+      "forkHint": "Génère une copie éditable dans le studio d'agents à partir du manifeste lisible — la filiation accompagne ; la publication passe les portails existants",
       "notFound": "Agent introuvable ou retiré",
       "adoptedUpstream": "Source {{name}}",
       "adoptedLicense": "Licence {{license}}",
@@ -2022,7 +2026,107 @@
       "stepPay": "Finalisation de lachat…",
       "stepProvision": "Provisionnement de l'équipe…"
     },
-    "draftsBuilderPointer": "Ou laissez l'auteur de packs le rédiger dans le chat — il vous interviewe, compile le manifest et dépose un brouillon éditable."
+    "draftsBuilderPointer": "Ou laissez l'auteur de packs le rédiger dans le chat — il vous interviewe, compile le manifest et dépose un brouillon éditable.",
+    "specSheet": {
+      "emptyPersona": "Aucun texte de persona",
+      "emptySkills": "Aucune compétence",
+      "emptyMcp": "Aucune référence d'outil",
+      "skillBody": "Corps de la compétence",
+      "compactPersonaMissing": "Sans persona",
+      "compactSkills": "Compétences {{n}}",
+      "compactSkillsZero": "Aucune compétence",
+      "compactTools": "Outils {{n}}",
+      "compactToolsZero": "Aucun outil",
+      "forkedFrom": "Dérivé de {{packId}} v{{version}}"
+    }
+  },
+  "studio": {
+    "fork": {
+      "unavailable": "Impossible de lire cet agent ({{status}}) — le fork suit la visibilité de lecture",
+      "seeded": "« {{name}} » chargé comme document de travail — filiation estampillée"
+    },
+    "title": "Studio d'agents",
+    "roster": {
+       "new": "Nouvel agent",
+       "empty": "Aucun agent — commencez par « Nouvel agent »"
+      },
+    "canvas": {
+       "empty": "Choisissez un agent à gauche, ou créez-en un"
+      },
+    "agent": {
+       "id": "ID (attribué selon les règles du portail)",
+       "name": "Nom affiché"
+      },
+    "doc": {
+       "section": "Infos du document (enveloppe du manifeste)",
+       "name": "Nom",
+       "description": "Description",
+       "tags": "Étiquettes (séparées par des virgules)"
+      },
+    "skill": {
+       "importLocal": "Importer depuis les compétences locales…",
+       "inline": "Nouvelle compétence en ligne",
+       "description": "Description (≤300 caractères)",
+       "content": "Corps de la compétence (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Choisir un serveur du registre…"
+      },
+    "team": {
+       "tab": "Structure d'équipe",
+       "empty": "Ce document n'a pas encore de structure d'équipe (bloc fleet) — le graphe restitue le document, en lecture seule",
+       "readOnlyHint": "Graphe en lecture seule : les membres s'éditent via les cartes de rôle ; les arêtes d'orchestration relèvent des blueprints/modèles"
+    },
+    "blueprint": {
+    "pick": "Ouvrir un brouillon de blueprint…",
+    "new": "Nouveau blueprint",
+    "untitled": "Blueprint sans titre",
+    "empty": "Ouvrez un brouillon du pool ou créez-en un — le cycle de vie du blueprint (valider → essayer → approuver → couler) et son pool restent inchangés",
+    "status": {
+        "draft": "Brouillon",
+        "approved": "Approuvé",
+        "cast": "Coulé"
+      },
+    "track": {
+        "form": "Formulaire",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "Nom de scène",
+        "oneLine": "Positionnement en une ligne",
+        "outOfScope": "Hors périmètre"
+      },
+    "judge": "Modèle juge",
+    "judgeFollowDefault": "Suivre le défaut de déploiement",
+    "judgeFollows": "Suivre le défaut de déploiement (résolu vers {{model}})",
+    "sources": "Sources de données (collections de connaissances / noms du registre)",
+    "pickCollection": "Choisir une collection de connaissances…",
+    "jsonHint": "Les sections organisation/supervision/acceptation s'éditent via la piste JSON ; les deux pistes partagent une source et passent la chaîne complète à la soumission.",
+    "jsonApply": "Analyser et charger dans le formulaire",
+    "saveValidate": "Enregistrer et valider",
+    "trial": "Essai",
+    "trialReport": "Rapport d'essai",
+    "approve": "Approuver",
+    "cast": "Coulser au marché",
+    "castRef": "Coulé : pack {{packId}} v{{version}}",
+      "sign": "Signer le rapport d'essai (clé finale)",
+      "unsign": "Retirer la signature",
+    "savedValid": "Enregistré, validation verte"
+    },
+    "validate": {
+       "running": "Validation…",
+       "ok": "Valide — les mêmes validateurs que le portail de publication",
+       "bad": "{{n}} problème(s) (libellés du portail de publication)"
+      },
+    "emit": {
+       "preset": "Enregistrer comme préréglage personnel (ce cell)",
+       "draft": "Enregistrer comme brouillon d'agent (→ marché)",
+       "busy": "Émission…",
+       "presetOk": "Préréglage « {{name}} » créé — sélectionnez-le dans le sélecteur de conversation",
+       "draftOk": "Brouillon créé — poursuis la publication dans « Mes créations »",
+       "failed": "Échec de l'émission : {{message}}"
+      },
+    "remove": "Retirer"
   },
   "overlay": {
     "title": "Ajustement des ressources",

@@ -54,6 +54,7 @@
     "fleetBadge": "智能体团队"
   },
   "agentsPage": {
+    "studio": "工作室",
     "title": "智能体",
     "agents": "专家",
     "market": "智能体",
@@ -1708,6 +1709,7 @@
       "mine": "我的"
     },
     "market": {
+      "galleryTitle": "官方智能体——规格书速览，详情见完整三桶",
       "searchPlaceholder": "搜索智能体名称…",
       "search": "搜索",
       "empty": "市场暂无智能体。",
@@ -1723,6 +1725,8 @@
       "officialAdoptedBadge": "官方精选 · 已审校"
     },
     "detail": {
+      "fork": "克隆到我的工作室",
+      "forkHint": "以可读 manifest 为种子，在智能体工作室打开可编辑副本——血缘随行，发布走既有门",
       "notFound": "智能体不存在或已下架",
       "adoptedUpstream": "上游 {{name}}",
       "adoptedLicense": "许可 {{license}}",
@@ -2022,7 +2026,107 @@
       "lit": "已点燃，智能体团队进入在跑。",
       "doneBtn": "完成"
     },
-    "draftsBuilderPointer": "也可以在对话里让智能体作者帮你起草——它采访你、编 manifest、落成可编辑草稿。"
+    "draftsBuilderPointer": "也可以在对话里让智能体作者帮你起草——它采访你、编 manifest、落成可编辑草稿。",
+    "specSheet": {
+      "emptyPersona": "无角色文本",
+      "emptySkills": "无技能",
+      "emptyMcp": "无工具引用",
+      "skillBody": "技能正文",
+      "compactPersonaMissing": "无角色",
+      "compactSkills": "技能 {{n}}",
+      "compactSkillsZero": "无技能",
+      "compactTools": "工具 {{n}}",
+      "compactToolsZero": "无工具",
+      "forkedFrom": "克隆自 {{packId}} v{{version}}"
+    }
+  },
+  "studio": {
+    "fork": {
+      "unavailable": "无法读取该智能体（{{status}}）——克隆沿读可见性",
+      "seeded": "已载入「{{name}}」为工作文档——血缘已盖章"
+    },
+    "title": "智能体工作室",
+    "roster": {
+       "new": "新建智能体",
+       "empty": "还没有智能体——点「新建智能体」开始"
+      },
+    "canvas": {
+       "empty": "从左侧选择一个智能体，或新建一个"
+      },
+    "agent": {
+       "id": "ID（自动分配，发布门规范）",
+       "name": "显示名"
+      },
+    "doc": {
+       "section": "文档信息（manifest 信封）",
+       "name": "名称",
+       "description": "描述",
+       "tags": "标签（逗号分隔）"
+      },
+    "skill": {
+       "importLocal": "从本地技能导入…",
+       "inline": "内联新技能",
+       "description": "描述（≤300 字）",
+       "content": "技能正文（SKILL.md）"
+      },
+    "mcp": {
+       "pick": "从注册处选取服务…"
+      },
+    "team": {
+       "tab": "团队结构",
+       "empty": "这份文档还没有团队结构（fleet 段）——团队图随文档呈现，只读",
+       "readOnlyHint": "团队图只读：成员经角色卡编辑，编导边由蓝图/模板承载"
+    },
+    "blueprint": {
+    "pick": "打开蓝图草稿…",
+    "new": "新建蓝图",
+    "untitled": "未命名蓝图",
+    "empty": "从草稿池打开一份蓝图，或新建——蓝图生命周期（校验→试跑→批准→铸造）与蓝图纸草稿池原样承载",
+    "status": {
+        "draft": "草稿",
+        "approved": "已批准",
+        "cast": "已铸造"
+      },
+    "track": {
+        "form": "表单轨",
+        "json": "JSON 轨"
+      },
+    "boundary": {
+        "name": "场景名",
+        "oneLine": "一句话定位",
+        "outOfScope": "边界外"
+      },
+    "judge": "判据模型",
+    "judgeFollowDefault": "跟随部署默认",
+    "judgeFollows": "跟随部署默认（解析到 {{model}}）",
+    "sources": "数据来源（知识库集合/注册处名）",
+    "pickCollection": "选取知识库集合…",
+    "jsonHint": "岗位编制/监控/验收等段经 JSON 轨编辑；两轨同源，提交均过完整校验链。",
+    "jsonApply": "解析并载入表单轨",
+    "saveValidate": "保存并校验",
+    "trial": "试跑",
+    "trialReport": "试跑报告",
+    "approve": "批准",
+    "cast": "铸造上架",
+    "castRef": "已铸造：pack {{packId}} v{{version}}",
+      "sign": "签字试跑报告（终审钥匙）",
+      "unsign": "撤签",
+    "savedValid": "已保存，校验绿"
+    },
+    "validate": {
+       "running": "校验中…",
+       "ok": "校验通过——与发布门同一套校验器",
+       "bad": "{{n}} 个问题（发布门原文）"
+      },
+    "emit": {
+       "preset": "存为自建预设（本机）",
+       "draft": "存为智能体草稿（→ 市场）",
+       "busy": "发射中…",
+       "presetOk": "已创建预设「{{name}}」——在对话选择器里即可选用",
+       "draftOk": "草稿已创建——去「我的创作」继续发布",
+       "failed": "发射失败：{{message}}"
+      },
+    "remove": "移除"
   },
   "overlay": {
     "title": "资源微调",

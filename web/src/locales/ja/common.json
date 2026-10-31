@@ -54,6 +54,7 @@
     "fleetBadge": "エージェントチーム"
   },
   "agentsPage": {
+    "studio": "スタジオ",
     "title": "エージェント",
     "agents": "エキスパート",
     "market": "エージェント",
@@ -1708,6 +1709,7 @@
       "mine": "マイ"
     },
     "market": {
+      "galleryTitle": "公式エージェント — 概要表示、詳細で三 Bucket を表示",
       "searchPlaceholder": "エージェントを検索…",
       "search": "検索",
       "empty": "市場にエージェントがまだありません。",
@@ -1723,6 +1725,8 @@
       "officialAdoptedBadge": "公式セレクト · 審査済み"
     },
     "detail": {
+      "fork": "マイスタジオへフォーク",
+      "forkHint": "読み取り可能な manifest を種にエージェントスタジオで編集可能なコピーを開く — 血統は随行し、公開は既存ゲートを通ります",
       "notFound": "エージェントが見つからないか公開終了しました",
       "adoptedUpstream": "提供元 {{name}}",
       "adoptedLicense": "ライセンス {{license}}",
@@ -2022,7 +2026,107 @@
       "stepPay": "購入手続きを完了中…",
       "stepProvision": "パラメータに従いエージェントチームを実体化中…"
     },
-    "draftsBuilderPointer": "チャット内でパック作者に下書きさせることができます——インタビューして manifest を組み立て、編集可能な下書きとして保存します。"
+    "draftsBuilderPointer": "チャット内でパック作者に下書きさせることができます——インタビューして manifest を組み立て、編集可能な下書きとして保存します。",
+    "specSheet": {
+      "emptyPersona": "ペルソナ文なし",
+      "emptySkills": "スキルなし",
+      "emptyMcp": "ツール参照なし",
+      "skillBody": "スキル本文",
+      "compactPersonaMissing": "ペルソナなし",
+      "compactSkills": "スキル {{n}}",
+      "compactSkillsZero": "スキルなし",
+      "compactTools": "ツール {{n}}",
+      "compactToolsZero": "ツールなし",
+      "forkedFrom": "{{packId}} v{{version}} からフォーク"
+    }
+  },
+  "studio": {
+    "fork": {
+      "unavailable": "このエージェントを読み取れません（{{status}}）— フォークは読み取り可視性に従います",
+      "seeded": "「{{name}}」を作業ドキュメントとして読み込みました — 血統をスタンプ済み"
+    },
+    "title": "エージェントスタジオ",
+    "roster": {
+       "new": "新規エージェント",
+       "empty": "まだエージェントがありません —「新規エージェント」から開始"
+      },
+    "canvas": {
+       "empty": "左からエージェントを選ぶか、新規作成してください"
+      },
+    "agent": {
+       "id": "ID（ゲート規則により自動割当）",
+       "name": "表示名"
+      },
+    "doc": {
+       "section": "ドキュメント情報（manifest 信封）",
+       "name": "名前",
+       "description": "説明",
+       "tags": "タグ（カンマ区切り）"
+      },
+    "skill": {
+       "importLocal": "ローカルスキルから取り込む…",
+       "inline": "インライン新規スキル",
+       "description": "説明（300 字以内）",
+       "content": "スキル本文（SKILL.md）"
+      },
+    "mcp": {
+       "pick": "レジストリのサーバーを選択…"
+      },
+    "team": {
+       "tab": "チーム構造",
+       "empty": "このドキュメントにはまだチーム構造（fleet ブロック）がありません — グラフはドキュメントをそのまま読み取り専用で表示します",
+       "readOnlyHint": "グラフは読み取り専用：メンバーはロールカードで編集、編成エッジはブループリント/テンプレートが担います"
+    },
+    "blueprint": {
+    "pick": "ブループリント下書きを開く…",
+    "new": "新規ブループリント",
+    "untitled": "無題ブループリント",
+    "empty": "プールから下書きを開くか新規作成 — ブループリントのライフサイクル（検証→試験→承認→鋳造）と下書きプールはそのままです",
+    "status": {
+        "draft": "下書き",
+        "approved": "承認済",
+        "cast": "鋳造済"
+      },
+    "track": {
+        "form": "フォーム",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "シーン名",
+        "oneLine": "一行ポジショニング",
+        "outOfScope": "スコープ外"
+      },
+    "judge": "判定モデル",
+    "judgeFollowDefault": "デプロイ既定に従う",
+    "judgeFollows": "デプロイ既定に従う（{{model}} に解決）",
+    "sources": "データソース（ナレッジコレクション/レジストリ名）",
+    "pickCollection": "ナレッジコレクションを選択…",
+    "jsonHint": "編成/監視/検収セクションは JSON トラックで編集。両トラック同源で、提出時に完全な検証チェーンを通ります。",
+    "jsonApply": "解析してフォームに反映",
+    "saveValidate": "保存して検証",
+    "trial": "試験実行",
+    "trialReport": "試験レポート",
+    "approve": "承認",
+    "cast": "マーケットへ鋳造",
+    "castRef": "鋳造済：pack {{packId}} v{{version}}",
+      "sign": "試験レポートに署名（最終キー）",
+      "unsign": "署名を取消",
+    "savedValid": "保存しました、検証グリーン"
+    },
+    "validate": {
+       "running": "検証中…",
+       "ok": "検証合格 — 公開ゲートと同一の検証器",
+       "bad": "{{n}} 件の問題（公開ゲートの原文）"
+      },
+    "emit": {
+       "preset": "パーソナルプリセットとして保存（このセル）",
+       "draft": "エージェント下書きとして保存（→ マーケット）",
+       "busy": "発射中…",
+       "presetOk": "プリセット「{{name}}」を作成しました — 会話セレクターで選べます",
+       "draftOk": "下書きを作成しました —「自分の作成物」で公開へ進めます",
+       "failed": "発射に失敗：{{message}}"
+      },
+    "remove": "削除"
   },
   "overlay": {
     "title": "リソース調整",

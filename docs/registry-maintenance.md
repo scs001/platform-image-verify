@@ -6103,3 +6103,9 @@ formation 从未在 pod 验过**，这是该宣称的盲区）、`collections.js
 → 构建中，绿后按 §15.110 同一硬门链滚版（relay OK→digest 双等→双清单→pod 逐串）。
 生产当前仍在 `sha-02c953d`（缺四处=Project 集合钉库/编队载荷/cron MCP 工具面三功能降级，
 其余刀在位）。
+
+**§15.108 续记五：facet 对需求单平移 gitee 完成（2026-10-31）**
+续记四的「token 失效无法开单」已被绕过——用 ego 浏览器 gitee 登录态在源仓直接建单：
+`gitee.com/FindDataTechnology/facet-ops-mcp/issues/IKRVPQ`（正文完整核验：两条目现值 31892/31893、
+A/B 双路、验收条款俱在）。paas 侧暂记单 fd-craw-private#2 已关闭并注明去向。
+经验：gitee API token 失效 ≠ 开不了单，浏览器登录态的 issues/new 表单是备用正道。

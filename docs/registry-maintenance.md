@@ -5927,3 +5927,41 @@ already exists`（首发已上架）被误计为失败 → exit 1。修法=发�
 （不改写 registry 状态，不静默吞其它错误）；三处同步：paas `e1703363`、roll 分支、公开管道仓
 `ee971ce`（源在 paas，管道仓为 vendor 副本）。验证 dispatch run **41145036723 绿**：
 `✓ 发布完成：新发 0、已在名录 14（共 14）`——重发布从此安全可重入，weekly dry-run 哨兵不受影响。
+
+### §15.110 九条优化出片：快照验证线≠出片线——通用池才是真源；lint 门全仓现形（2026-10-31）
+
+**① 通道纠偏（重要沉淀）**
+`scs001/platform-image-verify` 的 `image-build-check.yml` 是 **push: false 的纯验证线**
+（build→5 项 smoke，不产 registry 镜像）；今天 relay 里 07:41 的 `yizuo/platform:main OK`
+是**旧镜像例行回灌**（07:31 已有 PASS，早于本次 run）——差点把"验证绿"当"出片绿"。
+真出片走 **`fd-build-snapshot` 通用池**（建制一条命令）：干净 clone `--ref
+feat/web-nine-optimizations` → `testaction001/build-pool`（排 /.github 防烧 mac/win）→
+快照 sha=02c953d（源真 sha=5e92a698）→ run 41146601939 结构=Build(load)→Smoke gate→
+**Push image**→Summarize，tag `sha-02c953d`，relay 清单 PRESENT。
+
+**② 全仓 lint 门只在 CI 现形**
+快照验证 run 红——六处 biome 全在**本刀未碰的基线文件**（gateway/packs.js hasOwnProperty、
+lib/upstream-license.js 未用参数×2、test-fleet-owner-surface.mjs 字面 `${...}` ×3）。
+本地惯例 `biome check <改过的文件>` 查不到它们。已机械修复（Object.hasOwn/删未用解构/
+biome-ignore 注明"字面占位符即夹具"），test-fleet-owner-surface 9/9 复跑绿，提交 5e92a698。
+**律：出片前先 `npx biome check .` 全仓一遍，别让 CI 当第一发现人。**
+
+**③ 泄漏门两坑**
+基线文档提私仓名被拦（快照禁私仓名，措辞脱敏须**进提交**——`make-public-snapshot --init`
+从 git 拷贝，改工作区无效）；`fd-build-snapshot` 不认 worktree 目录（.git 是文件），用
+`--ref <分支>` 走 URL 干净 clone 才对。
+
+**④ 滚版硬门已备**：生产现役 `sha-be368d1`（双清单）；本次将滚 `sha-02c953d`，
+镜像落 TCR 后核 relay OK 行与 digest 双等，再 GitOps bump。
+
+**§15.108 续记四：7 条内网端点条目的需求单已逐线开出（2026-10-31）**
+复测改判：7 条在网关上 POST 全回 401（不存在名回 405）——**公网路由本已存在**，「网关没接它们」
+不成立；真正拦路的是 finddata 台账 §3.z 记录的旧约束（auth_server `_forward_headers` 白名单
+仅 airegistry-tools，逐用户鉴权服务走网关会被剥 Authorization → 装出来 401），所以注册侧才存了
+mesh 直连。用户裁定：**归属线自己的注册实践问题，提需求、各仓处理，paas 不代改他人条目**。
+五单已发：fd-wire#1（wire-ops/wire-build）、fd-wanxing#1（wanxing-ops）、fd-paper-trading#1、
+fd-quant#1、fd-craw-private#2（facet-ops/facet-market 一对，gitee 源仓 token 失效暂记 paas 仓，
+恢复后平移）。单内统一给 A/B 双路（A=鉴权与网关道打通后 endpoint 改公网网关；
+B=明确内部专用则给条目加 required group，别再对匿名目录泄 mesh 主机名+端口），验收均锚
+`/api/mcp-registry.json` 出现/消失与 preflight 状态。另报备：facet-ops-mcp 本地 checkout 的
+gitee remote URL 内嵌 oauth token（现失效），建议该线清掉嵌密写法。

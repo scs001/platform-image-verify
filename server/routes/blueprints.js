@@ -18,7 +18,6 @@ import {
 } from "../blueprint-validate.js";
 import { resolvePackReferences } from "../pack-manifest-source.js";
 import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
-import { SELF_REF_RE } from "../blueprint-validate.js";
 import { resolveJudgeLane } from "../blueprint-judge.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，

@@ -587,6 +587,13 @@ export function createFleetRoutes(app, ctx = null) {
       }
       const member = db.getMember(attribution.memberId);
       if (!member) return res.status(409).json({ error: "the attributed post no longer exists" });
+      // Attribution fact (fix-parked-preset-attribution D3): the turn's event
+      // row lands at the turn's END, so stash HOW this call was attributed and
+      // let the recorder write it as detail.attribution. Observability only —
+      // a stash failure never affects the report.
+      try {
+        ctx?.recordFleetAttribution?.(member.id, { source: attribution.kind, fleetId: member.fleetId, memberId: member.id });
+      } catch { /* observation never fails the report */ }
 
       // Flood control (design D7): window = half the cadence period with a
       // 10-minute floor; at most 3 self reports per window. Derived (a2a)
@@ -2701,7 +2708,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
 
       const updates = {};
-      const { title, parentId, cadence, kpiSlots, model, fallbackModel, effort, contextBudget } = req.body ?? {};
+      const { title, parentId, cadence, kpiSlots, model, fallbackModel, effort, contextBudget, carrier } = req.body ?? {};
 
       if (title !== undefined) {
         if (!title || typeof title !== "string" || !title.trim()) {

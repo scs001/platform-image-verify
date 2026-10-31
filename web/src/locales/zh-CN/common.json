@@ -54,6 +54,7 @@
     "fleetBadge": "智能体团队"
   },
   "agentsPage": {
+    "studio": "工作室",
     "title": "智能体",
     "agents": "专家",
     "market": "智能体",
@@ -2034,6 +2035,54 @@
       "compactTools": "工具 {{n}}",
       "compactToolsZero": "无工具"
     }
+  },
+  "studio": {
+    "title": "智能体工作室",
+    "roster": {
+       "new": "新建智能体",
+       "empty": "还没有智能体——点「新建智能体」开始"
+      },
+    "canvas": {
+       "empty": "从左侧选择一个智能体，或新建一个"
+      },
+    "agent": {
+       "id": "ID（自动分配，发布门规范）",
+       "name": "显示名"
+      },
+    "doc": {
+       "section": "文档信息（manifest 信封）",
+       "name": "名称",
+       "description": "描述",
+       "tags": "标签（逗号分隔）"
+      },
+    "skill": {
+       "importLocal": "从本地技能导入…",
+       "inline": "内联新技能",
+       "description": "描述（≤300 字）",
+       "content": "技能正文（SKILL.md）"
+      },
+    "mcp": {
+       "pick": "从注册处选取服务…"
+      },
+    "team": {
+       "tab": "团队结构",
+       "empty": "这份文档还没有团队结构（fleet 段）——团队图随文档呈现，只读",
+       "readOnlyHint": "团队图只读：成员经角色卡编辑，编导边由蓝图/模板承载"
+      },
+    "validate": {
+       "running": "校验中…",
+       "ok": "校验通过——与发布门同一套校验器",
+       "bad": "{{n}} 个问题（发布门原文）"
+      },
+    "emit": {
+       "preset": "存为自建预设（本机）",
+       "draft": "存为智能体草稿（→ 市场）",
+       "busy": "发射中…",
+       "presetOk": "已创建预设「{{name}}」——在对话选择器里即可选用",
+       "draftOk": "草稿已创建——去「我的创作」继续发布",
+       "failed": "发射失败：{{message}}"
+      },
+    "remove": "移除"
   },
   "overlay": {
     "title": "资源微调",

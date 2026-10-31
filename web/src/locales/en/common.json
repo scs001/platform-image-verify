@@ -54,6 +54,7 @@
     "fleetBadge": "Agent Team"
   },
   "agentsPage": {
+    "studio": "Studio",
     "title": "Agents",
     "agents": "Experts",
     "market": "Agents",
@@ -2034,6 +2035,54 @@
       "compactTools": "Tools {{n}}",
       "compactToolsZero": "No tools"
     }
+  },
+  "studio": {
+    "title": "Agent Studio",
+    "roster": {
+       "new": "New agent",
+       "empty": "No agents yet — start with “New agent”"
+      },
+    "canvas": {
+       "empty": "Pick an agent on the left, or create one"
+      },
+    "agent": {
+       "id": "ID (assigned by the gate's rules)",
+       "name": "Display name"
+      },
+    "doc": {
+       "section": "Document info (manifest envelope)",
+       "name": "Name",
+       "description": "Description",
+       "tags": "Tags (comma-separated)"
+      },
+    "skill": {
+       "importLocal": "Import from local skills…",
+       "inline": "Inline new skill",
+       "description": "Description (≤300 chars)",
+       "content": "Skill body (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Pick a registry server…"
+      },
+    "team": {
+       "tab": "Team structure",
+       "empty": "This document has no team structure (fleet block) yet — the graph renders the document, read-only",
+       "readOnlyHint": "Read-only graph: members edit via role cards; orchestration edges ride blueprints/templates"
+      },
+    "validate": {
+       "running": "Validating…",
+       "ok": "Valid — the same validators the publish gate runs",
+       "bad": "{{n}} issue(s) (publish-gate wording)"
+      },
+    "emit": {
+       "preset": "Save as personal preset (this cell)",
+       "draft": "Save as agent draft (→ market)",
+       "busy": "Emitting…",
+       "presetOk": "Preset “{{name}}” created — pick it in the conversation selector",
+       "draftOk": "Draft created — continue publishing in “My creations”",
+       "failed": "Emit failed: {{message}}"
+      },
+    "remove": "Remove"
   },
   "overlay": {
     "title": "Resource adjustments",

@@ -32,6 +32,9 @@ const DocumentsPage = lazy(() =>
   import("@/pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
 );
 const AgentsPage = lazy(() => import("@/pages/AgentsPage").then((m) => ({ default: m.AgentsPage })));
+const AgentStudioPage = lazy(() => import("@/pages/AgentStudioPage").then((m) => ({ default: m.AgentStudioPage })));
+// 智能体工作室 (add-agent-studio): the visual agent builder — one surface,
+// four emit targets (D8 additive: entry from the agents page, v1).
 const TraceDetailPage = lazy(() =>
   import("@/pages/TracePage").then((m) => ({ default: m.TraceDetailPage })),
 );
@@ -308,6 +311,10 @@ export default function App() {
 
             {/* 蓝图构造间 (add-blueprint-studio): the vertical-package authoring
                 surface (blueprint → cluster template → market). */}
+            {/* 智能体工作室 (add-agent-studio): the visual agent builder — one
+                composition surface emitting into the existing lifecycles. */}
+            <Route path="/studio" element={<AgentStudioPage />} />
+
             <Route path="/blueprints" element={<BlueprintStudioPage />} />
 
             {/* 萬星·智语 (add-zhiyu-room): rooms list + the room itself. */}

@@ -54,6 +54,7 @@
     "fleetBadge": "Équipe d'agents"
   },
   "agentsPage": {
+    "studio": "Studio",
     "title": "Agents",
     "agents": "Experts",
     "market": "Agents",
@@ -2034,6 +2035,54 @@
       "compactTools": "Outils {{n}}",
       "compactToolsZero": "Aucun outil"
     }
+  },
+  "studio": {
+    "title": "Studio d'agents",
+    "roster": {
+       "new": "Nouvel agent",
+       "empty": "Aucun agent — commencez par « Nouvel agent »"
+      },
+    "canvas": {
+       "empty": "Choisissez un agent à gauche, ou créez-en un"
+      },
+    "agent": {
+       "id": "ID (attribué selon les règles du portail)",
+       "name": "Nom affiché"
+      },
+    "doc": {
+       "section": "Infos du document (enveloppe du manifeste)",
+       "name": "Nom",
+       "description": "Description",
+       "tags": "Étiquettes (séparées par des virgules)"
+      },
+    "skill": {
+       "importLocal": "Importer depuis les compétences locales…",
+       "inline": "Nouvelle compétence en ligne",
+       "description": "Description (≤300 caractères)",
+       "content": "Corps de la compétence (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Choisir un serveur du registre…"
+      },
+    "team": {
+       "tab": "Structure d'équipe",
+       "empty": "Ce document n'a pas encore de structure d'équipe (bloc fleet) — le graphe restitue le document, en lecture seule",
+       "readOnlyHint": "Graphe en lecture seule : les membres s'éditent via les cartes de rôle ; les arêtes d'orchestration relèvent des blueprints/modèles"
+      },
+    "validate": {
+       "running": "Validation…",
+       "ok": "Valide — les mêmes validateurs que le portail de publication",
+       "bad": "{{n}} problème(s) (libellés du portail de publication)"
+      },
+    "emit": {
+       "preset": "Enregistrer comme préréglage personnel (ce cell)",
+       "draft": "Enregistrer comme brouillon d'agent (→ marché)",
+       "busy": "Émission…",
+       "presetOk": "Préréglage « {{name}} » créé — sélectionnez-le dans le sélecteur de conversation",
+       "draftOk": "Brouillon créé — poursuis la publication dans « Mes créations »",
+       "failed": "Échec de l'émission : {{message}}"
+      },
+    "remove": "Retirer"
   },
   "overlay": {
     "title": "Ajustement des ressources",

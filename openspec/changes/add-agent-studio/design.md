@@ -26,11 +26,10 @@ The studio holds the Agent Document in client state while composing. There is no
 - *Alternative rejected*: new `studio.db` — a second source of truth, migration cost, and a fourth lifecycle nobody asked for.
 - *Trade-off*: a long multi-agent composition isn't resumable until emitted; acceptable for v1, and the pack-draft emit gives a save point.
 
-### D2 — Compose-time validation is a thin endpoint over the existing validators
-Add one server endpoint that runs `validatePackManifest` + `parseFleetTemplate` + tool-face closure and returns their field-level errors; the studio calls it on change (debounced). No validation logic is reimplemented in the client or duplicated.
-- *Why*: the client must show the same errors the emit will produce; a client-side reimplementation is the drift we are eliminating.
-- *Alternative rejected*: client-side mirror validator — would fork the rules.
-- *Reuse*: the blueprint validate route is the shape to copy (it already composes the same validators).
+### D2 — Compose-time validation reuses the existing publish-gate dry-run endpoint
+**Amendment (2026-10-31, 实施期发现)**: the planned thin endpoint already exists — `POST /api/packs/validate` (creator-pack-forge-support) runs the exact publish gate sequence (`collectPublishVerdict`: structural → attribution → tool-face → fleet-template → files), reports every gate's reject body verbatim, accepts any authenticated caller (eligibility is a caller finding), and has its own rate limiter. The studio consumes it debounced; **zero new server code, zero new endpoint**. A test pins the contract (scripts/test-agent-studio-validate.mjs: structural errors === lib validator output; fleetTemplate stage === parseFleetTemplate errors; toolFace stage in enforce mode).
+- *Why*: the client must show the same errors the emit will produce; reusing the collector guarantees it by construction ("one collector, so the two faces can never drift").
+- *Original plan* (add a thin endpoint copying blueprint-validate) superseded — that shape would have duplicated an existing, better-scoped route.
 
 ### D3 — Three-bucket card is new; the spec sheet is shared and dependency-ordered
 The canvas card is a new component (editable). The right-pane structural preview SHOULD be the shared spec sheet owned by `add-agent-spec-sheet`. If the spec-sheet change has not landed, the studio ships a minimal inline preview (persona summary + skill list + MCP refs) and converges to the shared component later.

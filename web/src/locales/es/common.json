@@ -54,6 +54,7 @@
     "fleetBadge": "Equipo de agentes"
   },
   "agentsPage": {
+    "studio": "Estudio",
     "title": "Agentes",
     "agents": "Expertos",
     "market": "Agentes",
@@ -2034,6 +2035,54 @@
       "compactTools": "Herramientas {{n}}",
       "compactToolsZero": "Sin herramientas"
     }
+  },
+  "studio": {
+    "title": "Estudio de agentes",
+    "roster": {
+       "new": "Nuevo agente",
+       "empty": "Aún no hay agentes — empieza con «Nuevo agente»"
+      },
+    "canvas": {
+       "empty": "Elige un agente a la izquierda o crea uno"
+      },
+    "agent": {
+       "id": "ID (asignado según las reglas del portal)",
+       "name": "Nombre visible"
+      },
+    "doc": {
+       "section": "Info del documento (envelope del manifiesto)",
+       "name": "Nombre",
+       "description": "Descripción",
+       "tags": "Etiquetas (separadas por comas)"
+      },
+    "skill": {
+       "importLocal": "Importar de habilidades locales…",
+       "inline": "Nueva habilidad en línea",
+       "description": "Descripción (≤300 caracteres)",
+       "content": "Cuerpo de la habilidad (SKILL.md)"
+      },
+    "mcp": {
+       "pick": "Elegir un servidor del registro…"
+      },
+    "team": {
+       "tab": "Estructura de equipo",
+       "empty": "Este documento aún no tiene estructura de equipo (bloque fleet) — el grafo muestra el documento, solo lectura",
+       "readOnlyHint": "Grafo de solo lectura: los miembros se editan en las tarjetas de rol; las aristas de orquestación corresponden a blueprints/plantillas"
+      },
+    "validate": {
+       "running": "Validando…",
+       "ok": "Válido — los mismos validadores que el portal de publicación",
+       "bad": "{{n}} problema(s) (texto del portal de publicación)"
+      },
+    "emit": {
+       "preset": "Guardar como preajuste personal (esta celda)",
+       "draft": "Guardar como borrador de agente (→ mercado)",
+       "busy": "Emitiendo…",
+       "presetOk": "Preajuste «{{name}}» creado — elígelo en el selector de conversación",
+       "draftOk": "Borrador creado — continúa la publicación en «Mis creaciones»",
+       "failed": "Fallo al emitir: {{message}}"
+      },
+    "remove": "Quitar"
   },
   "overlay": {
     "title": "Ajuste de recursos",

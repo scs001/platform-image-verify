@@ -5,7 +5,7 @@
 # io.github.FindDataTechnology/*.
 #
 # Why this repo exists: `workflow_dispatch` requires the workflow file to be on
-# the default branch. The main source repo (fd-craw-private) is PRIVATE and its
+# the default branch. The main source repo is PRIVATE and its
 # account's private Actions minutes are exhausted (2011/2000), so a run there
 # dies at t=5s. Public repos get unlimited free standard runners, and OIDC grants
 # the namespace by *repository owner* — so a plumbing-only public repo under the

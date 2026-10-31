@@ -182,3 +182,58 @@ test("reconcile subject: lane key wins (flag labelled), owner email is the label
     if (prev === undefined) delete process.env.LLM_API_KEY; else process.env.LLM_API_KEY = prev;
   }
 });
+
+// ── v1.2 lane-view口径 (§15.116挂账 v1.2): the estimate side aligns with the
+// lane-key account's scope — every cell's member_turn_daily, not one owner's.
+const { allCellDbs, estimateCellDb, ownerCellDb } = await import("../scripts/reconcile-turn-pricing.mjs");
+
+test("reconcile v1.2: allCellDbs scans the registry; estimateCellDb aggregates per cell and owner-filtered", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "reconcile-v12-"));
+  process.env.CELL_DATA_ROOT = root;
+  const reg = new Database(path.join(root, "cells-registry.db"));
+  reg.exec("CREATE TABLE cell_registry (cell_id TEXT, owner_email TEXT)");
+  const mkCell = (cellId, owner, fleetId, cost) => {
+    reg.prepare("INSERT INTO cell_registry VALUES (?,?)").run(cellId, owner);
+    const dir = path.join(root, cellId, "data", "data");
+    fs.mkdirSync(dir, { recursive: true });
+    const db = new Database(path.join(dir, "fleets.db"));
+    db.exec("CREATE TABLE fleets (id TEXT, owner_email TEXT); CREATE TABLE member_turn_daily (fleet_id TEXT, member_id TEXT, carrier TEXT, provider TEXT, model TEXT, day TEXT, turns INT, ok_count INT, failed_count INT, skipped_count INT, usage_input INT, usage_cached_input INT, usage_cache_write INT, usage_reasoning INT, usage_output INT, queue_wait_ms_sum INT, queue_wait_ms_max INT, ttft_ms_sum INT, ttft_ms_max INT, spin_up_ms_sum INT, spin_up_ms_max INT, cost_input_usd REAL, cost_output_usd REAL, cost_cache_write_usd REAL, cost_cache_read_usd REAL, pricing_at INT, updated_at INT)");
+    db.prepare("INSERT INTO fleets VALUES (?,?)").run(fleetId, owner);
+    db.prepare("INSERT INTO member_turn_daily VALUES (?,?,?,?,?,? ,1,1,0,0, 10,0,0,0,5, 0,0,0,0,0,0, ?,?,0,0, ?, 0)")
+      .run(fleetId, "m1", "cell", "volces", "deepseek-v4.1-flash", "2026-11-01", cost * 0.25, cost * 0.75, Date.now());
+    db.close();
+  };
+  mkCell("cell_aaaa", "owner@test", "f1", 0.0100);
+  mkCell("cell_bbbb", "other@test", "f2", 0.0600);
+  reg.close();
+
+  const cells = allCellDbs();
+  assert.equal(cells.length, 2, "both registered cells scanned");
+  const lane = cells.map((c) => estimateCellDb(c.dbFile, "2026-11-01", null));
+  const laneEst = lane.reduce((a, e) => a + e.est, 0);
+  assert.ok(Math.abs(laneEst - 0.07) < 1e-9, `lane view sums every cell (got ${laneEst})`);
+  assert.equal(lane.reduce((a, e) => a + e.turns, 0), 2);
+
+  const ownerDb = ownerCellDb("owner@test");
+  const owner = estimateCellDb(ownerDb, "2026-11-01", "owner@test");
+  assert.ok(Math.abs(owner.est - 0.01) < 1e-9, "owner view filters to the owner's fleets");
+  const share = owner.est / laneEst;
+  assert.ok(Math.abs(share - 1 / 7) < 1e-6, "owner share of the lane estimate");
+  delete process.env.CELL_DATA_ROOT;
+});
+
+test("reconcile v1.2: a cell without the daily table contributes honestly zero", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "reconcile-v12b-"));
+  process.env.CELL_DATA_ROOT = root;
+  const reg = new Database(path.join(root, "cells-registry.db"));
+  reg.exec("CREATE TABLE cell_registry (cell_id TEXT, owner_email TEXT)");
+  reg.prepare("INSERT INTO cell_registry VALUES (?,?)").run("cell_cccc", "x@test");
+  reg.close();
+  const dir = path.join(root, "cell_cccc", "data", "data");
+  fs.mkdirSync(dir, { recursive: true });
+  new Database(path.join(dir, "fleets.db")).close(); // empty db, no member_turn_daily
+  const cells = allCellDbs();
+  const e = estimateCellDb(cells[0].dbFile, "2026-11-01", null);
+  assert.deepEqual(e, { rows: [], est: 0, turns: 0, priced: 0 }, "honest zero, no throw");
+  delete process.env.CELL_DATA_ROOT;
+});

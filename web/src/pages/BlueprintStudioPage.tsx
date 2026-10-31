@@ -182,37 +182,42 @@ export function BlueprintStudioPage() {
   useEffect(() => {
     const coll = searchParams.get("fromCollection");
     if (!coll) return;
-    // Seed a NEW draft skeleton — never merge into whatever is open. Spreading
-    // `content` here would stamp the collection ref onto an existing blueprint
-    // (真机走查 2026-10-31: the seed landed in the auto-opened 投研晨会 draft
-    // and showed up as an unsaved boundary/dataSources edit).
+    // Collection handoff = the 新建 flow with a pre-pinned data source: create
+    // a NEW draft record (same skeleton the studio's 新建 button uses) and open
+    // it — never merge into whatever is already open. Spreading `content` here
+    // would stamp the ref onto an existing blueprint (真机走查 2026-10-31: the
+    // seed landed in the auto-opened 投研晨会 draft as an unsaved edit). The
+    // handoff itself only seeds — no validation/mint/publish; the owner edits
+    // and approves per the studio discipline.
     handoffSeededRef.current = true;
-    const seeded = {
-      boundary: { name: "", oneLine: "", outOfScope: "" },
-      fleet: { name: "", members: [] },
-      dataSources: [{ ref: `library:${coll}` }],
-    } as BlueprintContent;
-    setSelectedId(null);
-    setDetail(null);
-    setTrial(null);
-    setContent(seeded);
-    setJsonText(JSON.stringify(seeded, null, 2));
-    setJsonError(null);
-    setVerdict(null);
-    setVerdictStale(true);
-    setNotice({ kind: "ok", text: t("blueprints.fromCollectionSeeded") });
-    // Clear the param so a refresh/back does not re-seed over later edits.
+    let alive = true;
+    void (async () => {
+      try {
+        const seeded = { ...skeletonContent(t("blueprints.untitled")), dataSources: [{ ref: `library:${coll}` }] };
+        const { blueprint } = await createBlueprint(seeded);
+        if (!alive) return;
+        await refreshList();
+        await open(blueprint.id);
+        setNotice({ kind: "ok", text: t("blueprints.fromCollectionSeeded") });
+      } catch (e) {
+        if (alive) setNotice({ kind: "err", text: String((e as Error).message) });
+      }
+    })();
+    // Clear the param so a refresh/back does not re-seed another draft.
     const next = new URLSearchParams(searchParams);
     next.delete("fromCollection");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, t]);
+    return () => {
+      alive = false;
+    };
+  }, [searchParams, setSearchParams, t, refreshList, open]);
 
   useEffect(() => {
     void (async () => {
       try {
         const items = await refreshList();
-        // A collection handoff owns the canvas with a fresh draft — opening the
-        // most recent blueprint over it would both discard the seed and leak
+        // A collection handoff owns the canvas with its fresh draft — opening
+        // the most recent blueprint over it would discard the seed and leak
         // another blueprint's content into the seeded editor.
         if (handoffSeededRef.current) return;
         const first = items[0];

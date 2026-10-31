@@ -6977,3 +6977,11 @@ open until… (5/5 upstream failures)` 诚实 skip→model_upstream 直败——
 实证**（deduped=true 同 fleetId 重跑）、trial 舰队节拍已停（舰队保留归 km 线处置）。※判红两分法
 应用实例：跑了≥10 秒在业务步红=真缺陷排查——本轮排查到底=环境条件，不是当初怀疑的 carrier/parked
 回归（member target 走查读库岗正常解析、回合照发）。
+
+**§15.121 续七：trial 窗口失配定量化（三连红终判，2026-11-01）**——第三发同签名（窗口内零回合），
+不再重试（配额纪律）。**结构性失配坐实**：`runTrial` 的 collectAndWait 窗口=**10 分钟硬编码**
+（server/blueprint-trial.js timeoutMs 默认），而走查 cell 的串行队列实测延迟 **~16 分钟**（22:39
+武装→22:55 首次执行，226+ jobs 常年深队）——试跑成员的回合**必然**迟到。车道 503 是第二重（间歇）。
+**这对 km/蓝图线是个设计题不是等待题**：静窗在常年繁忙的走查 cell 不存在。候选方向（归该线拍板）：
+①trial 回合跳队（优先执行道）；②窗口自适应——成员任务 queued/running 期间 deadline 顺延（诚实且
+简单）；③试跑舰队落专用静 cell。台账在案，机制其余环节已证全通。

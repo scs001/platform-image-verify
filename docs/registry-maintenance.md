@@ -6899,3 +6899,28 @@ a2a entry 待建）；a2a derived 合成行的真机眼见（等自然深度闸/
 **§15.120 续：approve→cast 全链真机 + 试跑回合回归立案（同日）**。Studio 团队模式驱动全链生产验证：创建→JSON 轨灌入→保存校验→批准→铸造（pack anrFl4 v1 落市场 ✓）→试跑执行器跑通（报告落账、断言评测）→**判红卡死：report-landed 无证（turnIds=[]，回合 0）**。判别实验：原版同内容（今日三度绿）此刻同样红——**疑似今日滚版引入的试跑回合执行回归（装台✓点火后回合 0）**，嫌疑面=carrier ⑤/memberView/parked 归因修/自迭代终片（本工作流服务端改动仅 provenance 校验器，不在回合路径）。全程另逮两缺口当场修：①团队模式缺签字/撤签钮 ②试跑/签字管位错（draft→cast 段，服务端 trial requires cast）。走查产物 unlist 清理。**立案归舰队执行线**：fleet_1793452377470_48mm26（乙班试跑舰队，1 员 0 回合）+ bp_1793452345048_g1kt5x（cast v2）+ bp_1793444689666_mn2h82（原版，判别样本）。
 
 **§15.120 再续（同日更晚）——试跑判红真因定谳：上游模型级断供，撤回「疑似滚版回归」误判**。lane 直探（pod 内 sub2api 本地口）：fleet 钉扎模型 `glm-5.3-flash` 25s 连接挂死（000）；judge 模型 `minimax-m3.1-flash` 上游 503；而 sub2api 三账户（openrouter 14/15/32）全 active、限流 12:47 已重置、32 号 13:52 仍在他模型上出活——**配置/代码无辜，是 openrouter 上游对这两个模型断供**。判别实验的「原版同红」正是同一根因（非滚版回归）。处置=等上游恢复或模型钉扎改判（用户拍板域）；车线无需修码。走查全链机件结论不变。
+
+**§15.121 续：一次性舰队活体取证——纯扇出源点火真缺陷现形（2026-11-01 凌晨）**
+
+走查账号铸 cookie + 一次性舰队（四岗：甲 cron 源→乙 handoff→丙/丁 fanout 双靶，maxChainDepth=1，
+丙挂 runner）全程走应用 API（创建/orchestration apply/cadence */2 confirmed/carrier PATCH），真机
+三判据同框：①**乙岗接棒行 `source=manual`**——归因判序终版活体实证（⑤后旧序此处读 cron）；
+②**乙岗 runner fail-open 三面同框**（carrier=runner 配置 wish × carrier=cell 实际身体 ×
+`carrierFallback:"runner-no-entry"` 留痕——§15.118 worker-pool-inactive 同款）；③**丙/丁深度闸行
+carrier 标记落列**（丙 runner→remote / 丁 auto→cell——derivedLaneCarrier 词汇映射活体）。
+
+**活体顺手逮住第三条真生产缺陷：纯扇出源点火死**——`triggerFleetHandoffs` 头部
+`if (!edges.length) return null` 早退，fanout 环在早退之后，**只挂 fanout 出边的成员永远点不着
+扇出**；历史 fanout 舰队恰好都兼有 handoff 出边故从未炸。修=早退摘除 + **seam 抽成
+`server/fleet-handoffs.js igniteFleetEdges`**（真函数可 import——旧 fanout 测试的桩自重重写逻辑
+自洽骗人，在册律第五演）+ 两枚真 seam 钉子（纯扇出点火/越界行 carrier 标记）48/48。
+
+**滚版纪律重演两次**：并行班一天四动部署代（b28677a 时其源 ⊅ 我的公开门收口=真回退）——超集律
+第三四次追并（merge 05022564→d1f0a0eb），合并带入 blueprints.js 一处未用 import 修掉（75184930）；
+对面一次「bump 先于出片」回滚恢复（在册停机配方）留下了「等真出片再追并」的注记——我方
+sha-6aa999c ⊇ 其 a2031f82 所指内容，追并即闭环。第六轮 CI+image 双绿+本地回归 3053/0。
+终态：**双 pod imageID=f9564993 同一 + igniteFleetEdges 标记在位 + 取证行五判据全过**；现场还原
+（cadence 停/carrier 还原/舰队 DELETE 走应用 API——B2 条律守约）。feat 线同步至 03279fe3。
+
+**挂账（更新后）**：swap 离任锚自然换防；runner 真远端回合（a2a entry 待建——fail-open 面已活体
+实证，真远端差临门一脚）；对账 v1.2（估算侧换车道 key 视角）；biome `recommended` 弃用迁移。

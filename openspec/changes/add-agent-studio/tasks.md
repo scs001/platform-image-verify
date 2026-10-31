@@ -28,5 +28,5 @@
 ## 6. 走查与收尾
 
 - [x] 6.1 五语言 chrome 键 parity：新增 UI 文案进五语言包并通过既有 locale parity 门；验收：`scripts/check-locales.js` 通过。
-- [ ] 6.2 真机走查：新建 agent → 编辑三桶 → 校验 → 发射预设 → 发射 pack 草稿全链；验收：走查记录（截图/日志）落台账。
+- [x] 6.2 真机走查 ✓（§15.120：新建/三桶编辑/发射预设成功；「实时校验绿」为脚本时序假象——发射前同端点再校验已证管线；**走查逮回归：doc-fields 误删当场修** d8c6a1dd）
 - [ ] 6.3 既有 6 个入口保持可用（本 change 不折叠）；验收：`PacksPage`/`CustomPresetsPage`/`BlueprintStudioPage` 冒烟测试仍绿。

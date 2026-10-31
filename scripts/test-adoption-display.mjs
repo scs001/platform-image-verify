@@ -29,14 +29,32 @@ function fakeRegistry(rows) {
   };
 }
 
+// 真实契约（本轮真机走查修正）：registry.list() 的 summary **不含 official** ——
+// 它由路由层按部署 roster 注入。所以这里的行只带 SQL 投影字段（adopted），
+// official 由 registerMarketplaceJson 自己按 officialAuthors 判定。
+const OFFICIAL = "publisher@finddatatech.cloud";
+const COMMUNITY = "someone@example.com";
+
 function row(id, { official = false, adopted = false, category = "data", featured = false } = {}) {
-  return { id, version: 1, name: id, description: `${id} desc`, category, featured, official, adopted };
+  return {
+    id,
+    version: 1,
+    name: id,
+    description: `${id} desc`,
+    category,
+    featured,
+    authorEmail: official ? OFFICIAL : COMMUNITY,
+    // adopted 是 registry 的 SQL 投影（is_adopted）；official 故意不放在行上，
+    // 谁把它放上来谁就绕过了 roster——本文件正是钉这条。
+    adopted,
+  };
 }
 
-// 挂一个只读镜像的 app，取 marketplace.json 的 plugins。
-async function fetchPlugins(rows) {
+// 挂一个只读镜像的 app，取 marketplace.json 的 plugins。roster 与部署一致时
+// 行上的 authorEmail 才读作官方。
+async function fetchPlugins(rows, { officialAuthors = [OFFICIAL] } = {}) {
   const app = express();
-  mod.registerMarketplaceJson(app, { registry: fakeRegistry(rows), resolveUser: () => null });
+  mod.registerMarketplaceJson(app, { registry: fakeRegistry(rows), resolveUser: () => null, officialAuthors });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((r) => server.on("listening", r));
   try {

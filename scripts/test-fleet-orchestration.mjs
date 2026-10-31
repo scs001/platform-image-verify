@@ -659,3 +659,61 @@ test("cockpit draft lane: ownership identical to the fleet face (403 foreign, 40
     anon.server.close();
   }
 });
+
+// ── 6. the REAL seam (server/fleet-handoffs.js) — the in-stub mirror above
+// self-consistently missed the fanout-only early-return for years; these pin
+// the imported function so the stub can never diverge again (挂账取证班).
+const { igniteFleetEdges } = await import("../server/fleet-handoffs.js");
+
+test("REAL seam: a fanout-ONLY source ignites its wave (the dead-shape regression)", async () => {
+  const fleet = fleetDb.createFleet({ id: "f_fo2", name: "纯扇出舰", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "fo2_src", fleetId: fleet.id, title: "源头", targetKind: "persona", targetId: "p-s2", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo2_w1", fleetId: fleet.id, title: "波A", targetKind: "persona", targetId: "p-w3", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo2_w2", fleetId: fleet.id, title: "波B", targetKind: "persona", targetId: "p-w4", kpiSlots: [], cadence: null });
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    // NO handoff edge on fo_src — the shape the early return killed.
+    { kind: "fanout", from: "fo2_src", targets: ["fo2_w1", "fo2_w2"], aggregate: { kind: "all" } },
+  ], constraints: { maxChainDepth: 2 } } });
+
+  const created = await igniteFleetEdges({
+    db: fleetDb, engine,
+    job: { id: "j-fo2", sessionId: "sess-fo2", sourceTag: { fleetId: fleet.id, memberId: "fo2_src" }, origin: { fleet: { fleetId: fleet.id, memberId: "fo2_src", depth: 0 } } },
+    out: { ok: true, text: "上游产出" },
+  });
+  assert.equal(created.length, 2, "the wave ignites from a fanout-only source");
+  for (const { taskId } of created) {
+    const t = engine.getTaskRecord(taskId);
+    assert.equal(t.origin.fleet.depth, 1);
+    assert.equal(t.initiator, "sess-fo2", "no-judge wave carries the upstream session");
+  }
+});
+
+test("REAL seam: fanout depth bound writes honest rows with the derived-lane carrier marking", async () => {
+  const fleet = fleetDb.createFleet({ id: "f_fo3", name: "越界扇出舰", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "fo3_src", fleetId: fleet.id, title: "源", targetKind: "persona", targetId: "p-s3", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo3_t1", fleetId: fleet.id, title: "靶1", targetKind: "persona", targetId: "p-t1", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo3_t2", fleetId: fleet.id, title: "靶2", targetKind: "a2a", targetId: "agent-x", kpiSlots: [], cadence: null });
+  fleetDb.updateMember("fo3_t1", { carrier: "worker" });
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "fanout", from: "fo3_src", targets: ["fo3_t1", "fo3_t2"], aggregate: { kind: "all" } },
+  ], constraints: { maxChainDepth: 1 } } });
+
+  // Ignition at depth 1 (a handoff-delegated source): the wave would land at
+  // depth 2 > 1 — bound rows, no tasks.
+  const created = await igniteFleetEdges({
+    db: fleetDb, engine,
+    job: { id: "j-fo3", sessionId: "sess-fo3", origin: { fleet: { fleetId: fleet.id, memberId: "fo3_src", depth: 1 } } },
+    out: { ok: false, error: "model_upstream 503" },
+  });
+  assert.equal(created, null, "over-bound hops create no tasks");
+  const d = fleetDb.db ?? fleetDb;
+  try {
+    const rows = d.prepare("SELECT member_id, source, status, carrier, carrier_instance, error FROM member_turn_events WHERE fleet_id = 'f_fo3' ORDER BY id").all();
+    assert.equal(rows.length, 2, "one honest row per bound target");
+    const byMember = Object.fromEntries(rows.map((r) => [r.member_id.slice(-4), r]));
+    assert.equal(byMember["3_t1"].carrier, "worker", "persona target marks its resolved lane");
+    assert.equal(byMember["3_t1"].carrier_instance, null, "nothing claimed a body");
+    assert.equal(byMember["3_t2"].carrier, "remote", "a2a target marks the remote lane");
+    assert.match(byMember["3_t1"].error, /fanout depth bound reached \(2 > 1\)/);
+  } finally { /* shared handle — not closed */ }
+});

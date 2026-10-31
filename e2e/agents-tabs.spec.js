@@ -95,4 +95,18 @@ test.describe("agents page hub areas", () => {
     await expect(page.getByTestId("agents-tab-supply")).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("packs-page")).toBeVisible();
   });
+
+  test("Settings alias does not fork: the same extension component serves both homes", async ({ page }) => {
+    await pinLocaleEn(page);
+    // The Settings MCP section keeps working…
+    await page.goto("/settings/mcp");
+    await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
+    // …and the supply MCP cabinet mounts the same component (same testid,
+    // same state source) — two entries, one component, no fork.
+    await page.goto("/agents?tab=supply");
+    await expect(page.getByTestId("supply-section")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("supply-cabinet-mcp").click();
+    await expect(page.getByTestId("extensions-page")).toBeVisible();
+    await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", "mcp");
+  });
 });

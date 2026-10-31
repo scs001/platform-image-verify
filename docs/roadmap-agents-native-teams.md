@@ -40,6 +40,7 @@
 | 能力包 / Pack | **智能体 / Agent** | 用户 2026-10-30 明令。安装单位。 |
 | 能力市场 | **智能体市场 / Agent Market** | 用户 2026-10-30 明令。 |
 | 壹座·Packs（品牌） | **壹座·智能体基础设施** | 用户 2026-10-30 明令。registry 落地页品牌串在对侧仓，挂账。 |
+| 壹座·智能体工作室 / Agent Studio（构建面品牌） | **智能体构建器 / Agent Builder** | 用户 2026-11-01 明令。`/agents` 升格四区门面（构建/供给/我的创作/调优）；ja エージェントビルダー、es Constructor de Agentes、fr Constructeur d'Agents；路由/slug/testid 零改（add-agent-builder-hub）。 |
 
 代码键/API/事件/spec 目录名仍一律含 `fleet`，**永不翻译**（沿用 native-lexicon 的既有纪律，
 改名是显示层的活）。

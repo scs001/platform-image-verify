@@ -854,6 +854,11 @@
     "effortInherit": "継承（既定）",
     "contextBudget": "コンテキスト予算（トークン/ターン）",
     "contextBudgetUnlimited": "無制限",
+    "persona": "人格（対外ペルソナ）",
+    "personaPlaceholder": "例：あなたは智語、このプラットフォームの対外アシスタントです。製品機能と導入方法に関する質問のみに回答します。",
+    "personaHint": "空欄の場合は中立の既定値を使用します（自身の名前を示し、自分の知識のみで回答し、運営者や内部役割を装いません）。",
+    "allowTools": "ツール呼び出しを許可",
+    "allowToolsHint": "既定はオフ。デプロイ全体の上限が有効な場合のみ効力を持ちます。オンにすると回答にツール出力が含まれる可能性があります。",
     "roomBinding": {
       "label": "Room binding (Zhiyu)",
       "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",

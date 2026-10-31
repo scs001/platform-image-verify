@@ -62,7 +62,10 @@ before(async () => {
     isReady: () => true,
     prompts: [],
     async prompt(sessionId, blocks) {
-      this.prompts.push({ sessionId, text: blocks[0].text });
+      // `text` stays the LAST block (the user-facing prompt every assertion
+      // reads); `blocks` is the full ordered list, so the identity-block
+      // requirement asserts order instead of guessing at an index.
+      this.prompts.push({ sessionId, text: blocks.at(-1).text, blocks: blocks.map((b) => b.text) });
       queueMicrotask(() => {
         const collector = ctx.sessionCollectors.get(sessionId);
         if (!collector) return;
@@ -421,4 +424,198 @@ test("a reasoning-only reply is replaced with an honest fallback, not a trace wa
   assert.equal(sent.length, 1);
   assert.ok(!/<thinking>/i.test(sent[0].text), "no trace may reach the chat");
   assert.match(sent[0].text, /Please ask again/);
+});
+
+// ── Per-bot tool posture (harden-bot-reply-lane, design D3) ──────────────────
+//
+// The deployment env is a CEILING; the bot's own flag is the switch. Both
+// checks (prompt prefix + reply-side withhold) read one function, so each case
+// asserts the OBSERVABLE outcome: does the tool-derived text reach the chat?
+
+const withCeiling = async (on, fn) => {
+  const prev = process.env.BOTS_ALLOW_TOOLS;
+  if (on) process.env.BOTS_ALLOW_TOOLS = "1";
+  else delete process.env.BOTS_ALLOW_TOOLS;
+  try { return await fn(); } finally {
+    if (prev === undefined) delete process.env.BOTS_ALLOW_TOOLS;
+    else process.env.BOTS_ALLOW_TOOLS = prev;
+  }
+};
+
+test("tool posture: bot flag off withholds even when the ceiling is open", async () => {
+  await withCeiling(true, async () => {
+    sent.length = 0;
+    scriptedTurn = [toolCall(), assistantText("answer built from a tool")];
+    const bot = await makeBot("tools-off");
+
+    await deliver(bot, secretOf(bot), update(9001, "run something"));
+
+    assert.equal(sent.length, 1);
+    assert.ok(!sent[0].text.includes("answer built from a tool"), "flag off wins over the ceiling");
+    assert.ok(ctx.dshBridge.prompts.at(-1).text.startsWith("You are answering a message"));
+  });
+});
+
+test("tool posture: bot flag on under an open ceiling runs tools and forwards the answer", async () => {
+  await withCeiling(true, async () => {
+    sent.length = 0;
+    scriptedTurn = [toolCall(), assistantText("answer built from a tool")];
+    const created = await (await postJson("/api/bots", {
+      type: "telegram",
+      name: "tools-on",
+      credentials: { token: "SECRET-BOT-TOKEN" },
+      allowTools: true,
+    })).json();
+    assert.equal(created.allowTools, true, "the API round-trips the flag");
+    const entry = bots.getEntry(created.id);
+    entry.adapter = { ...entry.adapter, start: undefined, async sendText(_c, chatKey, text) { sent.push({ chatKey, text }); } };
+
+    await deliver(created, secretOf(created), update(9002, "run something"));
+
+    assert.deepEqual(sent, [{ chatKey: "9002", text: "answer built from a tool" }]);
+    assert.ok(!ctx.dshBridge.prompts.at(-1).text.startsWith("You are answering a message"), "no no-tools prefix");
+  });
+});
+
+test("tool posture: the deployment ceiling wins over a bot that has the flag on", async () => {
+  await withCeiling(false, async () => {
+    sent.length = 0;
+    scriptedTurn = [toolCall(), assistantText("answer built from a tool")];
+    const created = await (await postJson("/api/bots", {
+      type: "telegram",
+      name: "tools-ceiling",
+      credentials: { token: "SECRET-BOT-TOKEN" },
+      allowTools: true,
+    })).json();
+    const entry = bots.getEntry(created.id);
+    entry.adapter = { ...entry.adapter, start: undefined, async sendText(_c, chatKey, text) { sent.push({ chatKey, text }); } };
+
+    await deliver(created, secretOf(created), update(9003, "run something"));
+
+    assert.equal(sent.length, 1);
+    assert.ok(!sent[0].text.includes("answer built from a tool"), "the ceiling cannot be lifted per bot");
+  });
+});
+
+// ── Runtime readiness (design D1) ───────────────────────────────────────────
+//
+// The old code answered "starting up" the instant isReady() was false, which
+// every rollout turned into a user-visible non-answer.
+
+const withReadyBudget = async (ms, fn) => {
+  const prev = process.env.BOTS_READY_WAIT_MS;
+  process.env.BOTS_READY_WAIT_MS = String(ms);
+  try { return await fn(); } finally {
+    if (prev === undefined) delete process.env.BOTS_READY_WAIT_MS;
+    else process.env.BOTS_READY_WAIT_MS = prev;
+  }
+};
+
+test("readiness: a message arriving before the runtime is up waits, then answers", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("real answer after boot")];
+  const bot = await makeBot("boot-wait");
+
+  // Not ready for the first few polls, ready afterwards.
+  const readyAt = Date.now() + 600;
+  ctx.dshBridge.isReady = () => Date.now() >= readyAt;
+  const before = ctx.dshBridge.prompts.length;
+
+  await withReadyBudget(3000, async () => {
+    await deliver(bot, secretOf(bot), update(9101, "hello?"));
+    // The route acks first and the turn (including the wait) runs async.
+    await new Promise((r) => setTimeout(r, 1200));
+  });
+
+  assert.deepEqual(sent, [{ chatKey: "9101", text: "real answer after boot" }]);
+  assert.ok(!sent.some((s) => /starting up/i.test(s.text)), "no startup notice once the wait succeeds");
+  assert.equal(ctx.dshBridge.prompts.length, before + 1, "the turn really ran");
+  ctx.dshBridge.isReady = () => true;
+});
+
+test("readiness: budget exhaustion replies with the startup notice and logs it as a wait timeout", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("never reached")];
+  const bot = await makeBot("boot-timeout");
+  ctx.dshBridge.isReady = () => false;
+  const before = ctx.dshBridge.prompts.length;
+  const warns = [];
+  const realWarn = console.warn;
+  console.warn = (...a) => { warns.push(a.join(" ")); };
+
+  try {
+    await withReadyBudget(600, async () => {
+      await deliver(bot, secretOf(bot), update(9102, "hello?"));
+      await new Promise((r) => setTimeout(r, 900));
+    });
+  } finally {
+    console.warn = realWarn;
+    ctx.dshBridge.isReady = () => true;
+  }
+
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /starting up/i);
+  assert.equal(ctx.dshBridge.prompts.length, before, "no turn is started while the runtime is down");
+  assert.ok(
+    warns.some((w) => /still not ready after 600ms wait/.test(w)),
+    "the log says it was a WAIT timeout, not a turn failure",
+  );
+});
+
+test("readiness: messages queued during the wait stay serial", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("first"), assistantText("second")];
+  const bot = await makeBot("boot-queue");
+  let readyAt = Date.now() + 600;
+  ctx.dshBridge.isReady = () => Date.now() >= readyAt;
+
+  try {
+    await withReadyBudget(3000, async () => {
+      await deliver(bot, secretOf(bot), update(9103, "one"));
+      await deliver(bot, secretOf(bot), update(9103, "two"));
+      await new Promise((r) => setTimeout(r, 2000));
+    });
+  } finally {
+    ctx.dshBridge.isReady = () => true;
+  }
+
+  assert.equal(sent.length, 2, "both messages got a reply — nothing dropped");
+  assert.ok(
+    !sent.some((s) => /starting up/i.test(s.text)),
+    "queued messages wait for readiness instead of taking the canned notice",
+  );
+});
+
+// ── Identity block (design D2) ──────────────────────────────────────────────
+
+test("identity: a configured persona leads the prompt blocks", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("as configured")];
+  const created = await (await postJson("/api/bots", {
+    type: "telegram",
+    name: "persona-bot",
+    credentials: { token: "SECRET-BOT-TOKEN" },
+    persona: "你是智语，壹座的对外助手。",
+  })).json();
+  assert.equal(created.persona, "你是智语，壹座的对外助手。", "the API round-trips the persona");
+  const entry = bots.getEntry(created.id);
+  entry.adapter = { ...entry.adapter, start: undefined, async sendText(_c, chatKey, text) { sent.push({ chatKey, text }); } };
+
+  await deliver(created, secretOf(created), update(9201, "你是谁"));
+
+  const turn = ctx.dshBridge.prompts.at(-1);
+  assert.equal(turn.blocks[0], "你是智语，壹座的对外助手。", "the persona is the leading block");
+  assert.equal(turn.blocks.length, 2);
+});
+
+test("identity: an unconfigured bot gets a neutral default naming itself", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("as default")];
+  const bot = await makeBot("无名助手");
+
+  await deliver(bot, secretOf(bot), update(9202, "你能做什么"));
+
+  const turn = ctx.dshBridge.prompts.at(-1);
+  assert.match(turn.blocks[0], /无名助手/, "the neutral block names the bot");
+  assert.match(turn.blocks[0], /不要冒充运营者/, "and forbids impersonating internal roles");
 });

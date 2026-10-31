@@ -80,7 +80,7 @@ before(async () => {
     isReady: () => true,
     prompts: [],
     async prompt(sessionId, blocks) {
-      this.prompts.push({ sessionId, text: blocks[0].text });
+      this.prompts.push({ sessionId, text: blocks.at(-1).text });
       queueMicrotask(() => {
         const collector = ctx.sessionCollectors.get(sessionId);
         if (!collector) return;

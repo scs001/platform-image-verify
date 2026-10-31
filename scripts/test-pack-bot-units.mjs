@@ -478,18 +478,20 @@ test("an inbound message on a skill-mounted channel bot is answered through the 
   // The reply rode the existing adapter delivery path.
   assert.deepEqual(sent, [{ chatKey: "chat-9", text: "您好，请问有什么可以帮您？" }]);
 
-  // The turn ran on the bot's own session, and the mounted skill was injected
-  // as the session's opening context block — before the user text.
+  // The turn ran on the bot's own session; the block order is identity →
+  // mounted skill → user text (harden-bot-reply-lane D2: the identity block
+  // always leads, so a bot never speaks as the cell's default persona).
   const turn = ctx.dshBridge.prompts.at(-1);
   assert.equal(turn.sessionId, bots.sessionIdFor("desk-greeter", "chat-9"));
-  assert.equal(turn.blocks.length, 2);
-  assert.match(turn.blocks[0].text, /desk-greeting/);
-  assert.match(turn.blocks[0].text, /先确认来意/);
-  assert.match(turn.blocks[1].text, /你好$/);
-  assert.match(turn.blocks[1].text, /Do not call any tools/, "the answer-only posture still governs the turn");
+  assert.equal(turn.blocks.length, 3);
+  assert.match(turn.blocks[0].text, /你是「前台应答」/, "the identity block leads");
+  assert.match(turn.blocks[1].text, /desk-greeting/);
+  assert.match(turn.blocks[1].text, /先确认来意/);
+  assert.match(turn.blocks[2].text, /你好$/);
+  assert.match(turn.blocks[2].text, /Do not call any tools/, "the answer-only posture still governs the turn");
 });
 
-test("a channel bot without a mount keeps the legacy single-block prompt (byte-identical)", async () => {
+test("a channel bot without a mount carries exactly the identity block plus the prompt", async () => {
   // await-bot has a complete telegram binding from the earlier test; enable
   // it for a runtime entry.
   await patchJson("/api/bots/await-bot", { enabled: true });
@@ -504,7 +506,8 @@ test("a channel bot without a mount keeps the legacy single-block prompt (byte-i
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(ctx.dshBridge.prompts.length, before + 1);
   const turn = ctx.dshBridge.prompts.at(-1);
-  assert.equal(turn.blocks.length, 1, "no mount, no extra block");
+  assert.equal(turn.blocks.length, 2, "identity block + prompt, no skill block");
+  assert.match(turn.blocks[0].text, /你是「/, "an unconfigured bot still gets the neutral identity");
 });
 
 test("a mounted skill that has since disappeared degrades to the plain turn", async () => {
@@ -517,7 +520,8 @@ test("a mounted skill that has since disappeared degrades to the plain turn", as
   await bots.handleMessage("desk-greeter", { chatKey: "chat-9", senderName: "来客", text: "再次你好" });
   await new Promise((r) => setTimeout(r, 30));
   const turn = ctx.dshBridge.prompts.at(-1);
-  assert.equal(turn.blocks.length, 1, "the missing mount costs the skill block, not the turn");
+  assert.equal(turn.blocks.length, 2, "the missing mount costs the skill block, not the turn");
+  assert.match(turn.blocks[0].text, /你是「/, "the identity block survives a missing mount");
   assert.deepEqual(sent, [{ chatKey: "chat-9", text: "fallback" }]);
   assert.equal(ctx.dshBridge.prompts.length, before + 1);
 });

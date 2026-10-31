@@ -854,6 +854,11 @@
     "effortInherit": "继承（部署默认）",
     "contextBudget": "上下文预算（token/回合）",
     "contextBudgetUnlimited": "不限",
+    "persona": "人格（对外身份）",
+    "personaPlaceholder": "例如：你是智语，壹座的对外助手，只回答与产品能力、接入方式相关的问题。",
+    "personaHint": "留空则使用中性默认：声明它是该机器人，只用自身知识作答，不得冒充运营者或内部角色。",
+    "allowTools": "允许调用工具",
+    "allowToolsHint": "默认关闭。仅在部署级总开关已开启时生效；开启后该机器人的回答可能包含工具输出。",
     "roomBinding": {
       "label": "房间挂接（智语）",
       "hint": "把群消息接到这个房间，房间的回答署名寄回群里。",

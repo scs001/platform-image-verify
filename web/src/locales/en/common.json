@@ -854,6 +854,11 @@
     "effortInherit": "Inherit (deployment default)",
     "contextBudget": "Context budget (tokens/turn)",
     "contextBudgetUnlimited": "Unlimited",
+    "persona": "Identity (public persona)",
+    "personaPlaceholder": "e.g. You are Zhiyu, the public assistant of this platform. Answer only questions about product capabilities and how to get started.",
+    "personaHint": "Leave blank for the neutral default: it states the bot's own name, answers from its own knowledge only, and never impersonates operators or internal roles.",
+    "allowTools": "Allow tool calls",
+    "allowToolsHint": "Off by default. Only effective when the deployment-level ceiling is enabled; with it on, this bot's answers may contain tool output.",
     "roomBinding": {
       "label": "Room binding (Zhiyu)",
       "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",

@@ -11,6 +11,7 @@
 // no bots configured, every adapter call is failure-isolated, and a broken bot
 // is logged and skipped rather than crashing the server or stalling the others.
 
+import { stripReasoningLeak } from "./reasoning-leak.js";
 import crypto from "node:crypto";
 import { adapterForBot, validateCredentials } from "./bots/adapter.js";
 import { isGenericBotType, packBotMeta, PACK_BOT_CREDENTIAL_KEY } from "../lib/generic-bot-types.js";
@@ -75,6 +76,36 @@ const state = {
 
 const allowTools = () => process.env.BOTS_ALLOW_TOOLS === "1";
 
+// Per-bot tool posture (harden-bot-reply-lane, design D3). The deployment env
+// is a CEILING, not the switch: `BOTS_ALLOW_TOOLS` off means no bot runs tools
+// whatever its own flag says (the群聊 decision: a multi-member room must be
+// able to be clamped shut from the deployment). The prompt prefix and the
+// reply-side withhold BOTH read this one function — they were two separate
+// checks that the same env lifted together, which is how the prod drift
+// (BOTS_ALLOW_TOOLS=1 → every bot answered with fleet-operator tool output)
+// went unnoticed.
+const allowToolsFor = (bot) => allowTools() && Boolean(bot?.allowTools);
+
+// Runtime readiness wait (design D1). The webhook route ACKs the platform
+// BEFORE the turn runs, so waiting here costs the chat platform nothing —
+// whereas the old early return turned every rollout into a canned "starting
+// up" reply that the user reads as "the bot is broken" (prod 2026-10-31).
+const READY_POLL_MS = 250;
+// Read at call time, not import time: the budget is a deployment knob the
+// tests (and a restart-free config change) must be able to move.
+const readyWaitMs = () => Number(process.env.BOTS_READY_WAIT_MS) || 90_000;
+
+async function waitForRuntime(ctx, budgetMs) {
+  if (ctx?.dshBridge?.isReady?.()) return 0;
+  const startedAt = Date.now();
+  const deadline = startedAt + budgetMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, READY_POLL_MS));
+    if (ctx?.dshBridge?.isReady?.()) return Date.now() - startedAt;
+  }
+  return null;
+}
+
 export function publicBaseUrl() {
   return process.env.PUBLIC_BASE_URL?.replace(/\/+$/, "") || null;
 }
@@ -114,6 +145,11 @@ export function maskBot(bot) {
     // the masked row so the edit form can prefill; null = not declared.
     effort: bot.effort ?? null,
     contextBudget: bot.context_budget ?? null,
+    // Identity and tool posture (harden-bot-reply-lane): neither is a secret —
+    // the edit form needs both back, and the operator must be able to SEE
+    // whether this bot is allowed to run tools.
+    persona: bot.persona ?? null,
+    allowTools: Boolean(bot.allowTools),
   };
   if (meta) {
     mask.pack = { packId: meta.packId, skill: meta.skill ?? null, generic: meta.generic ?? bot.type };
@@ -355,16 +391,8 @@ async function deliverAskAttempt(entry, text) {
 // and the collector already drops those; this is the defensive net for models
 // that fold the trace into text. Chat platforms have no collapsible UI, so any
 // surviving trace is user-visible noise.
-const REASONING_BLOCK_RE = /<(thinking|reasoning|thought)>[\s\S]*?<\/\1>/gi;
-const REASONING_OPEN_RE = /<(thinking|reasoning|thought)>[\s\S]*$/i;
-function stripReasoningLeak(body) {
-  let s = String(body ?? "");
-  s = s.replace(REASONING_BLOCK_RE, "");
-  // An unterminated trace (stream cut mid-thought) swallows the rest of the
-  // message: drop from the stray open tag to the end rather than leak it.
-  s = s.replace(REASONING_OPEN_RE, "");
-  return s.trim();
-}
+
+
 
 // Collect one turn's outcome off the session's notification stream. Registered
 // BEFORE prompt() so no early event is missed; always unregistered. With
@@ -566,6 +594,21 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
   return run;
 }
 
+// Identity block (design D2). Without one, a bot turn runs under the CELL's
+// default preset — the owner's own operator persona — which is how "what can
+// you do" got answered with the fleet's decision queue (prod 2026-10-31). The
+// neutral default names the bot and forbids impersonating internal roles, so an
+// unconfigured bot still answers as itself.
+function personaBlock(bot) {
+  const own = String(bot?.persona ?? "").trim();
+  if (own) return own;
+  return (
+    `你是「${bot?.name ?? "助手"}」，一个对外聊天渠道里的助手。` +
+    "只用你自己的知识回答；不要冒充运营者、舰队副驾、内部运维或其他内部角色，" +
+    "也不要描述内部决策队列、运营状态或工具面。"
+  );
+}
+
 // Mounted pack skill (pack-bot-units, spec pack-bot-units): a channel bot
 // born from a pack may mount exactly one of the pack's own skills; the
 // inbound turn is then answered through THAT skill's session — the skill's
@@ -613,13 +656,29 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
     // the inbound line's shape; same 60-char trim, same content policy.
     console.log(`[bots] "${bot.name}" replied to ${chatKey}: "${String(body).slice(0, 60)}"`);
   };
-  if (!ctx?.dshBridge?.isReady()) return reply("The assistant is starting up. Please try again shortly.");
+  // Runtime readiness (design D1): wait within budget instead of replying
+  // "starting up" the instant the flag is false. A rollout makes this window
+  // routine — every deploy restarts the child — and the platform has already
+  // been ACKed, so waiting costs nothing but latency.
+  if (!ctx?.dshBridge?.isReady()) {
+    const budget = readyWaitMs();
+    const waited = await waitForRuntime(ctx, budget);
+    if (waited === null) {
+      console.warn(
+        `[bots] "${bot.name}" runtime still not ready after ${budget}ms wait; replying with the startup notice`,
+      );
+      return reply("The assistant is starting up. Please try again shortly.");
+    }
+    console.log(`[bots] "${bot.name}" waited ${waited}ms for the runtime before starting the turn`);
+  }
 
   const collected = collectTurn(ctx, sessionId, { bot, adapter, chatKey });
-  const prompt = allowTools() ? text : NO_TOOLS_PREFIX + text;
-  // A mounted pack skill rides as the session's opening context block; with
-  // no mount the blocks are byte-identical to the pre-pack-bot form.
-  const blocks = [];
+  const toolsOn = allowToolsFor(bot);
+  const prompt = toolsOn ? text : NO_TOOLS_PREFIX + text;
+  // Block order (design D2): identity first, then the mounted pack skill (if
+  // any), then the user's message. The identity block is what stops a bot from
+  // speaking as the cell's default operator persona.
+  const blocks = [{ type: "text", text: personaBlock(bot) }];
   const skillPreamble = mountedSkillPreamble(bot);
   if (skillPreamble) blocks.push({ type: "text", text: skillPreamble });
   blocks.push({ type: "text", text: prompt });
@@ -643,7 +702,7 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   }
 
   if (result.error) return reply(`Sorry — ${result.error}`);
-  if (result.usedTools && !allowTools()) {
+  if (result.usedTools && !toolsOn) {
     console.warn(`[bots] "${bot.name}" turn used tools under the no-tools posture; reply withheld`);
     return reply("Sorry — I cannot answer that from this channel.");
   }

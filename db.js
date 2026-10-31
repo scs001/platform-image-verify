@@ -995,6 +995,24 @@ const MIGRATIONS = [
       addCol("collections", "project_id");
     },
   },
+  {
+    version: 111,
+    // Bot identity and per-bot tool posture (harden-bot-reply-lane). Both live
+    // on the bot ROW, not in the credentials JSON: credentials are the secret
+    // face (maskBot publishes only their key names) and are REPLACED as a whole
+    // object on rotation, so a persona parked there would be wiped by an
+    // unrelated credential edit. `allow_tools` defaults to 0 = the spec's
+    // no-tools posture; the deployment env is only a ceiling on top of it.
+    // PRAGMA-guarded like every additive ALTER (a fresh DB never ran the ALTER
+    // and a re-run must not throw "duplicate column").
+    apply: (db) => {
+      const cols = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
+      if (!cols.has("persona")) db.exec("ALTER TABLE bots ADD COLUMN persona TEXT");
+      if (!cols.has("allow_tools")) {
+        db.exec("ALTER TABLE bots ADD COLUMN allow_tools INTEGER NOT NULL DEFAULT 0");
+      }
+    },
+  },
 ];
 
 function nowIso() {
@@ -2950,13 +2968,13 @@ export function deleteUserPreset(id) {
 // server/bots.js — never hand a row straight to res.json().
 
 const BOT_COLS =
-  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, zhi_room_id AS zhiRoomId, zhi_bridge_cursor AS zhiBridgeCursor, owner_email AS ownerEmail, created_at AS createdAt";
+  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, zhi_room_id AS zhiRoomId, zhi_bridge_cursor AS zhiBridgeCursor, owner_email AS ownerEmail, persona, allow_tools AS allowTools, created_at AS createdAt";
 
 function hydrateBot(row) {
   if (!row) return null;
   let credentials = {};
   try { credentials = JSON.parse(row.credentials); } catch { /* corrupt row → no creds */ }
-  return { ...row, enabled: !!row.enabled, credentials };
+  return { ...row, enabled: !!row.enabled, allowTools: !!row.allowTools, credentials };
 }
 
 export function listBots() {
@@ -2969,11 +2987,11 @@ export function getBot(id) {
   return hydrateBot(stmt(`SELECT ${BOT_COLS} FROM bots WHERE id = ?`).get(id));
 }
 
-export function addBot({ id, type, name, credentials, secret, enabled = true, ownerEmail = null, effort = null, contextBudget = null }) {
+export function addBot({ id, type, name, credentials, secret, enabled = true, ownerEmail = null, effort = null, contextBudget = null, persona = null, allowTools = false }) {
   if (!dbReady) return null;
   stmt(
-    `INSERT INTO bots (id, type, name, enabled, secret, credentials, effort, context_budget, created_at, owner_email)
-     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @effort, @context_budget, @created_at, @owner_email)`
+    `INSERT INTO bots (id, type, name, enabled, secret, credentials, effort, context_budget, created_at, owner_email, persona, allow_tools)
+     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @effort, @context_budget, @created_at, @owner_email, @persona, @allow_tools)`
   ).run({
     id,
     type,
@@ -2985,11 +3003,13 @@ export function addBot({ id, type, name, credentials, secret, enabled = true, ow
     context_budget: Number.isFinite(contextBudget) ? contextBudget : null,
     created_at: nowIso(),
     owner_email: ownerEmail ?? null,
+    persona: String(persona ?? "").trim() || null,
+    allow_tools: allowTools ? 1 : 0,
   });
   return getBot(id);
 }
 
-export function updateBot(id, { name, credentials, enabled, effort, contextBudget, zhiRoomId }) {
+export function updateBot(id, { name, credentials, enabled, effort, contextBudget, zhiRoomId, persona, allowTools }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { id };
@@ -3000,6 +3020,13 @@ export function updateBot(id, { name, credentials, enabled, effort, contextBudge
   }
   if (enabled !== undefined) { updates.push("enabled = @enabled"); params.enabled = enabled ? 1 : 0; }
   if (effort !== undefined) { updates.push("effort = @effort"); params.effort = effort || null; }
+  if (persona !== undefined) {
+    // Blank clears the persona: the turn then falls back to the neutral default
+    // identity block instead of inheriting the cell's preset voice.
+    updates.push("persona = @persona");
+    params.persona = String(persona ?? "").trim() || null;
+  }
+  if (allowTools !== undefined) { updates.push("allow_tools = @allow_tools"); params.allow_tools = allowTools ? 1 : 0; }
   if (contextBudget !== undefined) {
     updates.push("context_budget = @context_budget");
     params.context_budget = Number.isFinite(contextBudget) ? contextBudget : null;

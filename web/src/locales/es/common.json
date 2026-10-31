@@ -854,6 +854,11 @@
     "effortInherit": "Heredar (predeterminado)",
     "contextBudget": "Presupuesto de contexto (tokens/turno)",
     "contextBudgetUnlimited": "Sin límite",
+    "persona": "Identidad (persona pública)",
+    "personaPlaceholder": "p. ej.: Eres Zhiyu, el asistente público de esta plataforma. Responde solo a preguntas sobre capacidades del producto y cómo empezar.",
+    "personaHint": "Déjalo vacío para usar el texto neutro predeterminado: nombra al bot, responde solo con su propio conocimiento y nunca suplanta a operadores ni roles internos.",
+    "allowTools": "Permitir llamadas a herramientas",
+    "allowToolsHint": "Desactivado por defecto. Solo surte efecto cuando el límite de despliegue está activado; si se activa, las respuestas de este bot pueden incluir salida de herramientas.",
     "roomBinding": {
       "label": "Room binding (Zhiyu)",
       "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",

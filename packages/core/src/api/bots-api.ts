@@ -40,6 +40,10 @@ export interface Bot {
   effort: string | null;
   /** Declared per-turn context budget; null = unlimited. */
   contextBudget: number | null;
+  /** Identity text injected as the turn's leading block (harden-bot-reply-lane); null = neutral default. */
+  persona: string | null;
+  /** Per-bot tool switch; only effective when the deployment ceiling is open. */
+  allowTools: boolean;
 }
 
 // GET /api/bots/:id/qr — exactly one of the panel states, derived in the UI:
@@ -78,13 +82,23 @@ export async function createBot(input: {
   type: string;
   name: string;
   credentials: Record<string, string>;
+  persona?: string | null;
+  allowTools?: boolean;
 }): Promise<Bot> {
   return jsonOrThrow(await send("/api/bots", "POST", input));
 }
 
 export async function updateBot(
   id: string,
-  patch: { name?: string; credentials?: Record<string, string>; enabled?: boolean; effort?: string | null; contextBudget?: number | null },
+  patch: {
+    name?: string;
+    credentials?: Record<string, string>;
+    enabled?: boolean;
+    effort?: string | null;
+    contextBudget?: number | null;
+    persona?: string | null;
+    allowTools?: boolean;
+  },
 ): Promise<Bot> {
   return jsonOrThrow(await send(`/api/bots/${encodeURIComponent(id)}`, "PATCH", patch));
 }

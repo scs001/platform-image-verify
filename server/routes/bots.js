@@ -203,7 +203,7 @@ export function registerBotRoutes(ctx) {
 
   app.post("/api/bots", (req, res) => {
     if (!ctx.requireAdmin(req, res) || !requireDb(res)) return;
-    const { type, name, credentials, enabled = true } = req.body || {};
+    const { type, name, credentials, enabled = true, persona, allowTools } = req.body || {};
     if (!type || !name) return res.status(400).json({ error: "Missing type or name" });
     const invalid = bots.validateCredentials(type, credentials);
     if (invalid) return res.status(400).json({ error: invalid });
@@ -216,6 +216,11 @@ export function registerBotRoutes(ctx) {
       // and recreate to rotate — the platform's callback URL must change too).
       secret: crypto.randomBytes(24).toString("base64url"),
       enabled,
+      // Identity + tool posture (harden-bot-reply-lane): both are plain row
+      // fields, so they can be set at creation and edited later without a
+      // restart (reload() below picks them up).
+      persona,
+      allowTools,
       // Creator identity (fix-gateway-bot-owner): the gateway's webhook router
       // prefers this over session-ownership inference, which is arbitrary on
       // cells with mixed sign-in history.
@@ -229,7 +234,7 @@ export function registerBotRoutes(ctx) {
     if (!ctx.requireAdmin(req, res) || !requireDb(res)) return;
     const existing = db.getBot(req.params.id);
     if (!existing) return res.status(404).json({ error: "Bot not found" });
-    const { name, credentials, enabled, effort, contextBudget } = req.body || {};
+    const { name, credentials, enabled, effort, contextBudget, persona, allowTools } = req.body || {};
     // Config dimensions (add-agent-config-dims D5): the same shape gate the
     // fleet PATCH uses — a bot inherits the same effort/budget semantics.
     const dims = validateConfigDims({ effort, contextBudget }, effortUnionFrom(ctx?.dshModels));
@@ -256,6 +261,8 @@ export function registerBotRoutes(ctx) {
       enabled,
       ...(effort !== undefined ? { effort: dims.effort } : {}),
       ...(contextBudget !== undefined ? { contextBudget: dims.contextBudget } : {}),
+      ...(persona !== undefined ? { persona } : {}),
+      ...(allowTools !== undefined ? { allowTools } : {}),
     });
     bots.reload(bot);
     res.json(bots.maskBot(bot));

@@ -28,6 +28,7 @@ import { showToast } from "@/components/Toast";
 import { useChatStore } from "@platform/core";
 import { BotPlatformIcon } from "@/components/bots/BotPlatformIcons";
 import { BotQrPanel } from "@/components/bots/BotQrPanel";
+import { Textarea } from "@/components/ui/textarea";
 import {
   listBots,
   createBot,
@@ -249,6 +250,8 @@ function BotForm({
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [effort, setEffort] = useState(bot?.effort ?? "");
   const [contextBudget, setContextBudget] = useState(bot?.contextBudget != null ? String(bot.contextBudget) : "");
+  const [persona, setPersona] = useState(bot?.persona ?? "");
+  const [allowTools, setAllowTools] = useState(bot?.allowTools ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A bot's effective model varies turn to turn — the dropdown offers the
@@ -267,8 +270,10 @@ function BotForm({
             name,
             credentials,
             ...(savedBot ? { effort: effort || null, contextBudget: contextBudget.trim() === "" ? null : Number(contextBudget.trim()) } : {}),
+            persona: persona.trim() || null,
+            allowTools,
           })
-        : await createBot({ type, name, credentials });
+        : await createBot({ type, name, credentials, persona: persona.trim() || null, allowTools });
       setSavedBot(saved);
       // Stored server-side now; blanks must mean "keep" on any further save.
       setCredentials({});
@@ -349,6 +354,32 @@ function BotForm({
               />
             </div>
           ) : null}
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="bot-persona">{t("botsPage.persona")}</Label>
+            <Textarea
+              id="bot-persona"
+              value={persona}
+              placeholder={t("botsPage.personaPlaceholder")}
+              onChange={(e) => setPersona(e.target.value)}
+              rows={4}
+              data-testid="bot-persona"
+            />
+            <p className="text-xs text-muted-foreground">{t("botsPage.personaHint")}</p>
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-md border border-input p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-foreground">{t("botsPage.allowTools")}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{t("botsPage.allowToolsHint")}</p>
+            </div>
+            <Switch
+              checked={allowTools}
+              onCheckedChange={setAllowTools}
+              aria-label={t("botsPage.allowTools")}
+              data-testid="bot-allow-tools"
+            />
+          </div>
 
           {fields.map((f) => (
             <div key={f.key} className="flex flex-col gap-1.5">

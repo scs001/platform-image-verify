@@ -854,6 +854,11 @@
     "effortInherit": "Hériter (par défaut)",
     "contextBudget": "Budget de contexte (tokens/tour)",
     "contextBudgetUnlimited": "Illimité",
+    "persona": "Identité (persona public)",
+    "personaPlaceholder": "ex. : Vous êtes Zhiyu, l'assistant public de cette plateforme. Répondez uniquement aux questions sur les fonctionnalités et la mise en route.",
+    "personaHint": "Laissez vide pour le libellé neutre par défaut : il nomme le bot, répond uniquement à partir de ses propres connaissances et n'imite jamais un opérateur ni un rôle interne.",
+    "allowTools": "Autoriser les appels d'outils",
+    "allowToolsHint": "Désactivé par défaut. Sans effet tant que le plafond de déploiement n'est pas activé ; une fois activé, les réponses de ce bot peuvent contenir une sortie d'outil.",
     "roomBinding": {
       "label": "Room binding (Zhiyu)",
       "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",

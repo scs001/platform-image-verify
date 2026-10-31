@@ -6159,6 +6159,22 @@ v2 因版本不可变只能留档（notes 里写明它是演练版）。**律：
 **不用 HEAD 出片的原因**：HEAD 还夹带其他会话在途的 `server/cron-mcp.js`
 （+109 行）与 `server/routes/fleets.js`（+19 行），我没有验证过它们，不能替人上线。
 
+**上线与验收（三面同滚 `sha-da5fd8a`）**：run 绿（五项 smoke 全过）→ relay 两单
+`OK`（`09:21:55`/`09:27:47`，第一轮全量同步已顺手带上）→ digest 双等
+`sha256:4f28b3fa` → GitOps `feb244e`（三清单同时改，platform.yaml:54 /
+platform-demo.yaml:71 / facet.yaml:66）→ 双推 → ArgoCD hard refresh → `Synced`
+→ 三 deploy **全部** `successfully rolled out` → 三 pod imageID **同为**
+`sha256:4f28b3fa`。
+
+**决定性实证（修复是否真生效）**：facet pod 内 `GET /api/marketplace/marketplace.json`
+→ `plugins:76`，目标条目
+`{"name":"5y0_Gislp_OgElqq4zPswA","version":"3","category":"text","provenance":{"source":"official-adopted"}}`
+—— **标记出现了**（修复前此键恒缺）。
+**负样本对照**：全清单 76 条里带 `provenance` 的**只有 1 条**（就是它），社区包零误标。
+其余三面仍正常：详情 `version 3 / official true / badge facade / prov official-adopted`；
+官方聚合 `templates 16 / assistants 36`，目标 `adopted:true`；平台 `/health`
+`{status:ok, db:ok, redis:ok, providers:3}`；paas 首页 HTTP 200。
+
 **§15.108 续记四：7 条内网端点条目的需求单已逐线开出（2026-10-31）**
 复测改判：7 条在网关上 POST 全回 401（不存在名回 405）——**公网路由本已存在**，「网关没接它们」
 不成立；真正拦路的是 finddata 台账 §3.z 记录的旧约束（auth_server `_forward_headers` 白名单

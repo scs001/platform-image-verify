@@ -1232,11 +1232,14 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // internal tool names (the walkthrough caught "wire-ops" that way). Absent
   // declaration ⇒ nothing denied (byte-for-byte pre-change composition).
   const personaFaces = await packPersonaToolFaces();
+  // Shape discipline: the pod-style { mcpTools, byPreset } doc ONLY when
+  // per-preset sections exist; otherwise the legacy bare map byte-for-byte —
+  // the reader tells them apart by the own `byPreset` key, so a bare map must
+  // never accidentally gain that key (a wrapper object around an empty section
+  // set would be read as `mcpTools: { mcpTools: … }`).
+  const cappedTools = capByOperatorFace(scope.mcpTools, Object.keys(servers));
   writeToolFilterPatch(
-    {
-      mcpTools: capByOperatorFace(scope.mcpTools, Object.keys(servers)),
-      ...(personaFaces ?? {}),
-    },
+    personaFaces?.byPreset ? { mcpTools: cappedTools, byPreset: personaFaces.byPreset } : cappedTools,
     { denyTools: scope.publicFacing ? PUBLIC_FACING_DENIED_TOOLS : null },
   );
 

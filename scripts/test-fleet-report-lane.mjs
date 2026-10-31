@@ -231,6 +231,72 @@ test("attribution: running cluster task wins; preset resolves uniquely; ambiguit
   assert.equal(noPreset.kind, "none");
 });
 
+// ── 1.3b attribution under persona parking (fix-parked-preset-attribution) ──
+//
+// The 2026-10-31 production regression: `add-cell-session-persona` parks the
+// persona on the SESSION and deliberately leaves the runtime's deployment
+// default preset alone, so attribution that reads `ctx.currentPreset` resolves
+// the WRONG persona (or none) and every fleet post's report_status 409s
+// ("not a member of any fleet"). Live evidence: both cells' self reports
+// dropped to zero right after the first parked event (28 + 12 in the prior
+// 6h, 0 after). These cases pin the replacement signals.
+
+test("attribution: in-flight turn wins over the deployment default (parked round)", () => {
+  const m = fixtureMember(fleetDb, fixtureFleet(fleetDb).id, { targetId: "ob-scout" });
+  // The cell's deployment default is some OTHER persona — exactly what a
+  // parked round leaves behind.
+  const hit = resolveAttribution({
+    currentPreset: "fleet-architect",
+    openTurns: [{ fleetId: m.fleetId, memberId: m.id, turnId: "turn_1" }],
+    runningTasks: [],
+    personaMembers: [m],
+  });
+  assert.equal(hit.kind, "turn", "the in-flight turn names the post, not the runtime default");
+  assert.equal(hit.memberId, m.id);
+  assert.equal(hit.fleetId, m.fleetId);
+
+  // Without the ledger entry (degrade-open) the running task's sourceTag still
+  // names the post — this is what keeps a parked round attributable.
+  const viaTask = resolveAttribution({
+    currentPreset: "fleet-architect",
+    openTurns: [],
+    runningTasks: [{ state: "running", targetType: "persona", sourceTag: { fleetId: m.fleetId, memberId: m.id } }],
+    personaMembers: [m],
+  });
+  assert.equal(viaTask.kind, "job-sourceTag");
+  assert.equal(viaTask.memberId, m.id);
+});
+
+test("attribution: several turns in flight is not guessed", () => {
+  const m = fixtureMember(fleetDb, fixtureFleet(fleetDb).id, { targetId: "ob-scout" });
+  const twin = fixtureMember(fleetDb, m.fleetId, { title: "建模岗", targetId: "ob-modeler" });
+  const many = resolveAttribution({
+    currentPreset: "fleet-architect",
+    openTurns: [
+      { fleetId: m.fleetId, memberId: m.id, turnId: "turn_1" },
+      { fleetId: m.fleetId, memberId: twin.id, turnId: "turn_2" },
+    ],
+    runningTasks: [],
+    personaMembers: [m, twin],
+  });
+  assert.notEqual(many.kind, "turn", "no single post owns the call");
+  assert.equal(many.kind, "none", "the deployment default matches no post → honest rejection, never a guess");
+});
+
+test("attribution: chat lane (no in-flight turn) still resolves by live preset", () => {
+  const m = fixtureMember(fleetDb, fixtureFleet(fleetDb).id, { targetId: "Persona_A" });
+  const roster = (id) => id.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const chat = resolveAttribution({
+    currentPreset: "persona-a",
+    openTurns: [],
+    runningTasks: [],
+    personaMembers: [m],
+    rosterPresetId: roster,
+  });
+  assert.equal(chat.kind, "preset", "zero-change for the conversation lane");
+  assert.equal(chat.memberId, m.id);
+});
+
 // ── trends + views ──────────────────────────────────────────────────────────
 
 test("trends: system-computed; self-delta is a note; no predecessor = null", () => {

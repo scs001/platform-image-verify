@@ -93,20 +93,41 @@ export function validateReportPayload(payload) {
 
 // Resolve which post a report belongs to, from the server's own execution
 // context — never from caller input (design D3):
-//   1. A fleet CLUSTER task currently running: its fan-out rotates member
-//      presets, so the live preset would misattribute to a persona post; the
-//      running task's sourceTag names the true post.
-//   2. Otherwise the live preset: persona posts whose roster preset id (or raw
+//   1. An in-flight fleet turn (the run ledger's open turns): it names the post
+//      it executes, whatever the target kind. This is the signal that survives
+//      persona parking — a parked round mounts its persona on the SESSION and
+//      deliberately leaves the runtime's deployment default alone, so neither
+//      the live preset nor a "cluster-only" running-task scan can name it
+//      (fix-parked-preset-attribution: the 06:11Z rollout zeroed self reports
+//      fleet-wide because attribution read the deployment default).
+//   2. A fleet task currently running whose `sourceTag` names its post
+//      (cron-materialized fleet rounds). The wire shape carries sourceTag but
+//      NOT `origin` (internal), so dispatch/handoff/manual shapes rely on the
+//      ledger branch above; this one covers rounds whose ledger entry is
+//      unavailable (ledger degrade-open) and cluster fan-outs that rotate
+//      member presets.
+//   3. Otherwise the live preset: persona posts whose roster preset id (or raw
 //      target id) equals it. Exactly one → that post; several → ambiguous
 //      rejection (overlapping user-built fleets must not be guessed); none →
 //      the caller is not a fleet member.
-export function resolveAttribution({ currentPreset, runningTasks = [], personaMembers = [], rosterPresetId = (id) => id }) {
-  const runningClusterFleetTasks = runningTasks.filter(
-    (t) => t?.state === "running" && t?.sourceTag?.fleetId && t?.targetType === "cluster",
-  );
-  if (runningClusterFleetTasks.length === 1) {
-    const tag = runningClusterFleetTasks[0].sourceTag;
-    return { kind: "cluster-task", fleetId: tag.fleetId, memberId: tag.memberId, task: runningClusterFleetTasks[0] };
+//
+// Every branch reads SERVER state; none reads the caller's payload.
+export function resolveAttribution({ currentPreset, runningTasks = [], openTurns = [], personaMembers = [], rosterPresetId = (id) => id }) {
+  const openFleetTurns = (Array.isArray(openTurns) ? openTurns : []).filter((t) => t?.fleetId && t?.memberId);
+  if (openFleetTurns.length === 1) {
+    const turn = openFleetTurns[0];
+    return { kind: "turn", fleetId: turn.fleetId, memberId: turn.memberId, turn };
+  }
+  // Several turns in flight (a chain crossing posts, or overlapping fleets):
+  // no single post owns this call. Fall through — the preset branch may still
+  // resolve a chat-lane caller, and an unresolvable one is rejected honestly
+  // rather than guessed (design D1: uniqueness or nothing).
+
+  const runningFleetTasks = runningTasks.filter((t) => t?.state === "running" && t?.sourceTag?.fleetId);
+  if (runningFleetTasks.length === 1) {
+    const task = runningFleetTasks[0];
+    const kind = task.targetType === "cluster" ? "cluster-task" : "job-sourceTag";
+    return { kind, fleetId: task.sourceTag.fleetId, memberId: task.sourceTag.memberId ?? null, task };
   }
 
   if (!currentPreset) {

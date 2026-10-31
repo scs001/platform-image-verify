@@ -109,3 +109,88 @@ test("flag on: a custom preset declares a face or inherits the union", async () 
   await writeMcpPatch({ agentPreset: inherited.id });
   assert.deepEqual(filterDoc().mcpTools["srv-b"].sort(), ["read", "search"]);
 });
+
+// ── per-preset tool faces (fix-parked-preset-attribution D2) ────────────────
+//
+// A parked round mounts its persona on the SESSION and deliberately leaves the
+// runtime's deployment default alone, so the cell's single MCP patch is
+// composed for the DEFAULT persona. Without per-preset sections the parked
+// persona's session resolves the whole-home map — i.e. someone else's face
+// (2026-10-31 live: the ontology scout's session held fleet-architect's tools
+// and `wire_datasets_list` searched to zero hits). These pin the sections.
+
+test("per-preset: each pack persona gets its OWN allowlist section", async () => {
+  process.env.FULL_MODE_TOOL_SCOPE = "on";
+  // Two personas on the SAME server with DIFFERENT faces — the exact shape that
+  // makes "the default's face" visibly wrong for the other one.
+  db.upsertInstalledPack({
+    packId: "pack-faces",
+    name: "pack-faces",
+    version: 1,
+    manifest: {
+      name: "pack-faces",
+      mcpServers: [{ registryName: "srv-f", allowTools: ["datasets_list", "object_search", "action_propose"] }],
+      agents: [
+        { id: "face-scout", name: "盘账岗", persona: "p", resources: { mcpTools: { "srv-f": ["datasets_list"] } } },
+        { id: "face-deployer", name: "提案岗", persona: "p", resources: { mcpTools: { "srv-f": ["action_propose"] } } },
+      ],
+    },
+    report: {},
+  });
+  await writeMcpPatch();
+  const doc = filterDoc();
+  assert.ok(doc.byPreset, "the doc carries per-preset sections");
+  assert.deepEqual(doc.byPreset["face-scout"].mcpTools["srv-f"], ["datasets_list"], "scout keeps only its own tools");
+  assert.deepEqual(doc.byPreset["face-deployer"].mcpTools["srv-f"], ["action_propose"], "deployer keeps only its own tools");
+  // The top-level map stays the UNION (the guard/register-shadow upper bound).
+  assert.deepEqual(doc.mcpTools["srv-f"].sort(), ["action_propose", "datasets_list", "object_search"]);
+});
+
+test("per-preset: an undeclared persona falls back to the PACK-level face", async () => {
+  db.upsertInstalledPack({
+    packId: "pack-nofaces",
+    name: "pack-nofaces",
+    version: 1,
+    manifest: {
+      name: "pack-nofaces",
+      mcpServers: [{ registryName: "srv-g", allowTools: ["read"] }],
+      agents: [{ id: "face-plain", name: "普通岗", persona: "p" }],
+    },
+    report: {},
+  });
+  await writeMcpPatch();
+  const doc = filterDoc();
+  // effectiveMcpTools' existing rule: an agent without its own declaration
+  // inherits the pack-level allowTools — the section mirrors that, never an
+  // invented empty face.
+  assert.deepEqual(doc.byPreset?.["face-plain"]?.mcpTools["srv-g"], ["read"]);
+  assert.deepEqual(doc.mcpTools["srv-g"], ["read"]);
+});
+
+test("per-preset: a pack persona referencing NO server contributes no section", async () => {
+  db.upsertInstalledPack({
+    packId: "pack-empty",
+    name: "pack-empty",
+    version: 1,
+    manifest: {
+      name: "pack-empty",
+      mcpServers: [],
+      agents: [{ id: "face-solo", name: "单岗", persona: "p" }],
+    },
+    report: {},
+  });
+  await writeMcpPatch();
+  const doc = filterDoc();
+  assert.equal(doc.byPreset?.["face-solo"], undefined, "no MCP reference ⇒ no section (nothing to narrow)");
+});
+
+test("per-preset: uninstalling the pack drops its sections with it", async () => {
+  db.deleteInstalledPack("pack-faces");
+  db.deleteInstalledPack("pack-nofaces");
+  db.deleteInstalledPack("pack-empty");
+  await writeMcpPatch();
+  const doc = filterDoc();
+  assert.equal(doc.byPreset?.["face-scout"], undefined);
+  assert.equal(doc.byPreset?.["face-deployer"], undefined);
+  assert.equal(doc.byPreset?.["face-plain"], undefined);
+});

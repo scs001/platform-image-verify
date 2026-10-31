@@ -1213,6 +1213,23 @@ ctx.takeFleetModelNotices = (memberId) => {
   return notices;
 };
 
+// Attribution fact bridge (fix-parked-preset-attribution D3): the report bridge
+// resolves WHICH post a call belongs to, and the turn's event row is written
+// AFTER it (at the turn's end). Stash the decision under the memberId so the
+// recorder can land it as `detail.attribution` — one-shot, same discipline as
+// the model notices above. Turns serialize on the shared runtime, so one entry
+// per member is turn-accurate; a turn that filed no report leaves nothing.
+const fleetAttributionFacts = new Map();
+ctx.recordFleetAttribution = (memberId, fact) => {
+  if (!memberId || !fact) return;
+  fleetAttributionFacts.set(memberId, fact);
+};
+ctx.takeFleetAttribution = (memberId) => {
+  const fact = fleetAttributionFacts.get(memberId) ?? null;
+  fleetAttributionFacts.delete(memberId);
+  return fact;
+};
+
 // Run ledger (agent-fleet-runs): the execution instance behind the cockpit's
 // live canvas and replay timeline. begin/end/settle are called from the
 // cron-runner seam; dispatch (routes/fleets.js) and the handoff trigger below
@@ -1331,8 +1348,25 @@ setInterval(sweepRuns, 60 * 60 * 1000).unref();
 ctx.recordFleetTurnEvent = (job, outcome, meta) => {
   try {
     ctx.captureFleetTurnFact?.(job, outcome, meta);
-    if (meta?.ledgerTurn) return ctx.fleetTurnLedger.end(job, meta.ledgerTurn, outcome, meta);
-    return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
+    // Attribution fact (fix-parked-preset-attribution D3): a report filed
+    // during this turn stashed HOW it was attributed; land it on the turn row
+    // as detail.attribution so "which post did this call belong to" is readable
+    // from the ledger instead of inferred from logs. Keyed by memberId (turns
+    // serialize on the shared runtime ⇒ one entry per member is turn-accurate);
+    // a turn that filed no report leaves the detail byte-for-byte unchanged.
+    const memberId = job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null;
+    const attributionFact = memberId ? ctx.takeFleetAttribution?.(memberId) ?? null : null;
+    const shapedOutcome = attributionFact
+      ? {
+          ...outcome,
+          detail: {
+            ...(outcome?.detail && typeof outcome.detail === "object" ? outcome.detail : {}),
+            attribution: attributionFact,
+          },
+        }
+      : outcome;
+    if (meta?.ledgerTurn) return ctx.fleetTurnLedger.end(job, meta.ledgerTurn, shapedOutcome, meta);
+    return recordTurnEvent(getFleetDatabase(), job, shapedOutcome, { ...meta, rosterPresetId });
   } catch (e) {
     console.warn(`[fleets] turn event record failed: ${e?.message || e}`);
     return null;

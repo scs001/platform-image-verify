@@ -5,7 +5,8 @@
 > 相关文档：[marketplace-landscape.md](marketplace-landscape.md)（全景调研与事实核对表）、
 > [universal-keyless-mcp-auth.md](universal-keyless-mcp-auth.md)（免键车道）、
 > [client-matrix.md](client-matrix.md)（六客户端能力矩阵）。
-> Change：`openspec/changes/add-marketplace-projection-fanout`。
+> Spec：`openspec/specs/ecosystem-access`（投影需求已并入；change
+> `add-marketplace-projection-fanout` 已于 2026-10-31 归档）。
 
 ## 1. 这条通道是什么
 
@@ -103,18 +104,24 @@ OAuth discovery，静态 header 塞进去只会让没有凭据的客户端**装�
 ## 5. 上架流程
 
 > **管道宿仓（重要）**：`workflow_dispatch` 要求 workflow 在**默认分支**，而主仓
-> 主仓（私有）是 PRIVATE 且其账号私有 Actions 额度已耗尽（2011/2000，run 5 秒即红）。
+> （私有）是 PRIVATE 且其账号私有 Actions 额度已耗尽（2011/2000，run 5 秒即红）。
 > 所以实际执行仓是 **`FindDataTechnology/mcp-registry-publish`**（公开、只放管道）：
 > 公开仓标准 runner 免费无限，OIDC 又按**仓库所属组织**授权命名空间。
 > 脚本与 workflow 的**源仍在主仓**（`scripts/publish-mcp-registry.mjs` +
 > `.github/workflows/mcp-registry-publish.yml`），改那里再同步过去，不要两头各写一套。
+>
+> **两仓一致性（2026-10-31 起）**：workflow 与脚本自 `reconcile-registry-workflow-source`
+> 起**两仓逐字节一致**；源在主仓，改动后同步执行仓（`gh api -X PUT …/contents/…`）。
+> 判据：`diff` 主仓文件与 `gh api` 解码结果为空。`retire` 通道与默认 skip 名单已在两侧
+> 同型；`environment:` 两侧均未引用（加门步骤见 §5.1 第 3 条）。
 
 ### 5.1 一次性准备（人工，每个执行者一次）
 
 1. 执行者账号必须是 **`FindDataTechnology` 组织 Owner**（OIDC 按组织角色授权，不按名字）；
 2. 确认 `facet` 服务可匿名访问 `/api/mcp-registry.json`；
-3. （可选）给发布仓的 `publish` job 加 Environment 审批门——当前 workflow 未引用
-   `environment:`，加门需在 workflow 里补一行并建同名 Environment。
+3. （可选）给发布仓的 `publish` job 加 Environment 审批门——两仓 workflow 一致，
+   均**未引用** `environment:`；加门需在 workflow 里补一行，并在**执行仓**建同名
+   Environment（主仓建了也没用，它不承担运行）。
 
 ### 5.2 dry-run（先验，不写也不发）
 

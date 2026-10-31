@@ -16,7 +16,7 @@
 
 ## 3. 出片与验收
 
-- [ ] 3.1 公开门（快照仓 CI+image 双绿）→ 池出片 → relay/ccr → GitOps 双面 bump（bump 前核祖先）
-- [ ] 3.2 真机验收：取证舰队 persona 成员（已装包 serving 部署的 agent 键，如 wx-alpha——需该包对走查
+- [x] 3.1 公开门（快照仓 CI+image 双绿）→ 池出片 → relay/ccr → GitOps 双面 bump（bump 前核祖先）
+- [x] 3.2 真机验收：取证舰队 persona 成员（已装包 serving 部署的 agent 键，如 wx-alpha——需该包对走查
   账号可见）+ carrier=runner → 命中远端执行器 `carrier=remote`；跨包同名键 → runner-ambiguous
 - [ ] 3.3 台账 §15.x + 双分支收正 + 归档（主 spec 同步律：MODIFIED 携完整需求块）

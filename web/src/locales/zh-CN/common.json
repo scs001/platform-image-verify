@@ -2022,7 +2022,18 @@
       "lit": "已点燃，智能体团队进入在跑。",
       "doneBtn": "完成"
     },
-    "draftsBuilderPointer": "也可以在对话里让智能体作者帮你起草——它采访你、编 manifest、落成可编辑草稿。"
+    "draftsBuilderPointer": "也可以在对话里让智能体作者帮你起草——它采访你、编 manifest、落成可编辑草稿。",
+    "specSheet": {
+      "emptyPersona": "无角色文本",
+      "emptySkills": "无技能",
+      "emptyMcp": "无工具引用",
+      "skillBody": "技能正文",
+      "compactPersonaMissing": "无角色",
+      "compactSkills": "技能 {{n}}",
+      "compactSkillsZero": "无技能",
+      "compactTools": "工具 {{n}}",
+      "compactToolsZero": "无工具"
+    }
   },
   "overlay": {
     "title": "资源微调",

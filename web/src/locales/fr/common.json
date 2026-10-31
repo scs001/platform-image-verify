@@ -2022,7 +2022,18 @@
       "stepPay": "Finalisation de lachat…",
       "stepProvision": "Provisionnement de l'équipe…"
     },
-    "draftsBuilderPointer": "Ou laissez l'auteur de packs le rédiger dans le chat — il vous interviewe, compile le manifest et dépose un brouillon éditable."
+    "draftsBuilderPointer": "Ou laissez l'auteur de packs le rédiger dans le chat — il vous interviewe, compile le manifest et dépose un brouillon éditable.",
+    "specSheet": {
+      "emptyPersona": "Aucun texte de persona",
+      "emptySkills": "Aucune compétence",
+      "emptyMcp": "Aucune référence d'outil",
+      "skillBody": "Corps de la compétence",
+      "compactPersonaMissing": "Sans persona",
+      "compactSkills": "Compétences {{n}}",
+      "compactSkillsZero": "Aucune compétence",
+      "compactTools": "Outils {{n}}",
+      "compactToolsZero": "Aucun outil"
+    }
   },
   "overlay": {
     "title": "Ajustement des ressources",

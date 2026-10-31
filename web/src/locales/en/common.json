@@ -2022,7 +2022,18 @@
       "lit": "Lit — team is now running.",
       "doneBtn": "Done"
     },
-    "draftsBuilderPointer": "Or let the pack author draft it in chat — it interviews you, compiles the manifest, and lands an editable draft."
+    "draftsBuilderPointer": "Or let the pack author draft it in chat — it interviews you, compiles the manifest, and lands an editable draft.",
+    "specSheet": {
+      "emptyPersona": "No persona text",
+      "emptySkills": "No skills",
+      "emptyMcp": "No tool references",
+      "skillBody": "Skill body",
+      "compactPersonaMissing": "No persona",
+      "compactSkills": "Skills {{n}}",
+      "compactSkillsZero": "No skills",
+      "compactTools": "Tools {{n}}",
+      "compactToolsZero": "No tools"
+    }
   },
   "overlay": {
     "title": "Resource adjustments",

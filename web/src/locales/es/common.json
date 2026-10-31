@@ -2022,7 +2022,18 @@
       "stepPay": "Completando la compra…",
       "stepProvision": "Aprovisionando el equipo…"
     },
-    "draftsBuilderPointer": "O deja que el autor de packs lo redacte en el chat — te entrevista, compila el manifest y guarda un borrador editable."
+    "draftsBuilderPointer": "O deja que el autor de packs lo redacte en el chat — te entrevista, compila el manifest y guarda un borrador editable.",
+    "specSheet": {
+      "emptyPersona": "Sin texto de persona",
+      "emptySkills": "Sin habilidades",
+      "emptyMcp": "Sin referencias de herramientas",
+      "skillBody": "Cuerpo de la habilidad",
+      "compactPersonaMissing": "Sin persona",
+      "compactSkills": "Habilidades {{n}}",
+      "compactSkillsZero": "Sin habilidades",
+      "compactTools": "Herramientas {{n}}",
+      "compactToolsZero": "Sin herramientas"
+    }
   },
   "overlay": {
     "title": "Ajuste de recursos",

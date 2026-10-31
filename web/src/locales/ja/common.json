@@ -2022,7 +2022,18 @@
       "stepPay": "購入手続きを完了中…",
       "stepProvision": "パラメータに従いエージェントチームを実体化中…"
     },
-    "draftsBuilderPointer": "チャット内でパック作者に下書きさせることができます——インタビューして manifest を組み立て、編集可能な下書きとして保存します。"
+    "draftsBuilderPointer": "チャット内でパック作者に下書きさせることができます——インタビューして manifest を組み立て、編集可能な下書きとして保存します。",
+    "specSheet": {
+      "emptyPersona": "ペルソナ文なし",
+      "emptySkills": "スキルなし",
+      "emptyMcp": "ツール参照なし",
+      "skillBody": "スキル本文",
+      "compactPersonaMissing": "ペルソナなし",
+      "compactSkills": "スキル {{n}}",
+      "compactSkillsZero": "スキルなし",
+      "compactTools": "ツール {{n}}",
+      "compactToolsZero": "ツールなし"
+    }
   },
   "overlay": {
     "title": "リソース調整",

@@ -164,6 +164,34 @@ test("mode expansion + dispatchAllowed", () => {
   assert.equal(dispatchAllowed({ members, orchestration: {} }, "a", "b").ok, false, "no edges, no mode ⇒ refused");
 });
 
+// fix-fleet-chain-operability D1: a declared handoff edge grants dispatch_post
+// between exactly its two endpoints, both directions (forward = hand off,
+// backward = return blocked work). Live 2026-10-31: the ontology fleet's
+// five-post pipeline could not hand off at all — dispatch_post rejected every
+// pair despite the four declared handoff edges, because dispatchAllowed only
+// honored kind:"dispatch" and supervisor mode.
+test("handoff edge grants paired dispatch (both directions)", () => {
+  const members = [P("a"), P("b"), P("c")];
+  const orch = { mode: "schedule", edges: [{ kind: "handoff", from: "a", to: "b" }] };
+
+  assert.equal(dispatchAllowed({ members, orchestration: orch }, "a", "b").ok, true, "forward = hand off");
+  assert.equal(dispatchAllowed({ members, orchestration: orch }, "b", "a").ok, true, "backward = return blocked work");
+  assert.equal(dispatchAllowed({ members, orchestration: orch }, "a", "c").ok, false, "undeclared third post still refused");
+  assert.equal(dispatchAllowed({ members, orchestration: orch }, "b", "c").ok, false, "no transitive grant along the chain");
+  assert.equal(dispatchAllowed({ members, orchestration: { edges: [{ kind: "handoff", from: "a", to: "b" }] } }, "a", "a").ok, false, "self still refused");
+  assert.equal(dispatchAllowed({ members, orchestration: {} }, "a", "b").ok, false, "no edges ⇒ refused");
+  // Explicit dispatch edge on a DIFFERENT pair still works and grants nothing
+  // extra; trigger/report edges grant nothing.
+  assert.equal(
+    dispatchAllowed({ members, orchestration: { edges: [{ kind: "trigger", from: "cron(0 9 * * *)", to: "a" }, { kind: "report", from: "b", to: "a" }] } }, "a", "b").ok,
+    false,
+    "trigger/report edges are not dispatch grants",
+  );
+  // The grant is read-time only: expandedEdges must not grow implicit rows.
+  const expanded = expandedEdges({ members, orchestration: orch });
+  assert.equal(expanded.length, 1, "handoff grant never materializes as an extra edge");
+});
+
 // ── 2. bridge: dispatch guards + task shape ─────────────────────────────────
 
 async function startServer(ctx) {

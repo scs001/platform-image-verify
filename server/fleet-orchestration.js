@@ -233,15 +233,30 @@ export function validateOrchestration({ members = [], orchestration = null } = {
   return { ok: errors.length === 0, errors, warnings, edges: expandedEdges({ members, orchestration }) };
 }
 
-// May `from` dispatch to `to` right now? Explicit dispatch edge or supervisor
-// mode's implicit all→all permission. Same-fleet is structural (both refs
-// come from one fleet's member set).
+// May `from` dispatch to `to` right now? Three grant sources: an explicit
+// dispatch edge, supervisor mode's implicit all→all permission, or a declared
+// handoff edge between the pair (fix-fleet-chain-operability D1) — forward
+// (from→to) is the handoff itself, backward (to→from) is the return channel
+// (a reviewer handing blocked drafts back to the modeler). The pack publish
+// gate forbids declaring handoff cycles, so a "declare the reverse edge"
+// escape hatch structurally cannot exist for pipelines; one declared
+// collaboration edge therefore carries both directions between exactly its
+// two endpoints. Read-time only — nothing lands as an implicit stored edge,
+// and the grant never extends beyond the declared pair. Same-fleet is
+// structural (both refs come from one fleet's member set).
 export function dispatchAllowed({ orchestration = null } = {}, from, to) {
   if (from === to) return { ok: false, error: "a post cannot dispatch to itself" };
   if (orchestration?.mode === "supervisor") return { ok: true };
   const edges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];
-  const hit = edges.some((e) => e?.kind === "dispatch" && e.from === from && e.to === to);
-  return hit ? { ok: true } : { ok: false, error: "no dispatch edge or supervisor mode grants this pair — declare the edge to allow it" };
+  const hit = edges.some(
+    (e) =>
+      (e?.kind === "dispatch" && e.from === from && e.to === to) ||
+      (e?.kind === "handoff" &&
+        ((e.from === from && e.to === to) || (e.from === to && e.to === from))),
+  );
+  return hit
+    ? { ok: true }
+    : { ok: false, error: "no dispatch edge, supervisor mode, or declared handoff pair grants this pair — declare the edge to allow it" };
 }
 
 // The handoff edges leaving a post (runtime helper for the turn seam).

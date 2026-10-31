@@ -111,7 +111,7 @@ const TOOLS = [
     name: "dispatch_post",
     description:
       "Dispatch a self-contained task to ANOTHER post of YOUR cluster (集群派发, supervisor pattern). Async by construction: this returns immediately, the target post runs its turn, and the summary arrives in YOUR next turn — never wait. " +
-      "Only pairs your cluster's orchestration allows (a declared dispatch edge, or supervisor mode). Refused: cross-cluster, self, array posts, depth>0 turns, over the per-post/per-cluster caps.",
+      "Only pairs your cluster's orchestration allows (a declared dispatch edge, a declared handoff pair — forward to hand off, backward to return work — or supervisor mode). Refused: cross-cluster, self, array posts, depth>0 turns, over the per-post/per-cluster caps.",
     inputSchema: {
       type: "object",
       properties: {
@@ -184,8 +184,11 @@ async function toolReport({ metrics, resources, blockers, summary }) {
     `- slots accepted: ${data.slotsAccepted.length ? data.slotsAccepted.join(", ") : "(none)"}`,
   ];
   if (data.slotsUnrecognized?.length) {
+    const declared = Array.isArray(data.declaredSlots) ? data.declaredSlots : [];
     lines.push(
-      `- UNRECOGNIZED slot keys (kept in details, not shown on the card — re-check your post's declared slots): ${data.slotsUnrecognized.join(", ")}`,
+      `- UNRECOGNIZED slot keys (kept in details, not shown on the card — your declared slots are: ${
+        declared.length ? declared.join(", ") : "(none declared)"
+      }; use those keys): ${data.slotsUnrecognized.join(", ")}`,
     );
   }
   lines.push(`- window resets at: ${new Date(data.windowResetsAt).toISOString()}`);

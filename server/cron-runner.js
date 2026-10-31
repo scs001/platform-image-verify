@@ -63,6 +63,33 @@ export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null }
 }
 
 const IDLE_POLL_MS = 250;
+
+// Per-post turn budget (fix-fleet-chain-operability D3): member
+// cadence.turnTimeoutMs, clamped to [2min, 30min] — the floor keeps a
+// mistyped 0/negative from turning a round into an instant kill, the ceiling
+// bounds how long one post can hold the shared child (the credential-delivery
+// hard cap keys off the longest single-round budget). Unset/invalid/unreadable
+// → the historical 10-minute default, byte-for-byte unchanged behavior.
+// Fleet-member rounds only; plain cron tasks never read this.
+const TURN_BUDGET_FLOOR_MS = 2 * 60 * 1000;
+const TURN_BUDGET_CEILING_MS = 30 * 60 * 1000;
+const TURN_BUDGET_DEFAULT_MS = 10 * 60 * 1000;
+
+export function resolveTurnBudgetMs(job, { db = null } = {}) {
+  const fleetId = job?.sourceTag?.fleetId ?? null;
+  const memberId = job?.sourceTag?.memberId ?? null;
+  if (!fleetId || !memberId) return TURN_BUDGET_DEFAULT_MS;
+  try {
+    const fdb = db ?? getFleetDatabase();
+    const member = fdb?.getMember?.(memberId);
+    const declared = member?.cadence?.turnTimeoutMs;
+    const n = Number(declared);
+    if (!Number.isFinite(n) || n <= 0) return TURN_BUDGET_DEFAULT_MS;
+    return Math.min(Math.max(n, TURN_BUDGET_FLOOR_MS), TURN_BUDGET_CEILING_MS);
+  } catch {
+    return TURN_BUDGET_DEFAULT_MS;
+  }
+}
 // Monotonic round sequence (unique rotated child ids even within one ms).
 let roundSeqCounter = 0;
 const PRESET_SWITCH_ATTEMPTS = 3;
@@ -1119,7 +1146,7 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
   // the three executors. Degrade open: a recording failure must never fail
   // the turn it observed.
   ctx.runCronJobTurn = async (job, { turnTimeoutMs } = {}) => {
-    const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
+    const timeoutMs = turnTimeoutMs || resolveTurnBudgetMs(job);
     // Monotonic per-cell sequence alongside the wall clock (retry storms and
     // catch-up runs can start two executions inside one millisecond — the
     // rotated child id must stay unique or the round resumes stale history).

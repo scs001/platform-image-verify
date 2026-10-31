@@ -392,6 +392,40 @@ test("fleet-context: renders child slots, blockers, overview; no-children segmen
   assert.match(soloText, /本岗位无直接下级/);
 });
 
+// fix-fleet-chain-operability D2: the post's OWN block carries its declared
+// KPI slot keys — report_status marks invented keys UNRECOGNIZED and nothing
+// else revealed the declared face (live 2026-10-31: all five ontology-fleet
+// posts invented keys; the reviewer escalated the invisibility).
+test("fleet-context: own block lists declared KPI slot keys verbatim", async () => {
+  const fleet = fixtureFleet(fleetDb, "槽位舰队");
+  fixtureMember(fleetDb, fleet.id, {
+    id: "m_gate",
+    title: "纪律校验闸",
+    targetId: "persona-gate",
+    kpiSlots: [
+      { key: "passed", label: "过闸", unit: "份" },
+      { key: "blocked", label: "拦截", unit: "份" },
+    ],
+    cadence: { cron: "0 * * * *", tz: null, promptTemplate: "校验 {{fleetContext}}", enabled: true },
+  });
+  const text = await buildFleetContext({ fleetId: fleet.id, memberId: "m_gate" }, {}, contextDeps(fleetDb));
+  assert.match(text, /本岗声明的报数槽位/);
+  assert.match(text, /passed（过闸\/份）/);
+  assert.match(text, /blocked（拦截\/份）/);
+  assert.match(text, /report_status 的 metrics 键就用这些/);
+
+  // A post with no declared slots gets no line (never an empty placeholder).
+  fixtureMember(fleetDb, fixtureFleet(fleetDb, "裸舰队").id, {
+    id: "m_bare",
+    title: "裸岗",
+    targetId: "persona-bare",
+    kpiSlots: [],
+    cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true },
+  });
+  const bare = await buildFleetContext({ fleetId: fixtureFleet(fleetDb, "裸舰队").id, memberId: "m_bare" }, {}, contextDeps(fleetDb));
+  assert.ok(!bare.includes("本岗声明的报数槽位"), "no declared slots ⇒ no line");
+});
+
 test("fleet-context: per-post 4KB and total 24KB truncation marks; dead fleet throws", async () => {
   const fleet = fixtureFleet(fleetDb);
   const _ceo = fixtureMember(fleetDb, fleet.id, { id: "m_ceo2", title: "CEO", targetId: "persona-ceo2", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "x {{fleetContext}}", enabled: true } });

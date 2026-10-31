@@ -162,7 +162,7 @@ function normalizeCadence(cadence, { confirmed } = {}) {
   if (typeof cadence !== "object" || Array.isArray(cadence)) {
     return { ok: false, error: "cadence must be an object or null" };
   }
-  const { cron: expr, tz, promptTemplate, enabled } = cadence;
+  const { cron: expr, tz, promptTemplate, enabled, turnTimeoutMs } = cadence;
   if (!expr || typeof expr !== "string") {
     return { ok: false, error: "cadence.cron is required" };
   }
@@ -174,16 +174,31 @@ function normalizeCadence(cadence, { confirmed } = {}) {
   if (tz !== undefined && tz !== null && typeof tz !== "string") {
     return { ok: false, error: "cadence.tz must be an IANA timezone string or null" };
   }
+  // Per-post turn budget (fix-fleet-chain-operability D3): type-checked here,
+  // clamped at read time (cron-runner resolveTurnBudgetMs) — the write face
+  // must not silently drop the field (normalizeCadence used to rebuild the
+  // object with only the known keys) nor judge the range twice.
+  let outTurnTimeoutMs;
+  if (turnTimeoutMs !== undefined) {
+    if (turnTimeoutMs === null) {
+      outTurnTimeoutMs = null;
+    } else {
+      const n = Number(turnTimeoutMs);
+      if (!Number.isFinite(n) || n <= 0) {
+        return { ok: false, error: "cadence.turnTimeoutMs must be a positive number of milliseconds or null" };
+      }
+      outTurnTimeoutMs = Math.round(n);
+    }
+  }
   // Dense-cadence guard (design D7): interval under 10 minutes requires an
   // explicit confirmation flag — the UI shows the cost warning first.
   const period = cronPeriodMs(expr, tz || null);
   if (period != null && period < DENSE_CADENCE_MS && confirmed !== true) {
     return { ok: false, error: "cadence fires more often than every 10 minutes — confirm the cost to proceed", code: "cadence_confirmation_required", periodMs: period };
   }
-  return {
-    ok: true,
-    cadence: { cron: expr, tz: tz || null, promptTemplate, enabled: enabled !== false },
-  };
+  const out = { cron: expr, tz: tz || null, promptTemplate, enabled: enabled !== false };
+  if (outTurnTimeoutMs !== undefined) out.turnTimeoutMs = outTurnTimeoutMs;
+  return { ok: true, cadence: out };
 }
 
 // Tool posts (add-tool-posts): the cadence prompt IS the tool's arguments —
@@ -647,6 +662,10 @@ export function createFleetRoutes(app, ctx = null) {
         memberTitle: member.title,
         fleetName: db.getFleet(member.fleetId)?.name ?? member.fleetId,
         reportId: report.id,
+        // fix-fleet-chain-operability D2: the declared keys, echoed so the
+        // UNRECOGNIZED hint can point at the actual key face instead of
+        // telling the post to "re-check" a declaration nothing exposes.
+        declaredSlots: [...declared],
         slotsAccepted: submitted.filter((k) => declared.has(k)),
         slotsUnrecognized: submitted.filter((k) => !declared.has(k)),
         windowResetsAt: now + windowMs,

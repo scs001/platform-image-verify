@@ -64,6 +64,38 @@ async function outcomeText(task) {
   return null;
 }
 
+// Re-anchor the summary's persona onto the initiator session (add-cell-session-
+// persona). Two mechanisms by child capability: a preset/set-capable child
+// PARKS the initiator persona onto the initiator session — a live session
+// already composes it (refusal → nothing to fix), a dormant one would resume
+// the runtime default (the last fan-out target's persona), so the park
+// re-anchors it before the resume; no restart, and the runtime default stays
+// where the fan-out left it (per-session persona world). An older child keeps
+// the byte-parity restart switch. Either way a failure degrades open — the
+// summary still lands, in whatever persona the session composes. Exported
+// for tests.
+export async function reanchorInitiatorPersona(ctx, initiator, wanted) {
+  if (!wanted || !ctx.currentPreset || ctx.currentPreset === wanted) return;
+  const bridge = ctx.dshBridge;
+  const canPark =
+    !!bridge &&
+    typeof bridge.hasLiveMethod === "function" &&
+    bridge.hasLiveMethod("preset/set") &&
+    typeof bridge.setPreset === "function";
+  if (canPark) {
+    try {
+      if (bridge.preparedPreset?.(initiator) !== wanted) {
+        await bridge.setPreset({ sessionId: initiator, presetId: wanted });
+      }
+    } catch { /* refused (live session already in persona) or park error — summary still lands */ }
+  } else if (typeof ctx.switchPresetTo === "function") {
+    // idle already waited, and switchPresetTo serializes its own restart.
+    try {
+      await ctx.switchPresetTo(wanted);
+    } catch { /* stayed on the target persona — the summary still lands */ }
+  }
+}
+
 async function runInjection(initiator) {
   const ctx = ctxRef;
   if (!ctx?.dshBridge?.isReady()) return;
@@ -87,15 +119,9 @@ async function runInjection(initiator) {
   for (const t of group) t.aggregated = true;
   await engine.saveTasks();
 
-  // The fan-out leaves the runtime on the last TARGET persona; the summary is
-  // the initiating persona's voice — switch back first (idle already waited,
-  // and switchPresetTo serializes its own restart).
-  const wanted = group[0].initiatorPreset;
-  if (wanted && ctx.currentPreset && ctx.currentPreset !== wanted && typeof ctx.switchPresetTo === "function") {
-    try {
-      await ctx.switchPresetTo(wanted);
-    } catch { /* stayed on the target persona — the summary still lands */ }
-  }
+  // The summary is the initiating persona's voice — re-anchor it (exported
+  // for tests).
+  await reanchorInitiatorPersona(ctx, initiator, group[0].initiatorPreset);
 
   const described = await Promise.all(
     group.map(async (t) => ({ t, outcome: await outcomeText(t) })),

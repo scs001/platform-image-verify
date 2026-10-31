@@ -22,6 +22,7 @@ import { clusterMemoryFor, memoryInjectionFor } from "./cluster-memory.js";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 import { classifyErrorKind } from "./fleet-events.js";
 import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
+import { classifyPresetSetError } from "../dsh-bridge.js";
 
 const IDLE_POLL_MS = 250;
 // Monotonic round sequence (unique rotated child ids even within one ms).
@@ -225,6 +226,51 @@ async function switchPresetForJob(ctx, preset, timeoutMs) {
   return { ok: false, error: "could not switch the agent for the scheduled task (runtime stayed busy)" };
 }
 
+// ── Per-session persona parking (add-cell-session-persona) ──────────────────
+//
+// The scheduled lane's persona turns park the turn's preset onto THIS turn's
+// child conversation id before its first prompt — the session composes it at
+// lazy creation/resume (platform-preset-bridge parked semantics) and the
+// runtime's deployment default is never touched. The restart ladder
+// (switchPresetForJob above) remains as the EXPLICIT fallback for: an older
+// child without preset/set, a live session whose composition mismatches (park
+// refused by contract), or a park hard-error. Fallbacks are recorded, never
+// silent (spec: cron-module「定时回合的 persona 组合按会话驻留」）.
+//
+// Returns { legacy: null } when parked (or already parked with the same
+// preset this generation), { legacy: reason } when the caller must take the
+// byte-parity restart path.
+async function parkPersonaForTurn(ctx, preset, childSessionId) {
+  const bridge = ctx.dshBridge;
+  if (!bridge || typeof bridge.hasLiveMethod !== "function" || !bridge.hasLiveMethod("preset/set")) {
+    return { legacy: "preset/set unsupported by this child" };
+  }
+  if (typeof bridge.setPreset !== "function") {
+    return { legacy: "bridge predates preset/set parking" };
+  }
+  if (typeof bridge.preparedPreset === "function" && bridge.preparedPreset(childSessionId) === preset) {
+    // Already parked with the same preset on THIS child generation — the
+    // composition is settled; prompting resumes it as-is.
+    return { legacy: null, already: true };
+  }
+  try {
+    await bridge.setPreset({ sessionId: childSessionId, presetId: preset });
+    return { legacy: null };
+  } catch (err) {
+    const cls = classifyPresetSetError(err);
+    if (cls.refused) return { legacy: "live session composition mismatch (park refused)" };
+    return { legacy: `park failed: ${cls.error.message}` };
+  }
+}
+
+// Stamp the turn's preset path onto an outcome's detail — the observability
+// face of the fallback contract (detail.presetPath: "parked" |
+// "legacy:<reason>").
+function withPresetPath(result, presetPath) {
+  if (!presetPath) return result;
+  return { ...result, detail: { ...(result.detail ?? {}), presetPath } };
+}
+
 // Post-model normalization (add-fleet-post-model D1/D2/D5): the exact mirror
 // of the preset normalization above — every persona turn LANDS the runtime on
 // the resolution chain's first roster hit instead of riding whatever the
@@ -423,22 +469,52 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   if (!ready.ok) return ready;
 
 
+  const sessionId = job.sessionId || `cron-${job.id}`;
+  // The park target must exist BEFORE the preset decision (add-cell-session-
+  // persona): the persona is parked onto THIS turn's child conversation id —
+  // fleet rounds rotate it per round, plain bound-session tasks reuse the
+  // mirror id. Pure function; hoisting it is observationally identical.
+  const childSessionId = roundChildSessionId(job, startedAt, job.roundSeq ?? 0);
+
   // preset binding: a job without one (legacy record) runs under whatever
   // preset is live, matching its pre-change behavior.
-  // `releaseReservation` is taken BEFORE the switch: it restarts the child,
-  // and bridge.ready drains the web queue (concurrent-chat-sessions D2).
-  // Without the reservation a queued web prompt would be dispatched into the
-  // restart this job is about to use.
+  //
+  // Park path (default when the child declares preset/set): park the turn's
+  // preset onto the child conversation id — no restart, and the runtime's
+  // deployment default is never moved. Legacy path (explicit fallback):
+  // byte-for-byte the pre-change behavior. `releaseReservation` is taken
+  // BEFORE the legacy switch only: it restarts the child, and bridge.ready
+  // drains the web queue (concurrent-chat-sessions D2) — without the
+  // reservation a queued web prompt would be dispatched into that restart.
+  // The idle wait is shared discipline on BOTH paths (a scheduled turn never
+  // interleaves a streaming user turn — turn close is process-serialized, so
+  // starting a fleet round mid-chat would starve the user's close); the
+  // legacy path's wait lives inside switchPresetForJob.
   let releaseReservation = null;
   // Hoisted for the lane pre-check and the retry walk below: a legacy job
   // without a preset never normalizes, and its turn runs on whatever is live.
   let modeled = null;
+  // The preset path this turn took — "parked" | "legacy:<reason>" | null
+  // (no-preset legacy record). Rides the outcome detail.
+  let presetPath = null;
   if (job.preset) {
-    releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
-    const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
-    if (!switched.ok) {
-      releaseReservation?.();
-      return switched;
+    const park = await parkPersonaForTurn(ctx, job.preset, childSessionId);
+    if (park.legacy) {
+      presetPath = `legacy:${park.legacy}`;
+      console.warn(`[cron-runner] preset park fell back to restart for ${job.id}: ${park.legacy}`);
+      releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
+      const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
+      if (!switched.ok) {
+        releaseReservation?.();
+        return withPresetPath(switched, presetPath);
+      }
+    } else {
+      presetPath = "parked";
+      try {
+        await waitForIdle(ctx, timeoutMs);
+      } catch (err) {
+        return withPresetPath({ ok: false, error: err.message }, presetPath);
+      }
     }
     // Post model (add-fleet-post-model F2): normalize AFTER the preset lands —
     // the two switches short-circuit independently, so a same-persona model
@@ -447,15 +523,12 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     modeled = await normalizeModelForJob(ctx, job.preset);
     if (!modeled.ok) {
       releaseReservation?.();
-      return modeled;
+      return withPresetPath(modeled, presetPath);
     }
     // Carry the post's context budget to the settlement seam (add-agent-config-dims):
     // the budget is a property of THIS turn's post, so it rides the turn result.
     if (Number.isFinite(modeled.contextBudget)) contextBudget = modeled.contextBudget;
   }
-
-  const sessionId = job.sessionId || `cron-${job.id}`;
-  const childSessionId = roundChildSessionId(job, startedAt, job.roundSeq ?? 0);
 
   // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
   // agent which post it executes, so it can name its own production source
@@ -488,11 +561,11 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     const br = breakerState(laneId);
     if (br.open) {
       releaseReservation?.();
-      return {
+      return withPresetPath({
         ok: false,
         skipped: true,
         error: `llm lane ${laneId} open until ${new Date(br.openUntil).toISOString()} — round skipped (${br.failures}/${br.threshold} upstream failures in window)`,
-      };
+      }, presetPath);
     }
   }
 
@@ -592,8 +665,8 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     })
     .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
 
-  if (result.error) return { ok: false, error: result.error, detail: result.detail ?? null };
-  return { ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo };
+  if (result.error) return withPresetPath({ ok: false, error: result.error, detail: result.detail ?? null }, presetPath);
+  return withPresetPath({ ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo }, presetPath);
 }
 
 // ── Cluster task orchestration (agent-cluster-platform) ─────────────────────

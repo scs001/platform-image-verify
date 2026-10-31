@@ -89,6 +89,21 @@ export function patchArgs(paths = {}) {
   return order.filter(Boolean).flatMap((p) => ["--patch", p]);
 }
 
+// Classify a `preset/set` failure (add-cell-session-persona D2): the
+// live-session refusal is a CONTRACT, not a string coincidence — the presets
+// patch bridge's spec (dsh-runtime-bridge, "Per-session preset selection parks
+// until the session exists") pins the "persona is creation-time composition"
+// wording, so matching it is contract-backed. An UNMATCHED error must never be
+// misread as a refusal: it returns refused:false and the caller takes the
+// legacy restart fallback with the error recorded.
+export function classifyPresetSetError(err) {
+  const msg = String(err?.message ?? err ?? "");
+  if (/persona is creation-time composition|already has a live agent/i.test(msg)) {
+    return { refused: true };
+  }
+  return { refused: false, error: err instanceof Error ? err : new Error(msg || "preset/set failed") };
+}
+
 export class DshBridge {
   #client = null;
   #subscription = null;
@@ -115,6 +130,14 @@ export class DshBridge {
   // `presets/list` of the current child, cleared on every (re)spawn so a
   // restart (which may carry a different profile composition) re-reads it.
   #presetCache = null;
+  // Sessions whose persona was PARKED on this child generation
+  // (add-cell-session-persona): sessionId → presetId, recorded after a
+  // successful `preset/set`. Same generation discipline as #presetCache —
+  // a (re)spawn empties it, because the new child holds no live agents and
+  // every persisted session composes from a fresh park (or the runtime
+  // default) at its next prompt. `deleteSession` drops the entry with the
+  // session (fleet rounds rotate child ids, so stale entries are pure noise).
+  #preparedPresets = new Map();
   // True while a restart() is in flight (shutdown → spawn → initialize). A
   // second restart (e.g. a set_model WS call arriving mid-restart) is rejected
   // with a restart-in-progress error rather than racing the spawn ladder.
@@ -206,6 +229,29 @@ export class DshBridge {
     return this.#client.request("tools/set", { sessionId, server, enabled });
   }
 
+  // Whether this child generation accepts `preset/set` reads through the
+  // existing hasLiveMethod("preset/set") probe — callers take the legacy
+  // restart path when it answers false (add-cell-session-persona D2).
+
+  // The preset this child generation already has parked for the session
+  // (null = not parked here). The turn executor consults this before
+  // prompting so a bound session is parked once per generation, not per turn.
+  preparedPreset(sessionId) {
+    return this.#preparedPresets.get(sessionId) ?? null;
+  }
+
+  // Park a per-session persona (add-cell-session-persona): parked-only
+  // upstream — the composition mounts when the session is lazily created or
+  // resumed; a LIVE session refuses with the contract message. A successful
+  // park records the generation-local entry; a refusal must NOT (the live
+  // session keeps its own composition and the caller falls back).
+  async setPreset({ sessionId, presetId }) {
+    this.#requireReady();
+    await this.#client.request("preset/set", { sessionId, presetId });
+    this.#preparedPresets.set(sessionId, presetId);
+    return true;
+  }
+
   async #spawn() {
     // Build CLI args: profile + optional patch overlays (dsh-profile generators).
     // The flag order is load-bearing (see patchArgs).
@@ -257,6 +303,9 @@ export class DshBridge {
     this.#ready = true;
     // Fresh child = fresh roster: the preset cache is per generation.
     this.#presetCache = null;
+    // Fresh child = no live agents: every prepared-park entry died with the
+    // old process; the next prompt re-parks (or composes the runtime default).
+    this.#preparedPresets.clear();
     this.#subscription = client.subscribe();
     const generation = ++this.#generation;
     this.#pump(generation);
@@ -395,6 +444,9 @@ export class DshBridge {
     if (!this.#ready || !this.#client) return false;
     try {
       await this.#client.request("session/delete", { sessionId });
+      // The session is gone from this child generation — its prepared-park
+      // entry is noise after this point (a deleted session is never resumed).
+      this.#preparedPresets.delete(sessionId);
       return true;
     } catch (err) {
       console.warn(`[dsh] session/delete for ${sessionId} failed (ignored): ${err.message}`);

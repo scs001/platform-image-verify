@@ -43,9 +43,12 @@ const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default:
 const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default: m.FleetPage })));
 const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ default: m.FleetsPage })));
 const MachinesPage = lazy(() => import("@/pages/MachinesPage").then((m) => ({ default: m.MachinesPage })));
-const BlueprintStudioPage = lazy(() =>
-  import("@/pages/BlueprintStudioPage").then((m) => ({ default: m.BlueprintStudioPage })),
-);
+// fold-blueprint-into-studio D2 (two-step retire): the old route redirects
+// to the studio team mode; the BlueprintStudioPage file stays on disk until
+// the walkthrough confirms zero regression, then the dead code is removed.
+function BlueprintRouteRedirect() {
+  return <Navigate to="/studio?from=blueprint" replace />;
+}
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
@@ -315,7 +318,7 @@ export default function App() {
                 composition surface emitting into the existing lifecycles. */}
             <Route path="/studio" element={<AgentStudioPage />} />
 
-            <Route path="/blueprints" element={<BlueprintStudioPage />} />
+            <Route path="/blueprints" element={<BlueprintRouteRedirect />} />
 
             {/* 萬星·智语 (add-zhiyu-room): rooms list + the room itself. */}
             <Route path="/zhiyu" element={<ZhiyuPage />} />

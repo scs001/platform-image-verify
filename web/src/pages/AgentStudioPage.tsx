@@ -16,8 +16,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { Plus, Trash2, TriangleAlert } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Plus, TriangleAlert } from "lucide-react";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import * as presetsApi from "@/lib/presets-api";
 import * as packsApi from "@/lib/packs-api";
@@ -25,9 +25,10 @@ import type { PackManifestAgent, PackManifestMcp, PackManifestSkill, PackSummary
 import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { FleetGraph, type GraphEdge, type GraphMember } from "@/components/FleetGraph";
 import { cn } from "@/lib/utils";
+import { BlueprintTeamMode } from "@/components/studio/BlueprintTeamMode";
+import { AgentBucketsEditor } from "@/components/studio/AgentBucketsEditor";
 
 // The working document: a pack manifest in the making (client state only).
 interface StudioDoc {
@@ -62,23 +63,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SectionCard({ title, children, testid }: { title: string; children: React.ReactNode; testid: string }) {
-  return (
-    <div className="rounded-md border border-border p-3" data-testid={testid}>
-      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
-      {children}
-    </div>
-  );
-}
-
 export function AgentStudioPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // fold-blueprint-into-studio: the retired /blueprints route lands here with
+  // from=blueprint — team tab (the blueprint working surface) selected.
+  const fromBlueprint = searchParams.get("from") === "blueprint";
   const { skills, marketCatalog, load } = useExtensionsStore();
 
   const [doc, setDoc] = useState<StudioDoc>(emptyDoc);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"agent" | "team">("agent");
+  const [tab, setTab] = useState<"agent" | "team">(fromBlueprint ? "team" : "agent");
   const [verdict, setVerdict] = useState<{ valid: boolean; errors: { error: string; errors?: { error: string; entry?: string }[] }[] } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [emitBusy, setEmitBusy] = useState<string | null>(null);
@@ -197,38 +193,6 @@ export function AgentStudioPage() {
     [marketCatalog],
   );
 
-  const importLocalSkill = (name: string) => {
-    const src = localSkills.find((s) => s.name === name);
-    if (!src || doc.skills.some((s) => s.name === name)) return;
-    // Import copies the local skill's body into the document (inline content —
-    // the pack publish path needs it; the preset path reads the names back).
-    setDoc((d) => ({
-      ...d,
-      skills: [...d.skills, { name: src.name, description: src.description ?? "", content: "" }],
-    }));
-  };
-  const addInlineSkill = () =>
-    setDoc((d) => ({
-      ...d,
-      skills: [...d.skills, { name: `skill-${++seq.current}`, description: "", content: "" }],
-    }));
-  const patchSkill = (name: string, patch: Partial<PackManifestSkill>) =>
-    setDoc((d) => ({ ...d, skills: d.skills.map((s) => (s.name === name ? { ...s, ...patch } : s)) }));
-  const removeSkill = (name: string) =>
-    setDoc((d) => ({ ...d, skills: d.skills.filter((s) => s.name !== name) }));
-
-  const addMcp = (registryName: string) => {
-    if (!registryName || doc.mcpServers.some((m) => m.registryName === registryName)) return;
-    setDoc((d) => ({ ...d, mcpServers: [...d.mcpServers, { registryName }] }));
-  };
-  const patchMcp = (registryName: string, patch: Partial<PackManifestMcp>) =>
-    setDoc((d) => ({
-      ...d,
-      mcpServers: d.mcpServers.map((m) => (m.registryName === registryName ? { ...m, ...patch } : m)),
-    }));
-  const removeMcp = (registryName: string) =>
-    setDoc((d) => ({ ...d, mcpServers: d.mcpServers.filter((m) => m.registryName !== registryName) }));
-
   // Team tab: the document's fleet block, rendered read-only (v1 — no edge
   // affordances; the graph reflects the document exactly as it stands).
   const fleetMembers = useMemo<GraphMember[]>(() => {
@@ -306,14 +270,24 @@ export function AgentStudioPage() {
         {/* ── Canvas ── */}
         <main className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="studio-canvas">
           {tab === "team" ? (
-            <div className="mx-auto max-w-2xl" data-testid="studio-team-view">
-              <FleetGraph
-                members={fleetMembers}
-                edges={fleetEdges}
-                kindLabels={{}}
-                emptyLabel={t("studio.team.empty")}
-              />
-              <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.team.readOnlyHint")}</p>
+            <div className="flex h-full min-h-0 flex-col" data-testid="studio-team-view">
+              {/* Working-document fleet graph (read-only, v1): collapsed by
+                  default — the blueprint working surface is the fold's focus. */}
+              <details className="mx-auto w-full max-w-3xl px-3 pt-3" data-testid="studio-doc-graph">
+                <summary className="cursor-pointer text-xs text-muted-foreground">{t("studio.team.tab")}</summary>
+                <div className="mt-2">
+                  <FleetGraph
+                    members={fleetMembers}
+                    edges={fleetEdges}
+                    kindLabels={{}}
+                    emptyLabel={t("studio.team.empty")}
+                  />
+                  <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.team.readOnlyHint")}</p>
+                </div>
+              </details>
+              <div className="min-h-0 flex-1">
+                <BlueprintTeamMode autoFocusPool={fromBlueprint} />
+              </div>
             </div>
           ) : selected ? (
             <div className="mx-auto max-w-2xl space-y-3">
@@ -328,163 +302,15 @@ export function AgentStudioPage() {
                 />
               </Field>
 
-              {/* Bucket 1 · persona */}
-              <SectionCard title={t("packs.detail.agents")} testid="studio-bucket-persona">
-                <Textarea
-                  rows={6}
-                  value={selected.persona}
-                  onChange={(e) => patchAgent(selected.id, { persona: e.target.value })}
-                  data-testid="studio-agent-persona"
-                />
-              </SectionCard>
-
-              {/* Document-level fields (manifest envelope) */}
-              <SectionCard title={t("studio.doc.section")} testid="studio-doc-fields">
-                <div className="space-y-2">
-                  <Field label={t("studio.doc.name")}>
-                    <Input value={doc.name} onChange={(e) => patchDoc({ name: e.target.value })} data-testid="studio-doc-name" />
-                  </Field>
-                  <Field label={t("studio.doc.description")}>
-                    <Textarea
-                      rows={2}
-                      value={doc.description}
-                      onChange={(e) => patchDoc({ description: e.target.value })}
-                      data-testid="studio-doc-description"
-                    />
-                  </Field>
-                  <Field label={t("studio.doc.tags")}>
-                    <Input
-                      value={doc.tags.join(", ")}
-                      onChange={(e) =>
-                        patchDoc({ tags: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })
-                      }
-                      data-testid="studio-doc-tags"
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-
-              {/* Bucket 2 · skills */}
-              <SectionCard title={t("packs.detail.skills")} testid="studio-bucket-skills">
-                <div className="space-y-2">
-                  {doc.skills.map((s) => (
-                    <div key={s.name} className="rounded-md border border-border p-2" data-testid={`studio-skill-${s.name}`}>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={s.name}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setDoc((d) => ({
-                              ...d,
-                              skills: d.skills.map((x) => (x.name === s.name ? { ...x, name: next } : x)),
-                            }));
-                          }}
-                          className="font-mono text-xs"
-                          data-testid={`studio-skill-name-${s.name}`}
-                        />
-                        <Button size="icon" variant="ghost" onClick={() => removeSkill(s.name)} aria-label={t("studio.remove")}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      <Input
-                        value={s.description}
-                        placeholder={t("studio.skill.description")}
-                        onChange={(e) => patchSkill(s.name, { description: e.target.value })}
-                        className="mt-1 text-xs"
-                      />
-                      <Textarea
-                        rows={4}
-                        value={s.content}
-                        placeholder={t("studio.skill.content")}
-                        onChange={(e) => patchSkill(s.name, { content: e.target.value })}
-                        className="mt-1 font-mono text-xs"
-                      />
-                    </div>
-                  ))}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      className="rounded-md border border-border bg-background px-2 py-1 text-xs"
-                      value=""
-                      onChange={(e) => importLocalSkill(e.target.value)}
-                      data-testid="studio-skill-import"
-                    >
-                      <option value="">{t("studio.skill.importLocal")}</option>
-                      {localSkills
-                        .filter((s) => !doc.skills.some((d) => d.name === s.name))
-                        .map((s) => (
-                          <option key={s.name} value={s.name}>
-                            {s.name}
-                          </option>
-                        ))}
-                    </select>
-                    <Button size="sm" variant="outline" onClick={addInlineSkill} data-testid="studio-skill-add">
-                      <Plus className="h-3.5 w-3.5" /> {t("studio.skill.inline")}
-                    </Button>
-                  </div>
-                </div>
-              </SectionCard>
-
-              {/* Bucket 3 · tools */}
-              <SectionCard title={t("packs.detail.mcp")} testid="studio-bucket-mcp">
-                <div className="space-y-2">
-                  {doc.mcpServers.map((m) => (
-                    <div key={m.registryName} className="rounded-md border border-border p-2" data-testid={`studio-mcp-${m.registryName}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{m.registryName}</span>
-                        <Button size="icon" variant="ghost" onClick={() => removeMcp(m.registryName)} aria-label={t("studio.remove")}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      {(() => {
-                        const tools = marketCatalog?.mcpServers?.find((s) => s.name === m.registryName)?.toolList ?? [];
-                        if (tools.length === 0) return null;
-                        return (
-                          <div className="mt-1 flex flex-wrap gap-1" data-testid={`studio-mcp-tools-${m.registryName}`}>
-                            {tools.map((tool: string) => {
-                              const on = m.allowTools?.includes(tool) ?? false;
-                              return (
-                                <button
-                                  key={tool}
-                                  type="button"
-                                  data-testid={`studio-mcp-tool-${m.registryName}-${tool}`}
-                                  onClick={() => {
-                                    const next = on
-                                      ? (m.allowTools ?? []).filter((x) => x !== tool)
-                                      : [...(m.allowTools ?? []), tool];
-                                    patchMcp(m.registryName, { allowTools: next.length ? next : undefined });
-                                  }}
-                                  className={cn(
-                                    "rounded-full border px-2 py-0.5 font-mono text-[11px]",
-                                    on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
-                                  )}
-                                >
-                                  {on ? "✓ " : "+ "}
-                                  {tool}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  ))}
-                  <select
-                    className="rounded-md border border-border bg-background px-2 py-1 text-xs"
-                    value=""
-                    onChange={(e) => addMcp(e.target.value)}
-                    data-testid="studio-mcp-add"
-                  >
-                    <option value="">{t("studio.mcp.pick")}</option>
-                    {catalogServers
-                      .filter((s) => !doc.mcpServers.some((d) => d.registryName === s.name))
-                      .map((s) => (
-                        <option key={s.name} value={s.name}>
-                          {s.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </SectionCard>
+              {/* Three buckets via the SHARED editor (fold D1: one editor,
+                  two hosts — the blueprint team mode renders the same one). */}
+              <AgentBucketsEditor
+                value={doc}
+                localSkills={localSkills}
+                catalogServers={catalogServers}
+                onChange={(next: { agents: typeof doc.agents; skills?: typeof doc.skills; mcpServers: typeof doc.mcpServers }) => setDoc((d) => ({ ...d, ...next }))}
+                testIdPrefix="studio-bucket"
+              />
             </div>
           ) : (
             <p className="p-8 text-center text-sm text-muted-foreground" data-testid="studio-empty">

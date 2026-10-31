@@ -2068,7 +2068,41 @@
        "tab": "Estructura de equipo",
        "empty": "Este documento aún no tiene estructura de equipo (bloque fleet) — el grafo muestra el documento, solo lectura",
        "readOnlyHint": "Grafo de solo lectura: los miembros se editan en las tarjetas de rol; las aristas de orquestación corresponden a blueprints/plantillas"
+    },
+    "blueprint": {
+    "pick": "Abrir un borrador de blueprint…",
+    "new": "Nuevo blueprint",
+    "untitled": "Blueprint sin título",
+    "empty": "Abre un borrador del pool o crea uno — el ciclo de vida del blueprint (validar → probar → aprobar → fundir) y su pool siguen igual",
+    "status": {
+        "draft": "Borrador",
+        "approved": "Aprobado",
+        "cast": "Fundido"
       },
+    "track": {
+        "form": "Formulario",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "Nombre de escena",
+        "oneLine": "Posicionamiento en una línea",
+        "outOfScope": "Fuera de alcance"
+      },
+    "judge": "Modelo juez",
+    "judgeFollowDefault": "Seguir el predeterminado del despliegue",
+    "judgeFollows": "Seguir el predeterminado (resuelve a {{model}})",
+    "sources": "Fuentes de datos (colecciones de conocimiento / nombres del registro)",
+    "pickCollection": "Elegir una colección de conocimiento…",
+    "jsonHint": "Las secciones de organización/monitorización/aceptación se editan en la pista JSON; ambas pistas comparten fuente y pasan la cadena completa al enviar.",
+    "jsonApply": "Analizar y cargar en el formulario",
+    "saveValidate": "Guardar y validar",
+    "trial": "Prueba",
+    "trialReport": "Informe de prueba",
+    "approve": "Aprobar",
+    "cast": "Fundir al mercado",
+    "castRef": "Fundido: pack {{packId}} v{{version}}",
+    "savedValid": "Guardado, validación verde"
+    },
     "validate": {
        "running": "Validando…",
        "ok": "Válido — los mismos validadores que el portal de publicación",

@@ -2068,7 +2068,41 @@
        "tab": "团队结构",
        "empty": "这份文档还没有团队结构（fleet 段）——团队图随文档呈现，只读",
        "readOnlyHint": "团队图只读：成员经角色卡编辑，编导边由蓝图/模板承载"
+    },
+    "blueprint": {
+    "pick": "打开蓝图草稿…",
+    "new": "新建蓝图",
+    "untitled": "未命名蓝图",
+    "empty": "从草稿池打开一份蓝图，或新建——蓝图生命周期（校验→试跑→批准→铸造）与蓝图纸草稿池原样承载",
+    "status": {
+        "draft": "草稿",
+        "approved": "已批准",
+        "cast": "已铸造"
       },
+    "track": {
+        "form": "表单轨",
+        "json": "JSON 轨"
+      },
+    "boundary": {
+        "name": "场景名",
+        "oneLine": "一句话定位",
+        "outOfScope": "边界外"
+      },
+    "judge": "判据模型",
+    "judgeFollowDefault": "跟随部署默认",
+    "judgeFollows": "跟随部署默认（解析到 {{model}}）",
+    "sources": "数据来源（知识库集合/注册处名）",
+    "pickCollection": "选取知识库集合…",
+    "jsonHint": "岗位编制/监控/验收等段经 JSON 轨编辑；两轨同源，提交均过完整校验链。",
+    "jsonApply": "解析并载入表单轨",
+    "saveValidate": "保存并校验",
+    "trial": "试跑",
+    "trialReport": "试跑报告",
+    "approve": "批准",
+    "cast": "铸造上架",
+    "castRef": "已铸造：pack {{packId}} v{{version}}",
+    "savedValid": "已保存，校验绿"
+    },
     "validate": {
        "running": "校验中…",
        "ok": "校验通过——与发布门同一套校验器",

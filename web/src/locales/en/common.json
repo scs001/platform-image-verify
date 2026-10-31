@@ -2068,7 +2068,41 @@
        "tab": "Team structure",
        "empty": "This document has no team structure (fleet block) yet — the graph renders the document, read-only",
        "readOnlyHint": "Read-only graph: members edit via role cards; orchestration edges ride blueprints/templates"
+    },
+    "blueprint": {
+    "pick": "Open a blueprint draft…",
+    "new": "New blueprint",
+    "untitled": "Untitled blueprint",
+    "empty": "Open a draft from the pool, or create one — the blueprint lifecycle (validate → trial → approve → cast) and its draft pool ride unchanged",
+    "status": {
+        "draft": "Draft",
+        "approved": "Approved",
+        "cast": "Cast"
       },
+    "track": {
+        "form": "Form",
+        "json": "JSON"
+      },
+    "boundary": {
+        "name": "Scene name",
+        "oneLine": "One-line positioning",
+        "outOfScope": "Out of scope"
+      },
+    "judge": "Judge model",
+    "judgeFollowDefault": "Follow deployment default",
+    "judgeFollows": "Follow deployment default (resolves to {{model}})",
+    "sources": "Data sources (knowledge collections / registry names)",
+    "pickCollection": "Pick a knowledge collection…",
+    "jsonHint": "Roster/monitoring/acceptance sections edit via the JSON track; both tracks share one source and pass the full validation chain on submit.",
+    "jsonApply": "Parse and load into the form track",
+    "saveValidate": "Save and validate",
+    "trial": "Trial run",
+    "trialReport": "Trial report",
+    "approve": "Approve",
+    "cast": "Cast to market",
+    "castRef": "Cast: pack {{packId}} v{{version}}",
+    "savedValid": "Saved, validation green"
+    },
     "validate": {
        "running": "Validating…",
        "ok": "Valid — the same validators the publish gate runs",

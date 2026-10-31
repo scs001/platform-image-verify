@@ -57,10 +57,13 @@ test("presentation is the shared sheet; the team graph is read-only", () => {
 });
 
 test("MCP references are picker-only (no free-form registryName entry)", () => {
-  assert.match(page, /studio-mcp-add/, "the picker select exists");
-  // Every mcpServers mutation derives its registryName from the catalog
-  // (select onChange) — no text Input bound to registryName.
-  assert.ok(!/registryName[:=]\s*[a-z]*\.target\.value/.test(page), "no input binds registryName from typed text");
+  // The picker lives in the SHARED editor (one editor, two hosts).
+  assert.match(bucketsEditor, /mcp-add/, "the picker select exists in the shared editor");
+  for (const host of [page, teamMode]) {
+    // Every mcpServers mutation derives its registryName from the catalog
+    // (select onChange) — no text Input bound to registryName.
+    assert.ok(!/registryName[:=]\s*[a-z]*\.target\.value/.test(host), "no input binds registryName from typed text");
+  }
 });
 
 test("the working document is client state — no second store", () => {
@@ -84,4 +87,45 @@ test("i18n: studio chrome keys exist in all five locales", () => {
     }
     assert.ok(typeof d.agentsPage?.studio === "string" && d.agentsPage.studio.length > 0, `${loc}: agentsPage.studio present`);
   }
+});
+
+// ── fold-blueprint-into-studio ────────────────────────────────────────────────
+const teamMode = read("web/src/components/studio/BlueprintTeamMode.tsx");
+const bucketsEditor = read("web/src/components/studio/AgentBucketsEditor.tsx");
+const blueprintPage = read("web/src/pages/BlueprintStudioPage.tsx");
+
+test("fold: blueprint team mode rides the existing lifecycle endpoints, untouched", () => {
+  // Same /api/blueprints pool + lifecycle calls — no second lifecycle, no
+  // server changes in this change at all.
+  const calls = bpCalls(teamMode);
+  for (const fn of ["validateBlueprint", "approveBlueprint", "castBlueprint", "runTrial", "updateBlueprint", "listBlueprints"]) {
+    assert.ok(calls.includes(fn), `team mode uses bp.${fn} (existing lifecycle face)`);
+  }
+  assert.ok(!teamMode.includes("castPackId: "), "no direct pack minting from the studio");
+});
+
+function bpCalls(src) {
+  return [...src.matchAll(/bp\.(\w+)/g)].map((m) => m[1]);
+}
+
+test("fold: three buckets render through the SHARED editor (one editor, two hosts)", () => {
+  assert.match(teamMode, /<AgentBucketsEditor/, "blueprint team mode consumes the shared editor");
+  assert.match(page, /<AgentBucketsEditor/, "the studio canvas consumes the shared editor");
+  assert.ok(!/showSkills=\{true\}/.test(teamMode), "blueprints carry no skills bucket");
+});
+
+test("fold: JSON track never bypasses validation (dual-track, save→validate)", () => {
+  const save = teamMode.slice(teamMode.indexOf("const saveAndValidate"), teamMode.indexOf("};", teamMode.indexOf("const saveAndValidate")));
+  assert.match(save, /updateBlueprint/, "edits land through the blueprint PUT (expectVersion)");
+  assert.match(save, /validateBlueprint/, "validation runs the stored content after save");
+  assert.match(teamMode, /studio-blueprint-json-apply/, "JSON track applies into the form track");
+});
+
+test("fold: old route redirects (two-step retire), pool reachable from team tab", () => {
+  assert.match(app, /BlueprintRouteRedirect/);
+  assert.match(app, /to="\/studio\?from=blueprint"/, "old /blueprints redirects into the studio team mode");
+  assert.match(app, /fromBlueprint|from=blueprint/, "studio honors the source marker");
+  assert.match(teamMode, /autoFocusPool/, "pool focus rides the redirect");
+  // The old page file stays on disk until the walkthrough retires it (D2).
+  assert.ok(blueprintPage.length > 0, "old component retained pre-walkthrough");
 });

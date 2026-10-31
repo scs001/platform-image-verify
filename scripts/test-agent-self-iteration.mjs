@@ -89,11 +89,6 @@ const day = (offset) => {
   d.setUTCDate(d.getUTCDate() - offset);
   return d.toISOString().slice(0, 10);
 };
-const hotRow = (offset) => ({
-  member_id: "m_hot", model: "deepseek-v4.1-flash", day: day(offset), turns: 3, ok_count: 2, failed_count: 1,
-  cost_input_usd: 0.0001, cost_output_usd: 0.0002, cost_cache_write_usd: 0, cost_cache_read_usd: 0, pricing_at: Date.now(),
-  queue_wait_ms_sum: 400_000, queue_wait_ms_max: 6 * 60_000,
-});
 
 test("sweep proposes once with provenance; dedup skips while in flight", async () => {
   const raw = db.db ?? db;

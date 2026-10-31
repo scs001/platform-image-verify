@@ -6021,6 +6021,38 @@ $ node --test scripts/test-facet-image-files.mjs   → 3/3 pass
 （修剪至只剩 `image.yml`，未触任何 mac/win 重腿）→ `image` run `41147913577`，
 五项 smoke 全过。
 
+**但祖先核验第二次拦下：`1ac326f` 不能滚 facet。**
+滚版前做内容超集比对（新树 vs 生产 facet 现役源 `08f4835`），发现
+`facet/mcp-registry-json.js` **缺两处生产已有修复**：
+
+| 缺的修复 | 提交 | 缺了会怎样 |
+|---|---|---|
+| 端点公网可达闸 `isPubliclyReachable` | `9ac32bae` | 内网 hostname/端口（`cheapN.mesh…`）重新被投进**公网** MCP Registry——真泄漏且不可撤回 |
+| 描述 100 字符预算 `MAX_DESCRIPTION` | `1872f312` | 真发布被 registry 422 拒（首轮 8/14 被拒） |
+
+**这是 §15.108 祖先律的新形态**：那次的坑是「提交图分叉」，这次的坑是**镜像 tag 不是
+commit**——`sha-be368d1`/`sha-08f4835` 是 verify 仓的提交，不在 paas 提交图里，
+`git merge-base --is-ancestor` 对它们必然失败（我第一轮就误用它、得到假「NO」）。
+**正确判据是内容超集**：新树对「每个角色当前正在跑的镜像源」逐文件无实质缺失——
+`git diff --stat <deployed-src> HEAD -- facet/ gateway/ lib/ server/ web/src/` 里
+不允许出现「生产有、新树无」的功能性删除。
+
+修法：把两笔 cherry-pick 进 adopt-roll（`6cd815b4` + `2f8f0fc2`）。冲突两处都按语义解：
+- `Dockerfile` 只是注释块撞车（对方删旧注释、我方加教训注释）→ 保留我方；
+- `scripts/publish-mcp-registry.mjs` 两段常量是**同位置各自新增**（`isPublicUrl` 可达闸、
+  `MAX_DESCRIPTION` 预算），而下游 `validateDoc` 两个都要 → **两边都保留**。
+
+补后比对：`facet/index.js`、`mcp-registry-json.js`、`publish-gate.js`、`credential-pattern.js`、
+`pairing.js`、`identity.js` 与生产源**逐字节一致**；`marketplace-json.js` 仅多我方
+provenance 投影 8 行；`mcp-catalog.js` 仅少一个空行。71/71 测试绿。
+
+> **出片纪律补一条**：核超集**不能只看 `git log`**。cherry-pick 会漏文件（§15.108 已踩），
+> 而「换个分支当基线」会静默丢掉基线之外的生产修复（本次）。**必须 diff 内容，
+> 且以每个角色现役镜像的源为准**。
+
+**最终重出片**：快照树 `2f8f0fc`（= `40651d64` + 两笔生产修复）→ verify 仓 `c21964f`
+→ `image` run `41150156272`。
+
 **顺带记两笔操作坑**：
 - `git commit -m ... -- <paths>` 参数顺序必须 `-m` 在 `--` **之前**，否则 `-m` 及消息全文
   会被当成 pathspec（`error: pathspec '-m' did not match...`）。
@@ -6050,3 +6082,24 @@ memory-funnel 六串在 dist assets 与 server 文件）。**滚版完成，生�
 **挂账（走查班）**：九腿 UI 眼见（切换条常显/经营 tab/Project 侧栏分组/定时任务新表单与
 编辑/编队视图+断线上板/副驾 fleets 线/nav 族折叠/记忆漏斗/钉库直链）+ in-pod HTTP 探针
 （容器无 curl，走域名打）+ km 2.3/3.2、formation 3.2 真机项。
+
+### §15.111 走查班逮住上产缺件：四处漏 add——「pod 特征实证」的盲区与修正（2026-10-31）
+
+**走查 L1 的 HTTP 探针逮住真缺陷**：`/api/fleets/overview` 直连 pod 也 **31 队全部无
+`formation` 字段**（边缘缓存排除：port-forward 直打 pod 同样缺失）。根因不在代码不在镜像，
+在 **`git add` 清单手写漏了四个文件**：`server/routes/fleets.js`（formation 载荷——§15.110
+"滚版收笔"宣称的「五刀特征全实证」里 server 侧只验了 db.js/cron 串，**fleets.js 的
+formation 从未在 pod 验过**，这是该宣称的盲区）、`collections.js`（projectId 透传丢失=
+集合钉项目静默不落库）、`server/cron-mcp.js`（cron_update 工具整块缺失——MCP 消费者面）、
+`packages/core/src/types/ws.ts`（类型，编译期无运行害）。
+
+**教训两钉**：
+1. **提交清单禁手写**——用 `git status --porcelain` 带排除名单过滤（其他会话在途文件列
+   排除表，剩下的就是自己的），逐个 add；`git diff --cached --name-only` 收尾核对。
+2. **in-pod 实证必须覆盖"本刀每个 server 侧新符号"**——grep 六个前端串 + 两个旧邻串
+   ≠ 验证了 formation 串。修正后口径：**每刀出一张特征串清单，pod 内逐串 grep**。
+
+**修正滚版**：补交 `e1f54324`（4 文件 +208/−25）→ 重出快照 `sha-437e56e`（源 e1f54324）
+→ 构建中，绿后按 §15.110 同一硬门链滚版（relay OK→digest 双等→双清单→pod 逐串）。
+生产当前仍在 `sha-02c953d`（缺四处=Project 集合钉库/编队载荷/cron MCP 工具面三功能降级，
+其余刀在位）。

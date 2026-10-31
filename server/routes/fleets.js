@@ -1029,6 +1029,11 @@ export function createFleetRoutes(app, ctx = null) {
   // folds into cell_fleets events. Same read contracts as the list/cockpit
   // faces — the payload is a bounded VIEW, never raw cockpit trees (50 fleets
   // cap; decision snips ≤80 chars; report snips ≤120; slots ≤4).
+  // Formation grid node cap (add-teams-hub-formation-board 1.2): beyond this
+  // many posts a team's mini formation renders as a thumbnail (truncated:true)
+  // instead of an unreadable hairball; the full formation lives in the cockpit.
+  const FORMATION_NODE_CAP = 24;
+
   router.get("/overview", (req, res) => {
     try {
       const user = resolveUser(req);
@@ -1135,6 +1140,28 @@ export function createFleetRoutes(app, ctx = null) {
     } catch (err) {
       console.error("[fleets] overview error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Copilot focus for the teams hub (add-teams-hub-formation-board 3.1):
+  // which installed pack carries the fleet architect? Resolved by AGENT ID
+  // ("fleet-architect"), never by pack id/name — per-deployment minted ids
+  // drift (§15.101), the agent id is the stable contract. No architect
+  // installed → { copilot: null } and the dock opens unfocused (honest
+  // degrade, never a pretend focus).
+  router.get("/copilot", (_req, res) => {
+    try {
+      const packs = dbModule.listInstalledPacks();
+      for (const p of packs) {
+        const agents = Array.isArray(p.manifest?.agents) ? p.manifest.agents : [];
+        if (agents.some((a) => a?.id === "fleet-architect")) {
+          return res.json({ line: "fleets", copilot: { agentId: "fleet-architect", packId: p.packId ?? p.id ?? null } });
+        }
+      }
+      return res.json({ line: "fleets", copilot: null });
+    } catch (err) {
+      console.error("[fleets] copilot resolve error:", err.message);
+      return res.json({ line: "fleets", copilot: null });
     }
   });
 

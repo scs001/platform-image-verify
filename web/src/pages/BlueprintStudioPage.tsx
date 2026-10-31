@@ -207,7 +207,7 @@ export function BlueprintStudioPage() {
     // double-invoke from creating two drafts. No alive-cleanup here: it would
     // fire on exactly that param-clear re-render and cancel our own chain
     // (真机走查二轮: draft created but open() never landed).
-  }, [searchParams, setSearchParams, t, refreshList, open]);
+  }, [searchParams, t, refreshList, open]); // setSearchParams is stable and setter-identity is not a trigger
 
   useEffect(() => {
     void (async () => {

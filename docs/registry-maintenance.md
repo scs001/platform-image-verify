@@ -6259,3 +6259,44 @@ replace 静默未打上（str.replace 无匹配不报错）→ 测试 0/3 才现
 当前名录在 **`/v0.1/servers`**（检回 11 active / 14 含已撤）。判据：两版端点对同一 search 的结果
 集合必须一致，不一致时以 `/v0.1/` 为准；`docs/ecosystem/mcp-registry-publishing.md` §5.4 已改。
 `mcp-publisher` 自身走新版 API，发布链路不受影响。
+
+### §15.113 第四发收笔 + 生产 MCP 真源揪出 + 并行分叉线回归与并线第五发（2026-10-31）
+
+**第四发 sha-78be7b5（源 01857df2，§15.112 fixed 版）全链落定**：run 41154201514 绿 →
+relay OK 09:21:33 → hkccr/ccr **digest 双等 fdbf33d5** → 双清单 bump（gitee 3ee23de）→
+ArgoCD hard refresh → rollout → pod `platform-8477646d89-glhm7` imageID 逐字节=digest、
+FORMATION_NODE_CAP=2、"/copilot"=1（此前复 grep 的 "fleets/copilot" 字面=0 是**模式错**：
+路由挂载在 /api/fleets 前缀下源码只写 `/copilot`——复 grep 前先核挂载口径）。
+
+**生产 MCP 真源 = configmap，不是 mcp.json（km mount-chain「单测绿生产红」实锤）**：
+`.gitignore:3` 忽略 mcp.json，km 2.1 的 mount-chain 测试验的是本地盘文件；生产 `/app/mcp.json`
+实为 **configmap `platform-mcp-config` 挂载**（fd-infra-deploy platform.yaml:507，只读 subPath），
+只带 8 行、**缺 library 与 cron**。修复走 GitOps：configmap 补两行（fd-infra-deploy a5f8bb4）
+→ rollout restart → **cell 级 dsh profile 的 mcp.patch.yml 全部写入 library+cron**（9 server/
+cell，boot 日志逐 cell 实证）——agent 真工具面生效。共享 DB `extension_configs` 无这些行属
+cloud 模式正常（共享路径不 seed，真面在 per-cell DB+profile）。源仓同步修 `mcp.example.json`
+补 library+cron（新装冷启动模板，2d2d9176）。**挂账**：`delegation` MCP 三处同缺
+（代码在、mcp.json.example 与 configmap 都没有）——拍板委托 change 的 agent 侧工具面
+在生产从未暴露，待拍是否补。
+
+**并行分叉线回归（祖先律再立功）**：restart 后新 pod imageID 变 `4f28b3fa`≠我的 digest
+——并行会话把 platform 滚到 **sha-da5fd8a，源 f1530f7**：从 **5e92a698（nine-opts 实施尾段
+之前）分叉**的 rebased 线（226df482/f1530f76 同标题异 hash），把 nine-opts 尾段整块冲掉：
+fleets.js formation 载荷、cron-mcp cron_update、collections projectId、ws.ts 类型、
+official-adoption spec。真机前态实证：overview 200/31 队 **无 formation 字段**（8 队声明边
+不可见）、/api/fleets/copilot **404**（旧 `:id` 兜底路由接住）。并线核验：facet **运行时文件
+两线逐字节同**（facet/index.js+marketplace-json.js diff=0），他们独有仅测试脚本（不入镜像）
+→ 我的规范线 1ff1e9c2 是内容超集，第五发直接从规范线出。
+
+**第五发 sha-afd429e（源 1ff1e9c2）**：构建中我的 run 被并行会话连推两笔快照挤掉
+（build-pool concurrency cancel；但 build-push 已绿，镜像已落 hkccr）；relay 因 seen-tags
+只回灌 seen 之外新 tag，正常等一轮 */5 cron 即 OK 09:51:32 → **digest 双等 81732f22** →
+双清单 bump（ea8b4b5，注释写明并线依据）→ pod `platform-677f64db99-vz8wh` 五串全绿
+（NODE_CAP=2/copilot=1/cron_update=2/mcp library+cron=2/collections projectId=2）→
+后态探针：overview 200/formation 在位/**8 队带声明边**、copilot 200 诚实降级 null、
+/api/projects 200、/api/cron 200、蓝图钉库三态（悬空按名拒绝/格式错拒绝/真 ref 零库错+清理）。
+
+**新律**：①滚版 restart 后必核 imageID（spec 模板绿≠新 pod 还是你的镜像——并行滚版窗口
+内 restart 会捡到别人的镜像）；②镜像里的 configmap 挂载文件以 `kubectl get cm` 为真源，
+仓里 gitignore 的同名文件只管本地；③git cherry 验并线时注意同标题异 hash（patch-id 才算数），
+运行时文件 diff=0 是并线安全的最终判据。

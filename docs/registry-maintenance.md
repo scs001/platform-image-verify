@@ -6381,3 +6381,24 @@ test:unit 时互抢端口 → 三实例全部 120s 超时挂死**（本机撞上
 的设计性互斥冲突；建议上 random port。另 `test-supply-owner-acceptance-live.mjs` 需 live 凭据，
 本地无环境必红——两者都属**环境绑定用例**，全量回归时应排除或打 skip 标记。排除后全量重跑中
 （/tmp/unit-full2.log）。
+
+**§15.113 续记三：合 main 进列车 + 二分定谳 + db v110 守卫（2026-10-31）**
+
+**km 5.3 收口（核心项）**：WS 真回合（aloadtree cell，Logto cookie 升级鉴权）发「列知识库集合」
+prompt → agent **自主调 `mcp__library__list_library`，isError=false，返回真实 Documents/Collections**
+——agents 主动调库在生产眼见为实；房车道共享同一 per-cell MCP 挂载链（km 2.1 spike+cell profile
+实证）。formation 3.3 同法代码对照走查收口（副驾=iframe chat 全 GET 读面，零 apply 手势）。
+
+**31 红定谳三案**（全量重跑抓出；逐套隔离+跨树比对+`git bisect run` 七轮）：
+①**demo-reap/bot-latch/onboarding-hosted 三套红 = 早分叉缺修复**——merge-base 本身红、
+main 新 tip（f1e8f835「清 CI 十项既存红，其中三处生产真缺陷」）绿 → 合 origin/main 进列车。
+②**role-gated 17 红级联 = 我的 v110 迁移 apply 无表守卫**——legacy fixture 无 `collections` 表
+→ `addCol("collections",…)` 抛 no such table → initDb 整链降级。修=表存在守卫（v111 bots 同款
+纪律），一守卫全收（bcd35dc8）。③**mount-chain 测试读 gitignored mcp.json**——任何干净
+checkout 必红（自测设计缺陷）；改读已入库 mcp.example.json（783c30ca）。
+
+**合并实录**：25 冲突逐类解（代码=取 main 进化版【蓝图三刀自愈含 provenance 认回】/lint 风格；
+specs=场景并集 223/0；AA 档案=取内容全侧；fleet-hub e2e=并集【main 的 _pollFor helper + 我的
+cockpit 测试】）；并行会话在途 11 untracked 撞名移避+15 tracked 在途暂存，合并后**回放为本地
+改动**（10 份与 main 已提交版逐字节同→弃）。**教训**：净 worktree 跑套是隔离「工作树在途 vs
+已提交」的唯一可靠手段——两次三红复判全靠它。

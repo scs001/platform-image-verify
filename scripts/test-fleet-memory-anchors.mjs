@@ -30,7 +30,7 @@ const { aggregateWeek, moversLine, buildWeeklyBody, runFleetCostDigests } = awai
 // The capture closure lives in server.js (wired to ctx) — replay its exact
 // body here against a collector to pin the FORMAT (the real wiring is one
 // line: captureFleetTurnFact(job, outcome, meta)).
-function anchorOf(job, outcome, meta) {
+function anchorOf(_job, outcome, meta) {
   const m = outcome?.metering ?? {};
   const usage = outcome?.usage ?? {};
   const input = Number.isFinite(usage.input) ? usage.input : null;
@@ -160,7 +160,7 @@ test("sweep: writes once per fleet per week; unpriced weeks still produce a page
   const db = createFleetDatabase({ file: DB_FILE });
   db.createFleet({ id: "fleet_d1", name: "周报舰队", ownerEmail: "d@test", state: "active", decisionPolicy: null, sourceTemplate: null, defaultModel: null, effort: null, contextBudget: null, orchestration: { posts: [], edges: [], constraints: {} }, createdAt: Date.now(), updatedAt: Date.now() });
   const facts = [];
-  const captureFact = (fleetId, memberId, kind, title, body) => facts.push({ fleetId, kind, title, body });
+  const captureFact = (fleetId, _memberId, kind, title, body) => facts.push({ fleetId, kind, title, body });
   const listActive = () => [{ id: "fleet_d1", state: "active" }];
 
   const n1 = await runFleetCostDigests({ fleetsDb: db, captureFact, listActiveFleets: listActive, written: new Map() });

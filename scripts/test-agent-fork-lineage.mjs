@@ -78,7 +78,6 @@ test("a lineage block never confers official status (roster-only)", () => {
 // ── surfaces: source contract ────────────────────────────────────────────────
 const page = read("web/src/pages/AgentStudioPage.tsx");
 const dialog = read("web/src/components/packs/PackDetailDialog.tsx");
-const marketView = read("web/src/components/packs/PackMarketView.tsx");
 const sheet = read("web/src/components/packs/AgentSpecSheet.tsx");
 const facetApp = read("facet/web/src/App.tsx");
 

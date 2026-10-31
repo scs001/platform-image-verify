@@ -69,6 +69,19 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "scripts/test-agent-spec-sheet.mjs",
+        "scripts/test-official-agent-gallery.mjs"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
     }
   ]
 }

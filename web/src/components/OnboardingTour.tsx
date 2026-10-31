@@ -119,7 +119,6 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
 
   // Locate the current anchor. On narrow screens (no md rail) the sidebar is
   // off-canvas — the card degrades to a centered card without a ring.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: locate is re-invoked imperatively on step/visible change by the effect below; listing them here would re-create the callback every tick (behavior preserved from the shipped tour)
   const locate = useCallback(() => {
     const current = visible[step];
     const anchor = current ? document.querySelector<HTMLElement>(`[data-testid="${current.anchor}"]`) : null;
@@ -148,7 +147,6 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
     onFinish();
   }, [onFinish]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: adding visible.length would detach/reattach the global keydown listener on every step change; the handler closes over the live value (behavior preserved from the shipped tour)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {

@@ -106,6 +106,7 @@ export function AgentStudioPage() {
   // market/casting/cluster write happens anywhere in this path (spec: fork
   // seeds a draft, lifecycles untouched).
   const forkId = searchParams.get("fork");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seed once per fork id — the i18n `t` must not re-trigger the seed
   useEffect(() => {
     if (!forkId) return;
     let alive = true;

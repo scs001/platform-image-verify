@@ -88,11 +88,11 @@ function carrierCtx({ listAgents, runnerEntry = true }) {
     broadcast: () => {},
     onRuntimeIdle: () => {},
     reserveRuntime: () => () => {},
-    switchPresetTo: async (p) => ({ ok: true }),
+    switchPresetTo: async (_p) => ({ ok: true }),
     dshBridge: {
       isReady: () => true,
       hasLiveMethod: () => false, // legacy path — keeps preset semantics out of the way
-      prompt: async (sessionId, blocks) => {
+      prompt: async (sessionId, _blocks) => {
         const collector = ctx.sessionCollectors.get(sessionId);
         collector?.({
           method: "session.event",

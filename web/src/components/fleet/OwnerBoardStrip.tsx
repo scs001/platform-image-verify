@@ -45,7 +45,6 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
       .catch(() => {});
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: this is a mount-only bootstrap fetch; listing reloadBoard/reloadDigest would re-fetch on every parent render (behavior preserved from the shipped strip)
   useEffect(() => {
     reloadBoard();
     owner.fetchOwnerCells().then((r) => r && setCells(r.cells));

@@ -37,6 +37,20 @@
       "args": [
         "server/fleet-architect-mcp.js"
       ]
+    },
+    "library": {
+      "command": "node",
+      "args": [
+        "server/library-mcp.js"
+      ],
+      "comment": "知识库检索面（add-knowledge-memory-surface 2.1）——agents 主动调 library_* 工具；PROJECT_ID/COLLECTION_IDS 环境变量钉检索边界，缺省=全量。"
+    },
+    "cron": {
+      "command": "node",
+      "args": [
+        "server/cron-mcp.js"
+      ],
+      "comment": "定时任务 MCP 面（cron_add/cron_list/cron_update/cron_delete）——九条优化 #1 的 agent 侧工具。"
     }
   }
 }

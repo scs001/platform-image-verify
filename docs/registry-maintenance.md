@@ -6924,3 +6924,12 @@ sha-6aa999c ⊇ 其 a2031f82 所指内容，追并即闭环。第六轮 CI+image
 
 **挂账（更新后）**：swap 离任锚自然换防；runner 真远端回合（a2a entry 待建——fail-open 面已活体
 实证，真远端差临门一脚）；对账 v1.2（估算侧换车道 key 视角）；biome `recommended` 弃用迁移。
+
+**§15.121 续二：真远端回合路由活体实证（2026-11-01）**——第二支一次性舰队（单 a2a 委派成员，靶=市场
+「阿尔法哨兵」registry-pack 条目）四连发节拍：**每发 `carrier=remote` 落列**（该标记只在
+`a2aExecutor` 真远端执行器上打——平台→网关→`agent-runner-serving` 全链走通）、carrier_instance
+诚实 NULL、source=cron（schedule 触发 ✓）。回合本体四发皆 `model_upstream`——远端哨兵的推理车道
+正处已知 503 抖动族（与 judge 车道同谱系），非本链路缺陷；**绿回执等车道恢复后零代码重跑即得**
+（km 3.3 终态同款）。runner 路由的「裸 roster 键目录条目」属 runner 部署车道（agent-runner
+deployment descriptor+registry card 注册）——挂账精化为该车道动作；其路由匹配/远端执行两半
+（单测钉+fail-open 活体+carrier=remote 活体）今日全部有证。现场还原（cadence 停+DELETE 200）。

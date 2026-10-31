@@ -988,6 +988,15 @@ const MIGRATIONS = [
     ],
     apply: (db) => {
       const addCol = (table, col) => {
+        // Table-existence guard (same discipline as v111's bots ALTER): a
+        // legacy fixture DB claiming v1..12 physically carries only the tables
+        // its fixture knows about — a missing table must be skipped, not kill
+        // the whole migration chain (真机走查班 2026-10-31: role-gated fixture
+        // has no `collections`, v110 aborted the chain → initDb degraded).
+        const tables = new Set(
+          db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name),
+        );
+        if (!tables.has(table)) return;
         const cols = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
         if (!cols.has(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT`);
       };

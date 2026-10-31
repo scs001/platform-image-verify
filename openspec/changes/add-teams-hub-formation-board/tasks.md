@@ -20,5 +20,5 @@
 ## 4. 门与收口
 
 - [x] 4.1 i18n 新键五语言齐（编队/副驾入口/降级文案），locale 完整性门绿（2026-10-31 复核 `check-locales.js` 全绿，并补 `tasks.actions.edit` 五语言——真机走查 T4 揪出裸键上板）
-- [ ] 4.2 全量回归 `test:unit` + teams/cockpit 合同套 + e2e 绿；`openspec validate` 绿（validate 221/0 ✓，单测+e2e 待本轮收口）
+- [x] 4.2 全量回归 `test:unit` + teams/cockpit 合同套 + e2e 绿；`openspec validate` 绿（2026-10-31 合 main 后净 worktree 全量 **2914 tests / 2912 pass / 0 fail / 2 skip**（排除 supervisor-ports 与 supply-owner-acceptance-live 两环境绑定用例，§15.113 续记三）；teams/formation 合同套绿；validate **223/0**）
 - [ ] 4.3 真机走查挂账（台账）：滚版后生产看板眼见——8 队一次取齐、断线上浮、一句话改线闭环三眼见；大队（30+岗）缩略形态上眼（**2026-10-31 真机眼见两/三**：编队栅格 29 mini formation 一次取齐 + 失联/待补岗计数上浮（t1b/t2 截图，§15.113）；副驾 fleets 线诚实降级眼见；**改线闭环随 3.2 真装架构师班**）

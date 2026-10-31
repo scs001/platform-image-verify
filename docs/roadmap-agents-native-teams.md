@@ -184,6 +184,17 @@
 | 6 | ✅ `add-zhiyu-team-memory`（**已实施**：f/ 记忆捕获+fleetContext 记忆段+空间订阅桥+一键召唤；单测 13/13+回归 165/165；真机走查随滚版班） | 5a/5b | 1、5 | 大 |
 | 7 | ✅ `add-skill-self-evolution`（**已实施 f5aefc45**：v109 候选表+skill_propose 单工具桥+paas 侧 A/B 评测器（judge 同车道/匿名盲评/不劣于门）+web 待确认面+lineage；真机走查随滚版班） | 5.2 | memory-eval 已归档 | 大 |
 | 8 | ✅ `add-official-starter-teams`（**已实施 f5aefc45**：五支说明卡入 packGuides（市场 id 实证入 STARTER_TEAMS）+HelpDialog 序列+公开教程 from-zero-to-first-team.md；浏览器走查随滚版班） | 5c | 5、6 | 中 |
+| 9 | ✅ `define-agent-document`（**脊梁·零代码**：Agent Document 唯一组合模型（三桶+信封）+ 四发射口同校验器 + 编辑器≠生命周期 + 三桶规格书展示不变式 + 无凭据；规格与 docs 收口） | 脊梁 | 0 | 小 |
+| 10 | ✅ `move-pack-guides-to-manifest`（packGuides 内容量入 manifest，词典面归一） | 3a | 9 | 小 |
+| 11 | ✅ `add-agent-spec-sheet`（**已实施，生产三面 6aa999c**：三桶规格书共享组件） | 3b | 9 | 中 |
+| 12 | 🔨 `add-agent-studio`（可视化构建器三栏 11/15：剩 AI 起草 HTTP 桥/emit 测试/六入口冒烟） | 2 | 11 | 大 |
+| 13 | ✅ `fold-blueprint-into-studio`（**已实施**：蓝图构造间并入 /studio 生命周期四段） | 2 | 12 | 中 |
+| 14 | ✅ `add-agent-fork-lineage`（**已实施**：克隆与血缘） | 2 | 12 | 中 |
+| 15 | ✅ `add-official-agent-gallery`（**已实施**：官方精选橱窗） | 3b | 11 | 中 |
+| 16 | ✅ `add-agent-builder-hub`（一级门面「智能体构建器」四区：构建/供给/我的创作/调优；slug 复用 agents 零路由破坏；2026-11-01 立案） | 2 | 12、14 | 大 |
+| 17 | ✅ `add-mcp-annotation-overlay`（供给注释层：MCP/tool/skill 三类对象 human 五语言轨（zh 主轨）+ canonical brief；registry metadata 透传零改码；含 mcpServers 进 pack i18n 白名单；2026-11-01 立案） | 3a | 16 | 大 |
+| 18 | ✅ `add-tool-description-enrichment`（canonical 轨接运行时工具面：tool-filter 同款 overlay 通道，只增强不改名，publicFacing 跳过；2026-11-01 立案） | 5.2 | 17 | 中 |
+| 19 | ✅ `add-persona-self-evolution`（角色桶自进化：persona_amend 提议→A/B 臂盲评→人批分流（自建预设物化 / pack persona 走 fork）→lineage；2026-11-01 立案） | 5.2 | 7、16 | 大 |
 
 ---
 

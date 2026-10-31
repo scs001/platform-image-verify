@@ -6942,3 +6942,15 @@ $0.9498 → **drift 0.111**（v1 的 0.004 收窄 27 倍）；owner 占比 96.7%
 符合预期）；残差三因首次量化呈现（非舰队 chat 同账号用量+未计价样本 302/335+排除倍率）。
 测试 7/7（双 cell 聚合/无表 cell 诚实零）。双分支推齐（087b162d/d5ad42ab）。pod 内 /app/scripts
 副本随下一班自然出片更新（ops 脚本非运行时面，不专班滚版）。
+
+**§15.121 续四：swap 离任锚活体取证+远端绿回执再候（2026-11-01）**——「换防锚取证」一次性舰队
+（service-lead 岗 */4 节拍，三发 skipped=车道熔断在开窗——`llm lane open until… (5/5 upstream
+failures)` 的诚实 skip）执行 `POST .../swap {targetId:"service-agent", freshSession:true}`：
+**fd-memory 盘面换防页落位**（`/data/owners/u-aloadtree@gmail.com/wiki/f-fleet_<id>/notes/`，
+OKF frontmatter + `[swap]` 标题），**离任锚四元组全在**：`turn_id=turn_dc35…  status=skipped
+model=deepseek-v4.1-flash  carrier=cell`——末次回合如实（skip 也入锚），时序契约成立（事实页
+18:53:10 落，先于清史）。§15.117 的「真机自然换防」挂账收口。远端绿回执再候两轮仍 503（远端
+哨兵车道未复——挂账保持）。两舰队用后即焚（DELETE 走应用 API，双 archived）。fd-memory 盘面
+路径律：owner 目录=**账号身份双轨**（u-aloadtree@finddatatech.cloud 与 u-aloadtree@gmail.com
+并存，事实页落 gmail 侧）+ 目录名 `f-fleet_<id去 fleet_ 前缀>`+事实页落盘有秒级延迟（读面验
+证须重试）。

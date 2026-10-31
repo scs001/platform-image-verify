@@ -43,6 +43,10 @@ setFleetDatabase(fleetDb);
 const seamCtx = {
   session: { model: { id: "stub" } },
   taskTurnRegistry: new Map(),
+  // 恒就绪替身（§15.113 续记十二同族第五处）：切片⑤给 manual 任务派生 sourceTag
+  // （origin.fleet）后，事件唤醒任务算舰队任务——runCronJobTurn 的就绪预门对它生效，
+  // bridge 缺席会按 RUNTIME_READY_WAIT_MS 空等 120s 再 skipped。
+  dshBridge: { isReady: () => true },
   recordFleetTurnEvent: (job, outcome, meta) =>
     recordTurnEvent(fleetDb, job, outcome, { ...meta, rosterPresetId: (id) => `roster:${id}` }),
   triggerFleetHandoffs: async () => null,

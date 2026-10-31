@@ -199,9 +199,15 @@ test("end + settle: row carries turnId/runId/usage; header closes with SUM total
 });
 
 test("usage: provider shapes normalize; absent usage stays null (never guessed)", () => {
-  assert.deepEqual(normalizeUsage({ input: 1, output: 2 }), { input: 1, output: 2 });
-  assert.deepEqual(normalizeUsage({ inputTokens: 1, outputTokens: 2 }), { input: 1, output: 2 });
-  assert.deepEqual(normalizeUsage({ prompt_tokens: 1, completion_tokens: 2 }), { input: 1, output: 2 });
+  // 切片②起细分三键随形状归一（absent → null 诚实空缺）——钉子跟契约形状走。
+  const withSub = (i, o) => ({ input: i, output: o, cacheReadTokens: null, cacheWriteTokens: null, reasoningTokens: null });
+  assert.deepEqual(normalizeUsage({ input: 1, output: 2 }), withSub(1, 2));
+  assert.deepEqual(normalizeUsage({ inputTokens: 1, outputTokens: 2 }), withSub(1, 2));
+  assert.deepEqual(normalizeUsage({ prompt_tokens: 1, completion_tokens: 2 }), withSub(1, 2));
+  assert.deepEqual(
+    normalizeUsage({ input: 1, output: 2, cacheReadTokens: 5, reasoningTokens: 3 }),
+    { input: 1, output: 2, cacheReadTokens: 5, cacheWriteTokens: null, reasoningTokens: 3 },
+  );
   assert.equal(normalizeUsage(null), null);
   assert.equal(normalizeUsage({ model: "m" }), null);
   fixtureFleet(fleetDb, { members: [member("m_up")] });

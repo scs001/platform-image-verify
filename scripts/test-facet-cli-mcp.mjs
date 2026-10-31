@@ -211,11 +211,15 @@ test("install --oauth --write-mcp：workbuddy 写免键条目——oauth.clientI
       const entry = doc.mcpServers["law-bench"];
       assert.equal(entry.type, "http");
       assert.equal(entry.url, `${base}/law-bench/mcp`);
-      assert.equal(entry.oauth.clientId, "tvmzkpz3ld5kqlmse5se9"); // 生产 facet-mcp-keyless
+      // 断言语义与具体值无关（具体值随 facet.js DEFAULT_OAUTH_CLIENT_ID 走，生产
+      // facet-mcp-keyless 2026-10-30 端到端实证）：只验证默认写入了「那个」id——
+      // 非空形状 + 两个目标同 id。字面量不上板（公开快照的 gitleaks 会命中）。
+      const keylessClientId = entry.oauth.clientId;
+      assert.ok(typeof keylessClientId === "string" && keylessClientId.length >= 8, "the keyless default client id rides");
+      assert.equal(doc.mcpServers["fd-open-data-mcp"].oauth.clientId, keylessClientId, "same keyless client across targets");
       assert.match(entry.oauth.scope, /gateway:access/);
       assert.match(entry.oauth.scope, /offline_access/);
       assert.equal(entry.headers, undefined); // 免键：任何 Authorization 不落这个文件
-      assert.equal(doc.mcpServers["fd-open-data-mcp"].oauth.clientId, "tvmzkpz3ld5kqlmse5se9");
       // requiredGroup 提示改用「授权账号/角色」口径
       assert.match(stdout, /授权账号不持该角色/);
     });

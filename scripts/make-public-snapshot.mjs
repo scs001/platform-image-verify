@@ -323,10 +323,9 @@ const SCRUBS = [
     "an OpenAI-compatible endpoint (model `deepseek-v4-pro`)",
     1,
   ],
-  // 生产 facet-mcp 免键车道的 OAuth clientId（2026-10-31 gitleaks generic-api-key
-  // 命中两处）：这是线上真实 DCR 客户端标识，不能随公开快照发布。断言语义与
-  // 具体值无关（只验证它是被写进客户端配置的那个 id），脱敏成占位符即可。
-  ["scripts/test-facet-cli-mcp.mjs", '"tvmzkpz3ld5kqlmse5se9"', '"<keyless-client-id>"', 2],
+  // （facet-mcp 免键 clientId 的脱敏条目已摘——测试改为形状+跨目标一致性断言，
+  // 字面量不上板，gitleaks 不再命中；facet.js 的 DEFAULT_OAUTH_CLIENT_ID 是
+  // 已随 facet 0.3.0 公开发布的 DCR 客户端标识，本身非机密。）
 ];
 
 // Deliberate exceptions: content that matches a forbidden pattern but is

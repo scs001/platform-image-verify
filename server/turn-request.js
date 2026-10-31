@@ -30,8 +30,7 @@ export const EDGE_KINDS = ["dispatch", "handoff", "fanout"];
 
 // Engine trigger kinds (task-engine.js): "schedule" = cron-armed, "manual" =
 // bridge-created. A scheduled task is cron-sourced with or without a fleet
-// sourceTag; execute-now on a cadenced post rides the cron lane and reads
-// cron here too.
+// sourceTag; a manual fleet task (run-now / execute-now) reads manual.
 export function buildTurnRequest(job) {
   const sourceTag = job?.sourceTag ?? null;
   const origin = job?.origin ?? null;
@@ -53,16 +52,19 @@ export function buildTurnRequest(job) {
       : null;
   // Event wakes (add-fleet-event-wake) outrank everything: an external
   // signal source (bot inbound) originated the turn, depth 0 by definition.
+  // (§15.115挂账班真缺陷：切片⑤给 manual 任务派生 sourceTag 后，旧序把每条事件
+  // 唤醒回合误归因为 cron、把派发回合误归因为 cron——event 先判、cron 收窄到
+  // schedule 触发，initiator 的派发语义恢复，注释与代码才一致。)
   // Initiator then outranks origin: a dispatched turn carries BOTH (the
   // target's origin.fleet evidence and the dispatcher's session) and IS a
   // delegation wake; origin.fleet alone (no initiating conversation) is the
   // execute-now lane. Found live on prod (§15.18): the old order mislabeled
   // dispatches.
   const source =
-    job?.trigger === "schedule" || sourceTag?.fleetId
-      ? "cron"
-      : event?.botId
-        ? "event"
+    event?.botId
+      ? "event"
+      : job?.trigger === "schedule"
+        ? "cron"
         : initiator
           ? "delegation"
           : origin?.fleet?.fleetId

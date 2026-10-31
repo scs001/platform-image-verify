@@ -6516,3 +6516,5 @@ validatePackManifest 直接返回 errors 数组（非 {errors} 包装），测�
 **真机走查 23/24 ✓**（playwright storageState=aloadtree，双态）：规格书九断言全过（三桶/三岗/空态显式/徽章/**guide v6 en 副轨眼见**）；gallery 45 卡/5 序列标记/45 克隆深链/匿名=0 如实；fold 重定向+草稿池；fork 种子+血缘行+发射草稿；facet 跨域深链。**走查逮回归一处**：studio 文档信息段（名称/描述/标签）在换共享编辑器时被误删——当场修（d8c6a1dd）随三代出片带回。唯一存疑项「studio 实时校验绿」为脚本时序假象——发射预设成功本身证明校验管线（发射前同端点再校验、按钮 docValid 前禁用）。走查产物已清（2 预设+1 草稿删）。
 
 **挂账**：guides 第二批（2 支仅原作者闸+4 支 unlisted）；studio 4.x AI 起草（工具面 HTTP 桥）；release 线 ~11 处既有 e2e（base 对照判别在案，非本流引入）。
+
+**§15.120 续：approve→cast 全链真机 + 试跑回合回归立案（同日）**。Studio 团队模式驱动全链生产验证：创建→JSON 轨灌入→保存校验→批准→铸造（pack anrFl4 v1 落市场 ✓）→试跑执行器跑通（报告落账、断言评测）→**判红卡死：report-landed 无证（turnIds=[]，回合 0）**。判别实验：原版同内容（今日三度绿）此刻同样红——**疑似今日滚版引入的试跑回合执行回归（装台✓点火后回合 0）**，嫌疑面=carrier ⑤/memberView/parked 归因修/自迭代终片（本工作流服务端改动仅 provenance 校验器，不在回合路径）。全程另逮两缺口当场修：①团队模式缺签字/撤签钮 ②试跑/签字管位错（draft→cast 段，服务端 trial requires cast）。走查产物 unlist 清理。**立案归舰队执行线**：fleet_1793452377470_48mm26（乙班试跑舰队，1 员 0 回合）+ bp_1793452345048_g1kt5x（cast v2）+ bp_1793444689666_mn2h82（原版，判别样本）。

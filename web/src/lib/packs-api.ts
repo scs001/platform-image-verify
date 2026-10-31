@@ -240,16 +240,22 @@ export interface PackManifest {
   // whose content was adopted from an upstream third-party skill. A SOURCE
   // annotation, not an authority claim — it never grants official status (the
   // deployment roster does), and the server validator owns the shape.
-  provenance?: {
-    kind: "official-adopted";
-    upstreamUrl: string;
-    upstreamName: string;
-    license: string;
-    revision: string;
-    adoptedBy: string;
-    reviewedBy: string;
-    reviewedAt: string;
-  };
+  provenance?:
+    | {
+        kind: "official-adopted";
+        upstreamUrl: string;
+        upstreamName: string;
+        license: string;
+        revision: string;
+        adoptedBy: string;
+        reviewedBy: string;
+        reviewedAt: string;
+        // Fork lineage may ride an adopted record too (optional either way).
+        forkOf?: { packId: string; version: number };
+      }
+    // Lineage-only block (add-agent-fork-lineage D1): a fork stamps WHERE it
+    // came from with no kind — never a fabricated adopted record.
+    | { forkOf: { packId: string; version: number }; license?: string };
 }
 
 // Bot units (pack-bot-units): the pack's third content primitive — a generic

@@ -77,6 +77,9 @@ export interface AgentSpecSheetProps {
   className?: string;
   /** Optional download-link builder for skill bodies (pack detail only). */
   skillHref?: (name: string) => string | null;
+  /** Fork lineage (add-agent-fork-lineage): present ⇒ the sheet shows a
+   *  "forked from" line; absent ⇒ no lineage line, nothing invented. */
+  lineage?: { packId: string; version: number } | null;
   // ── Compact-mode count overrides (conversation picker): the picker roster
   // carries bucket COUNTS (resourceSummary), not manifests — when given they
   // replace the array-derived counts. Undefined = unknown = chip omitted
@@ -127,6 +130,7 @@ export function AgentSpecSheet({
   testIdPrefix = "spec-sheet",
   className,
   skillHref,
+  lineage,
   skillCount,
   mcpCount,
   personaPresent,
@@ -199,6 +203,11 @@ export function AgentSpecSheet({
       {/* Badge row: type badge (structure-derived) + facade + provenance axes
           (official from the roster; adopted only WITH official — the same
           three-state discipline the market cards render). */}
+      {lineage && (
+        <p className="text-xs text-muted-foreground" data-testid={`${testIdPrefix}-lineage`}>
+          {t("packs.specSheet.forkedFrom", { packId: lineage.packId, version: lineage.version })}
+        </p>
+      )}
       {(badge || facade || official) && (
         <div className="flex flex-wrap items-center gap-1.5" data-testid={`${testIdPrefix}-badges`}>
           {badge ? <Badge data-testid={`${testIdPrefix}-type-badge`}>{t(`packs.badge.${badge}`)}</Badge> : null}

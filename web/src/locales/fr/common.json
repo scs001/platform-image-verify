@@ -1724,6 +1724,8 @@
       "officialAdoptedBadge": "Sélection officielle · Vérifié"
     },
     "detail": {
+      "fork": "Forker vers mon studio",
+      "forkHint": "Génère une copie éditable dans le studio d'agents à partir du manifeste lisible — la filiation accompagne ; la publication passe les portails existants",
       "notFound": "Agent introuvable ou retiré",
       "adoptedUpstream": "Source {{name}}",
       "adoptedLicense": "Licence {{license}}",
@@ -2033,10 +2035,15 @@
       "compactSkills": "Compétences {{n}}",
       "compactSkillsZero": "Aucune compétence",
       "compactTools": "Outils {{n}}",
-      "compactToolsZero": "Aucun outil"
+      "compactToolsZero": "Aucun outil",
+      "forkedFrom": "Dérivé de {{packId}} v{{version}}"
     }
   },
   "studio": {
+    "fork": {
+      "unavailable": "Impossible de lire cet agent ({{status}}) — le fork suit la visibilité de lecture",
+      "seeded": "« {{name}} » chargé comme document de travail — filiation estampillée"
+    },
     "title": "Studio d'agents",
     "roster": {
        "new": "Nouvel agent",

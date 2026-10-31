@@ -1724,6 +1724,8 @@
       "officialAdoptedBadge": "Selección oficial · Revisado"
     },
     "detail": {
+      "fork": "Bifurcar a mi estudio",
+      "forkHint": "Siembra una copia editable en el Estudio de agentes desde el manifiesto legible — el linaje viaja con ella; la publicación pasa los portales existentes",
       "notFound": "Paquete no encontrado o retirado",
       "adoptedUpstream": "Origen {{name}}",
       "adoptedLicense": "Licencia {{license}}",
@@ -2033,10 +2035,15 @@
       "compactSkills": "Habilidades {{n}}",
       "compactSkillsZero": "Sin habilidades",
       "compactTools": "Herramientas {{n}}",
-      "compactToolsZero": "Sin herramientas"
+      "compactToolsZero": "Sin herramientas",
+      "forkedFrom": "Bifurcado de {{packId}} v{{version}}"
     }
   },
   "studio": {
+    "fork": {
+      "unavailable": "No se puede leer este agente ({{status}}) — la bifurcación sigue la visibilidad de lectura",
+      "seeded": "«{{name}}» cargado como documento de trabajo — linaje estampado"
+    },
     "title": "Estudio de agentes",
     "roster": {
        "new": "Nuevo agente",

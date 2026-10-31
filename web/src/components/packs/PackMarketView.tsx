@@ -52,6 +52,7 @@ export function PackMarketView({
   onOpenChat,
   onRequireLogin,
   onGotoMine,
+  studioOrigin,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -62,6 +63,8 @@ export function PackMarketView({
   // Signed-out signal forwarded to the detail dialog (polish-facet-
   // interactions): hosts with anonymous viewers wire it, 壹座 omits it.
   onRequireLogin?: () => void;
+  // Fork deep-link origin (add-agent-fork-lineage) — forwarded to the dialog.
+  studioOrigin?: string;
   // Host-selected "go to my packs" affordance (polish-facet-interactions
   // follow-up): forwarded to the dialog, which routes it through the login
   // guidance when the host also wired onRequireLogin and the viewer is
@@ -366,6 +369,7 @@ export function PackMarketView({
       </div>
 
       <PackDetailDialog
+        studioOrigin={studioOrigin}
         packId={detailId}
         onOpenChange={(open) => !open && setDetailId(null)}
         onSubscribed={(r, name, packId) => {

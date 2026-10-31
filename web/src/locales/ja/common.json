@@ -1724,6 +1724,8 @@
       "officialAdoptedBadge": "公式セレクト · 審査済み"
     },
     "detail": {
+      "fork": "マイスタジオへフォーク",
+      "forkHint": "読み取り可能な manifest を種にエージェントスタジオで編集可能なコピーを開く — 血統は随行し、公開は既存ゲートを通ります",
       "notFound": "エージェントが見つからないか公開終了しました",
       "adoptedUpstream": "提供元 {{name}}",
       "adoptedLicense": "ライセンス {{license}}",
@@ -2033,10 +2035,15 @@
       "compactSkills": "スキル {{n}}",
       "compactSkillsZero": "スキルなし",
       "compactTools": "ツール {{n}}",
-      "compactToolsZero": "ツールなし"
+      "compactToolsZero": "ツールなし",
+      "forkedFrom": "{{packId}} v{{version}} からフォーク"
     }
   },
   "studio": {
+    "fork": {
+      "unavailable": "このエージェントを読み取れません（{{status}}）— フォークは読み取り可視性に従います",
+      "seeded": "「{{name}}」を作業ドキュメントとして読み込みました — 血統をスタンプ済み"
+    },
     "title": "エージェントスタジオ",
     "roster": {
        "new": "新規エージェント",

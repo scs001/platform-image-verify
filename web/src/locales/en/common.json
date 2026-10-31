@@ -1724,6 +1724,8 @@
       "officialAdoptedBadge": "Official Pick · Reviewed"
     },
     "detail": {
+      "fork": "Fork to my studio",
+      "forkHint": "Seed an editable copy in the Agent Studio from the readable manifest — lineage rides along; publishing rides the existing gates",
       "notFound": "Agent not found or unlisted",
       "adoptedUpstream": "Upstream {{name}}",
       "adoptedLicense": "License {{license}}",
@@ -2033,10 +2035,15 @@
       "compactSkills": "Skills {{n}}",
       "compactSkillsZero": "No skills",
       "compactTools": "Tools {{n}}",
-      "compactToolsZero": "No tools"
+      "compactToolsZero": "No tools",
+      "forkedFrom": "Forked from {{packId}} v{{version}}"
     }
   },
   "studio": {
+    "fork": {
+      "unavailable": "Cannot read this agent ({{status}}) — forking follows read visibility",
+      "seeded": "Loaded “{{name}}” as the working document — lineage stamped"
+    },
     "title": "Agent Studio",
     "roster": {
        "new": "New agent",

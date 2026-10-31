@@ -39,6 +39,10 @@ interface StudioDoc {
   skills: PackManifestSkill[];
   mcpServers: PackManifestMcp[];
   fleet?: Record<string, unknown>;
+  // Fork lineage (add-agent-fork-lineage D1/D6): a lineage-ONLY provenance
+  // block — no kind (the adopted record's contract is not the fork's to
+  // fabricate); the parent's license rides along when present.
+  provenance?: { forkOf: { packId: string; version: number }; license?: string };
 }
 
 const emptyDoc = (): StudioDoc => ({
@@ -85,6 +89,46 @@ export function AgentStudioPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Fork seeding (add-agent-fork-lineage 2.1): `?fork=<packId>` seeds the
+  // working document from a manifest the CALLER can read (the read API enforces
+  // visibility — an unreadable pack never seeds). Pure client-side seed: no
+  // market/casting/cluster write happens anywhere in this path (spec: fork
+  // seeds a draft, lifecycles untouched).
+  const forkId = searchParams.get("fork");
+  useEffect(() => {
+    if (!forkId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/packs/${encodeURIComponent(forkId)}`);
+        if (!r.ok) throw new Error(t("studio.fork.unavailable", { status: r.status }));
+        const detail = await r.json();
+        const m = detail.manifest ?? {};
+        const parentLicense = (m.provenance as { license?: string } | undefined)?.license;
+        setDoc({
+          name: m.name ?? "",
+          description: m.description ?? "",
+          tags: m.tags ?? [],
+          agents: m.agents ?? [],
+          skills: m.skills ?? [],
+          mcpServers: m.mcpServers ?? [],
+          provenance: {
+            forkOf: { packId: detail.id, version: detail.version },
+            ...(parentLicense ? { license: parentLicense } : {}),
+          },
+        });
+        setSelectedId((m.agents ?? [])[0]?.id ?? null);
+        setNotice({ kind: "ok", text: t("studio.fork.seeded", { name: detail.name ?? detail.id }) });
+      } catch (err) {
+        if (alive) setNotice({ kind: "err", text: (err as Error).message });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per fork id
+  }, [forkId]);
 
   const selected = doc.agents.find((a) => a.id === selectedId) ?? null;
 
@@ -170,7 +214,12 @@ export function AgentStudioPage() {
         name: doc.name,
         description: doc.description,
         tags: doc.tags,
-        entries: { skills: doc.skills, mcpServers: doc.mcpServers, agents: doc.agents },
+        entries: {
+          skills: doc.skills,
+          mcpServers: doc.mcpServers,
+          agents: doc.agents,
+          ...(doc.provenance ? { provenance: doc.provenance } : {}),
+        },
       });
       setNotice({ kind: "ok", text: t("studio.emit.draftOk") });
       // The draft now lives in 我的创作 — take the user there (same IA the
@@ -324,6 +373,7 @@ export function AgentStudioPage() {
           <AgentSpecSheet
             variant="full"
             testIdPrefix="studio-spec"
+            lineage={doc.provenance?.forkOf ?? null}
             roles={doc.agents.map((a) => ({ id: a.id, name: a.name, persona: a.persona, serving: a.serving != null }))}
             skills={doc.skills}
             mcp={doc.mcpServers.map((m) => ({ ...m, totalTools: totalTools(m.registryName) }))}

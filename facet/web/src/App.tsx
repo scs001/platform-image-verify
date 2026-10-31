@@ -208,7 +208,11 @@ export function App() {
                   conversation view this shell doesn't have (installing stays a
                   壹座 surface), so the footer is suppressed — the report panel
                   itself renders unchanged (spec: pack-marketplace). */}
+              {/* Fork deep link (add-agent-fork-lineage D5): cross-domain to
+                  壹座 — facet renders the affordance, the write lands in the
+                  user's 壹座 cell after SSO. */}
               <PackMarketView
+                studioOrigin="https://platform.finddatatech.cloud"
                 onSubscribed={() => {}}
                 onOpenChat={null}
                 // Only a signed-out viewer gets the gated path: after login

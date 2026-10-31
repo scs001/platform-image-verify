@@ -41,6 +41,11 @@ interface Props {
   // surfacing a raw error. Hosts without it (壹座 — every viewer holds a
   // session) keep the authenticated-error fallback below.
   onRequireLogin?: () => void;
+  // Fork deep link origin (add-agent-fork-lineage D5): hosts on the 壹座
+  // origin omit it (relative /studio); facet passes the 壹座 origin so the
+  // link CROSSES domains — the fork write itself happens only in the
+  // user's 壹座 cell (facet stays write-free for authoring).
+  studioOrigin?: string;
 }
 
 // The 万星 console deep link (agent-service-config): the deployment's slug and
@@ -71,7 +76,7 @@ function budgetDraftValid(text: string): boolean {
   return n > 0 && n <= BUDGET_MAX_MINUTES;
 }
 
-export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
+export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin, studioOrigin }: Props) {
   const { t } = useTranslation();
   // Tool-face disclosure (pack-tool-declaration-gate D4): the declared count
   // rides the version manifest; the per-server total comes from the catalog's
@@ -559,6 +564,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   marketCatalog?.mcpServers?.find((s) => s.name === r.registryName)?.toolList?.length ?? null,
               }))}
               skillHref={(name) => `/api/packs/${pack.id}/versions/${pack.version}/skills/${encodeURIComponent(name)}.md`}
+              lineage={(pack.manifest?.provenance as { forkOf?: { packId: string; version: number } } | undefined)?.forkOf ?? null}
             />
 
             {/* Facade panel (add-principal-facade): the pack declares itself a
@@ -929,6 +935,16 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             </div>
           )}
           <div className="flex items-center gap-2">
+            {pack && (
+              <Button
+                variant="outline"
+                onClick={() => window.open(`${studioOrigin ?? ""}/studio?fork=${encodeURIComponent(pack.id)}`, "_self")}
+                data-testid="pack-fork"
+                title={t("packs.detail.forkHint")}
+              >
+                {t("packs.detail.fork")}
+              </Button>
+            )}
             <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
               {subscribing
                 ? t("common.loading")

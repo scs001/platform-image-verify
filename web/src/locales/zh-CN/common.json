@@ -1724,6 +1724,8 @@
       "officialAdoptedBadge": "官方精选 · 已审校"
     },
     "detail": {
+      "fork": "克隆到我的工作室",
+      "forkHint": "以可读 manifest 为种子，在智能体工作室打开可编辑副本——血缘随行，发布走既有门",
       "notFound": "智能体不存在或已下架",
       "adoptedUpstream": "上游 {{name}}",
       "adoptedLicense": "许可 {{license}}",
@@ -2033,10 +2035,15 @@
       "compactSkills": "技能 {{n}}",
       "compactSkillsZero": "无技能",
       "compactTools": "工具 {{n}}",
-      "compactToolsZero": "无工具"
+      "compactToolsZero": "无工具",
+      "forkedFrom": "克隆自 {{packId}} v{{version}}"
     }
   },
   "studio": {
+    "fork": {
+      "unavailable": "无法读取该智能体（{{status}}）——克隆沿读可见性",
+      "seeded": "已载入「{{name}}」为工作文档——血缘已盖章"
+    },
     "title": "智能体工作室",
     "roster": {
        "new": "新建智能体",

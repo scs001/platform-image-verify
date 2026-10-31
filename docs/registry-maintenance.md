@@ -6336,3 +6336,25 @@ official-adoption spec。真机前态实证：overview 200/31 队 **无 formatio
 内 restart 会捡到别人的镜像）；②镜像里的 configmap 挂载文件以 `kubectl get cm` 为真源，
 仓里 gitignore 的同名文件只管本地；③git cherry 验并线时注意同标题异 hash（patch-id 才算数），
 运行时文件 diff=0 是并线安全的最终判据。
+
+**§15.113 续记一：delegation MCP 生产补面 + 真机走查班（Playwright 替班）+ 两真缺陷（2026-10-31）**
+
+**delegation 补面**：拍板委托（sha-dcf5964）的 agent 侧工具面生产从未暴露——`server/delegation-mcp.js`
+头注明确「declared in mcp.json」，但 configmap 与 mcp.example.json 均无此行（与 library/cron 同缝）。
+补 configmap（fd-infra-deploy 6ac4f1f）+ example（8b6e40dd）→ restart → **cell profile 10 server
+实证**（connector/facet-market/lex-ops/actions/fleet/library/cron/delegation/playwright/fd-memory）。
+
+**真机走查班**：本会话无 node_repl（IAB 不可用维持）→ 按测试 skill「用会话实际提供的工具」原则，
+Bash+Playwright（headless chromium）替班：Logto SSO 登录（aloadtree，storageState 复用）→ 九腿全过——
+①编队栅格 **29 mini formation** 一次取齐+失联/待补岗计数上浮；②细分页切换条常显+来源高亮+返回看板
+（#3 修复实锤）；③经营 tab；④自动化页项目过滤/时区/一次相对/执行记录/累计错过（#1）——**但裸键
+`tasks.actions.edit` 直接上板**（缺键，五语言补齐 27e35353）；⑤侧栏项目分组（默认项目 280 会话）；
+⑥nav 族折叠（知识折叠资料库 1→0）；⑦记忆漏斗 L0/L1/L2（20/80 占比）；⑧集合行「用它造 agent」；
+⑨蓝图 fromCollection 预填 `library:<id>`+选库下拉解析——**但种子盖进了已打开蓝图**（竞态：seed
+effect spread content 与 auto-open effect 竞态）→ 修=新草稿骨架+`handoffSeededRef` 闸 auto-open
+（27e35353）。副驾 fleets 线诚实降级眼见（「未聚焦：该线助手 pack 未安装」）。openspec validate 221/0。
+walkthrough 残留（走查钉库集合）已删。
+
+**UI 眼见替班配方**：`/auth/login?rd=…` 直跳 Logto → storageState 存盘复用；SPA 点击用
+`evaluate(el=>el.click())`；切换按钮等渲染（0.7s 重试轮）；卡片点击**圈定主内容区**——侧栏会话同名
+文本会截胡（T2 首次点到 /chat/cron-job…）。截图存 gui-test-screenshots/（t0–t9）。

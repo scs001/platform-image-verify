@@ -25,6 +25,7 @@ import type { PackManifestAgent, PackManifestMcp, PackManifestSkill, PackSummary
 import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { FleetGraph, type GraphEdge, type GraphMember } from "@/components/FleetGraph";
 import { cn } from "@/lib/utils";
 import { BlueprintTeamMode } from "@/components/studio/BlueprintTeamMode";
@@ -56,6 +57,15 @@ const emptyDoc = (): StudioDoc => ({
 
 function newAgent(n: number): PackManifestAgent {
   return { id: `agent-${n}`, name: "", persona: "" };
+}
+
+function SectionCard({ title, children, testid }: { title: string; children: React.ReactNode; testid: string }) {
+  return (
+    <div className="rounded-md border border-border p-3" data-testid={testid}>
+      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
+      {children}
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -353,6 +363,30 @@ export function AgentStudioPage() {
 
               {/* Three buckets via the SHARED editor (fold D1: one editor,
                   two hosts — the blueprint team mode renders the same one). */}
+              {/* 文档信息（manifest 信封）——fold 换共享编辑器时误删，真机走查逮回归 */}
+              <SectionCard title={t("studio.doc.section")} testid="studio-doc-fields">
+                <div className="space-y-2">
+                  <Field label={t("studio.doc.name")}>
+                    <Input value={doc.name} onChange={(e) => patchDoc({ name: e.target.value })} data-testid="studio-doc-name" />
+                  </Field>
+                  <Field label={t("studio.doc.description")}>
+                    <Textarea
+                      rows={2}
+                      value={doc.description}
+                      onChange={(e) => patchDoc({ description: e.target.value })}
+                      data-testid="studio-doc-description"
+                    />
+                  </Field>
+                  <Field label={t("studio.doc.tags")}>
+                    <Input
+                      value={doc.tags.join(", ")}
+                      onChange={(e) => patchDoc({ tags: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })}
+                      data-testid="studio-doc-tags"
+                    />
+                  </Field>
+                </div>
+              </SectionCard>
+
               <AgentBucketsEditor
                 value={doc}
                 localSkills={localSkills}

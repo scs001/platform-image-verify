@@ -51,6 +51,13 @@
         "server/cron-mcp.js"
       ],
       "comment": "定时任务 MCP 面（cron_add/cron_list/cron_update/cron_delete）——九条优化 #1 的 agent 侧工具。"
+    },
+    "delegation": {
+      "command": "node",
+      "args": [
+        "server/delegation-mcp.js"
+      ],
+      "comment": "任务委托 MCP 面（delegate_task/task_progress/task_result，agent-delegation-tools spec）——std 工具桥 /api/delegation 回环；授权闸在平台侧，工具面只暴露入口。"
     }
   }
 }

@@ -84,6 +84,10 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       fn(arg);
     };
     const startedAtMs = Date.now();
+    // Turn metering (add-turn-metering): the first assistant event's absolute
+    // timestamp — ttft_ms derives from it at the executor. Absent on a
+    // zero-output turn (honest NULL, never a 0).
+    let firstAssistantAt = null;
     const timer = setTimeout(
       () => settle(reject, timeoutError(toolBlocks, startedAtMs)),
       timeoutMs,
@@ -105,7 +109,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       ctx.fleetTurnLedger?.tap?.(notif, sessionId, mirrorSessionId);
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
-        return settle(resolve, { text, error, usage });
+        return settle(resolve, { text, error, usage, firstAssistantAt });
       }
       // A user-questions ask in an unattended session (scheduled task or
       // worker slot — both use this collector) has no human to answer it:
@@ -132,6 +136,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       const ev = params.event;
       if (!ev) return;
       if (ev.type === "assistant/message") {
+        // Turn metering: the FIRST assistant event is the time-to-first-token
+        // anchor (subsequent steps update usage, not the anchor).
+        firstAssistantAt ??= Date.now();
         const blocks = ev.data?.message?.content;
         if (Array.isArray(blocks)) {
           const t = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
@@ -139,7 +146,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         }
         // Token spend when the runtime reports usage (absent on some
         // providers). dsh attaches TokenUsage to assistant/message, one per
-        // step — keep the last (the honest live context size).
+        // step — keep the last (the honest live context size). The whole
+        // TokenUsage rides: the metering columns read cacheReadTokens /
+        // cacheWriteTokens / reasoningTokens off it (add-turn-metering D4).
         if (ev.data?.usage) usage = ev.data.usage;
         // Mirror the final message into SQLite WITH the tool-call blocks, the
         // same structure the web path persists — a reloaded job session
@@ -209,21 +218,28 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now()) {
 }
 
 async function switchPresetForJob(ctx, preset, timeoutMs) {
+  // spinMs (add-turn-metering D2): the persona-acquisition cost — the measured
+  // wall time of the switch itself, EXCLUDING the idle wait (queue discipline
+  // is not restart tax; counting both would double-bill the wait). Last
+  // attempt wins; the equality short-circuit reports 0 (nothing to acquire).
+  let spinMs = 0;
   for (let attempt = 0; attempt < PRESET_SWITCH_ATTEMPTS; attempt++) {
     await waitForIdle(ctx, timeoutMs);
-    if (preset === ctx.currentPreset) return { ok: true };
+    if (preset === ctx.currentPreset) return { ok: true, spinMs };
     // switchPresetTo already serializes through runExclusiveRuntimeMutation
     // (server/agent-session.js) — wrapping it again would nest the chain and
     // deadlock. It restarts the bridge, persists the preference and
     // broadcasts current_preset + agent_changed — clients learn the runtime
     // now runs the job's agent.
+    const switchT0 = Date.now();
     const r = await ctx.switchPresetTo(preset);
-    if (r?.ok) return r;
+    spinMs = Date.now() - switchT0;
+    if (r?.ok) return { ...r, spinMs };
     // A streaming user turn started between the idle wait and the switch —
     // loop and wait again rather than failing the run.
-    if (!ctx.isStreaming) return r;
+    if (!ctx.isStreaming) return { ...(r ?? {}), spinMs };
   }
-  return { ok: false, error: "could not switch the agent for the scheduled task (runtime stayed busy)" };
+  return { ok: false, error: "could not switch the agent for the scheduled task (runtime stayed busy)", spinMs };
 }
 
 // ── Per-session persona parking (add-cell-session-persona) ──────────────────
@@ -385,10 +401,26 @@ async function runA2aRemoteTurn(ctx, job, timeoutMs) {
         }
       })
       .catch(() => {});
-    return { ok: true, usage: null, text: out.text ?? null };
+    // Turn metering (add-turn-metering D3): a2a runs on the REMOTE executor —
+    // the enqueue default already says remote for a2a targets, but the executor
+    // states it anyway (the claimant/executor rule), and a2a has no persona
+    // acquisition (no spin) and no collected stream (no ttft).
+    return {
+      ok: true, usage: null, text: out.text ?? null,
+      metering: {
+        carrier: "remote", carrierInstance: null,
+        queueWaitMs: job.queuedAt != null ? Math.max(0, Date.now() - job.queuedAt) : null,
+      },
+    };
   } catch (e) {
     ctx.sessionCollectors.delete(sessionId);
-    return { ok: false, error: e.message };
+    return {
+      ok: false, error: e.message,
+      metering: {
+        carrier: "remote", carrierInstance: null,
+        queueWaitMs: job.queuedAt != null ? Math.max(0, Date.now() - job.queuedAt) : null,
+      },
+    };
   }
 }
 
@@ -497,6 +529,10 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   // The preset path this turn took — "parked" | "legacy:<reason>" | null
   // (no-preset legacy record). Rides the outcome detail.
   let presetPath = null;
+  // Turn metering (add-turn-metering): the persona-acquisition cost. Park
+  // path = 0 (no restart — the slice-① win, measured); legacy = the measured
+  // switch; a no-preset job never acquires a persona (honest absence).
+  let spinUpMs = null;
   if (job.preset) {
     const park = await parkPersonaForTurn(ctx, job.preset, childSessionId);
     if (park.legacy) {
@@ -504,12 +540,14 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
       console.warn(`[cron-runner] preset park fell back to restart for ${job.id}: ${park.legacy}`);
       releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
       const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
+      spinUpMs = switched.spinMs ?? null;
       if (!switched.ok) {
         releaseReservation?.();
         return withPresetPath(switched, presetPath);
       }
     } else {
       presetPath = "parked";
+      spinUpMs = 0;
       try {
         await waitForIdle(ctx, timeoutMs);
       } catch (err) {
@@ -529,6 +567,22 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     // the budget is a property of THIS turn's post, so it rides the turn result.
     if (Number.isFinite(modeled.contextBudget)) contextBudget = modeled.contextBudget;
   }
+
+  // Turn metering (add-turn-metering D3): assembled once, attached to every
+  // outcome this turn produces. carrier/carrierInstance come from the
+  // execution-carrier mark (enqueue default or worker claim) — the executor
+  // never invents them; queue_wait measures the enqueue→dequeue window;
+  // provider resolves the LANDED model against the live roster (NULL when
+  // unknown — never a guess). ttft rides per-attempt (only a real attempt
+  // has one).
+  const metering = {
+    carrier: job.executionCarrier?.carrier ?? "cell",
+    carrierInstance: job.executionCarrier?.instance ?? null,
+    queueWaitMs: job.queuedAt != null ? Math.max(0, startedAt - job.queuedAt) : null,
+    ...(job.preset ? { spinUpMs } : {}),
+    ...(modeled?.landed ? { provider: (ctx.dshModels ?? []).find((m) => m.id === modeled.landed)?.provider ?? null } : {}),
+    ...(modeled?.effort ? { effort: modeled.effort } : {}),
+  };
 
   // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
   // agent which post it executes, so it can name its own production source
@@ -565,6 +619,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
         ok: false,
         skipped: true,
         error: `llm lane ${laneId} open until ${new Date(br.openUntil).toISOString()} — round skipped (${br.failures}/${br.threshold} upstream failures in window)`,
+        metering,
       }, presetPath);
     }
   }
@@ -581,17 +636,23 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     releaseReservation?.();
     try {
       await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
-      return { ok: true, ...(await collected) };
+      const out = await collected;
+      // ttft (add-turn-metering): first assistant event − attempt start. The
+      // attempt START is the prompt call's wall clock, not the seam's
+      // startedAt (model-normalize time is not latency to first token).
+      const ttftMs = out?.firstAssistantAt != null ? Math.max(0, out.firstAssistantAt - promptT0) : null;
+      return { ok: true, ...out, metering: { ...metering, ...(ttftMs != null ? { ttftMs } : {}) } };
     } catch (e) {
       ctx.sessionCollectors.delete(childSessionId);
       activeTurns.delete(childSessionId);
       ctx.onRuntimeIdle?.();
-      return { ok: false, error: e.message, interrupted: e.interrupted === true, detail: e.detail ?? null };
+      return { ok: false, error: e.message, interrupted: e.interrupted === true, detail: e.detail ?? null, metering };
     }
   };
 
   const candidates = modeled?.candidates ?? null;
   const landedIndex = Number.isInteger(modeled?.landedIndex) ? modeled.landedIndex : 0;
+  const promptT0 = Date.now();
   const startedWall = Date.now();
   let result = await attempt(modeled?.landed ?? null);
   let degradedTo = null;
@@ -665,8 +726,11 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     })
     .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
 
-  if (result.error) return withPresetPath({ ok: false, error: result.error, detail: result.detail ?? null }, presetPath);
-  return withPresetPath({ ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo }, presetPath);
+  // metering rides the seam return (add-turn-metering): attempt() stamps it
+  // per attempt; a no-attempt ending (shouldn't reach here) falls back to the
+  // turn-level assembly.
+  if (result.error) return withPresetPath({ ok: false, error: result.error, detail: result.detail ?? null, metering: result.metering ?? metering }, presetPath);
+  return withPresetPath({ ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo, metering: result.metering ?? metering }, presetPath);
 }
 
 // ── Cluster task orchestration (agent-cluster-platform) ─────────────────────

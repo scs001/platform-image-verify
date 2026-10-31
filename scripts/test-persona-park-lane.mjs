@@ -96,6 +96,7 @@ function parkCtx({ streaming = false } = {}) {
     },
     reservations: 0,
     switchPresetTo: async (p) => {
+      await new Promise((r) => setTimeout(r, 5)); // a real restart costs time — keep spinUpMs measurable
       ctx.switches.push(p);
       ctx.currentPreset = p;
       return { ok: true };
@@ -116,6 +117,9 @@ test("the park path prompts without any restart and never moves the runtime defa
   const out = await ctx.runCronJobTurn(fleetJob(), { turnTimeoutMs: 2000 });
   assert.equal(out.ok, true);
   assert.equal(out.detail?.presetPath, "parked");
+  assert.equal(out.metering?.spinUpMs, 0, "parked = zero restart tax, measured");
+  assert.equal(out.metering?.carrier, "cell", "enqueue default carrier");
+  assert.ok(out.metering?.queueWaitMs === null || typeof out.metering?.queueWaitMs === "number", "queue wait measured or honest absence (direct seam call never enqueued)");
   assert.equal(ctx.switches.length, 0, "no runtime-default moves");
   assert.equal(ctx.reservations, 0, "no restart reservation on the park path");
   assert.equal(ctx.currentPreset, "persona-a", "the deployment default stays where the user left it");
@@ -166,6 +170,7 @@ test("a live-session refusal falls back to the byte-parity restart path, recorde
   assert.match(out.detail?.presetPath ?? "", /^legacy:live session composition mismatch/);
   assert.equal(ctx.reservations, 1, "the legacy path takes the restart reservation");
   assert.deepEqual(ctx.switches, ["persona-a"], "the legacy path switched the runtime default");
+  assert.ok((out.metering?.spinUpMs ?? -1) > 0, "legacy = measured restart tax");
   assert.equal(ctx.currentPreset, "persona-a");
 });
 

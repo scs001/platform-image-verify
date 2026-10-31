@@ -80,6 +80,11 @@ function saveTasks() {
       prompt: t.prompt,
       preset: t.preset ?? null,
       targetType: t.targetType ?? "persona",
+      // Turn metering (add-turn-metering): the enqueue stamp survives a restart
+      // so a queued-across-boot task still reports its true wait. executionCarrier
+      // stays transient (re-derived at enqueue — restart re-queues nothing in
+      // flight).
+      queuedAt: t.queuedAt ?? null,
       // Cluster binding (agent-cluster-platform): persisted alongside the ref
       // in `preset` — without these a cell restart reloaded cluster tasks with
       // their policy/subset/label gone (prod 2026-10-21: list showed null,
@@ -410,6 +415,18 @@ function enqueueExecution(id) {
     return { ok: true, already: true, state: t.state };
   }
   t.state = "queued";
+  // Turn metering (add-turn-metering D1/D3): the enqueue stamp feeds
+  // queue_wait_ms (dequeue time − this). One stamp point — run-now and cron
+  // due fires both pass through here, so primary and worker slots measure the
+  // same queue. Re-enqueue re-stamps (a spent stamp must never measure a
+  // previous execution's wait).
+  t.queuedAt = Date.now();
+  // The execution carrier default: structural routing knowledge, not an
+  // inference — a2a targets run on the primary's remote executor, everything
+  // else starts as the primary-chain cell slot. A worker claim (worker-slots
+  // markExecutionCarrier) overrides before beginExecution; the executor may
+  // not invent other values.
+  t.executionCarrier = t.targetType === "a2a" ? { carrier: "remote", instance: null } : { carrier: "cell", instance: null };
   void saveTasks();
   broadcastStatus(id);
   dispatch(id);
@@ -537,6 +554,17 @@ async function beginExecution(id, turnFn) {
     return false;
   }
   await runExecutionTurn(t, turnFn);
+  return true;
+}
+
+// Turn metering (add-turn-metering D3): the slot claimant records WHICH body
+// runs this execution. Only claimants may call this — a worker slot marks
+// worker+instance; the enqueue default (cell/remote) stands otherwise. The
+// executor MUST NOT invent carrier values.
+function markExecutionCarrier(id, carrier, instance = null) {
+  const t = tasks.get(id);
+  if (!t) return false;
+  t.executionCarrier = { carrier, instance };
   return true;
 }
 
@@ -742,6 +770,7 @@ export {
   insertTask,
   isInitialized,
   createManualTask,
+  markExecutionCarrier,
   deleteRecord,
   clientShape,
   listTasks,

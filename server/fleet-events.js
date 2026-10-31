@@ -13,6 +13,7 @@
 
 import { resolveAttribution } from "./fleet-reports.js";
 import { buildTurnRequest } from "./turn-request.js";
+import { resolvePersona } from "../dsh-profile.js";
 
 // Ordered: the FIRST matching row wins, so runtime-readiness outranks the
 // timeout it probably caused and tool/permission outranks a provider echo of
@@ -105,6 +106,13 @@ export function normalizeUsage(u) {
   return {
     input: Number.isFinite(input) ? input : null,
     output: Number.isFinite(output) ? output : null,
+    // Turn metering (add-turn-metering D4): the TokenUsage细分 rides verbatim —
+    // absent fields stay undefined → the columns read NULL (honest absence).
+    // usage.input keeps the upstream semantic (UNCACHED input); billed input =
+    // input + cacheRead + cacheWrite summed at query time.
+    cacheReadTokens: Number.isFinite(u.cacheReadTokens) ? u.cacheReadTokens : null,
+    cacheWriteTokens: Number.isFinite(u.cacheWriteTokens) ? u.cacheWriteTokens : null,
+    reasoningTokens: Number.isFinite(u.reasoningTokens) ? u.reasoningTokens : null,
   };
 }
 
@@ -170,5 +178,50 @@ export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = 
     parentTurnId: ledgerTurn?.parentTurnId ?? request.chain?.parentTurnId ?? null,
     edgeKind: ledgerTurn?.edgeKind ?? request.chain?.edgeKind ?? null,
     traceTurnId: ledgerTurn?.traceTurnId ?? null,
+    metering: meteringOf(request, job, outcome),
   });
+}
+
+// ── Turn metering (add-turn-metering) ────────────────────────────────────────
+//
+// Aggregate fields ride the SAME event row as columns (never detail JSON —
+// detail is read by row, never queried). Absent dimension or unreported
+// runtime field → NULL (honest absence), never 0 impersonating an observation.
+// carrier comes from the execution-carrier mark (enqueue default or the worker
+// slot claim) carried on outcome.metering by the executor — derived NOWHERE
+// else. depth is the turnRequest's chain position (single derivation rule);
+// wave reads the origin chain. presetSource classifies the roster id once:
+// catalog pack entry → "catalog", custom preset → "custom", the platform's
+// baseline composition id → "shipped", anything unresolvable → NULL.
+const BASELINE_PRESET_ID = "standard";
+function meteringOf(request, job, outcome) {
+  const usage = outcome?.usage ?? {};
+  const m = outcome?.metering ?? {};
+  let presetSource = null;
+  if (job?.preset) {
+    if (job.preset === BASELINE_PRESET_ID) presetSource = "shipped";
+    else {
+      try {
+        const persona = resolvePersona(job.preset);
+        presetSource = persona ? (persona.customPreset ? "custom" : "catalog") : null;
+      } catch { /* degrade open — source stays NULL */ }
+    }
+  }
+  return {
+    presetId: job?.preset ?? null,
+    presetSource,
+    provider: m.provider ?? null,
+    effort: m.effort ?? null,
+    carrier: m.carrier ?? null,
+    carrierInstance: m.carrierInstance ?? null,
+    laneId: outcome?.detail?.laneId ?? null,
+    depth: request.depth ?? null,
+    wave: job?.origin?.fleet?.wave ?? null,
+    queueWaitMs: Number.isFinite(m.queueWaitMs) ? Math.max(0, Math.round(m.queueWaitMs)) : null,
+    spinUpMs: Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : null,
+    ttftMs: Number.isFinite(m.ttftMs) ? Math.max(0, Math.round(m.ttftMs)) : null,
+    usageCachedInput: Number.isFinite(usage.cacheReadTokens) ? usage.cacheReadTokens : null,
+    usageCacheWrite: Number.isFinite(usage.cacheWriteTokens) ? usage.cacheWriteTokens : null,
+    usageReasoning: Number.isFinite(usage.reasoningTokens) ? usage.reasoningTokens : null,
+  };
 }

@@ -140,6 +140,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
 
   // Run one queued task id on a worker slot, then service the wait queue.
   async function runTaskOn(worker, id) {
+    // Turn metering (add-turn-metering D3): the slot claimant is the only
+    // authority on "this ran on a worker" — mark before the execution reads it.
+    engine.markExecutionCarrier?.(id, "worker", worker.id);
     worker.busy = true;
     emitPoolState();
     try {

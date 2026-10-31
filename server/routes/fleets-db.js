@@ -341,6 +341,26 @@ export function createFleetDatabase({ file } = {}) {
     // stalled/budget shape, degradedTo, laneId) as one JSON column — it is
     // read by row, never queried, and old rows read as honest absence.
     "detail TEXT",
+    // ── turn metering (add-turn-metering) ── aggregate fields become COLUMNS
+    // (detail is read by row, never queried); an absent dimension or unreported
+    // runtime field reads as NULL — honest absence, never a 0 impersonating an
+    // observation. usage_input keeps the upstream semantic (UNCACHED input);
+    // billed input = input + cached_input + cache_write summed at query time.
+    "preset_id TEXT",
+    "preset_source TEXT",
+    "provider TEXT",
+    "effort TEXT",
+    "carrier TEXT",
+    "carrier_instance TEXT",
+    "lane_id TEXT",
+    "depth INTEGER",
+    "wave INTEGER",
+    "usage_cached_input INTEGER",
+    "usage_cache_write INTEGER",
+    "usage_reasoning INTEGER",
+    "queue_wait_ms INTEGER",
+    "spin_up_ms INTEGER",
+    "ttft_ms INTEGER",
   ]) {
     try {
       db.exec(`ALTER TABLE member_turn_events ADD COLUMN ${col}`);
@@ -351,6 +371,41 @@ export function createFleetDatabase({ file } = {}) {
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_turn_events_turn_id ON member_turn_events(turn_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_run ON member_turn_events(run_id, started_at)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_member_ended ON member_turn_events(member_id, ended_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_carrier ON member_turn_events(carrier, started_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_model ON member_turn_events(model, started_at)`);
+
+  // Daily rollup (add-turn-metering): one row per
+  // (fleet, member, carrier, provider, model, UTC day), upserted at the same
+  // write seam as the turn event. PERMANENT retention — the明细 prune (recent
+  // N + window) must never touch these rows; this is the table the carrier
+  // (切片⑤) and self-iteration (切片⑥) slices read for long-term trend.
+  db.exec(`CREATE TABLE IF NOT EXISTS member_turn_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fleet_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    carrier TEXT,
+    provider TEXT,
+    model TEXT,
+    day TEXT NOT NULL,
+    turns INTEGER NOT NULL DEFAULT 0,
+    ok_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    usage_input INTEGER NOT NULL DEFAULT 0,
+    usage_cached_input INTEGER NOT NULL DEFAULT 0,
+    usage_cache_write INTEGER NOT NULL DEFAULT 0,
+    usage_reasoning INTEGER NOT NULL DEFAULT 0,
+    usage_output INTEGER NOT NULL DEFAULT 0,
+    queue_wait_ms_sum INTEGER NOT NULL DEFAULT 0,
+    queue_wait_ms_max INTEGER,
+    ttft_ms_sum INTEGER NOT NULL DEFAULT 0,
+    ttft_ms_max INTEGER,
+    spin_up_ms_sum INTEGER NOT NULL DEFAULT 0,
+    spin_up_ms_max INTEGER,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(fleet_id, member_id, carrier, provider, model, day)
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_daily_day ON member_turn_daily(day)`);
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
@@ -917,32 +972,136 @@ export function createFleetDatabase({ file } = {}) {
   }
 
   function appendTurnEvent(event) {
-    const out = db
-      .prepare(`
-        INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
-                                        turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(
+    const base = [
+      event.fleetId,
+      event.memberId,
+      event.source,
+      event.status,
+      event.errorKind ?? null,
+      event.error ?? null,
+      event.model ?? null,
+      event.startedAt,
+      event.endedAt,
+      event.sessionId ?? null,
+      event.turnId ?? null,
+      event.runId ?? null,
+      event.parentTurnId ?? null,
+      event.edgeKind ?? null,
+      usageInt(event.usage?.input),
+      usageInt(event.usage?.output),
+      event.traceTurnId ?? null,
+      event.detail ? JSON.stringify(event.detail) : null,
+    ];
+    // Turn metering (add-turn-metering): the aggregate columns ride the SAME
+    // INSERT. Degrade (design D6): if the extended insert fails (a
+    // pre-migration table in a mixed-version window), fall back to the legacy
+    // shape so the EVENT itself never regresses — the metering columns and the
+    // daily rollup skip for this row, and a throttled warn surfaces the drift.
+    const m = event.metering ?? {};
+    const meteringArgs = [
+      m.presetId ?? null,
+      m.presetSource ?? null,
+      m.provider ?? null,
+      m.effort ?? null,
+      m.carrier ?? null,
+      m.carrierInstance ?? null,
+      m.laneId ?? null,
+      Number.isFinite(m.depth) ? m.depth : null,
+      Number.isFinite(m.wave) ? m.wave : null,
+      usageInt(m.usageCachedInput),
+      usageInt(m.usageCacheWrite),
+      usageInt(m.usageReasoning),
+      Number.isFinite(m.queueWaitMs) ? Math.max(0, Math.round(m.queueWaitMs)) : null,
+      Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : null,
+      Number.isFinite(m.ttftMs) ? Math.max(0, Math.round(m.ttftMs)) : null,
+    ];
+    let out;
+    try {
+      out = db
+        .prepare(`
+          INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
+                                          turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail,
+                                          preset_id, preset_source, provider, effort, carrier, carrier_instance, lane_id, depth, wave,
+                                          usage_cached_input, usage_cache_write, usage_reasoning, queue_wait_ms, spin_up_ms, ttft_ms)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(...base, ...meteringArgs);
+    } catch (e) {
+      meteringWarnOnce(`metering columns unavailable, legacy event shape (${e.message})`);
+      out = db
+        .prepare(`
+          INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
+                                          turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(...base);
+      return deserializeTurnEvent(
+        db.prepare("SELECT * FROM member_turn_events WHERE id = ?").get(out.lastInsertRowid),
+      );
+    }
+    // Daily rollup (add-turn-metering): same-seam atomic upsert. PERMANENT
+    // retention — the prune below never touches this table. NULL metering
+    // components contribute nothing to the sums (sums of what was observed);
+    // maxes guard with COALESCE (a NULL never erases an observed max).
+    try {
+      const day = new Date(event.startedAt).toISOString().slice(0, 10);
+      const carrier = m.carrier ?? null;
+      const provider = m.provider ?? null;
+      const model = event.model ?? null;
+      db.prepare(`
+        INSERT INTO member_turn_daily (
+          fleet_id, member_id, carrier, provider, model, day,
+          turns, ok_count, failed_count, skipped_count,
+          usage_input, usage_cached_input, usage_cache_write, usage_reasoning, usage_output,
+          queue_wait_ms_sum, queue_wait_ms_max, ttft_ms_sum, ttft_ms_max, spin_up_ms_sum, spin_up_ms_max, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fleet_id, member_id, carrier, provider, model, day) DO UPDATE SET
+          turns = turns + 1,
+          ok_count = ok_count + excluded.ok_count,
+          failed_count = failed_count + excluded.failed_count,
+          skipped_count = skipped_count + excluded.skipped_count,
+          usage_input = usage_input + excluded.usage_input,
+          usage_cached_input = usage_cached_input + excluded.usage_cached_input,
+          usage_cache_write = usage_cache_write + excluded.usage_cache_write,
+          usage_reasoning = usage_reasoning + excluded.usage_reasoning,
+          usage_output = usage_output + excluded.usage_output,
+          queue_wait_ms_sum = queue_wait_ms_sum + excluded.queue_wait_ms_sum,
+          queue_wait_ms_max = CASE WHEN excluded.queue_wait_ms_max IS NOT NULL AND (queue_wait_ms_max IS NULL OR excluded.queue_wait_ms_max > queue_wait_ms_max)
+            THEN excluded.queue_wait_ms_max ELSE queue_wait_ms_max END,
+          ttft_ms_sum = ttft_ms_sum + excluded.ttft_ms_sum,
+          ttft_ms_max = CASE WHEN excluded.ttft_ms_max IS NOT NULL AND (ttft_ms_max IS NULL OR excluded.ttft_ms_max > ttft_ms_max)
+            THEN excluded.ttft_ms_max ELSE ttft_ms_max END,
+          spin_up_ms_sum = spin_up_ms_sum + excluded.spin_up_ms_sum,
+          spin_up_ms_max = CASE WHEN excluded.spin_up_ms_max IS NOT NULL AND (spin_up_ms_max IS NULL OR excluded.spin_up_ms_max > spin_up_ms_max)
+            THEN excluded.spin_up_ms_max ELSE spin_up_ms_max END,
+          updated_at = excluded.updated_at
+      `).run(
         event.fleetId,
         event.memberId,
-        event.source,
-        event.status,
-        event.errorKind ?? null,
-        event.error ?? null,
-        event.model ?? null,
-        event.startedAt,
-        event.endedAt,
-        event.sessionId ?? null,
-        event.turnId ?? null,
-        event.runId ?? null,
-        event.parentTurnId ?? null,
-        event.edgeKind ?? null,
-        usageInt(event.usage?.input),
-        usageInt(event.usage?.output),
-        event.traceTurnId ?? null,
-        event.detail ? JSON.stringify(event.detail) : null,
+        carrier,
+        provider,
+        model,
+        day,
+        event.status === "ok" ? 1 : 0,
+        event.status === "failed" || event.status === "interrupted" ? 1 : 0,
+        event.status === "skipped" ? 1 : 0,
+        usageInt(event.usage?.input) ?? 0,
+        usageInt(m.usageCachedInput) ?? 0,
+        usageInt(m.usageCacheWrite) ?? 0,
+        usageInt(m.usageReasoning) ?? 0,
+        usageInt(event.usage?.output) ?? 0,
+        Number.isFinite(m.queueWaitMs) ? Math.max(0, Math.round(m.queueWaitMs)) : 0,
+        Number.isFinite(m.queueWaitMs) ? Math.max(0, Math.round(m.queueWaitMs)) : null,
+        Number.isFinite(m.ttftMs) ? Math.max(0, Math.round(m.ttftMs)) : 0,
+        Number.isFinite(m.ttftMs) ? Math.max(0, Math.round(m.ttftMs)) : null,
+        Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : 0,
+        Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : null,
+        Date.now(),
       );
+    } catch (e) {
+      meteringWarnOnce(`daily rollup failed (event row intact): ${e.message}`);
+    }
     // Dual-condition prune (agent-fleet-core, v2): only rows that are both
     // past the retention window AND beyond the member's newest-N floor go.
     db.prepare(`
@@ -954,6 +1113,15 @@ export function createFleetDatabase({ file } = {}) {
     return deserializeTurnEvent(
       db.prepare("SELECT * FROM member_turn_events WHERE id = ?").get(out.lastInsertRowid),
     );
+  }
+
+  // Metering degrade warn, once per message per process (the seam runs every
+  // turn — a broken rollup must not flood the log).
+  const meteringWarned = new Set();
+  function meteringWarnOnce(message) {
+    if (meteringWarned.has(message)) return;
+    meteringWarned.add(message);
+    console.warn(`[fleets-db] turn metering: ${message}`);
   }
 
   function getTurnEvent(turnId) {
@@ -1633,6 +1801,25 @@ function deserializeTurnEvent(row) {
     usage: usageOf(row),
     traceTurnId: row.trace_turn_id ?? null,
     detail: parseDetail(row.detail),
+    // Turn metering (add-turn-metering): read-face for the API/cockpit —
+    // honest absence stays null.
+    presetId: row.preset_id ?? null,
+    presetSource: row.preset_source ?? null,
+    provider: row.provider ?? null,
+    effort: row.effort ?? null,
+    carrier: row.carrier ?? null,
+    carrierInstance: row.carrier_instance ?? null,
+    laneId: row.lane_id ?? null,
+    depth: row.depth ?? null,
+    wave: row.wave ?? null,
+    metering: {
+      queueWaitMs: row.queue_wait_ms ?? null,
+      spinUpMs: row.spin_up_ms ?? null,
+      ttftMs: row.ttft_ms ?? null,
+      cachedInput: row.usage_cached_input ?? null,
+      cacheWrite: row.usage_cache_write ?? null,
+      reasoning: row.usage_reasoning ?? null,
+    },
   };
 }
 

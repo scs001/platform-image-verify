@@ -1263,6 +1263,7 @@
       "pause": "Pause",
       "resume": "Resume",
       "runNow": "Run now",
+      "edit": "Edit",
       "delete": "Delete",
       "deleteConfirm": "Delete this scheduled task?",
       "output": "Output",

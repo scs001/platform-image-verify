@@ -1263,6 +1263,7 @@
       "pause": "暂停",
       "resume": "恢复",
       "runNow": "立即运行",
+      "edit": "编辑",
       "delete": "删除",
       "deleteConfirm": "确定删除这个定时任务?",
       "output": "产出",

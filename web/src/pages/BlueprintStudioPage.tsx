@@ -6,7 +6,7 @@
 // 上架（市场=唯一通道）。草稿零副作用：本页只调 /api/blueprints，不产生
 // 市场/铸造仓/集群库任何实体。
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useChatStore } from "@platform/core";
@@ -178,18 +178,26 @@ export function BlueprintStudioPage() {
   // saved, minted or published here; the owner edits and approves per the
   // studio discipline. A bare visit (no param) behaves exactly as before.
   const [searchParams, setSearchParams] = useSearchParams();
+  const handoffSeededRef = useRef(false);
   useEffect(() => {
     const coll = searchParams.get("fromCollection");
     if (!coll) return;
-    const base = content ?? ({} as BlueprintContent);
+    // Seed a NEW draft skeleton — never merge into whatever is open. Spreading
+    // `content` here would stamp the collection ref onto an existing blueprint
+    // (真机走查 2026-10-31: the seed landed in the auto-opened 投研晨会 draft
+    // and showed up as an unsaved boundary/dataSources edit).
+    handoffSeededRef.current = true;
     const seeded = {
-      ...base,
-      boundary: base.boundary ?? { name: "", oneLine: "", outOfScope: "" },
-      fleet: base.fleet ?? { name: "", members: [] },
+      boundary: { name: "", oneLine: "", outOfScope: "" },
+      fleet: { name: "", members: [] },
       dataSources: [{ ref: `library:${coll}` }],
     } as BlueprintContent;
+    setSelectedId(null);
+    setDetail(null);
+    setTrial(null);
     setContent(seeded);
     setJsonText(JSON.stringify(seeded, null, 2));
+    setJsonError(null);
     setVerdict(null);
     setVerdictStale(true);
     setNotice({ kind: "ok", text: t("blueprints.fromCollectionSeeded") });
@@ -197,12 +205,16 @@ export function BlueprintStudioPage() {
     const next = new URLSearchParams(searchParams);
     next.delete("fromCollection");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, content, t]);
+  }, [searchParams, setSearchParams, t]);
 
   useEffect(() => {
     void (async () => {
       try {
         const items = await refreshList();
+        // A collection handoff owns the canvas with a fresh draft — opening the
+        // most recent blueprint over it would both discard the seed and leak
+        // another blueprint's content into the seeded editor.
+        if (handoffSeededRef.current) return;
         const first = items[0];
         if (first) await open(first.id);
       } catch (e) {

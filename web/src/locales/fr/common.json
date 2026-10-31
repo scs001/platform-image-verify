@@ -1263,6 +1263,7 @@
       "pause": "Pause",
       "resume": "Reprendre",
       "runNow": "Exécuter",
+      "edit": "Modifier",
       "delete": "Supprimer",
       "deleteConfirm": "Supprimer cette tâche planifiée ?",
       "output": "Résultat",

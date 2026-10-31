@@ -1263,6 +1263,7 @@
       "pause": "一時停止",
       "resume": "再開",
       "runNow": "今すぐ実行",
+      "edit": "編集",
       "delete": "削除",
       "deleteConfirm": "この定期タスクを削除しますか?",
       "output": "出力",

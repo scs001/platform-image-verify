@@ -2848,7 +2848,6 @@ export function createFleetRoutes(app, ctx = null) {
       try {
         const last = db.listTurnEvents?.(member.id, { limit: 1 })?.[0] ?? null;
         if (last) {
-          const metering = last.metering ?? {};
           outgoingAnchor = ` 离任锚：末次回合 turn_id=${last.turnId ?? "-"} status=${last.status} model=${last.model ?? "-"} carrier=${last.carrier ?? "-"}`;
         }
       } catch { /* anchor is best-effort */ }

@@ -351,7 +351,7 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
               </div>
             )}
 
-            {status === "draft" && verdict?.ok && (
+            {status === "cast" && (
               <Button
                 size="sm"
                 variant="outline"
@@ -379,7 +379,7 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
               </div>
             )}
 
-            {status === "draft" && trial && !signed && (
+            {status === "cast" && trial && !signed && (
               <Button
                 size="sm"
                 variant="outline"
@@ -397,7 +397,7 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
                 {t("studio.blueprint.sign")}
               </Button>
             )}
-            {status === "draft" && trial && signed && (
+            {status === "cast" && trial && signed && (
               <Button
                 size="sm"
                 variant="ghost"

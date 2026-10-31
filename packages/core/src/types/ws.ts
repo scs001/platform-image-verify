@@ -177,6 +177,7 @@ export type ServerMessage =
   | { type: "cron_fired"; id: string; prompt: string; state?: string }
   | { type: "cron_completed"; id: string; success?: boolean; state?: string; error?: string; completedAt?: string }
   | { type: "cron_added"; job: CronJob }
+  | { type: "cron_updated"; job: CronJob }
   | { type: "cron_paused"; jobId: string; success: boolean }
   | { type: "cron_resumed"; jobId: string; success: boolean }
   | { type: "cron_run_started"; jobId: string; success: boolean; state?: string; already?: boolean; message?: string }
@@ -415,6 +416,11 @@ export interface SessionMeta {
   // Runtime workspace the session started in (best-effort; rows written before
   // the capability carry none and render under the sidebar's Ungrouped group).
   workspace?: string | null;
+  // Project attribution (add-web-project-container): the web-side top-level
+  // container this session was created under, resolved by backing-path
+  // backtrace at first mirror. Null/absent on desktop-origin and legacy rows —
+  // those render under the read-time 默认项目 group on web, Ungrouped on desktop.
+  projectId?: string | null;
   // Live turn state for THIS session (concurrent-chat-sessions): "running" when
   // its turn is open, "queued" when a prompt waits behind another session's
   // turn, null when idle. Server-computed; drives the sidebar indicator.
@@ -491,7 +497,34 @@ export type ClientMessage =
   // Scheduled tasks (spec: cron-module). The client-facing job shape mirrors
   // cron.js clientShape().
   | { type: "cron_list" }
-  | { type: "cron_add"; cron?: string; when?: string; prompt: string; preset?: string | null; tz?: string | null; sessionTitle?: string | null }
+  | {
+      type: "cron_add";
+      cron?: string;
+      when?: string;
+      prompt: string;
+      preset?: string | null;
+      tz?: string | null;
+      sessionTitle?: string | null;
+      // add-cron-automation-parity: the interval form, the server-anchored
+      // relative one-shot, the finite-run cap, and the project attribution.
+      interval?: { number: number; unit: "minute" | "hour" | "day" | "week" };
+      delayMinutes?: number;
+      maxRuns?: number;
+      projectId?: string | null;
+    }
+  // In-place edit (add-cron-automation-parity): id, history and paused survive.
+  | {
+      type: "cron_update";
+      jobId: string;
+      cron?: string;
+      when?: string;
+      interval?: { number: number; unit: "minute" | "hour" | "day" | "week" };
+      delayMinutes?: number;
+      maxRuns?: number;
+      prompt?: string;
+      tz?: string | null;
+      sessionTitle?: string | null;
+    }
   | { type: "cron_remove"; jobId: string }
   | { type: "cron_pause"; jobId: string }
   | { type: "cron_resume"; jobId: string }
@@ -532,6 +565,8 @@ export interface CronJobHistoryEntry {
   tokens?: { input?: number; output?: number; total?: number; [k: string]: unknown };
   /** Present on downtime markers: occurrences missed while the cell was down. */
   missed?: number;
+  /** Downtime catch-up run (P2): this execution made up a missed occurrence. */
+  catchUp?: boolean;
   /** Cluster fan-out: model id each member actually ran under (by member name). */
   models?: Record<string, string>;
 }
@@ -584,4 +619,17 @@ export interface CronJob {
   nextRun: string | null;
   missed: number;
   history: CronJobHistoryEntry[];
+  // Interval form (add-cron-automation-parity): the every-N rule is the truth
+  // (never a coerced cron), `anchor` is when it started (occurrences are
+  // anchor + k×step, k ≥ 1). Absent on cron/once records.
+  interval?: { number: number; unit: "minute" | "hour" | "day" | "week" } | null;
+  anchor?: string | null;
+  // Finite-run cap: retire at `maxRuns` completed executions; `runs` counts
+  // them (run-now and re-runs included). Absent = unbounded.
+  maxRuns?: number | null;
+  runs?: number;
+  // Project attribution (add-web-project-container): the web project this job
+  // was created under, or null/absent for the 默认项目 bucket (legacy + desktop).
+  // Opaque to the engine — read surfaces filter on it, same as sourceTag.
+  projectId?: string | null;
 }

@@ -12,6 +12,7 @@ import * as cron from "../../cron.js";
 import * as catalog from "../../catalog.js";
 import * as chatHistory from "../../chat-history.js";
 import { rosterPresetId } from "../../dsh-profile.js";
+import { resolveDispatchTarget } from "../../server/fleet-chat-context.js";
 import { getClusterDatabase } from "./clusters-db.js";
 import {
   getFleetDatabase,
@@ -952,10 +953,15 @@ export function createFleetRoutes(app, ctx = null) {
 
       // Guard 1: same fleet. Guard 2: no self-dispatch (attribution already
       // implies it, but the ref could be the caller's own post).
-      const target = db.getMember(toRef);
-      if (!target || target.fleetId !== fleet.id) {
-        return res.status(400).json({ error: `post '${toRef}' is not a member of ${fleet.name}` });
+      // Addressing (fix-external-team-chat-lane B1): the caller is a persona
+      // that reads a ROSTER — it types a title or a member id, not a database
+      // id it cannot see. A title resolves within THIS fleet only; an
+      // ambiguous title refuses and lists the candidates (never a guess).
+      const resolved = resolveDispatchTarget(db, fleet.id, toRef);
+      if (!resolved.ok) {
+        return res.status(400).json({ error: resolved.error });
       }
+      const target = resolved.member;
       if (target.id === from.id) {
         return res.status(400).json({ error: "a post cannot dispatch to itself" });
       }
@@ -1023,6 +1029,11 @@ export function createFleetRoutes(app, ctx = null) {
   });
 
   // ── Cockpit aggregate + template lifecycle (agent-fleet-templates) ────────
+
+  // Formation grid node cap (add-teams-hub-formation-board 1.2): beyond this
+  // many posts a team's mini formation renders as a thumbnail (truncated:true)
+  // instead of an unreadable hairball; the full formation lives in the cockpit.
+  const FORMATION_NODE_CAP = 24;
 
   // Compact per-cell projection of every fleet the caller owns
   // (agent-fleet-cockpit-projection): ONE round-trip the gateway cell sampler
@@ -1100,6 +1111,25 @@ export function createFleetRoutes(app, ctx = null) {
             name: clip(fleet.name, 60),
             state: fleet.state,
             counts: { ...counts, total: members.length },
+            // Formation summary (add-teams-hub-formation-board 1.1): the compact
+            // node/edge view the hub's formation grid renders — member nodes
+            // (id/title/kind/status) plus the DECLARED orchestration edges with
+            // read-time supervisor expansion, the same source the cockpit
+            // canvas draws. Never a second status computation. `truncated`
+            // signals the node cap (1.2).
+            formation: {
+              members: members.map((m) => ({
+                id: m.id,
+                title: m.title,
+                targetKind: m.target?.kind ?? m.targetKind ?? null,
+                status: m.status,
+              })),
+              edges: (fleet.orchestration
+                ? expandedEdges({ members, orchestration: fleet.orchestration })
+                : []
+              ).map((e) => ({ kind: e.kind, from: e.from ?? null, to: e.to ?? null, implicit: e.implicit === true })),
+              truncated: members.length > FORMATION_NODE_CAP,
+            },
             openDecisions: {
               count: decisions.length,
               top: decisions.slice(0, 3).map((d) => ({
@@ -1116,6 +1146,28 @@ export function createFleetRoutes(app, ctx = null) {
     } catch (err) {
       console.error("[fleets] overview error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Copilot focus for the teams hub (add-teams-hub-formation-board 3.1):
+  // which installed pack carries the fleet architect? Resolved by AGENT ID
+  // ("fleet-architect"), never by pack id/name — per-deployment minted ids
+  // drift (§15.101), the agent id is the stable contract. No architect
+  // installed → { copilot: null } and the dock opens unfocused (honest
+  // degrade, never a pretend focus).
+  router.get("/copilot", (_req, res) => {
+    try {
+      const packs = dbModule.listInstalledPacks();
+      for (const p of packs) {
+        const agents = Array.isArray(p.manifest?.agents) ? p.manifest.agents : [];
+        if (agents.some((a) => a?.id === "fleet-architect")) {
+          return res.json({ line: "fleets", copilot: { agentId: "fleet-architect", packId: p.packId ?? p.id ?? null } });
+        }
+      }
+      return res.json({ line: "fleets", copilot: null });
+    } catch (err) {
+      console.error("[fleets] copilot resolve error:", err.message);
+      return res.json({ line: "fleets", copilot: null });
     }
   });
 

@@ -17,18 +17,24 @@ function notFound(msg) {
   return Object.assign(new Error(msg), { status: 404 });
 }
 
-export function listCollections() {
-  return db.listCollections();
+export function listCollections(query) {
+  return db.listCollections(query);
 }
 
 export function getCollection(id) {
   return db.getCollection(id);
 }
 
-export function createCollection({ name, description }) {
+export function createCollection({ name, description, projectId = null }) {
   const id = randomUUID();
   const now = new Date().toISOString();
-  db.createCollection({ id, name: (name || "").trim() || "Untitled collection", description: description || null, created_at: now });
+  db.createCollection({
+    id,
+    name: (name || "").trim() || "Untitled collection",
+    description: description || null,
+    created_at: now,
+    project_id: projectId ?? null,
+  });
   return db.getCollection(id);
 }
 

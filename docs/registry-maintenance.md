@@ -6426,3 +6426,59 @@ assert 后 write，中途断言失败整块不落盘（createMember SQL/ALTER �
 占用 checkout 不得）；④快照 tag 看板已三次救场（源真 sha 行 vs 镜像 tag）。
 
 **测试**：test-fleet-carrier 8/8 + 全回归 129/129 + lint 清。
+
+### §15.119 parked 回合打断全平台报数归因 + 同根工具面错位——两缺陷一修（fix-parked-preset-attribution，2026-10-31）
+
+**症状（生产实测）**：`add-cell-session-persona` 的 park-before-first-prompt 上线后，两靶 cell 的
+`member_reports` 里 `source='self'` **归零**——06:11:06Z / 06:18:21Z 首批 parked 事件之后 6 小时内
+全平台 0 条自报（此前 6 小时 28 条）。同一根因的第二面：本体建设舰队的盘账岗拿到的是**部署默认岗的
+工具面**，`wire_datasets_list` 搜索零命中。
+
+**根因（一处两命）**：parked 把人设挂在 **session** 上，`bridge.setPreset({sessionId,presetId})`
+**故意不动** `ctx.currentPreset`（只有 legacy 的 `switchPresetForJob` 才经 `ctx.switchPresetTo` 移动它）。
+而 `resolveAttribution` 只读 `ctx.currentPreset` → 读到部署默认岗 → 判「不是本岗成员」→ 报数被丢；
+`applyMcpToolRestrict(agentCtx, presetId)` 在**没有 byPreset 段**时回落到整份 map → 拿到默认岗的面。
+**设计文档没写「不动 currentPreset」这条约束**，grep 复审只扫了 `server/`（漏 `server/routes/` 六个调用点）。
+
+**修法三件**（`f83c6098`）：
+①**归因次序**（D1）：`resolveAttribution` 先读 `fleetTurnLedger.openTurns()` 的在飞舰队回合（唯一→按
+turn 归属；多条→不猜，回落）→ 再读 runningTasks 的 `sourceTag` → 最后才读 `currentPreset`。六处调用点
+（/report、/dispatch、/escalate、/deputy 三面）统一传 `openTurns()`，读面失败 fail-open（归因永不让报数失败）。
+②**工具面分段**（D2）：`dsh-profile.js` 新增 `packPersonaToolFaces()`，按 `effectiveMcpTools(manifest, agent)`
+为每个已装 pack 岗位写 `byPreset[presetId].mcpTools`，与 pod 侧 `agent-runner/compose.js` 同形（读面零改）。
+**形状纪律**：只有存在 byPreset 时才写 `{mcpTools, byPreset}` 文档，否则保持旧裸 map 逐字节不变——
+否则包装对象的 own `mcpTools` 键会被读成 `{"mcpTools":{"mcpTools":null}}`（自测逮住）。
+③**事实列**（D3）：`/report` 把归属结果存 `ctx.recordFleetAttribution` 一次性事实桥，回合结束时并入
+`member_turn_events.detail.attribution`——归属可事后复算，不只活在内存。
+
+**出片与「已在产」判据**：快照 `d452833`（源 `6253d08e`）→ 镜像 `yizuo/platform:sha-d452833`（2.47GB，
+五道烟测全绿：/api/config、/api/ready、dsh contracts、browser lane、module identity）。**但未 bump**：
+另一车道 10:06Z 已把 `sha-a3f603c`（源 `c8faf5ff` **⊇ f83c6098**）滚上产，我的修复随它在产；
+两条车道**互不为超集**（`f6edb5ba` 含我的修但缺 `c8faf5ff` 的 carrier 读面 3 行）→ **谁 bump 谁回退
+对方**，故本轮零 bump，只记录镜像可随时替换。**律**：出片前必须 `git show origin/main:<manifest>`
+核**真源 sha 的祖先链**，不信工作树（共享 checkout 里常有他人在途未提交编辑）。
+
+**真机验收（全过）**：
+- **归因**：`member_turn_events.detail` 出现 `{"attribution":{"source":"turn","fleetId":…,"memberId":…}}`
+  （cell1 3 行 / cell2 1 行，10:26Z 后）；10Z 档自报恢复（cell1 4 条 10:20–10:24、cell2 1 条 10:23）。
+- **工具面**：cell1 `dsh/profiles/platform/tool-filter.json` 顶层 `mcpTools + byPreset` 双键，byPreset
+  **27 个岗位段**；`ob-scout` 段自带 `wire_datasets_list` 等 10 工具。
+- **端到端**：ob-scout 回合 ok（10:20Z）→ 自报原文「本轮巡视完成：**wire_datasets_list** 取靶 cell 全 6
+  数据集，逐集以 wire_dataset_r…」（10:21Z）——两缺陷同轮闭环。
+
+**CI 门现状（诚实记账）**：lint ✓ / typecheck ✓ / dsh contracts ✓；**unit 门红**，全部与本次修无关：
+7 条在 `ea06c727`（现役镜像源）就红（A/B 实证：`main` ca6a7b4a 32/32 绿、基线 ea06c727 同样 7 红）——
+`test-fleet-runs` 的 usage 三列（计量车道加列、测试没跟）、seam×2 + `test-fleet-event-wake` 的
+`'cron' vs 'event'`、`test-official-starter-teams` 的「（官方种子）」尾（main 的 `db90d2db` 已去、分支落后）、
+`test-bots-event-wake` 超时；另有 2 条仅镜像仓复现：`test-facet-cli-mcp` 是**快照 scrub-rot**
+（`make-public-snapshot.mjs:329` 只脱敏测试文件、没脱敏 `facet/cli/facet.js:51` 的默认 clientId）、
+`test-fleet-decision-lane` 是 tmp 文件改名竞态。**我的两套全绿**：51/51（report-lane 41 + full-mode 10）、
+persona-scope 12/12（已按 byPreset 段适配）。
+
+**新发现（非本修引入，另立）**：`volces/deepseek-v4.1-flash` **07Z 起成片 503**
+（`Service temporarily unavailable`），近 3h 两 cell 共 42 条 failed（cell1 30 / cell2 12）——此前 00–06Z 为 0。
+parked 回合与报数修好后仍被它压着，需词元车道查（判据：503 且快失败先查模型名/账号元数据，见 §判据选型）。
+
+**挂账**：①顶层 `mcpTools` 为空（部署默认岗 compose 丢弃了 `wire-ops-mcp` 等），无段岗位仍拿不到面——
+服务器级集合差需专项；②`registryName` 语义（注册名 vs 部署别名 `wire-ops` ≠ `wire-ops-mcp`）未在 pack
+校验层区分；③上列 unit 门 9 红清理（含 scrub-rot 修法：测试改比 `DEFAULT_OAUTH_CLIENT_ID` 常量而非字面）。

@@ -6402,3 +6402,27 @@ specs=场景并集 223/0；AA 档案=取内容全侧；fleet-hub e2e=并集【ma
 cockpit 测试】）；并行会话在途 11 untracked 撞名移避+15 tracked 在途暂存，合并后**回放为本地
 改动**（10 份与 main 已提交版逐字节同→弃）。**教训**：净 worktree 跑套是隔离「工作树在途 vs
 已提交」的唯一可靠手段——两次三红复判全靠它。
+
+### §15.118 承载可配上产：三层解析+runner 路由+fail-open+准入闸真机闭环（add-fleet-carrier 切片⑤，2026-10-31）
+
+**变更**：`member.carrier` 列（写面/读面/物化全链）+ `constraints.carrier` 值域校验 + `resolveTaskCarrier`
+三层解析（member→fleet→`CELL_CARRIER_DEFAULT`→auto，单点可注）+ runner 路由（目录 a2a entry 匹配→
+a2aExecutor）+ **fail-open 两源显式留痕**（runner-no-entry / worker-pool-inactive → detail.carrierFallback，
+永不拒绝回合）+ worker 认领门（cell/runner 不认领）+ `FLEET_MAX_INFLIGHT`（默认 4）每舰队在途闸
+（pendingFleets 桥接 spawn 异步窗——竞态实测逮住：无桥时第二任务从缝里溜过）。createManualTask 收
+carrier + origin.fleet 派生 sourceTag。
+
+**真机验收（判据全过）**：PATCH member carrier=worker → 200 + memberView carrier=worker + reconcile
+原位（task id `job_1793422472930_bjf6it` 全程不变=换身体不换会话）；run-now 回合落主链照常完成
+（status=ok），事件行 `carrier=cell（实际）× presetPath=parked × carrierFallback=worker-pool-inactive`
+三面同框——配置 wish 与实际 body 分列可查；carrier 还原 null（auto）留场干净。
+
+**本班四坑**（三次微出片的代价，全在册）：①**中断式 python 编辑丢弃前序 replace**——同一脚本先
+assert 后 write，中途断言失败整块不落盘（createMember SQL/ALTER 两次遭殃）——律=**多段编辑分脚本
+落盘**；②**真机走查是最后的闸**——PATCH carrier 三连 500（ReferenceError）+读面缺位，单测全绿
+拦不住（路由解构/memberView 是测试夹具不走的面）；③**并行会话同分支作业**：architect 班在
+/tmp/paas-edge worktree 推 feat、把他们的 parked-preset 修叠上我的 release 分支——merge 而非 reset
+（我的 memberView 修叠他们的 tip 重出片），feat 搬运走 detached 临时 worktree（分支被对方 worktree
+占用 checkout 不得）；④快照 tag 看板已三次救场（源真 sha 行 vs 镜像 tag）。
+
+**测试**：test-fleet-carrier 8/8 + 全回归 129/129 + lint 清。

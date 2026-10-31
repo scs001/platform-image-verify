@@ -12,4 +12,4 @@
 
 ## 3. 真机验收
 
-- [ ] 3.1 真机：一次 cell→worker 承载改写（reconcile 原位、task id 不变）+ fail-open 一发（runner 声明无部署）+ 台账实际载体列与配置一致性。验证：证据附 change report
+- [x] 3.1 真机：一次 cell→worker 承载改写（reconcile 原位、task id 不变）+ fail-open 一发（runner 声明无部署）+ 台账实际载体列与配置一致性。验证：证据附 change report

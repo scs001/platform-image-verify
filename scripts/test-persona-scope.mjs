@@ -262,7 +262,17 @@ test("a later local install activates an awaiting reference (task 4.2)", async (
   const before = await writeMcpPatch({ agentPreset: "persona-alpha" });
   assert.equal(before, null, "no servers at all — patch skipped");
   const filterBefore = JSON.parse(readFileSync(path.join(process.env.DSH_HOME, "profiles", "platform", "tool-filter.json"), "utf8"));
-  assert.deepEqual(filterBefore, { mcpTools: { "persona-scope-await": ["read"] } }, "the allowlist waits with the reference");
+  // fix-parked-preset-attribution D2: the doc also carries one section per
+  // pack persona, because a parked round reads its PRESET's face rather than
+  // the deployment default's. Neither persona declares its own tools here, so
+  // both inherit the pack-level allowlist — the waiting reference included.
+  assert.deepEqual(filterBefore.mcpTools, { "persona-scope-await": ["read"] }, "the allowlist waits with the reference");
+  assert.deepEqual(
+    Object.keys(filterBefore.byPreset ?? {}).sort(),
+    ["persona-alpha", "persona-shadowed"],
+    "each pack persona carries its own section",
+  );
+  assert.deepEqual(filterBefore.byPreset["persona-alpha"].mcpTools, { "persona-scope-await": ["read"] });
 
   // The user installs a local server of that name — the NEXT composition
   // picks the binding up with no reinstall of the pack.

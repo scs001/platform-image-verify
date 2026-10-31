@@ -6482,3 +6482,27 @@ parked 回合与报数修好后仍被它压着，需词元车道查（判据：5
 **挂账**：①顶层 `mcpTools` 为空（部署默认岗 compose 丢弃了 `wire-ops-mcp` 等），无段岗位仍拿不到面——
 服务器级集合差需专项；②`registryName` 语义（注册名 vs 部署别名 `wire-ops` ≠ `wire-ops-mcp`）未在 pack
 校验层区分；③上列 unit 门 9 红清理（含 scrub-rot 修法：测试改比 `DEFAULT_OAUTH_CLIENT_ID` 常量而非字面）。
+
+### §15.119 自迭代闭环上产：记忆章程+成本异常提案器+防中毒四闸（add-agent-self-iteration 切片⑥ 终片，2026-10-31）
+
+**变更**：①记忆章程——pack manifest `agents[].memory.guidance`（可选 ≤600 字）→ catalog 透传 →
+`catalogEntryPersona` 组成【记忆章程】尾段（未声明 agent 逐字节不变；章程随 pack 版本走，本身是
+被迭代对象）；②成本异常提案器——`runFleetCostDigests` 聚合后四条全中评估（queue_wait max ≥5min
+× ≥3 独立日 × 样本 ≥6 回合 × carrier=cell/auto）→ 决策车道 **carrier-change** 提案
+（proposedBy=platform:cost-anomaly + 证据链 + 在途去重）；批准回调走同一 updateMember 面
+（承载解析/fail-open 语义不变，**不走铸版链**——成员级运行时配置非 pack 结构）；③防中毒四闸钉住
+（provenance 全链/证据不足不受理/在途去重/人批终闸——自动提案永不直接生效）。
+
+**真机验收**：章程组成 OK（生产镜像内 catalogEntryPersona 构造一发断言过）；sweep 真跑 2 周报页 +
+提案零发（本日生产 queue_wait 健康——切片①驻留生效的直接证据；正例路径单测 5/5 钉死）；
+imageID=digest 387e31e9 同一性过 + carrierAnomalies 标记在镜像。
+
+**本班三坑**：①**快照赛跑**——并行班同分钟连发三版互相取消（cancel-in-progress），等窗外安静抢
+最后一拍（轮询 active=0 即拍）；②**快照 tag 截断变长**——本班 tag=sha-da16cf5（6 位），relay 按
+run log 的 Push image digest 行核实际 tag（7 位律不是死数）；③**manifest 校验器返回形状**——
+validatePackManifest 直接返回 errors 数组（非 {errors} 包装），测试按行数断言。
+
+**底稿六切片全归档**：①会话级 persona（a63f/8f0e…）②台账细记 ③词元价目 ④永忆四补丁 ⑤承载可配
+⑥自迭代闭环——「agents 部署后只能串行」命题的全链答案：**执行底座（并行度）+ 承载自决（carrier）
++ 记账尺子（计量/价目）+ 记忆缝合（锚/章程）+ 自迭代（提案器）**，validate --specs 225/0。
+**测试**：test-agent-self-iteration 5/5 + 回归 57/57 + lint 清。

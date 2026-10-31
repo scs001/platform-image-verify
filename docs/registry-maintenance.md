@@ -6175,6 +6175,42 @@ platform-demo.yaml:71 / facet.yaml:66）→ 双推 → ArgoCD hard refresh → `
 官方聚合 `templates 16 / assistants 36`，目标 `adopted:true`；平台 `/health`
 `{status:ok, db:ok, redis:ok, providers:3}`；paas 首页 HTTP 200。
 
+**§15.111 续二：改走私有线出片（备用组织额度）+ 并线第六发归位（2026-10-31）**
+
+用户指令：用备用组织额度建立私有镜像（源码不再经公开快照仓外露）。
+
+**私有线出片（`sha-2f8e280`，digest `3f6281d1`）**——`testaction001/build-pool`，剩 1491 分钟。
+两坑：
+1. **`--ref <分支>` 的远端 clone 失败会静默退回本地工作树**——首次试运行即撞上
+   （分支没推远端），而本地工作树带着其他会话在途文件，直接推会扫进去。
+   处置：先把分支推到 gitee 源仓，改用 `/tmp/testclone` 干净 clone 作为源。
+2. **构建池的 `BUILD_*` 变量是「上一单遗留」的**：`BUILD_CONTEXT=web` +
+   `BUILD_DOCKERFILE=api/Dockerfile` + `SMOKE_MODE=skip`（别的项目布局），
+   首次 run 死在 `ERROR: failed to build: resolve : lstat api: no such file or directory`。
+   处置：`gh variable set` 改回 `BUILD_CONTEXT=.` / `BUILD_DOCKERFILE=Dockerfile` /
+   `SMOKE_MODE=full`，rerun 后五项 smoke 全过。
+   **律：共用池每次出片前先 `gh variable list -R <pool>` 核目标变量，别信上次的值。**
+
+**并线第六发（关键风险处置）**：私有线镜像拿到后我提交 GitOps `40ffe11`，把三面设为
+`sha-2f8e280`。但 `git pull` 时发现**并行会话已在 `ea8b4b5` 把 platform/demo 推到
+`sha-afd429e`**（源 `1ff1e9c2`：nine-opts 尾段归位 + mcp.example + i18n 修）。
+我的提交会把那些修复回退——**祖先核验第三次拦下**。
+
+核实后取超集：`1ff1e9c2` 的 facet 运行时**逐字节含本班修复**
+（`marketplace isOfficial 自判`=1、`index officialAuthors 接线`=2；相对生产源
+`5e92a698` 仅这 2 文件 +22/-3，**无删除**）。故三面统一归位 `sha-afd429e`
+（GitOps `d419975`），`sha-2f8e280` 作为私有线演练产物留在 TCR 不滚生产。
+
+**上线实证**：三 deploy `successfully rolled out`，三 pod imageID **同为**
+`sha256:81732f22`；facet `ready=true restarts=0`；marketplace.json **77 条**中带
+`provenance` 的**唯一 1 条**（`5y0_Gislp_OgElqq4zPswA/official-adopted`）；
+详情 `v3 / official true / badge facade / prov official-adopted`；
+官方聚合 `templates 17 / assistants 36`，目标 `adopted=true official=true badge=facade`；
+平台 `/health {status:ok, db:ok, redis:ok, providers:3}`。
+
+> **并线律（第三次实战）**：改 GitOps 前必 `git pull` 看别人是否已推；
+> 若已被推走，先做**内容超集比对**再决定是跟随还是覆盖。**技术全绿 ≠ 可以覆盖。**
+
 **§15.108 续记四：7 条内网端点条目的需求单已逐线开出（2026-10-31）**
 复测改判：7 条在网关上 POST 全回 401（不存在名回 405）——**公网路由本已存在**，「网关没接它们」
 不成立；真正拦路的是 finddata 台账 §3.z 记录的旧约束（auth_server `_forward_headers` 白名单

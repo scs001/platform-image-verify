@@ -190,26 +190,23 @@ export function BlueprintStudioPage() {
     // handoff itself only seeds — no validation/mint/publish; the owner edits
     // and approves per the studio discipline.
     handoffSeededRef.current = true;
-    let alive = true;
     void (async () => {
       try {
         const seeded = { ...skeletonContent(t("blueprints.untitled")), dataSources: [{ ref: `library:${coll}` }] };
         const { blueprint } = await createBlueprint(seeded);
-        if (!alive) return;
         await refreshList();
         await open(blueprint.id);
         setNotice({ kind: "ok", text: t("blueprints.fromCollectionSeeded") });
       } catch (e) {
-        if (alive) setNotice({ kind: "err", text: String((e as Error).message) });
+        setNotice({ kind: "err", text: String((e as Error).message) });
       }
     })();
-    // Clear the param so a refresh/back does not re-seed another draft.
-    const next = new URLSearchParams(searchParams);
-    next.delete("fromCollection");
-    setSearchParams(next, { replace: true });
-    return () => {
-      alive = false;
-    };
+    // Clear the param so a refresh/back does not re-seed another draft. This
+    // changes `searchParams` and re-runs this effect — the param is gone by
+    // then, so the re-run early-returns; `handoffSeededRef` keeps StrictMode's
+    // double-invoke from creating two drafts. No alive-cleanup here: it would
+    // fire on exactly that param-clear re-render and cancel our own chain
+    // (真机走查二轮: draft created but open() never landed).
   }, [searchParams, setSearchParams, t, refreshList, open]);
 
   useEffect(() => {

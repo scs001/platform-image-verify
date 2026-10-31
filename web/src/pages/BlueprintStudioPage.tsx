@@ -181,7 +181,11 @@ export function BlueprintStudioPage() {
   const handoffSeededRef = useRef(false);
   useEffect(() => {
     const coll = searchParams.get("fromCollection");
-    if (!coll) return;
+    // One handoff seeds ONE draft: the ref guards StrictMode's double-invoke
+    // (same params, two runs) and any later arrival with the param still in
+    // the URL (back/refresh before the clear lands).
+    if (!coll || handoffSeededRef.current) return;
+    handoffSeededRef.current = true;
     // Collection handoff = the 新建 flow with a pre-pinned data source: create
     // a NEW draft record (same skeleton the studio's 新建 button uses) and open
     // it — never merge into whatever is already open. Spreading `content` here
@@ -189,7 +193,6 @@ export function BlueprintStudioPage() {
     // seed landed in the auto-opened 投研晨会 draft as an unsaved edit). The
     // handoff itself only seeds — no validation/mint/publish; the owner edits
     // and approves per the studio discipline.
-    handoffSeededRef.current = true;
     void (async () => {
       try {
         const seeded = { ...skeletonContent(t("blueprints.untitled")), dataSources: [{ ref: `library:${coll}` }] };
@@ -201,13 +204,15 @@ export function BlueprintStudioPage() {
         setNotice({ kind: "err", text: String((e as Error).message) });
       }
     })();
-    // Clear the param so a refresh/back does not re-seed another draft. This
-    // changes `searchParams` and re-runs this effect — the param is gone by
-    // then, so the re-run early-returns; `handoffSeededRef` keeps StrictMode's
-    // double-invoke from creating two drafts. No alive-cleanup here: it would
-    // fire on exactly that param-clear re-render and cancel our own chain
-    // (真机走查二轮: draft created but open() never landed).
-  }, [searchParams, t, refreshList, open]); // setSearchParams is stable and setter-identity is not a trigger
+    // Clear the param so the URL stops re-offering the handoff (refresh/back).
+    // It changes `searchParams`, re-running this effect — the ref guard and
+    // the missing param both make that re-run a no-op. No alive-cleanup here:
+    // it would fire on exactly that param-clear re-render and cancel our own
+    // chain (真机走查二轮: draft created but open() never landed).
+    const next = new URLSearchParams(searchParams);
+    next.delete("fromCollection");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, t, refreshList, open]);
 
   useEffect(() => {
     void (async () => {

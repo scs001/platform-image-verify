@@ -1,5 +1,5 @@
 {
-  "name": "晨报情报站（官方种子）",
+  "name": "晨报情报站",
   "version": "1.0.0",
   "description": "官方集群模板：每日晨报情报站——科技与市场情报员每日清晨分头巡检，情报主编 8 点合成晨报；另含集群引用岗（existing-cluster，每周一做深度聚合，演示集群 fan-out 引用与派生报数）。演示：双情报源并行、晨报流、cluster 引用岗（公司种子只演示了 a2a）；编导段为 trigger+handoff 链（两情报员巡检完成接棒主编合成）与集群 report 上行。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。",
   "agents": [
@@ -223,7 +223,7 @@
   },
   "i18n": {
     "en": {
-      "name": "Morning Brief Station (official seed)",
+      "name": "Morning Brief Station",
       "description": "Official fleet template: a daily morning-brief intel station — the tech and market scouts patrol separately every early morning, and the briefing editor synthesizes the morning brief at 8; plus a cluster-reference post (existing-cluster, weekly deep aggregation, demonstrating cluster fan-out).",
       "agents": {
         "intel-chief": {

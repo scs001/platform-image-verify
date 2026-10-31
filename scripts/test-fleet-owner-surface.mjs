@@ -61,7 +61,7 @@ const rosterFn = (id) => id;
 
 const goodManifestWithParams = () => ({
   fleet: {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} IS the fixture — the cadence template renders these placeholders at runtime
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture 模拟 fleetContext 占位符字面量
     name: "晨报·${ownerName}",
     params: [
       { name: "ownerName", type: "string", required: true, label: "主人名" },
@@ -83,7 +83,7 @@ const goodManifestWithParams = () => ({
         parentRef: "ceo",
         target: { kind: "existing-persona", id: "user-assist" },
         kpiSlots: [],
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${...} placeholders are the fixture under test
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture 占位符字面量
         cadence: { cron: "${cadenceDaily}", promptTemplate: "深度:${deepSummary} · 由 ${ownerName} 触发" },
       },
     ],
@@ -129,7 +129,7 @@ test("参数槽声明: 合法声明通过; 重复名/坏类型/坏默认值如�
   assert.match(parseFleetTemplate(badDefaultEnumM).error, /must be one of a, b/);
 
   const nested = goodManifestWithParams();
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${...} placeholder is the fixture under test
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture 占位符字面量
   nested.fleet.params[0].default = "由 ${extra} 代发";
   nested.fleet.params.push({ name: "extra", type: "string" });
   const nb = parseFleetTemplate(nested);
@@ -139,12 +139,12 @@ test("参数槽声明: 合法声明通过; 重复名/坏类型/坏默认值如�
 
 test("占位引用: 未声明槽位被引用如实拒; 白名单外无插入语", () => {
   const bad = goodManifestWithParams();
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${...} placeholder is the fixture under test
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture 占位符字面量
   bad.fleet.members[1].cadence.cron = "${noSuch}";
   assert.equal(parseFleetTemplate(bad).ok, false);
 
   const kept = goodManifestWithParams();
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: literal ${...} placeholder is the fixture under test
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture 占位符字面量
   kept.fleet.members[1].title = "含泪的 ${noSuch} 岗";
   const p = parseFleetTemplate(kept);
   assert.equal(p.ok, true, "title 白名单同样受管 — 未声明引用被拒");

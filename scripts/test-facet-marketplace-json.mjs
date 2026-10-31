@@ -13,6 +13,7 @@ import { pathToFileURL } from "node:url";
 const MOD = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "facet", "marketplace-json.js");
 const { registerMarketplaceJson } = await import(pathToFileURL(MOD).href);
 const packsMod = await import(pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "gateway", "packs.js")).href);
+const { lineOf } = await import(pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "lib", "pack-category-lines.js")).href);
 
 async function boot({ officialAuthors = [] } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "facet-mkt-"));
@@ -64,7 +65,10 @@ test("marketplace.json：策展在列（category∨featured）、未策展缺席
     assert.deepEqual(doc1.plugins.map((p) => p.name), [a.id]);
     const e1 = doc1.plugins.find((p) => p.name === a.id);
     assert.equal(e1.source, `./packs/${a.id}/v1`);
-    assert.equal(e1.category, "legal");
+    // 投影归位 (add-legacy-pack-rebrand 2.x): the plugin manifest's category rides
+    // the归位 LINE word, not the stored slug — assert against the mapping itself so
+    // a deployment override (PACK_CATEGORY_LINES) keeps this honest.
+    assert.equal(e1.category, lineOf("legal"));
     assert.equal(e1.featured, false);
     // featured 单独为真也收录（category 空）。
     registry.setCuration({ id: c.id, actor: { email: "op@finddata.cloud", admin: true }, category: "", featured: true });

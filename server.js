@@ -72,10 +72,12 @@ import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js
 import { createBlueprintRoutes } from "./server/routes/blueprints.js";
 import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
 import { registerPackAuthorRoutes } from "./server/pack-author.js";
+import { createSkillEvolutionRoutes } from "./server/skill-evolution-routes.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
+import { renderChatFleetContext } from "./server/fleet-chat-context.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
@@ -364,6 +366,11 @@ createBlueprintRoutes(app, ctx);
 // pools. Loopback-only credential (auth.js), owner resolved server-side.
 registerBlueprintAuthorRoutes(app, ctx);
 registerPackAuthorRoutes(app, ctx);
+// Skill self-evolution (add-skill-self-evolution): the propose face for the
+// in-cell MCP child (loopback bridge) + the owner's evaluate/promote/reject
+// REST face. Candidates live outside custom_skills; promotion is the only
+// bridge and it is human-only.
+createSkillEvolutionRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)
@@ -1151,6 +1158,20 @@ attachCronRunner(ctx);
 // or several (ambiguous), yields null so the turn runs unchanged. Cluster
 // posts are out of scope — the fan-out picks the member after this seam runs.
 ctx.resolveFleetIdentity = (presetId, { turn } = {}) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId, turn });
+
+// Chat-lane team context (fix-external-team-chat-lane B1): a visitor chatting
+// with a fleet persona gets the TRIMMED team roster (identity + members +
+// dispatchable targets) so the persona can name its teammates and dispatch to
+// them by title. Same server-side attribution as the identity above — no
+// attribution ⇒ null ⇒ the prompt stays byte-identical.
+ctx.resolveFleetChatContext = (presetId) => {
+  try {
+    return renderChatFleetContext(getFleetDatabase(), presetId, { rosterPresetId });
+  } catch (err) {
+    console.warn("[fleets] chat fleet context render failed:", err.message);
+    return null;
+  }
+};
 
 // Fleet post model (add-fleet-post-model D3): the persona turn path asks for
 // this post's resolution plan (chain candidates + notices) right before the

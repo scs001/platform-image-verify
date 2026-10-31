@@ -262,10 +262,20 @@ test("4.2 uninstalling the pack prunes its orphan deployment", () => {
 // that fixture carries, the runner's filter/spawn path could silently go
 // blind — so the golden's consumed-shape is pinned here.
 test("5.1 entry shape stays a superset of the spike golden", () => {
-  const goldenPath = new URL(
+  // The change was archived on 2026-10-28 (its spike moved under archive/);
+  // resolve whichever path exists. In distribution trees (public snapshot)
+  // openspec/ is pruned wholesale — skip there rather than fake-red.
+  const candidates = [
+    "../openspec/changes/archive/2026-10-28-add-local-fleet-control-plane/spike/golden-agents.json",
     "../openspec/changes/add-local-fleet-control-plane/spike/golden-agents.json",
-    import.meta.url,
-  );
+  ];
+  const goldenPath = candidates
+    .map((rel) => new URL(rel, import.meta.url))
+    .find((u) => fs.existsSync(u));
+  if (!goldenPath) {
+    console.log("5.1 skipped: spike golden not present in this tree (distribution prune)");
+    return;
+  }
   const golden = JSON.parse(fs.readFileSync(goldenPath, "utf8"));
   const goldenEntry = golden.agents[0];
 

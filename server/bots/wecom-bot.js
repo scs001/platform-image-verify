@@ -185,7 +185,7 @@ export const registry = {
     return { chatKey, senderName: sender, text };
   },
 
-  async sendText(cred, chatKey, text) {
+  async sendText(_cred, chatKey, text) {
     const entry = responseUrls.get(chatKey);
     if (!entry || Date.now() - entry.at > RESPONSE_URL_TTL_MS) {
       if (entry) responseUrls.delete(chatKey);

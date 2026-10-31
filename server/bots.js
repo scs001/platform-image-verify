@@ -402,7 +402,8 @@ async function deliverAskAttempt(entry, text) {
 // hard timeout PAUSES while the human holds the floor and resumes with its
 // remaining budget when the ask resolves.
 function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = null } = {}) {
-  return new Promise((resolve, reject) => {
+  let abortFn = null;
+  const promise = new Promise((resolve, reject) => {
     let text = "";
     let error = null;
     let usedTools = false;
@@ -429,6 +430,11 @@ function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = nul
       timer = setTimeout(() => settle(reject, new Error("turn timed out")), ms);
     };
     armTimeout(TURN_TIMEOUT_MS);
+    // Abandon path: if the caller bails (prompt() throws before the collector
+    // is ever reached), settle now — otherwise the armed hard timeout fires
+    // TURN_TIMEOUT_MS later into an unhandled rejection and the process hangs
+    // the full window (boot-latch test, 2026-10-30: "turn timed out" at 180s).
+    abortFn = () => settle(reject, new Error("turn aborted"));
 
     // Resolve the live ask (answer or cancel): unregister the interception
     // entry, resume the paused turn timeout with its remaining budget, and
@@ -509,6 +515,10 @@ function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = nul
       }
     });
   });
+  // Exposed for the caller's bail path (prompt threw): settles the collector
+  // so the hard timeout is disarmed and never surfaces as an unhandled reject.
+  promise.abort = () => abortFn?.();
+  return promise;
 }
 
 // ── Seen chats (relay destinations) ─────────────────────────────────────────
@@ -694,7 +704,12 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
     await ctx.dshBridge.prompt(sessionId, blocks);
     result = await collected;
   } catch (e) {
-    ctx.sessionCollectors.delete(sessionId);
+    // Abandon the collector: a throw here (or a later unawaited timeout) must
+    // not linger; abort disarms the hard timeout so it cannot fire into an
+    // unhandled rejection after this function has already returned.
+    if (typeof collected?.abort === "function") collected.abort();
+    else ctx.sessionCollectors.delete(sessionId);
+    collected?.catch?.(() => {});
     console.warn(`[bots] "${bot.name}" turn failed: ${e.message}`);
     return reply("Sorry — I could not complete that request.");
   } finally {

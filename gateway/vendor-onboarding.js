@@ -221,7 +221,7 @@ export function createOnboardingStore(db) {
 // — verdicts are DATA, so the route layer, the stored row, and the audit row
 // can never disagree about WHY a submission ended where it did.
 async function review({ store, vendor, row, deps }) {
-  const { writer = defaultWriter(), probe = probeMcpToolNames, tiers = tierQuotas(), log = console } = deps;
+  const { writer = defaultWriter(), existingNames: _existingNames = async () => new Map(), probe = probeMcpToolNames, tiers = tierQuotas(), log = console } = deps;
   const m = row.material ?? {};
 
   // 1. Material completeness: declaration-first — endpoint(s), surface.tools

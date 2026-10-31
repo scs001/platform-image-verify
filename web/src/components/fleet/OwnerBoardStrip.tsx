@@ -7,7 +7,7 @@
 // 开关。每一路数据独立可达, 任一失败如实降级 — 坞面从不把一路的缺席伪装
 // 成另一路的一切正常。
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as owner from "@/lib/fleet-owner-api";
 import type { OwnerBoardFleet, BillingSnapshot, OwnerCellRow, SubUpdate, DigestSub, IterationRow } from "@/lib/fleet-owner-api";
@@ -32,18 +32,18 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
   const [proposalDraft, setProposalDraft] = useState("");
   const [proposalMsg, setProposalMsg] = useState<string | null>(null);
 
-  const reloadBoard = () => {
+  const reloadBoard = useCallback(() => {
     owner
       .fetchOwnerBoard()
       .then((r) => setBoard(r.fleets))
       .catch((e) => setBoardError((e as Error).message));
-  };
-  const reloadDigest = () => {
+  }, []);
+  const reloadDigest = useCallback(() => {
     owner
       .listDigestSubscriptions()
       .then((r) => setDigestSubs(r.subscriptions ?? []))
       .catch(() => {});
-  };
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: this is a mount-only bootstrap fetch; listing reloadBoard/reloadDigest would re-fetch on every parent render (behavior preserved from the shipped strip)
   useEffect(() => {
@@ -62,7 +62,7 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
       .then((r) => setUpdates(r.updates ?? []))
       .catch(() => {});
     reloadDigest();
-  }, []);
+  }, [reloadDigest, reloadBoard]);
 
   const marketSpendFor = (packId: string | null | undefined) => {
     if (!packId) return null;

@@ -159,6 +159,17 @@ test.describe("fleet hub", () => {
     await expect(page.getByTestId("teams-overview")).toBeVisible();
   });
 
+function _pollFor(get) {
+  return new Promise((resolve) => {
+    const tick = () => {
+      const v = get();
+      if (v) return resolve(v);
+      setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
+
   test("cockpit keeps the switch: source highlight follows the entry view, tab click leaves the fleet", async ({ page }) => {
     await page.goto("/fleets");
     await page.getByTestId(`teams-card-${OK}`).click();

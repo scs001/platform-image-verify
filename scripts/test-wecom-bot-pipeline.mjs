@@ -160,7 +160,7 @@ test("group chats enjoy the SAME guards as private chats — no exemption", asyn
   const collector = ctx.sessionCollectors;
   // Re-stub the bridge to produce a tool-using turn.
   const origPrompt = ctx.dshBridge.prompt.bind(ctx.dshBridge);
-  ctx.dshBridge.prompt = async (sessionId, blocks) => {
+  ctx.dshBridge.prompt = async (sessionId, _blocks) => {
     const c = collector.get(sessionId);
     c({ method: "session.event", params: { sessionId, event: { type: "tool/call", data: { name: "web_search" } } } });
     c({ method: "session.event", params: { sessionId, event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "带工具的回答" }] } } } } });

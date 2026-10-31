@@ -130,7 +130,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
     const r = anchor.getBoundingClientRect();
     // Off-viewport anchors (the collapsed rail's nav) fall back to centering.
     setRect(r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null);
-  }, [step]);
+  }, [step, visible]);
 
   useEffect(() => {
     locate();
@@ -160,7 +160,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [finish]);
+  }, [finish, visible.length]);
 
   const next = () => (step < visible.length - 1 ? setStep(step + 1) : finish());
   const anchored = rect !== null;

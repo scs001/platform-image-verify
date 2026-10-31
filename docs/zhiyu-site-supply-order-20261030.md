@@ -159,14 +159,31 @@ cp /srv/zhiyu-site/index.html.bak-pre-20261030 /srv/zhiyu-site/index.html && cad
 - **C · 六席共宿**：让同包共用一把计费钥匙以取得 pod 共宿资格 → 六席摊一个 dsh 进程，
   内存问题基本消失。但要改「一席一键」这条计费归属纪律，属平台级决策。
 
-### 8.3 遗留 1 条：`intro-lex` 半部署
+### 8.3 遗留 1 条：`intro-lex` 半部署 —— **已于 2026-10-31 证伪并关账**
 
-`intro-lex` 已有 `pack_deployments` 行、registry 条目也在，但 runner 如实报
+原判断（当日）：`intro-lex` 有 `pack_deployments` 行与 registry 条目，但 runner 报
 `listener ... NOT serving on :8815 — port 8815 already in use`（8815 是别家包
-`reception` 的 override）。**它没有被邀请进房间，访客看不到它，不影响对外**。
-清掉它需要 admin 权限（`/deployments/:id/kill` 返 `Admin group required`，当前身份
-`isAdmin=false`、`adminGroups=["platform"]`），留作待办；不做也不会恶化——
-runner 每次 reconcile 只报一行 warn，不动别的席位。
+`reception` 的 override），需 admin 才能 `kill` 掉残留行。
+
+**复盘：这条判断是错的，且"待办"本身不存在。** 直接查库：
+
+```
+intro-facet = 1 行   intro-guide = 1 行   intro-lex = 1 行
+intro-wire  = 1 行   intro-yizuo  = 1 行
+```
+
+每席各一行，`intro-lex` 与其它席结构**完全一致**，没有重复行、没有半部署。
+当时把「`deployment_keys` 里查不到这一行的 key」误读成了「部署残缺」——
+那 20 条 key 行是历史格式，intro 五席都不在其中，而它们的服务一直是好的
+（真机 `seq=78/80` 实答）。
+
+端口冲突也已被路线 A 自然消解：`intro-lex` 重投到 runner-c 落在 **`:8915`**
+（不是原登记的 8815），`intro-wire` 在 `:8903`，两席均 `serving` 且
+registry `health_status=healthy`。**`kill` 从未被需要。**
+
+**教训**：「某张表里没有某行」不等于「对象残缺」。判部署完整度要看
+`pack_deployments` 的行数与结构，更要看**服务是否真的应答**——
+后者才是对外事实，前者只是账面。
 
 
 ## 九、路线 A 执行结果：runner-c 复活成功，两席被计费门 park（2026-10-31）
@@ -312,3 +329,54 @@ limits.memory: 36Gi  # 32Gi → 36Gi（32480Mi 实占，512Mi 作业原本放不
    判分片配置差异，先比 `updatedAt` 与 key 指纹，别只比 env 键名。
 3. **配额卡顿看事件原文里的资源项**：`requested:` 后面写的是哪一项，就是哪一项卡住；
    `limits.cpu` 与 `limits.memory` 是**两个独立闸**，修一个不等于修好。
+
+---
+
+## 十一、永忆回链已上产（2026-10-31 验证通过）
+
+姊妹单 `docs/yongyi-site-zhiyu-link-resupply-20261030.md` 由对侧执行完毕，现网实测：
+
+| 换版单验收项 | 期望 | 实测 |
+|---|---|---|
+| 首页 HTTP | 200 | **200** |
+| `zhiyu.finddatatech.cloud` 计数 | 2 | **2** |
+| 「团队如何交谈」 | 1 | **1** |
+| 「会话会结束」零回归 | 1 | **1** |
+| 「永忆」零回归 | ≥5 | **5** |
+| 回链目标 zhiyu 可达 | 200 | **200** |
+
+现网指纹 `c72d83702bbf8b46f6088b955f01485d35645b574f2f2afb67fd2f54b9be4495`（12,024 B），
+与换版单 §二、与 `fd-memory` master 的 `site/index.html` **三者一致**。
+`Last-Modified: 2026-10-30 21:50:13 GMT`。
+
+链接位置也对得上，不是文本巧合：导航第 29 行（`起跑 | 智语 | GitHub` 之间）、
+页脚第 244 行（`evidence report · 智语 · 团队如何交谈`）。
+
+**双向互链闭合**：永忆 → 智语 2 处，智语 → 永忆 3 处，两端域名均 200，无死链。
+
+## 十二、双站工程终态
+
+- **智语官网**：三件静态文件在产，指纹与分支 `site-zhiyu/` 逐字节一致
+  （`index.html fd6d1afe…` / `script.js 503c3339…` / `style.css a5645bfb…`）。
+- **真房间**：`zy_42ce690574b5423bd2`，**四席全部可用**
+  —— 产品向导 / 壹座专家（runner-serving）+ 识律专家 / 柏讯专家（runner-c）。
+  访客通道真机实答，识律 `seq=78`、柏讯 `seq=80`，内容有实质、未编造。
+- **永忆回链**：在产，双向互链闭合（§十一）。
+- **配额**：`limits.cpu 28` / `limits.memory 36Gi`（GitOps `12b4cf1`），
+  `fd-info` 四条 `*/5` CronJob 不再被拒。
+
+### 12.1 三条工程教训（本工程新增）
+
+1. **「钥匙 live」必须先问是哪个实体**：部署面板的 `sk-` 钥匙 ≠ provider store 的
+   provider 级 key，两者报错都叫 `key-invalid`，却是不同存储、不同轮换节奏。
+2. **Secret 覆盖 hostPath 是隐形的版本钉**：挂载把运行态冻结在 Secret 创建时点，
+   而 hostPath 上那份可能已被更新。判分片配置差异先比 `updatedAt` 与 key 指纹。
+3. **配额卡顿看事件原文的 `requested:`**：`limits.cpu` 与 `limits.memory` 是两个独立闸，
+   修一个不等于修好；「内存不够」这个直觉判断在本工程里就错了半次。
+
+### 12.2 一条方法教训
+
+**「某张表里没有某行」≠「对象残缺」**（见 §8.3）。判部署完整度要看
+`pack_deployments` 的行数与结构，更要看**服务是否真的应答**——
+后者才是对外事实，前者只是账面。这条让一条本该关掉的「待 admin」待办
+多挂了一天。

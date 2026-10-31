@@ -7,7 +7,7 @@
 // 装前闸 402 走市场面错误文案的种类链。无参数槽的模板直达末尾（与落地前
 // 同形状）。
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
 import type { PackDetail } from "@/lib/packs-api";
@@ -36,12 +36,17 @@ export function FleetTemplateWizard({ pack, onCancel, onDone }: {
   );
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"form" | "running" | "done">("form");
-  const [log, setLog] = useState<string[]>([]);
+  const [log, setLog] = useState<{ id: number; text: string }[]>([]);
+  const logSeq = useRef(0);
   const [fleetId, setFleetId] = useState<string | null>(null);
   const [lit, setLit] = useState<boolean>(false);
   const [startError, setStartError] = useState<string | null>(null);
 
-  const push = (line: string) => setLog((l) => [...l, line]);
+  const push = (line: string) =>
+    setLog((l) => {
+      logSeq.current += 1;
+      return [...l, { id: logSeq.current, text: line }];
+    });
 
   const setField = (p: ParamDecl, raw: string | boolean) => {
     if (p.type === "boolean") setDraft((d) => ({ ...d, [p.name]: raw === true }));
@@ -177,12 +182,9 @@ export function FleetTemplateWizard({ pack, onCancel, onDone }: {
 
       {(phase === "running" || phase === "done") && (
         <ul className="text-xs space-y-1" data-testid="fleet-wizard-log">
-          {log.map((line, i) => {
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: append-only log lines have no stable id; index is their identity
-              <li key={i} className={line.startsWith("✗") ? "text-destructive" : "text-muted-foreground"}>{line}</li>
-            );
-          })}
+          {log.map((entry) => (
+            <li key={entry.id} className={entry.text.startsWith("✗") ? "text-destructive" : "text-muted-foreground"}>{entry.text}</li>
+          ))}
           {phase === "running" && <li className="text-primary">{t("common.loading")}</li>}
         </ul>
       )}

@@ -34,6 +34,7 @@ import { sellabilityGate } from "./pack-sellability-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
+import { lineOf, slugsForLine, isLineWord } from "../lib/pack-category-lines.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { installVendorTables, createVendorStore } from "./vendors.js";
@@ -490,7 +491,12 @@ export function createPackRegistry({ file }) {
       unlisted: Boolean(pack.unlisted),
       visibility: pack.visibility === "private" ? "private" : "public",
       // Curation state (add-facet-content-management): presentation-level.
+      // `category` is the STORED slug (zero-migrated — write/install read it);
+      // `line` is its归位 display word for the browse facet (add-legacy-pack-
+      // rebrand 2.x). Unmapped slugs show as themselves; company → "" (the
+      // facade badge carries the 分身 entries, not a category chip).
       category: pack.category ?? "",
+      line: lineOf(pack.category),
       featured: Boolean(pack.featured),
       // Agent count of the latest version's manifest (agent-cluster-platform
       // marketplace views): computed in SQL by the list query via
@@ -764,8 +770,22 @@ export function createPackRegistry({ file }) {
         params.push(`%"${tag.replace(/[\\%_"]/g, (c) => `\\${c}`)}"%`);
       }
       if (category) {
-        where.push("p.category = ?");
-        params.push(String(category));
+        // The facet selection now carries the归位 LINE word; expand it to the
+        // raw slugs it stands for. A selection that is not a line word (an
+        // unmapped category or a direct slug query from an API client) matches
+        // exactly — so the read face maps, the storage stays byte-for-byte.
+        if (isLineWord(category)) {
+          const slugs = slugsForLine(category);
+          if (slugs.length > 0) {
+            where.push(`p.category IN (${slugs.map(() => "?").join(", ")})`);
+            params.push(...slugs);
+          } else {
+            where.push("1 = 0");
+          }
+        } else {
+          where.push("p.category = ?");
+          params.push(String(category));
+        }
       }
       if (author) {
         where.push("p.author_email = ?");

@@ -63,9 +63,14 @@ fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
 // compare against it.
 const firedPrompts = [];
 async function bootEngine() {
-  await engine.initTaskEngine({
+  // Boot through cron.initCron, not engine.initTaskEngine: the pre-turn seam
+  // (fix-fleet-context-injection-seam) is registered there, exactly as
+  // server.js boots it in production (server.js:1540). A raw engine boot leaves
+  // the seam unattached, and every injection assertion would then compare
+  // against a bare template.
+  await cron.initCron({
     broadcast: () => {},
-    runTurn: async (job) => {
+    runJobTurn: async (job) => {
       firedPrompts.push(job.prompt);
       return { ok: true, text: "远端答复" };
     },
@@ -812,10 +817,17 @@ test("fire chain: 手动戳发遇到渲染失败时明确失败，不静默跑�
     sourceTag: { fleetId: fleet.id, memberId: member.id },
   });
   cron.setFleetContextRenderer(async () => "");   // 空段
+  // fix-fleet-context-injection-seam 语义迁移：渲染失败从「入队前同步拒绝」
+  // 改为「起轮时缝内失败、落史」——runJobNow 收到的是入队回执（ok=true =
+  // 已受理），失败在同一任务的历史里以结构化错误呈现。spec 口径不变：
+  // 该次触发显性失败，绝不静默按裸模板跑一轮。
   const r = await cron.runJobNow(task.id);
   await engine.idle();
-  assert.equal(r?.ok, false, "空段必须显式失败");
-  assert.match(String(r?.error ?? ""), /empty segment/);
+  assert.equal(r?.ok, true, "手动戳发的入队回执（失败在执行落史，不在受理）");
+  const after = cron.getJob(task.id);
+  assert.equal(after.state, "failed", "该次执行以失败结算");
+  assert.match(String(after.history.at(-1)?.error ?? ""), /empty segment/, "结构化错误落史");
+  assert.equal(firedPrompts.length, 0, "没有 turn 真正起跑——绝不裸模板执行");
   assert.ok(
     !firedPrompts.some((p) => p === "巡视 {{fleetContext}}" || p === "巡视 "),
     "绝不能拿裸模板或无上下文 prompt 跑这一轮",
@@ -1033,4 +1045,125 @@ test("fleet-context: 自身历史最坏体积不超过 24KB 池的合理份额�
   // 4KB 级，不是 24KB 级——自身历史永远不该吃穿下级报数的池子
   assert.ok(worst <= 4 * 1024 + 64, `最坏体积 ${worst} 应在 ~4KB 量级`);
   assert.ok(worst < 24 * 1024, "远低于总量上限");
+});
+
+// ── 注入缝唯一化（fix-fleet-context-injection-seam） ───────────────────────
+//
+// 2026-10-30 真机验收实证：平台重启后，持久化 queued 的舰队任务经
+// drainRepairQueue 恢复执行，**绕过入队侧的注入**——落库 prompt 只有 283 字符、
+// `{{fleetContext}}` 原样未展开（此前 2026-10-29 的手动戳发是同一类病的另一条腿）。
+// 入队路径四条，注入原先散写在入队侧，路径一增长必漏。缝搬到引擎
+// runExecutionTurn（四条路径唯一汇合点）后，以下三条路径逐一钉住。
+//
+// 这三例放在文件末尾：3.1 需要重新 boot 引擎（会以只含一条任务的 jobs.json
+// 替换内存任务表），不能影响前面的用例。
+
+test("注入缝：重启后恢复执行的舰队任务获得注入（复刻 283 字符裸模板缺陷）", async () => {
+  const now = new Date().toISOString();
+  // 预置一条「持久化时正好是 queued」的舰队任务——正是滚版/重启打断在途执行的形状
+  const persisted = [{
+    id: "job_seam_repair",
+    trigger: "schedule",
+    type: "recurring",
+    // 未来触发点 + lastRun=now → 不产生补跑噪音，只验恢复通道
+    cron: "0 3 1 1 *",
+    prompt: "巡视下属。{{fleetContext}}",
+    preset: "persona-repair",
+    targetType: "persona",
+    sessionId: "cron-job_seam_repair",
+    sessionTitle: "巡视",
+    tz: null,
+    status: null,
+    state: "queued",
+    initiator: null,
+    initiatorPreset: null,
+    origin: null,
+    sourceTag: { fleetId: "fleet_repair", memberId: "m_repair" },
+    aggregated: false,
+    paused: false,
+    createdAt: now,
+    lastRun: now,
+    nextRun: null,
+    missed: 0,
+    history: [],
+  }];
+  fs.writeFileSync(path.join(tmpRoot, "jobs.json"), JSON.stringify(persisted));
+
+  firedPrompts.length = 0;
+  // 重新 boot：initTaskEngine 载入 → queued 进 repairQueue → initCron 末尾 drainRepairQueue
+  await cron.initCron({
+    broadcast: () => {},
+    runJobTurn: async (job) => { firedPrompts.push(job.prompt); return { ok: true, text: "远端答复" }; },
+    isBusy: () => false,
+    renderFleetContext: async () => "【集群巡视上下文】恢复轮注入",
+  });
+  await engine.idle();
+
+  assert.equal(firedPrompts.length, 1, "恢复通道确实起了一轮");
+  assert.equal(firedPrompts[0], "巡视下属。【集群巡视上下文】恢复轮注入", "起轮 prompt 必须已注入");
+  assert.ok(!firedPrompts[0].includes("{{fleetContext}}"), "占位符绝不残留（旧缺陷的 283 字符裸模板形态）");
+});
+
+test("注入缝：补跑前缀与注入段共存（前缀不再被渲染覆盖，渲染不再丢前缀）", async () => {
+  firedPrompts.length = 0;
+  cron.setFleetContextRenderer(async () => "第二帧上下文");
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视 {{fleetContext}}",
+    preset: "persona-catchup-seam",
+    sourceTag: { fleetId: "fleet_seam", memberId: "m_seam" },
+  });
+  // 补跑扫描现在的职责只剩置标志（不再预写 promptOverride）
+  engine.getRecord(task.id).catchUpPending = true;
+  await cron.fireTask(task.id);
+  await engine.idle();
+
+  const ran = firedPrompts.at(-1);
+  assert.ok(ran.startsWith("【补跑】"), "补跑前缀在场（旧实现里它被整体替换吃掉）");
+  assert.ok(ran.includes("巡视 第二帧上下文"), "注入段同时在场（旧实现里二者只能活一个）");
+  assert.ok(!ran.includes("{{fleetContext}}"), "占位符已展开");
+  // 标记随执行消费：不得泄漏给下一次正常开火（虚假补跑）
+  assert.equal(engine.getRecord(task.id).catchUpPending, false, "标记已消费");
+});
+
+test("注入缝：决策送达已组合的 prompt 不被二次渲染（不双注入）", async () => {
+  firedPrompts.length = 0;
+  let renderCalls = 0;
+  cron.setFleetContextRenderer(async () => { renderCalls++; return "不该被调用"; });
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视 {{fleetContext}}",
+    preset: "persona-decision-seam",
+    sourceTag: { fleetId: "fleet_seam2", memberId: "m_seam2" },
+  });
+  // 决策送达路径（fleets.js:2181）：override 已把占位符换成决策段
+  engine.setPromptOverride(task.id, "巡视。\n\n【拍板结果】已批准：口径 A");
+  await cron.fireTask(task.id);
+  await engine.idle();
+
+  assert.equal(renderCalls, 0, "override 里没有占位符 → 缝跳过渲染");
+  assert.equal(firedPrompts.at(-1), "巡视。\n\n【拍板结果】已批准：口径 A", "恰好一份上下文，无双重注入");
+});
+
+test("注入缝：任务被调度侧拦下时补跑标记不泄漏给下一次正常开火", async () => {
+  firedPrompts.length = 0;
+  cron.setFleetContextRenderer(async () => "正常帧");
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视 {{fleetContext}}",
+    preset: "persona-leak-seam",
+    sourceTag: { fleetId: "fleet_seam3", memberId: "m_seam3" },
+  });
+  engine.getRecord(task.id).catchUpPending = true;
+  engine.getRecord(task.id).paused = true;         // 拦下：这一轮根本不跑
+  await cron.fireTask(task.id);
+  await engine.idle();
+  assert.equal(firedPrompts.length, 0, "被拦下的任务不起轮");
+  assert.equal(engine.getRecord(task.id).catchUpPending, false, "补跑标记随丢弃释放");
+
+  // 恢复后正常开火：不得带虚假的【补跑】前缀
+  engine.getRecord(task.id).paused = false;
+  await cron.fireTask(task.id);
+  await engine.idle();
+  assert.ok(firedPrompts.at(-1).startsWith("巡视 正常帧"), "正常轮无补跑前缀");
 });

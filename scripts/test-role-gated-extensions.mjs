@@ -78,6 +78,22 @@ function makeLegacyDb() {
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT,
     content TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+  // v8's bots: v101/v103/v104 ALTER it, so a legacy DB claiming v1..12 must
+  // physically carry it or the chain dies with "no such table: bots" (same
+  // discipline as the chat_sessions note below — discovered 2026-10-30 when
+  // the public CI's unit gate finally ran after the lint backlog cleared).
+  legacy.exec(`CREATE TABLE bots (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1, secret TEXT NOT NULL,
+    credentials TEXT NOT NULL, created_at TEXT NOT NULL)`);
+  // v12's resources: v24? — later migrations ALTER it (binding_refs, tier/tags/
+  // memory_ref_path), so it must exist for the same reason.
+  legacy.exec(`CREATE TABLE resources (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, title TEXT NOT NULL, source TEXT NOT NULL,
+    session_id TEXT, session_title TEXT, message_id INTEGER, payload TEXT, file_path TEXT,
+    file_size INTEGER, file_mime TEXT, content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_seen_at TEXT,
+    seeded INTEGER NOT NULL DEFAULT 0)`);
   // v1's chat_sessions with the columns v9/v10 (also "applied") added: v22
   // (session ownership) ALTERs and indexes this table, so a legacy DB that
   // claims v1..12 must physically carry it or the migration chain dies with

@@ -64,9 +64,7 @@ export function blueprintShapeErrors(content) {
         walk(v, p);
       }
     } else if (Array.isArray(node)) {
-      node.forEach((v, i) => {
-        walk(v, `${pathLoc}[${i}]`);
-      });
+      node.forEach((v, i) => { walk(v, `${pathLoc}[${i}]`); });
     } else if (typeof node === "string" && SECRET_VALUE_RE.test(node)) {
       err(pathLoc, "疑似密钥字面值——蓝图只承载引用，不藏凭据");
     }

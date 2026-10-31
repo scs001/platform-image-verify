@@ -221,17 +221,17 @@ test("5.x cell outbound: attribution prefix, chunked long answer, cursor advance
   };
   let calls = 0;
   const db = {
-    setBotBridgeCursor: (botId, seq) => { cursorWrites.push(seq); return true; },
+    setBotBridgeCursor: (_botId, seq) => { cursorWrites.push(seq); return true; },
   };
   const adapter = {
-    sendText: async (credentials, chatKey, text) => {
+    sendText: async (_credentials, chatKey, text) => {
       sends.push({ chatKey, text });
     },
   };
   const bridge = createZhiyuImBridge({
     db,
     env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999 },
-    fetchImpl: async (url) => {
+    fetchImpl: async (_url) => {
       calls += 1;
       return new Response(JSON.stringify(calls === 1 ? eventRows : { rows: [] }), { status: 200 });
     },
@@ -264,7 +264,7 @@ test("5.z cell outbound: a permanently failing send is retried thrice, then skip
   const bridge = createZhiyuImBridge({
     // Production reads the row fresh from the DB on every tick (startOutbounds
     // → listBots), so a cursor write is visible to the next poll. Mirror that.
-    db: { setBotBridgeCursor: (botId, seq) => { cursorWrites.push(seq); bot.zhiBridgeCursor = seq; return true; } },
+    db: { setBotBridgeCursor: (_botId, seq) => { cursorWrites.push(seq); bot.zhiBridgeCursor = seq; return true; } },
     env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999 },
     log: { warn: (m) => logs.push(String(m)), info: () => {}, error: () => {} },
     fetchImpl: async (url) => {
@@ -294,7 +294,7 @@ test("5.y cell outbound: a rejected poll drains the error body and keeps the act
     db: { setBotBridgeCursor: () => true },
     env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999, CELL_USER_EMAIL: "owner@x" },
     log: { warn: (m) => logs.push(String(m)), info: () => {}, error: () => {} },
-    fetchImpl: async (url, init) => {
+    fetchImpl: async (_url, init) => {
       heads.push(init?.headers);
       return new Response(JSON.stringify({ error: "machine credential required" }), { status: 401 });
     },

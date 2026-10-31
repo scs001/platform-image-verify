@@ -191,11 +191,11 @@ caddy validate --config /etc/caddy/Caddyfile && caddy reload --config /etc/caddy
 
 **不要用 `raw.githubusercontent.com`**：雷池机与 cheap1 实测被 SSL 重置，拉不下来。
 
-**源已推送，以下命令可直接执行**（分支 `feat/zhiyu-official-site`，仓库 `FindDataTechnology/fd-craw-private`，需读权限）：
+**源已推送，以下命令可直接执行**（分支 `deliver/zhiyu-official-site`，仓库 `FindDataTechnology/fd-craw-private`，需读权限）：
 
 ```bash
 # 整包取（codeload；不要 raw，雷池机实测 raw 会被 SSL 重置）
-BRANCH=feat/zhiyu-official-site
+BRANCH=deliver/zhiyu-official-site
 curl -L -o /tmp/paas.tar.gz \
   "https://codeload.github.com/FindDataTechnology/fd-craw-private/tar.gz/refs/heads/$BRANCH"
 
@@ -218,7 +218,9 @@ script.js   262005955856b257de2acbd1cb43c4123f53887e7e350044efafb4fff3be47d3
 cd /srv/zhiyu-site && sha256sum index.html style.css script.js
 ```
 
-> 若仓库侧无读权限：请把上面三条哈希发回，由我方另走带外通道送 tar
+> **若仓库侧无读权限（私有仓匿名访问返回 404）**：改走自包含交付件
+> `zhiyu-site-source-bundle.md`——三个文件的完整源码 + 哈希都在那一份里，不依赖任何账号权限；
+> 或把上面三条哈希发回，由我方另走带外通道送 tar
 > （tar 自身 sha256 = `f3f41e073f5f05969ada1104143f48e6a5890667cc77866ca46a1e7f2cd46e37`）。
 > **不要**从 `raw.githubusercontent.com` 取（已知被 SSL 重置）。
 

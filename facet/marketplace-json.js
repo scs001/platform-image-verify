@@ -16,6 +16,8 @@
 //     server configuration (the plugin body must install without a key);
 //   - cache headers ≤ 1h so the listing reflects publish/unpublish within it.
 
+import { lineOf } from "../lib/pack-category-lines.js";
+
 const CACHE = "public, max-age=3600";
 
 // Operator whitelist, comma-separated. Read per call so a restart-free
@@ -82,8 +84,12 @@ export function registerMarketplaceJson(app, { registry, resolveUser, officialAu
       author: { name: "FindData · 谦面" },
       // Curation metadata (add-facet-content-management): consumers may
       // group by vertical or promote featured entries; plain Claude Code
-      // ignores unknown keys harmlessly.
-      category: p.category || "",
+      // ignores unknown keys harmlessly. add-legacy-pack-rebrand 2.x: the
+      // category rides the归位 LINE word now (daas/data/dash/authoring/docs →
+      // line words, unmapped pass through, company → "" — the facade badge
+      // carries 分身). ADMISSION above still reads the row's raw slug, and
+      // the curation WRITE keeps taking the original slug (zero migration).
+      category: lineOf(p.category) || "",
       featured: Boolean(p.featured),
       ...(isOfficial(p.authorEmail) && p.adopted === true ? { provenance: { source: "official-adopted" } } : {}),
     }));

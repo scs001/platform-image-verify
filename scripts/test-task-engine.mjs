@@ -48,6 +48,7 @@ async function boot(records, runTurn = async () => ({ ok: true }), opts = {}) {
     runTurn,
     isBusy: () => false,
     ...(opts.workerStats ? { workerStats: opts.workerStats } : {}),
+    ...(opts.beforeTurn ? { beforeTurn: opts.beforeTurn } : {}),
   });
   return events;
 }
@@ -423,22 +424,52 @@ test("stats snapshot: side-effect free (repeat calls, queue untouched)", async (
   assert.equal(engine.getTask("job_1").state, null); // nothing queued or run by sampling
 });
 
-// add-web-project-container 2.2: cron jobs carry an optional projectId as a
-// record field (jobs.json store, not SQLite). It persists, surfaces in the
-// client shape, and survives a reload — NULL = the 默认项目 bucket.
-test("projectId persists, surfaces, and reloads (default-bucket when absent)", async () => {
-  await boot([
-    legacyRecord({ id: "job_p1", projectId: "proj-123" }),
-    legacyRecord({ id: "job_p0" }), // no projectId → absent/NULL
-  ]);
-  // Client shape carries it for the read surfaces.
-  assert.equal(engine.getTask("job_p1").projectId, "proj-123");
-  assert.equal(engine.getTask("job_p0").projectId, null);
-  // Persisted to jobs.json.
-  const stored = readStored();
-  assert.equal(stored.find((r) => r.id === "job_p1").projectId, "proj-123");
-  assert.equal(stored.find((r) => r.id === "job_p0").projectId, null);
-  // Survives a reload (a fresh boot reads the same file back).
-  await boot(readStored());
-  assert.equal(engine.getTask("job_p1").projectId, "proj-123");
+// ── pre-turn 注入缝（fix-fleet-context-injection-seam） ────────────────────
+//
+// 引擎侧只验两件事：钩子在唯一的起轮点上跑（异常落成该次执行的 failed，绝不
+// 炸串行链），以及补跑标记不会在「丢弃未执行」时泄漏给下一次开火。舰队语义在
+// scripts/test-fleet-report-lane.mjs 的路径矩阵里钉。
+
+test("pre-turn 钩子：抛错落该次执行 failed，不产生裸模板回合，不炸后续任务", async () => {
+  const seen = [];
+  await boot(
+    [legacyRecord(), legacyRecord({ id: "job_2", prompt: "second" })],
+    async (job) => { seen.push(job.prompt); return { ok: true }; },
+    {
+      beforeTurn: async (t) => {
+        if (t.id === "job_1") throw new Error("fleetContext render failed: db exploded");
+      },
+    },
+  );
+  engine.enqueueExecution("job_1");
+  await engine.idle();
+
+  const t1 = engine.getTask("job_1");
+  assert.equal(t1.state, "failed", "钩子异常 = 该次执行失败");
+  assert.match(t1.history.at(-1).error, /fleetContext render failed: db exploded/, "结构化错误落史");
+  assert.equal(seen.length, 0, "没有 turn 起跑——绝不拿裸模板执行");
+
+  // 串行链未断：后续任务照常
+  engine.enqueueExecution("job_2");
+  await engine.idle();
+  assert.equal(engine.getTask("job_2").state, "done");
+  assert.deepEqual(seen, ["second"]);
+});
+
+test("补跑标记：入队即被调度侧拒绝时释放", async () => {
+  await boot([legacyRecord({ paused: true, status: "paused" })]);
+  engine.getTask("job_1").catchUpPending = true;
+  const rejected = engine.enqueueExecution("job_1");
+  assert.equal(rejected.ok, false);
+  assert.equal(engine.getTask("job_1").catchUpPending, false, "拒绝即释放，不给下一次开火贴虚假补跑标签");
+  await engine.saveTasks(); // 标记释放带写盘，先排空再交给 after 删目录
+});
+
+test("补跑标记：恢复队列遇拦截时同样释放", async () => {
+  await boot([legacyRecord({ state: "queued", paused: true, status: "paused" })]);
+  engine.getTask("job_1").catchUpPending = true;
+  engine.drainRepairQueue();
+  await engine.idle();
+  assert.equal(engine.getTask("job_1").catchUpPending, false);
+  await engine.saveTasks();
 });

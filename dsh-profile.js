@@ -965,8 +965,18 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     if (config?.laneGate !== "browser") continue;
     const off = (process.env.BROWSER_LANE || "").trim().toLowerCase() === "off";
     const runtimePath = (process.env.BROWSER_RUNTIME_PATH || "").trim();
+    const chromiumPath = (process.env.BROWSER_CHROMIUM_PATH || "").trim();
+    const cliPath = (process.env.BROWSER_MCP_CLI || "").trim();
     const endpoint = (process.env.BROWSER_CDP_ENDPOINT || "").trim();
-    const hasRuntime = runtimePath !== "" && existsSync(runtimePath);
+    // Local supply evidence — any of: the browsers dir, the chromium binary, or
+    // the MCP CLI file the operator installed. The CLI counts because the
+    // desktop opt-in has no image prefix to point at (2026-10-28 verification:
+    // docs told desktop users to set BROWSER_MCP_CLI and the gate then omitted
+    // the lane, so following the docs produced no lane at all).
+    const hasRuntime =
+      (runtimePath !== "" && existsSync(runtimePath)) ||
+      (chromiumPath !== "" && existsSync(chromiumPath)) ||
+      (cliPath !== "" && existsSync(cliPath));
     if (off || (!hasRuntime && !endpoint)) {
       delete servers[name];
       console.log(
@@ -1096,6 +1106,18 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
       else console.warn(`[dsh-profile] PACK_BASELINE_MCP entry "${name}" is not installed; skipping`);
     }
     for (const name of scope.mcpKeep ?? []) keep.add(name);
+    // External-team narrowing (fix-external-team-chat-lane B3): a pack that
+    // declares publicFacing faces VISITORS. Its personas keep only the
+    // public surfaces (the fleet bridge + the market/directory faces) — the
+    // internal business faces (data/legal/trading desks) are dropped, because
+    // their tool names and descriptions leak internal vocabulary into the
+    // answer (the walkthrough caught "wire-ops" and the 柏讯 demand-desk
+    // surface that way). Undeclared packs keep their current face exactly.
+    if (scope.publicFacing) {
+      for (const name of [...keep]) {
+        if (!isPublicFace(name)) keep.delete(name);
+      }
+    }
     const dropped = [];
     for (const name of Object.keys(servers)) {
       if (!keep.has(name)) {
@@ -1170,7 +1192,14 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // composition set, so the operator-declared per-server faces cap every mode
   // from above — pack unions, role narrowing and the user's full-surface
   // override all restore/declare UP TO the face, never past it.
-  writeToolFilterPatch(capByOperatorFace(scope.mcpTools, Object.keys(servers)));
+  // Public-facing personas (fix-external-team-chat-lane B3): the workspace
+  // file tools and the roster-discovery tools are denied — the first group
+  // reads the deployment's own project files, the second ENUMERATES the
+  // internal tool names (the walkthrough caught "wire-ops" that way). Absent
+  // declaration ⇒ nothing denied (byte-for-byte pre-change composition).
+  writeToolFilterPatch(capByOperatorFace(scope.mcpTools, Object.keys(servers)), {
+    denyTools: scope.publicFacing ? PUBLIC_FACING_DENIED_TOOLS : null,
+  });
 
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
   // probe of every http entry with the exact URL+headers the patch carries —
@@ -1221,7 +1250,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 const TOOL_SCOPE_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-tool-scope.js");
 const TOOL_FILTER_FILE = "tool-filter.json";
 
-export function writeToolFilterPatch(mcpTools, { dirs = null } = {}) {
+export function writeToolFilterPatch(mcpTools, { dirs = null, denyTools = null } = {}) {
   const profileDir = dirs
     ? join(dirs.dshHome, "profiles", dirs.profileName || "platform")
     : dirname(MCP_PATCH_PATH);
@@ -1249,6 +1278,15 @@ export function writeToolFilterPatch(mcpTools, { dirs = null } = {}) {
     if (doc.mcpTools && Object.hasOwn(doc.mcpTools, server)) operatorSection[server] = [...face].sort();
   }
   if (Object.keys(operatorSection).length) doc.operatorFaces = operatorSection;
+  // Denied built-in tools (fix-external-team-chat-lane B3): a public-facing
+  // persona may not use the workspace file tools (glob / grep / read / bash)
+  // nor the roster-discovery tools (tool_search / list_agents /
+  // list_mcp_resources) — the last group is how the model enumerated the
+  // internal tool names in the first place. Absent ⇒ nothing denied (every
+  // pre-change composition is byte-for-byte).
+  if (Array.isArray(denyTools) && denyTools.length) {
+    doc.denyTools = [...new Set(denyTools.filter((n) => typeof n === "string" && n.trim()))].sort();
+  }
   atomicWriteTextSync(join(profileDir, TOOL_FILTER_FILE), JSON.stringify(doc, null, 2) + "\n");
   try {
     atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
@@ -1389,6 +1427,49 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [], noO
 // an unresolvable name warns and skips, the envRefs convention.
 function baselineMcpNames() {
   return (process.env.PACK_BASELINE_MCP || "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+// The public tool face (fix-external-team-chat-lane B3, decision 2026-10-30):
+// a public-facing pack's personas may mount the fleet bridge (its own team
+// lane) and the market/directory faces, and NOTHING else. Everything else —
+// the internal business desks (wire-ops / lex-ops / paper-trading /
+// facet-market / facet-ops / fd-*) and the authoring surfaces (pack-author /
+// blueprint-author) — stays off, because their names and descriptions reach
+// the model and end up in visitor-facing answers.
+//
+// Configurable so an operator can widen it without a code change; the default
+// is the list the user approved.
+const PUBLIC_FACE_DEFAULT = ["fleet", "market", "marketplace", "market-catalog", "websearch", "fd-official-web"];
+
+// The built-in tools a public-facing persona may not use. The workspace file
+// tools would let it read the deployment's own project files; the roster
+// discovery tools are how the model enumerates the internal tool names.
+const PUBLIC_FACING_DENIED_TOOLS = [
+  "glob",
+  "grep",
+  "read",
+  "bash",
+  "list_agents",
+  "list_mcp_resources",
+  "tool_search",
+];
+
+function publicFaceNames() {
+  const raw = process.env.PACK_PUBLIC_FACE_MCP;
+  const names = raw === undefined
+    ? PUBLIC_FACE_DEFAULT
+    : raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  return new Set(names);
+}
+
+function isPublicFace(name) {
+  if (!name) return false;
+  // Prefix match on the declared list: "market" admits "marketplace" and
+  // "market-catalog" — the operator names a FACE, not a server.
+  for (const allowed of publicFaceNames()) {
+    if (name === allowed || name.startsWith(`${allowed}-`)) return true;
+  }
+  return false;
 }
 
 // Stage 1 — preset id → persona: the merged-catalog entry's installed pack
@@ -1602,6 +1683,10 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
     skillsDir,
     skillsDecl: Array.isArray(skillsDecl) ? skillsDecl : undefined,
     overlay,
+    // External-team declaration (fix-external-team-chat-lane B3): the pack
+    // says it faces visitors, so its personas get the narrowed public tool
+    // face. Absent ⇒ undefined ⇒ the current focus path is byte-identical.
+    publicFacing: persona.manifest?.publicFacing === true,
   };
 }
 

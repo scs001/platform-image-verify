@@ -79,6 +79,24 @@ function normalizeMcpTools(mcpTools) {
   return Object.keys(normalized).length ? normalized : null;
 }
 
+// The denied BUILT-IN tool names (fix-external-team-chat-lane B3): a
+// public-facing persona may not use the workspace file tools (glob / grep /
+// read / bash) nor the roster-discovery tools (tool_search / list_agents /
+// list_mcp_resources) — the last group is how the model ENUMERATED the
+// internal tool names in the first place (the walkthrough caught "wire-ops"
+// that way). Absent section ⇒ nothing denied (every pre-change composition
+// behaves byte-for-byte).
+export function readDeniedToolNames() {
+  try {
+    const doc = JSON.parse(readFileSync(FILTER_FILE, "utf8"));
+    const names = doc?.denyTools;
+    if (!Array.isArray(names)) return [];
+    return names.filter((n) => typeof n === "string" && n.trim()).map((n) => n.trim());
+  } catch {
+    return [];
+  }
+}
+
 export function readMcpToolFilter() {
   try {
     return normalizeMcpTools(JSON.parse(readFileSync(FILTER_FILE, "utf8"))?.mcpTools);
@@ -114,6 +132,12 @@ export function readMcpToolFilterFor(presetId) {
 // escape hatch does not apply (it restores up to the operator face), so the
 // denial says so instead of pointing at a toggle that cannot help.
 export function mcpToolGuardReason(name) {
+  // Denied built-ins first (public-facing personas): the workspace file tools
+  // and the roster-discovery tools are not MCP servers, so the allowlist path
+  // below never sees them — this is the only gate that reaches them.
+  if (name && readDeniedToolNames().includes(name)) {
+    return "this tool is not available to an external-facing role";
+  }
   const raw = readFilterDoc();
   const filter = raw && normalizeMcpTools(raw.mcpTools);
   if (!filter) return undefined;
@@ -219,9 +243,16 @@ export function applyMcpToolRestrict(agentCtx, presetId = null) {
   try {
     filter = presetId ? readMcpToolFilterFor(presetId) : readMcpToolFilter();
   } catch {
-    return;
+    filter = null;
   }
-  if (!filter) return;
+  // Denied built-ins are independent of the allowlist map: the filter file may
+  // carry a denyTools section while declaring no per-server faces at all
+  // (readMcpToolFilter() answers null for an empty mcpTools map). Returning
+  // early on a null filter would leave those built-ins VISIBLE in the roster —
+  // the guard blocks their calls, but B3 exists to keep internal tool names
+  // off the model's sight entirely. So the deny set is always computed; a null
+  // filter only skips the MCP allowlist stage below.
+  const deniedBuiltins = new Set(readDeniedToolNames());
   let visible;
   try {
     visible = agentCtx.tools.schemas().map((s) => s?.name).filter((n) => typeof n === "string");
@@ -230,6 +261,13 @@ export function applyMcpToolRestrict(agentCtx, presetId = null) {
   }
   const deny = [];
   for (const name of visible) {
+    // Denied built-ins (public-facing personas): removed from the roster so
+    // the model never sees them; the guard still enforces the call path.
+    if (deniedBuiltins.has(name)) {
+      deny.push(name);
+      continue;
+    }
+    if (!filter) continue;
     const parts = mcpNameParts(name);
     if (!parts) continue;
     const allow = filter[parts.server];

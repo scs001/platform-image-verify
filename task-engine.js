@@ -45,6 +45,14 @@ let workerStatsFn = null;
 // The scheduling front-end refreshes nextRun; the delegation aggregator arms
 // summary injections. Multiple subscribers, order-independent, each guarded.
 const onFinishedHooks = new Set();
+// The scheduling front-end's last chance to shape a prompt before the turn
+// runs (fix-fleet-context-injection-seam). Injected once by initTaskEngine and
+// awaited in runExecutionTurn — the ONE point every enqueue path converges on,
+// which is why the seam lives here rather than at the enqueue sites that used
+// to arm prompt overrides (two of which had already been missed: manual
+// run-now, and the boot-time repair queue). The engine knows nothing about
+// fleets; it only offers a seam.
+let beforeTurnFn = null;
 let executionQueue = Promise.resolve();
 const repairQueue = []; // ids persisted as queued at load → re-enqueue after init
 
@@ -178,11 +186,12 @@ function loadTasks() {
 
 // ── Initialization ──────────────────────────────────────────────────────────
 
-async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerStats }) {
+async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerStats, beforeTurn }) {
   broadcastFn = broadcast;
   runTurnFn = runTurn;
   isBusyFn = isBusy;
   workerStatsFn = typeof workerStats === "function" ? workerStats : null;
+  beforeTurnFn = typeof beforeTurn === "function" ? beforeTurn : null;
   onFinishedHooks.clear();
   if (onFinished) onFinishedHooks.add(onFinished);
   tasks = new Map();
@@ -205,6 +214,7 @@ function drainRepairQueue() {
     if (!t || scheduleSideBlocked(t)) {
       if (t) {
         t.state = null;
+        releaseCatchUpMarker(t);
         void saveTasks();
       }
       continue;
@@ -370,6 +380,18 @@ function scheduleSideBlocked(t) {
   return Boolean(t.paused || t.status === "expired" || t.status === "completed");
 }
 
+// An execution attempt ended WITHOUT running (schedule-side blocked at one of
+// the re-check points). Release the make-up marker (fix-fleet-context-
+// injection-seam): the flag now drives the 【补跑】 prompt prefix in the seam,
+// so if it outlived the fire it marked, the NEXT normal fire would wear a
+// false make-up label. Dropped = not a make-up round.
+function releaseCatchUpMarker(t) {
+  if (t && t.catchUpPending === true) {
+    t.catchUpPending = false;
+    void saveTasks();
+  }
+}
+
 // Enqueue one execution of a task (schedule fire, run-now, re-run, or repair).
 // Guards: schedule-side states that must not run are rejected; an execution
 // already queued or running is a no-op returning the current state (re-run
@@ -379,6 +401,9 @@ function enqueueExecution(id) {
   const t = tasks.get(id);
   if (!t) return { ok: false, error: "task not found" };
   if (scheduleSideBlocked(t)) {
+    // Rejected without ever enqueuing: the make-up marker must not survive to
+    // label the next normal fire (fix-fleet-context-injection-seam).
+    releaseCatchUpMarker(t);
     return { ok: false, error: `task is ${t.paused ? "paused" : t.status}` };
   }
   if (t.state === "queued" || t.state === "running") {
@@ -439,6 +464,7 @@ async function runQueuedExecution(id) {
   if (!t || scheduleSideBlocked(t)) {
     if (t) {
       t.state = null;
+      releaseCatchUpMarker(t);
       void saveTasks();
     }
     return;
@@ -459,10 +485,24 @@ async function runExecutionTurn(t, turnFn) {
   if (broadcastFn) broadcastFn({ type: "cron_fired", id: t.id, prompt: t.prompt, startTime, state: "running" });
   broadcastStatus(t.id);
 
-  // Fleet patrol context (agent-fleet-report-lane): the scheduling front-end
-  // may arm a transient, per-fire prompt (template rendered just before this
-  // enqueue). It rides the turn only — never serialized, cleared on finish —
-  // so the stored prompt stays the reusable template.
+  // The pre-turn seam (fix-fleet-context-injection-seam): the scheduling
+  // front-end may compose this fire's prompt here — the only point every
+  // enqueue path converges on, so no path can miss it. A seam failure is that
+  // fire's failure, never a silent un-shaped prompt and never a broken engine:
+  // it settles through the same finishExecution the turn itself uses.
+  if (beforeTurnFn) {
+    try {
+      await beforeTurnFn(t);
+    } catch (err) {
+      finishExecution(t, startTime, { ok: false, error: err?.message || String(err) });
+      return;
+    }
+  }
+
+  // Fleet patrol context (agent-fleet-report-lane): the seam above may have
+  // armed a transient, per-fire prompt. It rides the turn only — never
+  // serialized, cleared on finish — so the stored prompt stays the reusable
+  // template.
   const effective = t.promptOverride != null ? { ...t, prompt: t.promptOverride } : t;
 
   try {
@@ -491,6 +531,7 @@ async function beginExecution(id, turnFn) {
   if (!t || scheduleSideBlocked(t)) {
     if (t) {
       t.state = null;
+      releaseCatchUpMarker(t);
       void saveTasks();
     }
     return false;
@@ -561,10 +602,12 @@ function finishExecution(t, startTime, result) {
   broadcastStatus(t.id);
 }
 
-// Register a fire that failed BEFORE execution could start (the fleet
-// patrol-context renderer throwing at trigger time — agent-fleet-report-lane).
-// The failure is recorded into history with a structured error and the
-// lifecycle lands on `failed` (re-runnable from the UI); nothing enqueues.
+// Register a fire that failed BEFORE execution could start. Now UNUSED by the
+// fleet lane — the pre-turn seam (fix-fleet-context-injection-seam) settles a
+// render failure through finishExecution instead, so the failure lands on the
+// same lifecycle path as any other failed run. Kept as a general engine
+// primitive: enqueue-side callers that need to reject a fire without running
+// anything still have a shape for it.
 function recordFailedFire(id, message) {
   const t = tasks.get(id);
   if (!t) return false;

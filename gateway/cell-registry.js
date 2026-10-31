@@ -8,6 +8,8 @@
 // never in the process (spec: roll must go quiet→complete without traffic).
 
 import Database from "better-sqlite3";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { migrateRegistryRow, newRegistryRow, REGISTRY_SCHEMA_VERSION } from "../lib/cell-registry.js";
 import { transition } from "../lib/cell-lifecycle.js";
 
@@ -29,6 +31,11 @@ CREATE TABLE IF NOT EXISTS cell_registry (
 )`;
 
 export function createCellRegistryDb({ file }) {
+  // The durable registry is the gateway's first write to CELL_DATA_ROOT — on a
+  // cold deployment (or a test boot) that directory may not exist yet, and
+  // better-sqlite3 throws "directory does not exist" rather than creating it.
+  // Same discipline as createPackRegistry/createShareRegistry above.
+  mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.exec(DDL);
 

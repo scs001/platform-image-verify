@@ -60,7 +60,7 @@ async function patchEntries(home) {
 
 async function withEnv(home, env, fn) {
   const saved = {};
-  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT"]) {
+  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT", "BROWSER_MCP_CLI", "BROWSER_CHROMIUM_PATH"]) {
     saved[key] = process.env[key];
     delete process.env[key];
   }
@@ -103,6 +103,20 @@ test("remote: a CDP endpoint composes the lane without a local runtime", async (
   const home = makeHome();
   const rows = await withEnv(home, { BROWSER_CDP_ENDPOINT: "http://127.0.0.1:9222" }, () => patchEntries(home));
   assert.ok(rows.find((r) => r.id === "mcp-playwright"), "lane must compose for a remote endpoint");
+});
+
+test("desktop opt-in: an installed BROWSER_MCP_CLI file alone supplies the lane", async () => {
+  const home = makeHome();
+  const cli = join(home, "fake-playwright-mcp-cli.js");
+  writeFileSync(cli, "// stand-in for @playwright/mcp/cli.js\n");
+  const rows = await withEnv(home, { BROWSER_MCP_CLI: cli }, () => patchEntries(home));
+  assert.ok(rows.find((r) => r.id === "mcp-playwright"), "a present CLI file is the desktop opt-in's supply evidence");
+});
+
+test("desktop opt-in: a BROWSER_MCP_CLI path that does not exist omits the lane", async () => {
+  const home = makeHome();
+  const rows = await withEnv(home, { BROWSER_MCP_CLI: join(home, "no-such-cli.js") }, () => patchEntries(home));
+  assert.equal(rows.some((r) => r.id === "mcp-playwright"), false, "a missing CLI file is not a supply");
 });
 
 test("off: BROWSER_LANE=off vetoes both supply forms", async () => {

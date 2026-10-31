@@ -23,8 +23,13 @@ const EMAIL = process.env.TEST_EMAIL ?? "aloadtree@gmail.com";
 const STRICT_TOKEN_LANE = process.env.ACCEPT_TOKEN_LANE === "1";
 
 if (!TOKEN) {
-  console.error("✗ FACET_INTERNAL_TOKEN required (org secret; see .github/workflows/live-supply-owner-acceptance.yml)");
-  process.exit(2);
+  // This suite is the LIVE acceptance lane (workflow_dispatch, manual). It has
+  // no place in the serialized unit gate: without the org secret it must skip
+  // cleanly, not fail the run. An exit code of 2 would surface as a red test
+  // file in `node --test scripts/test-*.mjs`; exit 0 with a clear notice keeps
+  // the gate honest (CI green ≠ acceptance passed — see the lane's own job).
+  console.log("SKIPPED: FACET_INTERNAL_TOKEN not set — live acceptance runs only via .github/workflows/live-supply-owner-acceptance.yml (workflow_dispatch)");
+  process.exit(0);
 }
 
 const facetUser = Buffer.from(JSON.stringify({ email: EMAIL, groups: ["creators"], emailVerified: true })).toString("base64url");

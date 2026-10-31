@@ -325,7 +325,13 @@ export function createCellRegistry(config) {
           void rm(root, { recursive: true, force: true }).catch((e) =>
             console.warn(`[gateway] demo cell ${userId} data cleanup failed: ${e.message}`)
           );
-          reg(userId, { type: "destroyRequested", reason: "demo-expiry", now: Date.now() });
+          // mp-demo-mode spec: "the demo can cold-start again after cleanup" —
+          // expiry parks the row (down) rather than writing the terminal
+          // destroy tombstone, which is reserved for OPERATOR destroys and
+          // would lock the returning visitor out forever (spec violation
+          // introduced by add-cell-lifecycle's tombstone rule; found via
+          // test-mp-demo 2026-10-30).
+          reg(userId, { type: "down", now: Date.now() });
         } else if (cell.state === "stopping") {
           reg(userId, { type: "down", now: Date.now() });
         } else {

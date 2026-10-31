@@ -139,6 +139,14 @@ const isInternalBuilderBridges = (req) =>
   (req.path.startsWith("/api/blueprint-author/") || req.path.startsWith("/api/pack-author/")) &&
   isLoopback(req.socket?.remoteAddress);
 
+// The skill-evolution bridge (add-skill-self-evolution) — the in-cell MCP
+// child landing skill CANDIDATES over /api/skill-evolution. Loopback only;
+// the route's write face is propose-only (evaluate/promote/reject are the
+// owner's REST gestures and still face the full gate from this child's
+// perspective — they require a real user, which the stamp below is not).
+const isInternalSkillEvolutionBridge = (req) =>
+  req.path.startsWith("/api/skill-evolution/") && isLoopback(req.socket?.remoteAddress);
+
 // The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
 // — the fourth bridge, same credential model: the dsh child's tool ingests
 // workspace files the CURRENT turn produced. Loopback is its credential, and
@@ -300,6 +308,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalBuilderBridges(req)) {
       req.user = { email: "builder-author@internal", internal: true };
+      return next();
+    }
+    if (isInternalSkillEvolutionBridge(req)) {
+      req.user = { email: "skill-evolution@internal", internal: true };
       return next();
     }
     if (isInternalSaveBridge(req)) {

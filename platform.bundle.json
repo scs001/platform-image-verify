@@ -53,6 +53,13 @@
       ],
       "_comment": "智能体作者工具面(add-builder-team-templates):drafts/market-servers/validate/save 四工具,bundled 种子自激活,loopback 桥身份=cell owner;无 publish/pricing/deploy"
     },
+    "skill-evolution": {
+      "command": "node",
+      "args": [
+        "server/skill-evolution-mcp.js"
+      ],
+      "_comment": "技能自进化提议面(add-skill-self-evolution):单工具 skill_propose 落候选,bundled 自激活,loopback 桥;评测/晋升/拒绝是主人 REST 面,无工具"
+    },
     "playwright": {
       "command": "node",
       "args": [

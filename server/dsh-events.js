@@ -16,6 +16,7 @@
 // dsh has no partial-tool-result event, so tool_update is unmapped. Unmapped
 // notifications log at debug (DSH_DEBUG) and never drop the turn.
 
+import { createReasoningLeakFilter, stripReasoningLeak } from "./reasoning-leak.js";
 import * as chatHistory from "../chat-history.js";
 import * as trace from "./trace.js";
 import { recordPackUsage } from "./usage-telemetry.js";
@@ -374,12 +375,23 @@ export function attachDshEvents(ctx) {
         // marker is per-SEGMENT: a new attempt resets it so a multi-step turn
         // where only some steps streamed still falls back each silent step.
         T.streamedText = false;
+        // A fresh segment = a fresh reasoning filter (the streaming stripper
+        // holds a partial tag across deltas — see reasoning-leak.js).
+        T.reasoningFilter = null;
       }
       if (sid && frame?.type === "chunk" && frame.chunk) {
         const chunk = frame.chunk;
         if (chunk.type === "text-delta" && chunk.text) {
+          // Reasoning-trace strip (fix-external-team-chat-lane B5): a model
+          // that writes <thinking>…</thinking> INSIDE its visible text used
+          // to hand the visitor the raw trace — the walkthrough caught exactly
+          // that. The filter is per-segment and holds partial tags across
+          // deltas, so a block split over several chunks never leaks.
+          if (!T.reasoningFilter) T.reasoningFilter = createReasoningLeakFilter();
+          const safe = T.reasoningFilter.push(chunk.text);
+          if (!safe) return;
           T.streamedText = true;
-          ctx.sendToViewers(sid, { type: "text", delta: chunk.text });
+          ctx.sendToViewers(sid, { type: "text", delta: safe });
         } else if (chunk.type === "reasoning-delta" && chunk.text) {
           T.streamedText = true;
           ctx.sendToViewers(sid, { type: "thinking", delta: chunk.text });
@@ -534,8 +546,16 @@ export function attachDshEvents(ctx) {
         // once as a single full delta so the transcript never ends without
         // visible body text. Deltas already delivered → persistence only.
         if (text && sid && !T.streamedText) {
+          // Same strip as the delta lane (B5): the settled text is a whole
+          // body, so the one-shot stripper applies — a reasoning-only body
+          // strips to empty and then falls back honestly instead of showing a
+          // bare <thinking> wall.
+          const clean = stripReasoningLeak(text);
           T.streamedText = true;
-          ctx.sendToViewers(sid, { type: "text", delta: text });
+          ctx.sendToViewers(sid, {
+            type: "text",
+            delta: clean || "（本轮回答只含推理过程，没有可展示的正文。）",
+          });
         }
         if (text || T.blocks.length) {
           // The assistant mirror attributes to the turn's origin session and

@@ -182,8 +182,8 @@
 | 4 | ✅ `add-legacy-pack-rebrand`（已立案+在仓改名已执行：团队架构师/萬星机群助手；市场长尾三名与 category 归位待运营班） | 4 | 0 | 中 |
 | 5 | ✅ `add-builder-team-templates`（**已实施**：两桥两桥子+三处接线+两份新种子+locale 门扩展+入口接线，单测 6/6+七套 85/85；e2e/铸造随走查班） | 2 | 1 | 大 |
 | 6 | ✅ `add-zhiyu-team-memory`（**已实施**：f/ 记忆捕获+fleetContext 记忆段+空间订阅桥+一键召唤；单测 13/13+回归 165/165；真机走查随滚版班） | 5a/5b | 1、5 | 大 |
-| 7 | ✅ `add-skill-self-evolution`（已立案：skill_propose 候选 → 技能 A/B 评测门（沿 memory-eval harness）→ 人终审晋升+supersedes lineage；待 apply） | 5.2 | memory-eval 已归档 | 大 |
-| 8 | ✅ `add-official-starter-teams`（已立案：starter 序列（首选客服班组）+ 说明卡走 guide 通道 + 公开教程同词表；待 apply+铸造班） | 5c | 5、6 | 中 |
+| 7 | ✅ `add-skill-self-evolution`（**已实施 f5aefc45**：v109 候选表+skill_propose 单工具桥+paas 侧 A/B 评测器（judge 同车道/匿名盲评/不劣于门）+web 待确认面+lineage；真机走查随滚版班） | 5.2 | memory-eval 已归档 | 大 |
+| 8 | ✅ `add-official-starter-teams`（**已实施 f5aefc45**：五支说明卡入 packGuides（市场 id 实证入 STARTER_TEAMS）+HelpDialog 序列+公开教程 from-zero-to-first-team.md；浏览器走查随滚版班） | 5c | 5、6 | 中 |
 
 ---
 

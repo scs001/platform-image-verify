@@ -218,7 +218,17 @@ app.get("/api/ops/pack-usage", async (req, res) => {
 
 // Claude plugin-marketplace face (add-ecosystem-bridge 2.5): the same public
 // read face, shaped as a native Claude Code marketplace.
-registerMarketplaceJson(app, { registry, resolveUser });
+registerMarketplaceJson(app, {
+  registry,
+  resolveUser,
+  // Official roster — the same env/owner as the gateway mount above. Passed
+  // explicitly because registry.list() summaries do not carry `official`
+  // (the route layer injects it), and this face renders the adopted mark.
+  officialAuthors: (process.env.OFFICIAL_AUTHOR_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+});
 
 // MCP catalog cards (S2, design D6): read-only aggregation from the registry
 // via registry-bridge — same env (REGISTRY_URL + MARKET_REGISTRY_TOKEN), same

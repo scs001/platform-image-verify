@@ -50,8 +50,17 @@ export function loadListedPacks(registry, { viewer = null, env = process.env } =
   return out;
 }
 
-export function registerMarketplaceJson(app, { registry, resolveUser }) {
+export function registerMarketplaceJson(app, { registry, resolveUser, officialAuthors = [] }) {
   const loadListed = (viewer) => loadListedPacks(registry, { viewer });
+  // Official = the deployment-side author roster, matched case-insensitively —
+  // the SAME rule the gateway mount applies (one deployment, one truth).
+  // registry.list() summaries do NOT carry `official` (the route layer injects
+  // it), so this face must resolve it itself or the adopted mark can never
+  // appear here. Empty roster means all-false, never a missing key.
+  const roster = (Array.isArray(officialAuthors) ? officialAuthors : [])
+    .map((e) => String(e).trim().toLowerCase())
+    .filter(Boolean);
+  const isOfficial = (email) => roster.includes(String(email ?? "").trim().toLowerCase());
 
   // Relative plugin sources resolve against this manifest's directory, so the
   // manifest lives under /api/marketplace/ and plugin trees under
@@ -76,7 +85,7 @@ export function registerMarketplaceJson(app, { registry, resolveUser }) {
       // ignores unknown keys harmlessly.
       category: p.category || "",
       featured: Boolean(p.featured),
-      ...(p.official === true && p.adopted === true ? { provenance: { source: "official-adopted" } } : {}),
+      ...(isOfficial(p.authorEmail) && p.adopted === true ? { provenance: { source: "official-adopted" } } : {}),
     }));
     res.set("Cache-Control", CACHE);
     res.json({

@@ -14,12 +14,12 @@ const MOD = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "fa
 const { registerMarketplaceJson } = await import(pathToFileURL(MOD).href);
 const packsMod = await import(pathToFileURL(path.join(path.dirname(new URL(import.meta.url).pathname), "..", "gateway", "packs.js")).href);
 
-async function boot() {
+async function boot({ officialAuthors = [] } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "facet-mkt-"));
   const registry = packsMod.createPackRegistry({ file: path.join(dir, "packs.db") });
   const app = express();
   app.use(express.json({ limit: "1mb" }));
-  registerMarketplaceJson(app, { registry, resolveUser: () => null });
+  registerMarketplaceJson(app, { registry, resolveUser: () => null, officialAuthors });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((r) => server.on("listening", r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -150,4 +150,63 @@ test("unlisted 包的插件树整体缺席", async () => {
     assert.equal(sk.status, 404);
     assert.ok((await (await fetch(`${base}/api/marketplace/marketplace.json`)).json()).plugins.every((p) => p.name !== b.id));
   } finally { await cleanup(); }
+});
+
+test("官方精选转正：市场投影只在 official∧adopted 时带 provenance（一人两轴）", async () => {
+  // 缺陷来源（add-official-adopted-agents 3.2 真机走查）：registry.list() 的
+  // summary 不带 official（路由层才注入），此面若直接读 p.official 则永远为
+  // undefined → adopted 标记在任何情况下都不出现。本用例钉住修法：由 roster 自判。
+  const AUTHOR = "publisher@finddatatech.cloud";
+  const adoptedManifest = (n) => ({
+    ...MANIFEST(n),
+    provenance: {
+      kind: "official-adopted",
+      upstreamUrl: "https://github.com/acme/repo/tree/main/skills/x",
+      upstreamName: "x",
+      license: "MIT",
+      revision: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      adoptedBy: AUTHOR,
+      reviewedBy: AUTHOR,
+      reviewedAt: "2026-10-31T00:00:00.000Z",
+    },
+  });
+
+  // A) roster 命中 + adopted 记录 → 带 provenance
+  {
+    const { registry, base, cleanup } = await boot({ officialAuthors: [AUTHOR] });
+    try {
+      const pub = registry.publish({ email: AUTHOR, manifest: adoptedManifest("AD") });
+      registry.setCuration({ id: pub.id, actor: { email: AUTHOR, admin: true }, category: "text" });
+      const doc = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+      const e = doc.plugins.find((p) => p.name === pub.id);
+      assert.ok(e, "策展后应进清单");
+      assert.deepEqual(e.provenance, { source: "official-adopted" });
+    } finally { await cleanup(); }
+  }
+
+  // B) adopted 记录在，但 roster 不含该作者 → 无 provenance（作者不可自报官方）
+  {
+    const { registry, base, cleanup } = await boot({ officialAuthors: ["someone-else@finddata.cloud"] });
+    try {
+      const pub = registry.publish({ email: AUTHOR, manifest: adoptedManifest("AD2") });
+      registry.setCuration({ id: pub.id, actor: { email: AUTHOR, admin: true }, category: "text" });
+      const doc = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+      const e = doc.plugins.find((p) => p.name === pub.id);
+      assert.ok(e);
+      assert.equal("provenance" in e, false);
+    } finally { await cleanup(); }
+  }
+
+  // C) roster 命中但无 adopted 记录 → 无 provenance（官方原创不冒充转正）
+  {
+    const { registry, base, cleanup } = await boot({ officialAuthors: [AUTHOR] });
+    try {
+      const pub = registry.publish({ email: AUTHOR, manifest: MANIFEST("ORIG") });
+      registry.setCuration({ id: pub.id, actor: { email: AUTHOR, admin: true }, category: "text" });
+      const doc = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+      const e = doc.plugins.find((p) => p.name === pub.id);
+      assert.ok(e);
+      assert.equal("provenance" in e, false);
+    } finally { await cleanup(); }
+  }
 });

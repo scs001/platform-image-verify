@@ -15,10 +15,13 @@
   },
   "nav": {
     "chat": "Chat",
-    "family": { "knowledge": "Knowledge", "build": "Build" },
+    "family": {
+      "knowledge": "Knowledge",
+      "build": "Build"
+    },
     "knowledge": "Library",
     "resources": "Outputs",
-    "agents": "Agents",
+    "agents": "Agent Builder",
     "bots": "Bots",
     "trace": "Trace",
     "openMenu": "Open navigation menu",
@@ -55,7 +58,7 @@
   },
   "agentsPage": {
     "studio": "Studio",
-    "title": "Agents",
+    "title": "Agent Builder",
     "agents": "Experts",
     "market": "Agents",
     "create": "New expert",
@@ -71,7 +74,11 @@
     "clusterCreated": "Created",
     "clusterTerminate": "Terminate group",
     "clusterTerminateHint": "Terminating stops the group; installed agents stay put.",
-    "close": "Close"
+    "close": "Close",
+    "build": "Build",
+    "supply": "Supply",
+    "creations": "My Creations",
+    "tuning": "Tuning"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1318,7 +1325,12 @@
       "onceAbsolute": "Specific time",
       "onceRelative": "Relative to now",
       "minutesAfterNow": "minutes from now",
-      "unit": { "minute": "minutes", "hour": "hours", "day": "days", "week": "weeks" },
+      "unit": {
+        "minute": "minutes",
+        "hour": "hours",
+        "day": "days",
+        "week": "weeks"
+      },
       "errors": {
         "prompt": "A prompt is required",
         "maxRuns": "Max runs must be a positive integer",
@@ -1338,7 +1350,13 @@
       "title": "Run history ({{count}})",
       "progress": "{{runs}}/{{cap}} run",
       "missed": "missed {{count}}",
-      "state": { "done": "done", "failed": "failed", "interrupted": "interrupted", "skipped": "skipped", "missed": "missed" }
+      "state": {
+        "done": "done",
+        "failed": "failed",
+        "interrupted": "interrupted",
+        "skipped": "skipped",
+        "missed": "missed"
+      }
     },
     "trigger": {
       "schedule": "Scheduled",
@@ -2047,85 +2065,85 @@
     },
     "title": "Agent Studio",
     "roster": {
-       "new": "New agent",
-       "empty": "No agents yet — start with “New agent”"
-      },
+      "new": "New agent",
+      "empty": "No agents yet — start with “New agent”"
+    },
     "canvas": {
-       "empty": "Pick an agent on the left, or create one"
-      },
+      "empty": "Pick an agent on the left, or create one"
+    },
     "agent": {
-       "id": "ID (assigned by the gate's rules)",
-       "name": "Display name"
-      },
+      "id": "ID (assigned by the gate's rules)",
+      "name": "Display name"
+    },
     "doc": {
-       "section": "Document info (manifest envelope)",
-       "name": "Name",
-       "description": "Description",
-       "tags": "Tags (comma-separated)"
-      },
+      "section": "Document info (manifest envelope)",
+      "name": "Name",
+      "description": "Description",
+      "tags": "Tags (comma-separated)"
+    },
     "skill": {
-       "importLocal": "Import from local skills…",
-       "inline": "Inline new skill",
-       "description": "Description (≤300 chars)",
-       "content": "Skill body (SKILL.md)"
-      },
+      "importLocal": "Import from local skills…",
+      "inline": "Inline new skill",
+      "description": "Description (≤300 chars)",
+      "content": "Skill body (SKILL.md)"
+    },
     "mcp": {
-       "pick": "Pick a registry server…"
-      },
+      "pick": "Pick a registry server…"
+    },
     "team": {
-       "tab": "Team structure",
-       "empty": "This document has no team structure (fleet block) yet — the graph renders the document, read-only",
-       "readOnlyHint": "Read-only graph: members edit via role cards; orchestration edges ride blueprints/templates"
+      "tab": "Team structure",
+      "empty": "This document has no team structure (fleet block) yet — the graph renders the document, read-only",
+      "readOnlyHint": "Read-only graph: members edit via role cards; orchestration edges ride blueprints/templates"
     },
     "blueprint": {
-    "pick": "Open a blueprint draft…",
-    "new": "New blueprint",
-    "untitled": "Untitled blueprint",
-    "empty": "Open a draft from the pool, or create one — the blueprint lifecycle (validate → trial → approve → cast) and its draft pool ride unchanged",
-    "status": {
+      "pick": "Open a blueprint draft…",
+      "new": "New blueprint",
+      "untitled": "Untitled blueprint",
+      "empty": "Open a draft from the pool, or create one — the blueprint lifecycle (validate → trial → approve → cast) and its draft pool ride unchanged",
+      "status": {
         "draft": "Draft",
         "approved": "Approved",
         "cast": "Cast"
       },
-    "track": {
+      "track": {
         "form": "Form",
         "json": "JSON"
       },
-    "boundary": {
+      "boundary": {
         "name": "Scene name",
         "oneLine": "One-line positioning",
         "outOfScope": "Out of scope"
       },
-    "judge": "Judge model",
-    "judgeFollowDefault": "Follow deployment default",
-    "judgeFollows": "Follow deployment default (resolves to {{model}})",
-    "sources": "Data sources (knowledge collections / registry names)",
-    "pickCollection": "Pick a knowledge collection…",
-    "jsonHint": "Roster/monitoring/acceptance sections edit via the JSON track; both tracks share one source and pass the full validation chain on submit.",
-    "jsonApply": "Parse and load into the form track",
-    "saveValidate": "Save and validate",
-    "trial": "Trial run",
-    "trialReport": "Trial report",
-    "approve": "Approve",
-    "cast": "Cast to market",
-    "castRef": "Cast: pack {{packId}} v{{version}}",
+      "judge": "Judge model",
+      "judgeFollowDefault": "Follow deployment default",
+      "judgeFollows": "Follow deployment default (resolves to {{model}})",
+      "sources": "Data sources (knowledge collections / registry names)",
+      "pickCollection": "Pick a knowledge collection…",
+      "jsonHint": "Roster/monitoring/acceptance sections edit via the JSON track; both tracks share one source and pass the full validation chain on submit.",
+      "jsonApply": "Parse and load into the form track",
+      "saveValidate": "Save and validate",
+      "trial": "Trial run",
+      "trialReport": "Trial report",
+      "approve": "Approve",
+      "cast": "Cast to market",
+      "castRef": "Cast: pack {{packId}} v{{version}}",
       "sign": "Sign trial report (final key)",
       "unsign": "Unsign",
-    "savedValid": "Saved, validation green"
+      "savedValid": "Saved, validation green"
     },
     "validate": {
-       "running": "Validating…",
-       "ok": "Valid — the same validators the publish gate runs",
-       "bad": "{{n}} issue(s) (publish-gate wording)"
-      },
+      "running": "Validating…",
+      "ok": "Valid — the same validators the publish gate runs",
+      "bad": "{{n}} issue(s) (publish-gate wording)"
+    },
     "emit": {
-       "preset": "Save as personal preset (this cell)",
-       "draft": "Save as agent draft (→ market)",
-       "busy": "Emitting…",
-       "presetOk": "Preset “{{name}}” created — pick it in the conversation selector",
-       "draftOk": "Draft created — continue publishing in “My creations”",
-       "failed": "Emit failed: {{message}}"
-      },
+      "preset": "Save as personal preset (this cell)",
+      "draft": "Save as agent draft (→ market)",
+      "busy": "Emitting…",
+      "presetOk": "Preset “{{name}}” created — pick it in the conversation selector",
+      "draftOk": "Draft created — continue publishing in “My creations”",
+      "failed": "Emit failed: {{message}}"
+    },
     "remove": "Remove"
   },
   "overlay": {
@@ -3182,7 +3200,10 @@
       "ignore": "Ignore"
     },
     "title": "Memory",
-    "funnel": { "title": "Distillation funnel", "segTitle": "{{layer}} · {{count}} items · {{pct}}%" },
+    "funnel": {
+      "title": "Distillation funnel",
+      "segTitle": "{{layer}} · {{count}} items · {{pct}}%"
+    },
     "subtitle": "Everything your agents remember",
     "all": "All",
     "layerLabel": "Layer",
@@ -3262,7 +3283,7 @@
       "add": "Add",
       "hint": "Registry server names or internal-library logical names only — no endpoints, no credentials.",
       "placeholder": "e.g. policy-feed",
-                        "pickCollection": "Pick a knowledge collection…",
+      "pickCollection": "Pick a knowledge collection…",
       "remove": "Remove"
     },
     "json": {
@@ -3431,7 +3452,10 @@
         "failing": "failing {{count}}"
       },
       "empty": "No agent teams yet — provision one from the template shelf, or create one.",
-      "viewMode": { "cards": "Cards", "formation": "Formation" },
+      "viewMode": {
+        "cards": "Cards",
+        "formation": "Formation"
+      },
       "formationEmpty": "Empty formation",
       "formationTruncated": "{{count}} posts · thumbnail",
       "formationUnavailable": "Formation data unavailable",
@@ -3481,6 +3505,31 @@
       "evaluated": "evaluated, awaiting you",
       "promoted": "live",
       "rejected": "rejected"
+    }
+  },
+  "agents": {
+    "tab": {
+      "build": "Build",
+      "supply": "Supply",
+      "creations": "My Creations",
+      "tuning": "Tuning",
+      "apps": "Apps"
+    }
+  },
+  "hub": {
+    "build": {
+      "title": "Visual builder",
+      "desc": "Compose an agent from three buckets — persona, skills, tools — or arrange a team on the canvas; editable with live validation, emitting straight to presets and market drafts.",
+      "cta": "Open the canvas"
+    },
+    "supply": {
+      "packs": "Agent market",
+      "skills": "Skills",
+      "mcp": "MCP"
+    },
+    "tuning": {
+      "personaTitle": "Persona amendments",
+      "personaEmpty": "Persona self-tuning is in preparation: amendment proposals → A/B evaluation → human final review. It will land here."
     }
   }
 }

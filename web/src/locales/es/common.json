@@ -15,10 +15,13 @@
   },
   "nav": {
     "chat": "Chat",
-    "family": { "knowledge": "Conocimiento", "build": "Construir" },
+    "family": {
+      "knowledge": "Conocimiento",
+      "build": "Construir"
+    },
     "knowledge": "Biblioteca",
     "resources": "Resultados",
-    "agents": "Agentes",
+    "agents": "Constructor de Agentes",
     "bots": "Bots",
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
@@ -55,7 +58,7 @@
   },
   "agentsPage": {
     "studio": "Estudio",
-    "title": "Agentes",
+    "title": "Constructor de Agentes",
     "agents": "Expertos",
     "market": "Agentes",
     "create": "Nuevo experto",
@@ -71,7 +74,11 @@
     "clusterCreated": "Creado",
     "clusterTerminate": "Terminar grupo",
     "clusterTerminateHint": "Terminar detiene el grupo; los agentes instalados permanecen.",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "build": "Construir",
+    "supply": "Catálogo",
+    "creations": "Mis creaciones",
+    "tuning": "Ajuste"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1318,7 +1325,12 @@
       "onceAbsolute": "Hora concreta",
       "onceRelative": "Relativo a ahora",
       "minutesAfterNow": "minutos desde ahora",
-      "unit": { "minute": "minutos", "hour": "horas", "day": "días", "week": "semanas" },
+      "unit": {
+        "minute": "minutos",
+        "hour": "horas",
+        "day": "días",
+        "week": "semanas"
+      },
       "errors": {
         "prompt": "Se necesita un mensaje",
         "maxRuns": "Las ejecuciones máximas deben ser un entero positivo",
@@ -1338,7 +1350,13 @@
       "title": "Historial ({{count}})",
       "progress": "{{runs}}/{{cap}} ejecutadas",
       "missed": "{{count}} omitidas",
-      "state": { "done": "hecho", "failed": "falló", "interrupted": "interrumpido", "skipped": "omitido", "missed": "perdido" }
+      "state": {
+        "done": "hecho",
+        "failed": "falló",
+        "interrupted": "interrumpido",
+        "skipped": "omitido",
+        "missed": "perdido"
+      }
     },
     "trigger": {
       "schedule": "Programada",
@@ -2047,85 +2065,85 @@
     },
     "title": "Estudio de agentes",
     "roster": {
-       "new": "Nuevo agente",
-       "empty": "Aún no hay agentes — empieza con «Nuevo agente»"
-      },
+      "new": "Nuevo agente",
+      "empty": "Aún no hay agentes — empieza con «Nuevo agente»"
+    },
     "canvas": {
-       "empty": "Elige un agente a la izquierda o crea uno"
-      },
+      "empty": "Elige un agente a la izquierda o crea uno"
+    },
     "agent": {
-       "id": "ID (asignado según las reglas del portal)",
-       "name": "Nombre visible"
-      },
+      "id": "ID (asignado según las reglas del portal)",
+      "name": "Nombre visible"
+    },
     "doc": {
-       "section": "Info del documento (envelope del manifiesto)",
-       "name": "Nombre",
-       "description": "Descripción",
-       "tags": "Etiquetas (separadas por comas)"
-      },
+      "section": "Info del documento (envelope del manifiesto)",
+      "name": "Nombre",
+      "description": "Descripción",
+      "tags": "Etiquetas (separadas por comas)"
+    },
     "skill": {
-       "importLocal": "Importar de habilidades locales…",
-       "inline": "Nueva habilidad en línea",
-       "description": "Descripción (≤300 caracteres)",
-       "content": "Cuerpo de la habilidad (SKILL.md)"
-      },
+      "importLocal": "Importar de habilidades locales…",
+      "inline": "Nueva habilidad en línea",
+      "description": "Descripción (≤300 caracteres)",
+      "content": "Cuerpo de la habilidad (SKILL.md)"
+    },
     "mcp": {
-       "pick": "Elegir un servidor del registro…"
-      },
+      "pick": "Elegir un servidor del registro…"
+    },
     "team": {
-       "tab": "Estructura de equipo",
-       "empty": "Este documento aún no tiene estructura de equipo (bloque fleet) — el grafo muestra el documento, solo lectura",
-       "readOnlyHint": "Grafo de solo lectura: los miembros se editan en las tarjetas de rol; las aristas de orquestación corresponden a blueprints/plantillas"
+      "tab": "Estructura de equipo",
+      "empty": "Este documento aún no tiene estructura de equipo (bloque fleet) — el grafo muestra el documento, solo lectura",
+      "readOnlyHint": "Grafo de solo lectura: los miembros se editan en las tarjetas de rol; las aristas de orquestación corresponden a blueprints/plantillas"
     },
     "blueprint": {
-    "pick": "Abrir un borrador de blueprint…",
-    "new": "Nuevo blueprint",
-    "untitled": "Blueprint sin título",
-    "empty": "Abre un borrador del pool o crea uno — el ciclo de vida del blueprint (validar → probar → aprobar → fundir) y su pool siguen igual",
-    "status": {
+      "pick": "Abrir un borrador de blueprint…",
+      "new": "Nuevo blueprint",
+      "untitled": "Blueprint sin título",
+      "empty": "Abre un borrador del pool o crea uno — el ciclo de vida del blueprint (validar → probar → aprobar → fundir) y su pool siguen igual",
+      "status": {
         "draft": "Borrador",
         "approved": "Aprobado",
         "cast": "Fundido"
       },
-    "track": {
+      "track": {
         "form": "Formulario",
         "json": "JSON"
       },
-    "boundary": {
+      "boundary": {
         "name": "Nombre de escena",
         "oneLine": "Posicionamiento en una línea",
         "outOfScope": "Fuera de alcance"
       },
-    "judge": "Modelo juez",
-    "judgeFollowDefault": "Seguir el predeterminado del despliegue",
-    "judgeFollows": "Seguir el predeterminado (resuelve a {{model}})",
-    "sources": "Fuentes de datos (colecciones de conocimiento / nombres del registro)",
-    "pickCollection": "Elegir una colección de conocimiento…",
-    "jsonHint": "Las secciones de organización/monitorización/aceptación se editan en la pista JSON; ambas pistas comparten fuente y pasan la cadena completa al enviar.",
-    "jsonApply": "Analizar y cargar en el formulario",
-    "saveValidate": "Guardar y validar",
-    "trial": "Prueba",
-    "trialReport": "Informe de prueba",
-    "approve": "Aprobar",
-    "cast": "Fundir al mercado",
-    "castRef": "Fundido: pack {{packId}} v{{version}}",
+      "judge": "Modelo juez",
+      "judgeFollowDefault": "Seguir el predeterminado del despliegue",
+      "judgeFollows": "Seguir el predeterminado (resuelve a {{model}})",
+      "sources": "Fuentes de datos (colecciones de conocimiento / nombres del registro)",
+      "pickCollection": "Elegir una colección de conocimiento…",
+      "jsonHint": "Las secciones de organización/monitorización/aceptación se editan en la pista JSON; ambas pistas comparten fuente y pasan la cadena completa al enviar.",
+      "jsonApply": "Analizar y cargar en el formulario",
+      "saveValidate": "Guardar y validar",
+      "trial": "Prueba",
+      "trialReport": "Informe de prueba",
+      "approve": "Aprobar",
+      "cast": "Fundir al mercado",
+      "castRef": "Fundido: pack {{packId}} v{{version}}",
       "sign": "Firmar el informe de prueba (clave final)",
       "unsign": "Quitar firma",
-    "savedValid": "Guardado, validación verde"
+      "savedValid": "Guardado, validación verde"
     },
     "validate": {
-       "running": "Validando…",
-       "ok": "Válido — los mismos validadores que el portal de publicación",
-       "bad": "{{n}} problema(s) (texto del portal de publicación)"
-      },
+      "running": "Validando…",
+      "ok": "Válido — los mismos validadores que el portal de publicación",
+      "bad": "{{n}} problema(s) (texto del portal de publicación)"
+    },
     "emit": {
-       "preset": "Guardar como preajuste personal (esta celda)",
-       "draft": "Guardar como borrador de agente (→ mercado)",
-       "busy": "Emitiendo…",
-       "presetOk": "Preajuste «{{name}}» creado — elígelo en el selector de conversación",
-       "draftOk": "Borrador creado — continúa la publicación en «Mis creaciones»",
-       "failed": "Fallo al emitir: {{message}}"
-      },
+      "preset": "Guardar como preajuste personal (esta celda)",
+      "draft": "Guardar como borrador de agente (→ mercado)",
+      "busy": "Emitiendo…",
+      "presetOk": "Preajuste «{{name}}» creado — elígelo en el selector de conversación",
+      "draftOk": "Borrador creado — continúa la publicación en «Mis creaciones»",
+      "failed": "Fallo al emitir: {{message}}"
+    },
     "remove": "Quitar"
   },
   "overlay": {
@@ -3182,7 +3200,10 @@
       "ignore": "Ignorar"
     },
     "title": "Memoria",
-    "funnel": { "title": "Embudo de destilación", "segTitle": "{{layer}} · {{count}} elementos · {{pct}}%" },
+    "funnel": {
+      "title": "Embudo de destilación",
+      "segTitle": "{{layer}} · {{count}} elementos · {{pct}}%"
+    },
     "subtitle": "Todo lo que tus agentes recuerdan",
     "all": "Todo",
     "layerLabel": "Capa",
@@ -3262,7 +3283,7 @@
       "add": "Añadir",
       "hint": "Solo nombres de servidores del registro o nombres lógicos de la biblioteca interna: sin endpoints ni credenciales.",
       "placeholder": "p. ej. policy-feed",
-                        "pickCollection": "Elegir una colección…",
+      "pickCollection": "Elegir una colección…",
       "remove": "Quitar"
     },
     "json": {
@@ -3431,7 +3452,10 @@
         "failing": "en fallo {{count}}"
       },
       "empty": "Aún no hay equipos de agentes — provisión uno desde la estantería de plantillas o crea uno.",
-      "viewMode": { "cards": "Tarjetas", "formation": "Formación" },
+      "viewMode": {
+        "cards": "Tarjetas",
+        "formation": "Formación"
+      },
       "formationEmpty": "Formación vacía",
       "formationTruncated": "{{count}} puestos · miniatura",
       "formationUnavailable": "Datos de formación no disponibles",
@@ -3481,6 +3505,31 @@
       "evaluated": "evaluada, espera",
       "promoted": "activa",
       "rejected": "rechazada"
+    }
+  },
+  "agents": {
+    "tab": {
+      "build": "Construir",
+      "supply": "Catálogo",
+      "creations": "Mis creaciones",
+      "tuning": "Ajuste",
+      "apps": "Apps"
+    }
+  },
+  "hub": {
+    "build": {
+      "title": "Constructor visual",
+      "desc": "Compón un agente a partir de tres cubetas — persona, habilidades, herramientas — o organiza un equipo en el lienzo; editable con validación en vivo y emisión directa a presets y borradores del mercado.",
+      "cta": "Abrir el lienzo"
+    },
+    "supply": {
+      "packs": "Mercado de agentes",
+      "skills": "Habilidades",
+      "mcp": "MCP"
+    },
+    "tuning": {
+      "personaTitle": "Revisiones de persona",
+      "personaEmpty": "El autoajuste de persona está en preparación: propuestas de revisión → evaluación A/B → revisión final humana. Llegará aquí."
     }
   }
 }

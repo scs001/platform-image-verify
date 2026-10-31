@@ -88,8 +88,18 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
 ];
 
 export const AGENTS_TAB_SURFACES: RegistryEntry[] = [
-  { container: "agentsTabs", slug: "agents", i18nKey: "agents.tab.agents", testId: "agents-tab-agents" },
-  { container: "agentsTabs", slug: "market", i18nKey: "agents.tab.market", testId: "agents-tab-market", predicates: { packMarketplace: true } },
+  // 构建器总门面四区 (add-agent-builder-hub D2): the /agents page reorganized
+  // into build / supply / creations / tuning. The `agents`/`market` slugs
+  // remain resolvable through SURFACE_SLUG_ALIASES so stored presets and
+  // legacy deep links (?tab=agents|market) keep landing on their content.
+  { container: "agentsTabs", slug: "build", i18nKey: "agents.tab.build", testId: "agents-tab-build" },
+  { container: "agentsTabs", slug: "supply", i18nKey: "agents.tab.supply", testId: "agents-tab-supply" },
+  { container: "agentsTabs", slug: "creations", i18nKey: "agents.tab.creations", testId: "agents-tab-creations" },
+  { container: "agentsTabs", slug: "tuning", i18nKey: "agents.tab.tuning", testId: "agents-tab-tuning" },
+  // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
+  // factory preset — its entries live in the app center (openspec:
+  // app-center). The `apps` slug STAYS in the registry so stored presets
+  // and deep links keep validating; resolution just never selects it.
   { container: "agentsTabs", slug: "apps", i18nKey: "agents.tab.apps", testId: "agents-tab-apps" },
 ];
 
@@ -125,8 +135,12 @@ export function registryFor(container: SurfaceContainer): RegistryEntry[] {
 
 // Aliases: retired/legacy slugs that still resolve to a registry slug. Kept
 // next to the registry so a slug cannot be added in one place only.
+// add-agent-builder-hub D5: the hub's central legacy map — `agents` (专家 tab)
+// resolves to `creations`, `market` resolves to `supply`; both deep links and
+// stored presets canonicalize through here, in one place.
 export const SURFACE_SLUG_ALIASES: Partial<Record<SurfaceContainer, Record<string, string>>> = {
   settings: { skills: "mcp" },
+  agentsTabs: { agents: "creations", market: "supply" },
 };
 
 export function canonicalSlug(container: SurfaceContainer, slug: string): string {
@@ -191,11 +205,9 @@ export const FACTORY_PRESETS: PresetCatalog = {
     version: 1,
     nav: NAV_SURFACES.map((s) => s.slug),
     settings: SETTINGS_SURFACES.map((s) => s.slug),
-    // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
-    // factory preset — its entries live in the app center (openspec:
-    // app-center). The `apps` slug STAYS in the registry so stored presets
-    // and deep links keep validating; resolution just never selects it.
-    agentsTabs: ["agents", "market"],
+    // add-agent-builder-hub: the builder hub's four areas replace the retired
+    // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES).
+    agentsTabs: ["build", "supply", "creations", "tuning"],
   },
   simple: {
     version: 1,
@@ -211,7 +223,7 @@ export const FACTORY_PRESETS: PresetCatalog = {
     // the section invisible — and every connect deep link fell back to
     // General — for exactly the users those recipes provision (2026-10-18).
     settings: ["general", "account", "wechat-app", "devices", "connections"],
-    agentsTabs: ["agents", "market"],
+    agentsTabs: ["build", "supply", "creations", "tuning"],
   },
 };
 
@@ -235,11 +247,15 @@ export function validatePreset(preset: unknown): { ok: true; preset: LayoutPrese
     if (list === undefined) continue;
     if (!Array.isArray(list)) return { ok: false, error: `${container} must be an array` };
     const known = new Set(registryFor(container).map((e) => e.slug));
-    for (const slug of list) {
+    // Legacy slugs canonicalize before the known-set check so a stored preset
+    // naming a retired slug (agentsTabs: agents/market) stays valid and lands
+    // on its successor (add-agent-builder-hub D5).
+    const canonical = list.map((s) => (typeof s === "string" ? canonicalSlug(container, s) : s));
+    for (const slug of canonical) {
       if (typeof slug !== "string") return { ok: false, error: `${container} entries must be strings` };
       if (!known.has(slug)) return { ok: false, error: `unknown ${container} surface '${slug}'` };
     }
-    out[container] = [...new Set(list)];
+    out[container] = [...new Set(canonical)];
   }
   return { ok: true, preset: out };
 }
@@ -279,13 +295,16 @@ export function resolveContainer(container: SurfaceContainer, layers: LayoutLaye
     if (!layer) return;
     const presetList = layer.preset?.[container];
     if (Array.isArray(presetList)) {
-      const keep = new Set(presetList);
+      // Legacy slugs canonicalize first so a stored preset naming `agents`/
+      // `market` narrows the successor slugs (add-agent-builder-hub D5).
+      const canonList = presetList.map((s) => canonicalSlug(container, s));
+      const keep = new Set(canonList);
       const survivors = current.filter((slug) => keep.has(slug));
       if (survivors.length) {
         // The preset's order governs the survivors: a user reorder is a
         // preset whose list is a permutation of the inherited survivors.
-        const byPresetOrder = presetList.filter((slug) => survivors.includes(slug));
-        current = byPresetOrder.length ? byPresetOrder : survivors;
+        const byPresetOrder = canonList.filter((slug) => survivors.includes(slug));
+        current = byPresetOrder.length ? [...new Set(byPresetOrder)] : survivors;
       }
     }
     if (Array.isArray(layer.hidden) && layer.hidden.length) {

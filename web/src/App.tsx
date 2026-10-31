@@ -372,8 +372,10 @@ export default function App() {
             path="/settings"
             element={<Navigate to={settingsPath("general")} replace state={location.state} />}
           />
-          {/* Retired sections redirect into the agents page (their surfaces
-              moved there): presets → the Experts tab, packs → the Market tab. */}
+          {/* Retired sections redirect into the builder hub (their surfaces
+              moved there): presets → the Creations area, packs → the Supply
+              area. The legacy tab slugs canonicalize per add-agent-builder-hub
+              D5 (surfaces.ts SURFACE_SLUG_ALIASES). */}
           <Route
             path="/settings/presets"
             element={<Navigate to="/agents?tab=agents" replace state={location.state} />}

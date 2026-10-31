@@ -15,10 +15,13 @@
   },
   "nav": {
     "chat": "对话",
-    "family": { "knowledge": "知识", "build": "构建" },
+    "family": {
+      "knowledge": "知识",
+      "build": "构建"
+    },
     "knowledge": "资料库",
     "resources": "成果",
-    "agents": "智能体",
+    "agents": "智能体构建器",
     "bots": "机器人",
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
@@ -55,7 +58,7 @@
   },
   "agentsPage": {
     "studio": "工作室",
-    "title": "智能体",
+    "title": "智能体构建器",
     "agents": "专家",
     "market": "智能体",
     "create": "新建专家",
@@ -71,7 +74,11 @@
     "clusterCreated": "创建时间",
     "clusterTerminate": "解散小组",
     "clusterTerminateHint": "解散后小组停止；已安装的角色和智能体不受影响。",
-    "close": "关闭"
+    "close": "关闭",
+    "build": "构建",
+    "supply": "供给",
+    "creations": "我的创作",
+    "tuning": "调优"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1318,7 +1325,12 @@
       "onceAbsolute": "指定时刻",
       "onceRelative": "相对现在",
       "minutesAfterNow": "分钟后执行",
-      "unit": { "minute": "分钟", "hour": "小时", "day": "天", "week": "周" },
+      "unit": {
+        "minute": "分钟",
+        "hour": "小时",
+        "day": "天",
+        "week": "周"
+      },
       "errors": {
         "prompt": "请填写提示词",
         "maxRuns": "最多运行次数须为正整数",
@@ -1338,7 +1350,13 @@
       "title": "执行记录（{{count}} 次）",
       "progress": "已跑 {{runs}}/{{cap}}",
       "missed": "{{count}} 次错过",
-      "state": { "done": "成功", "failed": "失败", "interrupted": "中断", "skipped": "跳过", "missed": "错过" }
+      "state": {
+        "done": "成功",
+        "failed": "失败",
+        "interrupted": "中断",
+        "skipped": "跳过",
+        "missed": "错过"
+      }
     },
     "trigger": {
       "schedule": "定时",
@@ -2047,85 +2065,85 @@
     },
     "title": "智能体工作室",
     "roster": {
-       "new": "新建智能体",
-       "empty": "还没有智能体——点「新建智能体」开始"
-      },
+      "new": "新建智能体",
+      "empty": "还没有智能体——点「新建智能体」开始"
+    },
     "canvas": {
-       "empty": "从左侧选择一个智能体，或新建一个"
-      },
+      "empty": "从左侧选择一个智能体，或新建一个"
+    },
     "agent": {
-       "id": "ID（自动分配，发布门规范）",
-       "name": "显示名"
-      },
+      "id": "ID（自动分配，发布门规范）",
+      "name": "显示名"
+    },
     "doc": {
-       "section": "文档信息（manifest 信封）",
-       "name": "名称",
-       "description": "描述",
-       "tags": "标签（逗号分隔）"
-      },
+      "section": "文档信息（manifest 信封）",
+      "name": "名称",
+      "description": "描述",
+      "tags": "标签（逗号分隔）"
+    },
     "skill": {
-       "importLocal": "从本地技能导入…",
-       "inline": "内联新技能",
-       "description": "描述（≤300 字）",
-       "content": "技能正文（SKILL.md）"
-      },
+      "importLocal": "从本地技能导入…",
+      "inline": "内联新技能",
+      "description": "描述（≤300 字）",
+      "content": "技能正文（SKILL.md）"
+    },
     "mcp": {
-       "pick": "从注册处选取服务…"
-      },
+      "pick": "从注册处选取服务…"
+    },
     "team": {
-       "tab": "团队结构",
-       "empty": "这份文档还没有团队结构（fleet 段）——团队图随文档呈现，只读",
-       "readOnlyHint": "团队图只读：成员经角色卡编辑，编导边由蓝图/模板承载"
+      "tab": "团队结构",
+      "empty": "这份文档还没有团队结构（fleet 段）——团队图随文档呈现，只读",
+      "readOnlyHint": "团队图只读：成员经角色卡编辑，编导边由蓝图/模板承载"
     },
     "blueprint": {
-    "pick": "打开蓝图草稿…",
-    "new": "新建蓝图",
-    "untitled": "未命名蓝图",
-    "empty": "从草稿池打开一份蓝图，或新建——蓝图生命周期（校验→试跑→批准→铸造）与蓝图纸草稿池原样承载",
-    "status": {
+      "pick": "打开蓝图草稿…",
+      "new": "新建蓝图",
+      "untitled": "未命名蓝图",
+      "empty": "从草稿池打开一份蓝图，或新建——蓝图生命周期（校验→试跑→批准→铸造）与蓝图纸草稿池原样承载",
+      "status": {
         "draft": "草稿",
         "approved": "已批准",
         "cast": "已铸造"
       },
-    "track": {
+      "track": {
         "form": "表单轨",
         "json": "JSON 轨"
       },
-    "boundary": {
+      "boundary": {
         "name": "场景名",
         "oneLine": "一句话定位",
         "outOfScope": "边界外"
       },
-    "judge": "判据模型",
-    "judgeFollowDefault": "跟随部署默认",
-    "judgeFollows": "跟随部署默认（解析到 {{model}}）",
-    "sources": "数据来源（知识库集合/注册处名）",
-    "pickCollection": "选取知识库集合…",
-    "jsonHint": "岗位编制/监控/验收等段经 JSON 轨编辑；两轨同源，提交均过完整校验链。",
-    "jsonApply": "解析并载入表单轨",
-    "saveValidate": "保存并校验",
-    "trial": "试跑",
-    "trialReport": "试跑报告",
-    "approve": "批准",
-    "cast": "铸造上架",
-    "castRef": "已铸造：pack {{packId}} v{{version}}",
+      "judge": "判据模型",
+      "judgeFollowDefault": "跟随部署默认",
+      "judgeFollows": "跟随部署默认（解析到 {{model}}）",
+      "sources": "数据来源（知识库集合/注册处名）",
+      "pickCollection": "选取知识库集合…",
+      "jsonHint": "岗位编制/监控/验收等段经 JSON 轨编辑；两轨同源，提交均过完整校验链。",
+      "jsonApply": "解析并载入表单轨",
+      "saveValidate": "保存并校验",
+      "trial": "试跑",
+      "trialReport": "试跑报告",
+      "approve": "批准",
+      "cast": "铸造上架",
+      "castRef": "已铸造：pack {{packId}} v{{version}}",
       "sign": "签字试跑报告（终审钥匙）",
       "unsign": "撤签",
-    "savedValid": "已保存，校验绿"
+      "savedValid": "已保存，校验绿"
     },
     "validate": {
-       "running": "校验中…",
-       "ok": "校验通过——与发布门同一套校验器",
-       "bad": "{{n}} 个问题（发布门原文）"
-      },
+      "running": "校验中…",
+      "ok": "校验通过——与发布门同一套校验器",
+      "bad": "{{n}} 个问题（发布门原文）"
+    },
     "emit": {
-       "preset": "存为自建预设（本机）",
-       "draft": "存为智能体草稿（→ 市场）",
-       "busy": "发射中…",
-       "presetOk": "已创建预设「{{name}}」——在对话选择器里即可选用",
-       "draftOk": "草稿已创建——去「我的创作」继续发布",
-       "failed": "发射失败：{{message}}"
-      },
+      "preset": "存为自建预设（本机）",
+      "draft": "存为智能体草稿（→ 市场）",
+      "busy": "发射中…",
+      "presetOk": "已创建预设「{{name}}」——在对话选择器里即可选用",
+      "draftOk": "草稿已创建——去「我的创作」继续发布",
+      "failed": "发射失败：{{message}}"
+    },
     "remove": "移除"
   },
   "overlay": {
@@ -3182,7 +3200,10 @@
       "ignore": "忽略"
     },
     "title": "记忆",
-    "funnel": { "title": "蒸馏漏斗", "segTitle": "{{layer}} 层 · {{count}} 条 · {{pct}}%" },
+    "funnel": {
+      "title": "蒸馏漏斗",
+      "segTitle": "{{layer}} 层 · {{count}} 条 · {{pct}}%"
+    },
     "subtitle": "智能体记得的一切，都在这里",
     "all": "全部",
     "layerLabel": "层",
@@ -3262,7 +3283,7 @@
       "add": "添加",
       "hint": "只收 registry 在册 server 名或内部库逻辑名——禁端点、禁凭据。",
       "placeholder": "如 policy-feed",
-                        "pickCollection": "选知识库集合…",
+      "pickCollection": "选知识库集合…",
       "remove": "移除"
     },
     "json": {
@@ -3431,7 +3452,10 @@
         "failing": "需关注 {{count}}"
       },
       "empty": "还没有智能体团队——从模板货架实化一支，或点右上角创建。",
-      "viewMode": { "cards": "卡片", "formation": "编队" },
+      "viewMode": {
+        "cards": "卡片",
+        "formation": "编队"
+      },
       "formationEmpty": "空编队",
       "formationTruncated": "{{count}} 岗 · 缩略",
       "formationUnavailable": "该队编队数据不可用",
@@ -3481,6 +3505,31 @@
       "evaluated": "评测通过待确认",
       "promoted": "已生效",
       "rejected": "已驳回"
+    }
+  },
+  "agents": {
+    "tab": {
+      "build": "构建",
+      "supply": "供给",
+      "creations": "我的创作",
+      "tuning": "调优",
+      "apps": "应用"
+    }
+  },
+  "hub": {
+    "build": {
+      "title": "可视化构建器",
+      "desc": "用三桶卡（角色 / 技能 / 工具）组合一个智能体，或编一组团队；画布可写、校验实时、发射口直达预设与市场草稿。",
+      "cta": "打开构建画布"
+    },
+    "supply": {
+      "packs": "智能体市场",
+      "skills": "技能",
+      "mcp": "MCP"
+    },
+    "tuning": {
+      "personaTitle": "persona 修订",
+      "personaEmpty": "角色桶自调优在准备中：修订提议 → A/B 评测 → 人终审。上线后在此承接评审。"
     }
   }
 }

@@ -1,35 +1,35 @@
-// Agents & Apps catalog page. GET /api/catalog is role-filtered and
-// redacted server-side; link entries open externally, nango-connect entries
-// mint a connect session via the server-side broker then redirect, and
-// external-service entries (NEW API) embed via /external/:appId iframe proxy.
+// 壹座智能体构建器 hub (add-agent-builder-hub): four areas on one route.
+// Build = the visual studio's direct entry (/studio); Supply = three cabinets
+// (agent market | skills | MCP) gathered out of the legacy tabs and Settings;
+// Creations = my drafts, presets, clusters and the installed-experts roster;
+// Tuning = skill-candidate review plus the persona-amendment placeholder.
+// Legacy deep links canonicalize in one place (surfaces.ts
+// SURFACE_SLUG_ALIASES: ?tab=agents→creations, ?tab=market→supply).
 //
-// Layout: two sub-tabs (Experts | Packs) selected via ?tab=agents|market for
-// deep-linking (simplify-ia-non-technical, then simplify-chat-and-agents-ia
-// retired the Apps tab — its entries moved to the app center, and the legacy
-// ?tab=apps value falls back to the first visible tab). Experts unifies the
-// catalog roster with the cell's custom presets — the preset management
-// surface (add-custom-presets) is embedded below the catalog grid, so
-// composing, managing, and picking an expert happen in one place. Packs hosts
-// the pack marketplace (moved out of Settings) on deployments that report it.
-// Featured items appear first; entries sort by id within their tier.
+// Data sources unchanged from the pre-hub page: GET /api/catalog is
+// role-filtered and redacted server-side; /api/clusters/mine backs the
+// cluster rows. Both reads stay cached (openspec: polish-web-surfaces).
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useListCache } from "@/hooks/useListCache";
-import { AGENTS_TAB_SURFACES } from "@platform/core";
+import { AGENTS_TAB_SURFACES, canonicalSlug } from "@platform/core";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { PacksPage } from "@/pages/PacksPage";
+import { PackDraftsView } from "@/components/packs/PackDraftsView";
+import { ExtensionsPage } from "@/pages/ExtensionsPage";
+import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
 import { Link } from "react-router-dom";
 import { Blocks } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { AgentInfo } from "@platform/core";
 
-type Tab = "agents" | "market";
+type Tab = "build" | "supply" | "creations" | "tuning";
 
 // A dynamic cluster row; shape mirrors GET /api/clusters/mine exactly.
 interface MineCluster {
@@ -61,9 +61,17 @@ async function fetchMineClusters(): Promise<{ clusters: MineCluster[] }> {
 // labels are presentation). One map, so a new tab cannot land with a missing
 // label silently.
 const TAB_LABEL_KEYS: Record<string, string> = {
-  agents: "agentsPage.agents",
-  market: "agentsPage.market",
+  build: "agentsPage.build",
+  supply: "agentsPage.supply",
+  creations: "agentsPage.creations",
+  tuning: "agentsPage.tuning",
 };
+
+// Supply-area cabinets (add-agent-builder-hub): the pack market cabinet rides
+// only on marketplace deployments; skills/MCP reuse the Settings section
+// components unchanged (settings-surface: sections reuse existing page
+// components unchanged — two entries, one component, no fork).
+type Cabinet = "packs" | "skills" | "mcp";
 
 export function AgentsPage() {
   const { t } = useTranslation();
@@ -93,39 +101,51 @@ export function AgentsPage() {
   const [detailBusy, setDetailBusy] = useState(false);
 
   // The tab set comes from the server-resolved layout (layout-configuration);
-  // without it (older server) the client falls back to the factory set with
-  // its own marketplace gate — the pre-change behavior exactly.
+  // without it (older server) the client falls back to the full registry set —
+  // every hub area is a plain surface with no predicate. Resolved slugs
+  // canonicalize here too, so a stale server preset naming `agents`/`market`
+  // still selects its successor area.
   const visibleTabs = useMemo(() => {
+    const canon = (slug: string) => canonicalSlug("agentsTabs", slug);
     const resolved = resolvedLayout?.agentsTabs;
-    if (!resolved) {
-      // Older server without the layout field: the factory set minus the
-      // retired apps slug (the registry keeps it for stored-preset compat,
-      // but no factory preset selects it — match that here too).
-      return AGENTS_TAB_SURFACES.filter((s) => s.slug !== "apps")
-        .filter((s) => !s.predicates?.packMarketplace || packMarketplace)
-        .map((s) => ({
-          slug: s.slug,
-          testId: s.testId,
-          labelKey: TAB_LABEL_KEYS[s.slug]!,
-        }));
-    }
     const byRegistry = new Map(AGENTS_TAB_SURFACES.map((e) => [e.slug, e]));
-    const kept = resolved
-      .map((slug) => byRegistry.get(slug))
-      .filter((e): e is (typeof AGENTS_TAB_SURFACES)[number] => Boolean(e));
-    // Belt and braces: the server already applied the predicate, but a stale
-    // resolvedLayout must never surface the market on a market-less deployment.
-    return kept
-      .filter((s) => !s.predicates?.packMarketplace || packMarketplace)
-      .map((s) => ({ slug: s.slug, testId: s.testId, labelKey: TAB_LABEL_KEYS[s.slug]! }));
-  }, [resolvedLayout, packMarketplace]);
+    const sources = resolved ? resolved.map(canon) : AGENTS_TAB_SURFACES.map((s) => s.slug);
+    const seen = new Set<string>();
+    const kept: Array<{ slug: string; testId: string; labelKey: string }> = [];
+    for (const slug of sources) {
+      const entry = slug ? byRegistry.get(slug) : undefined;
+      // Belt and braces: `apps` is retired from every factory preset and its
+      // entries live in the app center; a stale preset must not re-surface it.
+      if (!entry || entry.slug === "apps" || seen.has(entry.slug)) continue;
+      const labelKey = TAB_LABEL_KEYS[entry.slug];
+      if (!labelKey) continue;
+      seen.add(entry.slug);
+      kept.push({ slug: entry.slug, testId: entry.testId, labelKey });
+    }
+    return kept;
+  }, [resolvedLayout]);
 
-  // ?tab=apps|market|agents; the requested tab stands only while it is visible,
-  // otherwise the first visible tab wins (layout-configuration: a hidden tab's
-  // deep link falls back rather than erroring).
+  // ?tab= supply|creations|tuning|build (legacy agents/market canonicalize);
+  // the requested tab stands only while it is visible, otherwise the first
+  // visible tab wins (layout-configuration: a hidden tab's deep link falls
+  // back rather than erroring).
   const tabParam = searchParams.get("tab");
+  const requestedTab = tabParam ? canonicalSlug("agentsTabs", tabParam) : null;
   const activeTab: Tab =
-    tabParam && visibleTabs.some((tab) => tab.slug === tabParam) ? (tabParam as Tab) : ((visibleTabs[0]?.slug ?? "agents") as Tab);
+    requestedTab && visibleTabs.some((tab) => tab.slug === requestedTab)
+      ? (requestedTab as Tab)
+      : ((visibleTabs[0]?.slug ?? "build") as Tab);
+
+  // Supply cabinets: the pack market cabinet rides only on marketplace
+  // deployments; the choice defaults to the first visible cabinet and the
+  // user's pick wins while it stays available.
+  const cabinets = useMemo<Cabinet[]>(
+    () => (packMarketplace ? ["packs", "skills", "mcp"] : ["skills", "mcp"]),
+    [packMarketplace],
+  );
+  const [cabinetChoice, setCabinetChoice] = useState<Cabinet | null>(null);
+  const activeCabinet: Cabinet =
+    cabinetChoice && cabinets.includes(cabinetChoice) ? cabinetChoice : cabinets[0] ?? "skills";
 
   const openClusterDetail = async (clusterId: string) => {
     if (!clusterId) return;
@@ -153,7 +173,7 @@ export function AgentsPage() {
 
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(searchParams);
-    if (next === "agents") sp.delete("tab");
+    if (next === "build") sp.delete("tab");
     else sp.set("tab", next);
     setSearchParams(sp, { replace: true });
   };
@@ -166,7 +186,7 @@ export function AgentsPage() {
     }),
     [agents],
   );
-  // Custom-preset entries are represented (and managed) in the 我的专家
+  // Custom-preset entries are represented (and managed) in the presets
   // section below — exclude them from the catalog grid to avoid double rows.
   const sortedCatalogExperts = useMemo(
     () => sortedAgents.filter((a) => !a.customPreset),
@@ -183,43 +203,29 @@ export function AgentsPage() {
         </div>
       )}
 
-      {/* Sub-tabs */}
+      {/* Area tabs */}
       <div className="mt-4 border-b border-border">
         <nav className="flex gap-4" role="tablist" aria-label={t("agentsPage.title")}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "agents"}
-            data-testid="agents-tab-agents"
-            onClick={() => switchTab("agents")}
-            className={cn(
-              "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              activeTab === "agents"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t("agentsPage.agents")}
-          </button>
-          {packMarketplace && (
+          {visibleTabs.map((tab) => (
             <button
+              key={tab.slug}
               type="button"
               role="tab"
-              aria-selected={activeTab === "market"}
-              data-testid="agents-tab-market"
-              onClick={() => switchTab("market")}
+              aria-selected={activeTab === tab.slug}
+              data-testid={tab.testId}
+              onClick={() => switchTab(tab.slug as Tab)}
               className={cn(
                 "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                activeTab === "market"
+                activeTab === tab.slug
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
-              {t("agentsPage.market")}
+              {t(tab.labelKey)}
             </button>
-          )}
-          {/* 智能体工作室入口 (add-agent-studio): compose agents visually —
-              additive entry beside the tabs (design D8). */}
+          ))}
+          {/* 智能体构建器画布直达 (add-agent-studio / add-agent-builder-hub):
+              reachable from every area, one click beside the tabs. */}
           <Link
             to="/studio"
             data-testid="agents-studio-link"
@@ -232,8 +238,80 @@ export function AgentsPage() {
       </div>
 
       <div className="mt-4">
-        {activeTab === "agents" && (
-          <section data-testid="agents-section" className="flex flex-col gap-6">
+        {activeTab === "build" && (
+          <section data-testid="build-section" className="flex flex-col gap-4">
+            <div className="rounded-lg border border-border bg-gradient-to-br from-primary/5 to-transparent p-6">
+              <div className="flex items-start gap-4">
+                <div className="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
+                  <Blocks className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-medium">{t("hub.build.title")}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{t("hub.build.desc")}</p>
+                  <div className="mt-4">
+                    <Link
+                      to="/studio"
+                      data-testid="build-studio-btn"
+                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Blocks className="h-4 w-4" />
+                      {t("hub.build.cta")}
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "supply" && (
+          <section data-testid="supply-section" className="flex flex-col gap-4">
+            {/* Cabinet switcher: three supply shelves in one area. */}
+            <div className="border-b border-border">
+              <nav className="flex gap-4" aria-label={t("agentsPage.supply")}>
+                {cabinets.map((cabinet) => (
+                  <button
+                    key={cabinet}
+                    type="button"
+                    aria-selected={activeCabinet === cabinet}
+                    data-testid={`supply-cabinet-${cabinet}`}
+                    onClick={() => setCabinetChoice(cabinet)}
+                    className={cn(
+                      "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                      activeCabinet === cabinet
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {t(`hub.supply.${cabinet}`)}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            {activeCabinet === "packs" && packMarketplace && (
+              <div data-testid="market-section">
+                <PacksPage />
+              </div>
+            )}
+            {activeCabinet === "skills" && (
+              <div data-testid="supply-skills" className="rounded-lg border border-border">
+                <ExtensionsPage type="skills" />
+              </div>
+            )}
+            {activeCabinet === "mcp" && (
+              <div data-testid="supply-mcp" className="rounded-lg border border-border">
+                <ExtensionsPage type="mcp" />
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "creations" && (
+          <section data-testid="creations-section" className="flex flex-col gap-6">
+            {/* Creator drafts (add-agent-builder-hub): the drafts surface gets
+                a dedicated home here; the same component also serves the
+                market cabinet's 我的 tab — one component, no fork. */}
+            {packMarketplace && <PackDraftsView />}
             {/* Dynamic clusters (agent-cluster-platform): the section (and its
                 create entry) is always present — a user with no clusters needs a
                 way to make one. */}
@@ -267,7 +345,7 @@ export function AgentsPage() {
                 </p>
               ) : null}
             </div>
-            
+
             {/* Catalog experts grid */}
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {sortedCatalogExperts.map((a) => (
@@ -362,9 +440,22 @@ export function AgentsPage() {
           </section>
         )}
 
-        {activeTab === "market" && packMarketplace && (
-          <section data-testid="market-section">
-            <PacksPage />
+        {activeTab === "tuning" && (
+          <section data-testid="tuning-section" className="flex flex-col gap-6">
+            {/* Skill-candidate review (openspec: skill-self-evolution): the
+                review surface gets its dedicated home here; the same component
+                also serves the skills cabinet — one component, no fork. */}
+            <SkillCandidatesView />
+            {/* Persona-amendment placeholder (add-persona-self-evolution):
+                an honest empty state until that capability lands — the area
+                never renders writable controls it cannot back. */}
+            <div
+              className="rounded-lg border border-dashed border-border p-6"
+              data-testid="tuning-persona-placeholder"
+            >
+              <h3 className="text-sm font-medium">{t("hub.tuning.personaTitle")}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{t("hub.tuning.personaEmpty")}</p>
+            </div>
           </section>
         )}
       </div>
@@ -464,7 +555,7 @@ interface ClusterCardProps {
 
 function ClusterCard({ cluster, onManage }: ClusterCardProps) {
   const { t } = useTranslation();
-  
+
   return (
     <div
       className="rounded-lg border border-border p-4 transition-colors hover:border-primary/50 bg-gradient-to-br from-primary/5 to-transparent"

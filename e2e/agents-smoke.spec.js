@@ -12,7 +12,7 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /专家|Experts/i })).toBeVisible({ timeout: 15000 });
 
   // The agents section must mount
-  await expect(page.locator('[data-testid="agents-section"]')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-testid="creations-section"]')).toBeVisible({ timeout: 15000 });
 
   // No uncaught runtime errors
   const fatal = errors.filter((e) => !/Failed to load resource|401|404/i.test(e));
@@ -70,7 +70,7 @@ test("a delayed cluster read shows no empty copy until it lands (polish-web-surf
   });
 
   await page.goto("/agents?tab=agents");
-  await expect(page.locator('[data-testid="agents-section"]')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-testid="creations-section"]')).toBeVisible({ timeout: 15000 });
 
   // In flight: the section is mounted, but the empty copy must not be there.
   await expect(page.getByTestId("clusters-empty")).toHaveCount(0);

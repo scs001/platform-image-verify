@@ -29,28 +29,31 @@ const ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
 
 // ── Factory baseline ────────────────────────────────────────────────────────
 
-test("factory preset baseline: nav/settings full; agentsTabs retire apps", () => {
+test("factory preset baseline: nav/settings full; agentsTabs are the hub four areas", () => {
   const p = FACTORY_PRESETS[FACTORY_PRESET_SLUG];
   assert.deepEqual(p.nav, ALL_NAV);
   assert.deepEqual(p.settings, ALL_SETTINGS);
-  // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
-  // factory preset while its slug stays in the registry (stored presets and
-  // deep links keep validating).
-  assert.deepEqual(p.agentsTabs, ["agents", "market"]);
+  // add-agent-builder-hub: the hub's four areas replace the retired
+  // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES);
+  // the Apps sub-tab is retired from every factory preset while its slug
+  // stays in the registry (stored presets and deep links keep validating).
+  assert.deepEqual(p.agentsTabs, ["build", "supply", "creations", "tuning"]);
   assert.equal(ALL_TABS.includes("apps"), true);
 });
 
-test("stored presets referencing the retired apps tab degrade safely", () => {
-  // Validation still accepts the slug (registry compat)…
+test("stored presets referencing legacy agentsTabs slugs degrade safely", () => {
+  // Validation still accepts the retired slugs (registry compat)…
   const v = validatePreset({ version: 1, agentsTabs: ["agents", "market", "apps"] });
   assert.equal(v.ok, true);
-  // …and resolution never selects it: the factory/deployment layer drops it
-  // first, and no lower layer can re-reveal what a narrower layer removed.
+  // …they canonicalize to their successors (agents→creations, market→supply,
+  // add-agent-builder-hub D5), and resolution never selects apps: the
+  // factory/deployment layer drops it first, and no lower layer can re-reveal
+  // what a narrower layer removed. The user preset's order governs.
   const r = resolveLayout({
     deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
     user: { preset: { version: 1, agentsTabs: ["agents", "market", "apps"] } },
   });
-  assert.deepEqual(r.agentsTabs, ["agents", "market"]);
+  assert.deepEqual(r.agentsTabs, ["creations", "supply"]);
 });
 
 test("no layers resolves to the registry order", () => {
@@ -84,13 +87,17 @@ test("a preset cannot conjure the fleet into a browser", () => {
   assert.equal(r.nav.includes("fleet"), false);
 });
 
-test("marketplace-gated tab disappears when the deployment lacks the market", () => {
-  assert.equal(predicateAllows(AGENTS_TAB_SURFACES.find((s) => s.slug === "market"), { packMarketplace: false }), false);
+test("supply area survives a market-less deployment (the pack cabinet gates client-side)", () => {
+  // add-agent-builder-hub: the marketplace gate moved from the tab to the
+  // market cabinet inside the supply area — skills/MCP cabinets exist on
+  // every deployment, so the supply tab itself carries no predicate.
+  const supply = AGENTS_TAB_SURFACES.find((s) => s.slug === "supply");
+  assert.equal(predicateAllows(supply, { packMarketplace: false }), true);
   const r = resolveLayout({}, { packMarketplace: false });
   // Raw no-layers resolution returns the REGISTRY set minus predicates — apps
   // stays here because no factory-preset layer was applied (the server's
   // resolveForUser always applies one, where apps retires).
-  assert.deepEqual(r.agentsTabs, ["agents", "apps"]);
+  assert.deepEqual(r.agentsTabs, ALL_TABS);
 });
 
 test("admin-only section needs an affirmative admin answer when auth is on", () => {
@@ -154,7 +161,7 @@ test("an admin with a business role resolves to the deployment default", () => {
   const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
   assert.deepEqual(admin.nav, ALL_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
   assert.deepEqual(admin.settings, ALL_SETTINGS);
-  assert.deepEqual(admin.agentsTabs, ["agents", "market"]); // the deployment default retires apps
+  assert.deepEqual(admin.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas
   // The same input for a non-admin still narrows to the simple skeleton.
   const user = resolveLayout(layers, { authOn: true, isAdmin: false });
   assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);

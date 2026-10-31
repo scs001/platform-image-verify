@@ -6194,3 +6194,16 @@ replace 静默未打上（str.replace 无匹配不报错）→ 测试 0/3 才现
 
 第三发 sha-9efcf30（源 584bf7a9）构建中；分支上另有并行会话的 facet 出片门修复
 （e5084798）同快照上产（共享分支共存模式）。
+
+**§15.108 续记六：3 条测试 cell 撤单完成 + Registry API v0→v0.1 迁移（2026-10-31）**
+遗留项收口：官方 Registry **无 DELETE 端点**（规格标 optional，实测 501），撤单靠生命周期状态。
+发布仓 workflow 升级（`FindDataTechnology/mcp-registry-publish` e949696d）：新增 `retire` 通道
+（`confirm=retire` → `mcp-publisher status --status deleted --all-versions --yes`）+ **默认 skip 名单**
+（防未来 publish run 把三条重新发回去，待 fd-wire 修注册后移除）。run **41152761525 绿**，
+名录 **14 → 11 active**，3 条 `fd-wire-cell-*` 状态 `deleted`（可 `--status active` 恢复）。
+
+**同轮揪出的运维陷阱（重要）**：撤单后验证时名录查询返回 0，一度疑似误删——真因是官方
+**API 版本迁移**：`/v0/servers` 现在服务另一套旧数据集（分页拉全 6100 条里 `io.github.*` 命中 **0**），
+当前名录在 **`/v0.1/servers`**（检回 11 active / 14 含已撤）。判据：两版端点对同一 search 的结果
+集合必须一致，不一致时以 `/v0.1/` 为准；`docs/ecosystem/mcp-registry-publishing.md` §5.4 已改。
+`mcp-publisher` 自身走新版 API，发布链路不受影响。

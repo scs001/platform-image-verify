@@ -147,7 +147,9 @@ workflow：`dry-run` → `publish`（`permissions: id-token: write` → `mcp-pub
 ### 5.4 验证
 
 ```bash
-curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology" | head -c 800
+# 用 /v0.1/ —— 2026-10-31 实测：/v0/servers 已改为服务另一套旧数据集
+# （6100 条里 io.github.* 命中 0），当前名录在 /v0.1/servers。
+curl -s "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.FindDataTechnology&limit=50" | head -c 800
 ```
 
 > **当前状态（2026-10-31，三轮上产 + 真发布打通）**
@@ -158,17 +160,22 @@ curl -s "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.Fi
 > | v2 | `sha-f9c81fa` / digest `2c513040` | 同端点 **200**，返回 **14** 条，**内网端点 0 条**；单条 `fd-info.json` 200 + `Cache-Control: public, max-age=3600`，被丢弃的 `fd-quant.json` 返 **404**（不给信息） |
 > | v3 | `sha-08f4835` / digest `f3db9969` | 同端点 **200**，14 条**描述全部 ≤100 字符**（211→100、230→100、166→100）；`publish-mcp-registry.mjs --dry-run` **14/14 全绿** |
 >
-> **发布结果：registry 收录 14/14**，与投影逐条一致。
-> `curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.FindDataTechnology&limit=50"`
+> **发布结果（2026-10-31 终态）：名录 11 active / 14 含已撤**，与投影逐条一致。
+> `curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.FindDataTechnology&limit=50&include_deleted=true"`
 > → 14 条，逐条核 `version=0.0.1`、`remotes[0].url` 全为 `https://mcp.finddatatech.cloud/<server>/mcp`、
-> 描述超 100 字符 **0 条**。
+> 描述超 100 字符 **0 条**；其中 3 条测试 cell 为 `deleted`（见下）。
 >
 > 两轮打通的细节：首发 run 41142472745（OIDC 一次就通，6 条过 / 8 条 422 描述超限）→
 > v3 修复后复跑 run 41143983762（8/14 新发布成功，另 6 条 duplicate 属重复提交）。
 >
-> **遗留（运营判断，非代码缺口）**：`fd-wire-cell-drillcust001/pgauto001/wiretester2`
-> 三条测试 cell 已在公共目录（描述 "managed by cell-manager"），若不该公开需在 registry 侧停用；
-> 7 条内网 server 已被投影层丢弃，若要公开发布需先在 registry 源侧把注册地址改成公网网关。
+> **测试 cell 已撤（2026-10-31）**：官方 Registry **没有 DELETE 端点**（规格标 optional，实测 501），
+> 撤单机制是生命周期状态——`PATCH /v0.1/servers/{name}/versions/{version}/status`（或
+> `mcp-publisher status --status deleted --all-versions`）。`deleted` 默认不出现在名录，
+> 且可 `--status active` 恢复。工作流新增 `retire` 通道（`confirm=retire`）与**默认 skip 名单**，
+> 后者防止未来的发布 run 把这三条重新发回去。
+>
+> 7 条内网 server 已被投影层丢弃；要公开发布，先在 registry 源侧把注册地址改成公网网关
+> （已按线开出需求单，见 `docs/registry-maintenance.md` §15.108 续记四）。
 
 ## 6. 发布前核对门（每次发布都要过）
 

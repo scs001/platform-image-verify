@@ -418,6 +418,22 @@ export function createFleetDatabase({ file } = {}) {
     UNIQUE(fleet_id, member_id, carrier, provider, model, day)
   )`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_daily_day ON member_turn_daily(day)`);
+  // add-turn-pricing: the daily table predates the cost columns on cells that
+  // ran slice ② — same additive ALTER discipline as the events table (a
+  // CREATE TABLE IF NOT EXISTS alone would silently skip them).
+  for (const col of [
+    "cost_input_usd REAL NOT NULL DEFAULT 0",
+    "cost_output_usd REAL NOT NULL DEFAULT 0",
+    "cost_cache_write_usd REAL NOT NULL DEFAULT 0",
+    "cost_cache_read_usd REAL NOT NULL DEFAULT 0",
+    "pricing_at INTEGER",
+  ]) {
+    try {
+      db.exec(`ALTER TABLE member_turn_daily ADD COLUMN ${col}`);
+    } catch {
+      /* column already exists */
+    }
+  }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"

@@ -4,7 +4,8 @@
 > Gemini CLI、WorkBuddy/CodeBuddy、VS Code、Windsurf、Cline、Continue、Zed、JetBrains、
 > Claude Desktop、ChatGPT 连接器……），用户**不该被要求粘贴任何密钥**。
 >
-> 本文是设计定案（2026-10-31），实施拆在 `openspec/changes/add-universal-keyless-mcp-auth`。
+> 本文是设计定案（2026-10-31），实施已于同日归档：spec 见
+> `openspec/specs/mcp-auth-lanes`、`openspec/specs/ecosystem-access`、`openspec/specs/facet-editor-cli`。
 
 ## 0. 为什么不能只做一条道
 

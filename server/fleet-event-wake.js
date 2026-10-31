@@ -8,6 +8,7 @@
 // choice). One guard: per post per hour, honest refusal rows over the cap.
 
 import { rosterPresetId } from "../dsh-profile.js";
+import { derivedLaneCarrier } from "./fleet-events.js";
 
 const buckets = new Map(); // `${fleetId}:${memberId}` → timestamps[]
 
@@ -53,6 +54,9 @@ export function triggerFleetEventWake({ db, engine, roster = rosterPresetId }, b
           startedAt: now,
           endedAt: now,
           sessionId: null,
+          // Derived-lane marking (add-turn-metering挂账): the wake was refused —
+          // the row carries the lane it BELONGS to.
+          metering: { carrier: derivedLaneCarrier({ member: target, fleet, targetKind: target.targetKind }) },
         });
         continue;
       }

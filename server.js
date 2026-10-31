@@ -78,7 +78,7 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { renderChatFleetContext } from "./server/fleet-chat-context.js";
-import { recordTurnEvent } from "./server/fleet-events.js";
+import { recordTurnEvent, derivedLaneCarrier } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
 import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "./server/fleet-memory.js";
@@ -1437,6 +1437,9 @@ ctx.triggerFleetHandoffs = async (job, out, ledgerTurn = null) => {
           startedAt: now,
           endedAt: now,
           sessionId: null,
+          // Derived-lane marking (add-turn-metering挂账): the turn never
+          // dispatched — the row carries the lane it BELONGS to.
+          metering: { carrier: derivedLaneCarrier({ member: target, fleet, targetKind: target.targetKind }) },
         });
         continue;
       }
@@ -1455,6 +1458,8 @@ ctx.triggerFleetHandoffs = async (job, out, ledgerTurn = null) => {
             startedAt: now,
             endedAt: now,
             sessionId: null,
+            // Tool targets carry no lane (consistent with executed tool turns).
+            metering: { carrier: derivedLaneCarrier({ member: target, fleet, targetKind: target.targetKind }) },
           });
           continue;
         }
@@ -1517,6 +1522,9 @@ ctx.triggerFleetHandoffs = async (job, out, ledgerTurn = null) => {
             startedAt: now,
             endedAt: now,
             sessionId: null,
+            // Derived-lane marking (add-turn-metering挂账): the turn never
+            // dispatched — the row carries the lane it BELONGS to.
+            metering: { carrier: derivedLaneCarrier({ member: target, fleet, targetKind: target.targetKind }) },
           });
           continue;
         }

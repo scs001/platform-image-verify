@@ -243,3 +243,27 @@ function meteringOf(request, job, outcome) {
     usageReasoning: Number.isFinite(usage.reasoningTokens) ? usage.reasoningTokens : null,
   };
 }
+
+// Derived-lane carrier marking (add-turn-metering §15.115挂账 enrichment, cut ⑤
+// follow-up): the handoff/fanout/event-wake seam writes synthetic failure rows
+// for turns that NEVER dispatched (depth bound, missing edge args, hourly cap)
+// — no task, no executor, so the execution-carrier mark never lands. Those rows
+// still belong to a lane: a2a targets always ride the remote lane; persona
+// members resolve through the same three layers as dispatch (member → fleet
+// constraint → env default), mapped into the metering vocabulary
+// (runner→remote, worker→worker, auto/cell→cell). The column marks the LANE,
+// never a claimed body — carrierInstance stays null, and the runtime fields
+// (queue/spin/ttft/usage) stay honestly absent. Tool/cluster targets carry no
+// lane (consistent with executed tool turns, which stamp none). The layer
+// order is pinned against resolveTaskCarrier by test.
+export function derivedLaneCarrier({ member = null, fleet = null, targetKind = null } = {}) {
+  if (targetKind === "a2a") return "remote";
+  if (targetKind !== "persona") return null;
+  const val = (v) => (["cell", "worker", "runner"].includes(v) ? v : null);
+  const rc =
+    val(member?.carrier) ??
+    val(fleet?.orchestration?.constraints?.carrier) ??
+    val(String(process.env.CELL_CARRIER_DEFAULT ?? "").trim()) ??
+    "auto";
+  return rc === "runner" ? "remote" : rc === "worker" ? "worker" : "cell";
+}

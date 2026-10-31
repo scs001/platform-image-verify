@@ -162,3 +162,90 @@ test("metering degrade: an unusable metering shape falls back to the legacy even
     try { d2.exec("ALTER TABLE member_turn_events ADD COLUMN ttft_ms INTEGER"); } finally { d2.close(); }
   } catch { /* already there */ }
 });
+
+// ── Derived-lane carrier marking (§15.115挂账 enrichment) ────────────────────
+const { derivedLaneCarrier } = await import("../server/fleet-events.js");
+const { resolveTaskCarrier } = await import("../server/cron-runner.js");
+
+db.createMember({ id: "m_lane_runner", fleetId: "fleet_m1", title: "远端岗", parentId: null, targetKind: "persona", targetId: "pack-alpha-analyst", kpiSlots: [], cadence: null, sortKey: 3, createdAt: Date.now(), updatedAt: Date.now() });
+db.createMember({ id: "m_lane_worker", fleetId: "fleet_m1", title: "工池岗", parentId: null, targetKind: "persona", targetId: "pack-alpha-analyst", kpiSlots: [], cadence: null, sortKey: 4, createdAt: Date.now(), updatedAt: Date.now() });
+db.createMember({ id: "m_lane_cell", fleetId: "fleet_m1", title: "本胞岗", parentId: null, targetKind: "persona", targetId: "pack-alpha-analyst", kpiSlots: [], cadence: null, sortKey: 5, createdAt: Date.now(), updatedAt: Date.now() });
+db.createMember({ id: "m_lane_a2a", fleetId: "fleet_m1", title: "市场岗", parentId: null, targetKind: "a2a", targetId: "some-market-agent", kpiSlots: [], cadence: null, sortKey: 6, createdAt: Date.now(), updatedAt: Date.now() });
+db.updateMember("m_lane_runner", { carrier: "runner" });
+db.updateMember("m_lane_worker", { carrier: "worker" });
+db.updateMember("m_lane_cell", { carrier: "cell" });
+
+test("derivedLaneCarrier: a2a → remote; persona maps the config vocabulary; tool carries no lane", () => {
+  const fleet = db.getFleet("fleet_m1");
+  const m = (id) => db.getMember(id);
+  assert.equal(derivedLaneCarrier({ member: m("m_lane_a2a"), fleet, targetKind: "a2a" }), "remote", "a2a always rides the remote lane");
+  assert.equal(derivedLaneCarrier({ member: m("m_lane_runner"), fleet, targetKind: "persona" }), "remote", "config runner → remote lane");
+  assert.equal(derivedLaneCarrier({ member: m("m_lane_worker"), fleet, targetKind: "persona" }), "worker");
+  assert.equal(derivedLaneCarrier({ member: m("m_lane_cell"), fleet, targetKind: "persona" }), "cell");
+  assert.equal(derivedLaneCarrier({ member: m("m_meter"), fleet, targetKind: "persona" }), "cell", "auto collapses to the primary chain (cell)");
+  assert.equal(derivedLaneCarrier({ member: m("m_deg"), fleet, targetKind: "tool" }), null, "tool targets carry no lane");
+});
+
+test("derivedLaneCarrier: layer order pinned against resolveTaskCarrier (member → fleet constraint → env default)", () => {
+  const map = (rc) => (rc === "runner" ? "remote" : rc === "worker" ? "worker" : "cell");
+  const fleet = db.getFleet("fleet_m1");
+  // member layer wins
+  for (const id of ["m_lane_runner", "m_lane_worker", "m_lane_cell", "m_meter"]) {
+    const member = db.getMember(id);
+    const rc = resolveTaskCarrier({ sourceTag: { fleetId: "fleet_m1", memberId: id } });
+    assert.equal(derivedLaneCarrier({ member, fleet, targetKind: "persona" }), map(rc), `${id}: derived marking agrees with the dispatch resolution`);
+  }
+  // fleet constraint layer (member carrier unset → the fleet's wish)
+  db.createFleet({
+    id: "fleet_lane_fc", name: "约束舰队", ownerEmail: "meter@test", state: "active", decisionPolicy: null,
+    sourceTemplate: null, defaultModel: null, effort: null, contextBudget: null,
+    orchestration: { posts: [], edges: [], constraints: { carrier: "runner" } },
+    createdAt: Date.now(), updatedAt: Date.now(),
+  });
+  db.createMember({ id: "m_fc", fleetId: "fleet_lane_fc", title: "约束岗", parentId: null, targetKind: "persona", targetId: "pack-alpha-analyst", kpiSlots: [], cadence: null, sortKey: 0, createdAt: Date.now(), updatedAt: Date.now() });
+  const fcFleet = db.getFleet("fleet_lane_fc");
+  assert.equal(derivedLaneCarrier({ member: db.getMember("m_fc"), fleet: fcFleet, targetKind: "persona" }), "remote");
+  assert.equal(resolveTaskCarrier({ sourceTag: { fleetId: "fleet_lane_fc", memberId: "m_fc" } }), "runner");
+  // env default layer (neither member nor fleet declares)
+  const prev = process.env.CELL_CARRIER_DEFAULT;
+  process.env.CELL_CARRIER_DEFAULT = "worker";
+  try {
+    assert.equal(derivedLaneCarrier({ member: db.getMember("m_meter"), fleet, targetKind: "persona" }), "worker");
+    assert.equal(resolveTaskCarrier({ sourceTag: { fleetId: "fleet_m1", memberId: "m_meter" } }), "worker");
+  } finally {
+    if (prev === undefined) delete process.env.CELL_CARRIER_DEFAULT; else process.env.CELL_CARRIER_DEFAULT = prev;
+  }
+});
+
+test("synthetic derived row: the metering block lands on the event row and the daily rollup keys the lane", () => {
+  const now = Date.now();
+  const target = db.getMember("m_lane_a2a");
+  const fleet = db.getFleet("fleet_m1");
+  const stored = db.appendTurnEvent({
+    fleetId: "fleet_m1",
+    memberId: "m_lane_a2a",
+    source: "manual",
+    status: "failed",
+    errorKind: "other",
+    error: "handoff depth bound reached (3 > 2) — chain stopped before this hop",
+    startedAt: now,
+    endedAt: now,
+    sessionId: null,
+    metering: { carrier: derivedLaneCarrier({ member: target, fleet, targetKind: target.targetKind }) },
+  });
+  assert.ok(stored, "synthetic row stored");
+  const row = lastRow();
+  assert.equal(row.member_id, "m_lane_a2a");
+  assert.equal(row.carrier, "remote", "the derived row carries its lane, not an honest NULL");
+  assert.equal(row.carrier_instance, null, "nothing claimed a body");
+  assert.equal(row.queue_wait_ms, null, "runtime fields stay honestly absent");
+  assert.equal(row.usage_input, null);
+
+  const d = new Database(DB_FILE, { readonly: true });
+  try {
+    const daily = d.prepare("SELECT * FROM member_turn_daily WHERE member_id = 'm_lane_a2a' AND carrier = 'remote'").all();
+    assert.equal(daily.length, 1, "the daily rollup keys the lane");
+    assert.equal(daily[0].failed_count, 1);
+    assert.equal(daily[0].turns, 1);
+  } finally { d.close(); }
+});

@@ -145,3 +145,40 @@ test("unpriced turn: NULL stamp, no cost contribution, turns still counted", asy
     assert.ok(Math.abs(priced.cost_output_usd - 500 * 2e-6) < 1e-12, "priced row untouched");
   } finally { d.close(); }
 });
+
+// ── Reconcile subject v1.1 (§15.116挂账): the billed account owns the lane key ─
+const { resolveSubject } = await import("../scripts/reconcile-turn-pricing.mjs");
+
+test("reconcile subject: lane key wins (flag labelled), owner email is the labelled v1 fallback", async () => {
+  const prev = process.env.LLM_API_KEY;
+  const fake = {
+    findUserByKey: async (key) => (key === "sk-lane-1" ? { userId: 77, email: "lane-owner@vendor" } : null),
+    findUserByEmail: async (email) => (email === "owner@test" ? { userId: 12, email: "owner@test" } : null),
+  };
+  try {
+    delete process.env.LLM_API_KEY;
+    const viaFlag = await resolveSubject({ client: fake, ownerEmail: "owner@test", explicitKey: "sk-lane-1" });
+    assert.deepEqual(viaFlag, { userId: 77, email: "lane-owner@vendor", via: "--lane-key" }, "explicit key subject");
+
+    process.env.LLM_API_KEY = "sk-lane-1";
+    const viaEnv = await resolveSubject({ client: fake, ownerEmail: "owner@test" });
+    assert.equal(viaEnv.userId, 77, "env lane key subject");
+    assert.equal(viaEnv.via, "env LLM_API_KEY");
+
+    // Stale/ambiguous key → labelled owner-email fallback (the v1口径 that
+    // read $0 in production — kept, never silent).
+    process.env.LLM_API_KEY = "sk-stale";
+    const fallback = await resolveSubject({ client: fake, ownerEmail: "owner@test" });
+    assert.deepEqual(fallback, { userId: 12, email: "owner@test", via: "owner-email" });
+
+    // No key at all → same fallback.
+    delete process.env.LLM_API_KEY;
+    const noKey = await resolveSubject({ client: fake, ownerEmail: "owner@test" });
+    assert.equal(noKey.via, "owner-email");
+
+    // Neither lane key nor email resolves → null (the CLI exits 1).
+    assert.equal(await resolveSubject({ client: fake, ownerEmail: "nobody@test" }), null);
+  } finally {
+    if (prev === undefined) delete process.env.LLM_API_KEY; else process.env.LLM_API_KEY = prev;
+  }
+});

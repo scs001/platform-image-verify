@@ -6967,3 +6967,13 @@ agentOwner 物化修+双互指死锁治本随行）→ **sha-dbd7763（digest ef
 relay 轮空缺走绕行配方（cheap3 skopeo 单 tag 直搬）。**真机验收：官方种子包 persona（intro-facet，
 与 serving 部署键精确同键）+ carrier=runner → `cron ok remote`——runner 路由史上首次真实命中+绿回执**
 （此前全部 fail-open；远端车道恢复同窗）。跨包同名歧义的成员面消歧（声明 packId）留给需求方。
+
+**§15.121 续六：km 3.3 trial 重跑诊断（2026-11-01）**——judge 车道恢复后执行在案的重跑（零代码）：
+机制链**全通**（trial 点火→建/复用舰队→成员武装→fireRound→报告落账→judge 评测出 insufficient-evidence
+的完整证据面）；两发皆红，真因两连、均环境侧非链路缺陷：①**LLM 车道熔断/503 抖动**（`llm lane
+open until… (5/5 upstream failures)` 诚实 skip→model_upstream 直败——在册抖动族）；②**cell 串行
+队列深度 vs 试跑窗口**（第二发去重重跑同舰队，成员任务在深队列中排队、窗口内未轮到执行=零回合
+事件）。绿灯条件=静窗（队列浅+车道稳）再跑，机制零改动。诊断副产品：**试跑 fleet 复用/去重语义
+实证**（deduped=true 同 fleetId 重跑）、trial 舰队节拍已停（舰队保留归 km 线处置）。※判红两分法
+应用实例：跑了≥10 秒在业务步红=真缺陷排查——本轮排查到底=环境条件，不是当初怀疑的 carrier/parked
+回归（member target 走查读库岗正常解析、回合照发）。

@@ -2041,6 +2041,7 @@
     }
   },
   "studio": {
+    "aiDraft": { "title": "AI 起草", "promptLabel": "用一句话描述这个 agent 要做什么…", "action": "起草", "adopt": "采用", "discard": "取消" },
     "fork": {
       "unavailable": "无法读取该智能体（{{status}}）——克隆沿读可见性",
       "seeded": "已载入「{{name}}」为工作文档——血缘已盖章"

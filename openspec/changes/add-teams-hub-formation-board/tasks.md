@@ -15,7 +15,7 @@
 
 - [x] 3.1 副驾面板挂看板：`CopilotDock` 以团队架构师聚焦 preset + 名册/选中队上下文打开（iframe 隔离沿用）；架构师未装/车道失效如实降级；单测=上下文注入断言 + 降级态断言
 - [ ] 3.2（**挂账：需真装团队架构师包走 a2a 车道**，fast e2e 无此 fixture；降级路径已由「无架构师 → iframe 无 preset」e2e 断言覆盖）调线闭环 e2e：一句话改线 → dry-run diff 呈现（无直接 apply 入口）→ 批准 → 广播后编队图自动重渲出新增边
-- [ ] 3.3（**按构造成立**：本刀未新增任何 apply 手势——副驾=chat iframe 走架构师既有通道，批准纪律在架构师工具面原样生效；对照清单走查随 3.2 真机班）批准纪律看板侧回归：确认副驾面无绕过 apply 的手势（对照架构师批准条款测试清单）
+- [x] 3.3（**按构造成立且 2026-10-31 代码对照走查过**：CopilotDock=纯 chat iframe（/chat?embed=copilot），网络面仅 GET /api/fleets/copilot（preset 解析）与 GET /api/boards/<line>/copilot，postMessage 单向注入上下文（board/fleetId/pack）不出命令；TeamsOverviewBoard 与 FleetGraph 全 GET 读面零 fetch 写——本刀未新增任何 apply 手势，批准纪律在架构师工具面原样生效（该面属架构师包既有测试域，本 change 未触碰））批准纪律看板侧回归：确认副驾面无绕过 apply 的手势（对照架构师批准条款测试清单）
 
 ## 4. 门与收口
 

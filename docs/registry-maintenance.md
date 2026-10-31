@@ -6403,6 +6403,300 @@ cockpit 测试】）；并行会话在途 11 untracked 撞名移避+15 tracked �
 改动**（10 份与 main 已提交版逐字节同→弃）。**教训**：净 worktree 跑套是隔离「工作树在途 vs
 已提交」的唯一可靠手段——两次三红复判全靠它。
 
+### §15.114 bot 回复可信化上产：三因叠加事故全链 + 出片三次撞滚版窗的验收实录（harden-bot-reply-lane，2026-10-31）
+
+**事故定谳（生产实证，全非猜测）**：用户报「企微 bot 不回复」。四段探针（DNS/雷池→Caddy→网关→cell 验签）
+逐段全绿后用**活体抓包**（cheap1 tcpdump :8080 明文）定谳：**企微在调用、平台也回了——回的两条都不是
+答案**。①第一条撞滚版窗，runtime 未就绪，`isReady()` 早退回「The assistant is starting up」（没建会话）；
+②第二条 `BOTS_ALLOW_TOOLS=1` 关掉了禁工具前缀与回复扣留，bot 无身份注入跑 cell 默认 preset（属主运营
+人格），调 `deputy/queue` 答成「策略边界/decision_queue」。三因叠加：滚版窗 × 全局 env 漂移 × 无人格。
+诊断配方入册：**企微回调排查用 tcpdump 明文抓 :8080**（雷池 access_log off、Caddy 无 log 指令，唯一
+全量观测点），持久证据用 `bot_chats.last_seen_at`（pod 日志随滚版消失，DB 不灭）。
+
+**落地（235309a8，上产线 bb3f884e=origin/main⊕种子流⊕本变更，核祖先三方全过）**：
+迁移 v111 给 bots 加 `persona`/`allow_tools`（进 行 不进 credentials：密钥面且轮换整对象替换）；
+`runTurn` 早退改有界等待（`BOTS_READY_WAIT_MS` 默认 90s/250ms 轮询；**关键前提=webhook 路由先 ACK
+后回合，等待不触发平台重试**）；人格块进 blocks[0]（pack 技能块顺延；空值中性默认=点名 bot 名+禁冒充
+运营者）；工具判定收敛 `allowToolsFor(bot)=部署上限 && bot.allow_tools`，前缀与扣留共用一函数。
+**BREAKING**：`BOTS_ALLOW_TOOLS` 从「全开」降为上限；生产处置=保留 env 作惰性上限（迁移把存量
+allow_tools 全置 0，行为即刻等于 spec 原姿态，省一次重启），开工具改走 bots 页 per-bot 开关。
+
+**验收**：①真机两群「你能做什么」→ 回复以 `As your external chat assistant for "智语·群"` 开头
+（身份块生效的直接眼见），全程零 `fleet-access`；「介绍下你们的项目」诚实拒答（无人格无工具，宁拒答
+不编——预期行为，要能介绍就填 persona）。②就绪等待三态单测 3/3；活体抓窗三次未遂（见下），以 pod
+内真实凭据构造签名回调补 E2E：200→inbound→回合跑→回复按设计响亮失败（`no live response_url`，
+构造消息无 response_url——「宁可响亮不静默」的正例）。六套回归 74 测零失败，import 203 模块全解析。
+
+**出片三次撞窗实录（并行滚版churn 的代价）**：第一次快照 CI 逮 site-zhiyu biome 红（main 缺 e74f2330
+的 override，从原分支补）+智语三内部文档泄漏（补排除）；刚要 bump，GitOps 已被推到 sha-54982d3
+（源 0008d298 在 feat 分支）→ 改从分支 tip 出片（⊇main）；再滚 sha-3b55b7c（源 0b5d1b88，含我全部），
+验收连发 5 条全耗在换 pod 缝隙。**新律**：①「换 pod 缝隙」（SIGTERM→新 pod 监听，~70-90s）不归
+boot-latch 管，企微 ~15s 重试窗必丢消息——挂账候选 change（优雅终止延长/503 重试友好）；②多会话
+同日滚产时，真机时序验收改用**pod 内签名探针**，不与人掐秒表；③出片前 `fd-build-channel` +
+`git merge-base --is-ancestor <生产源> <出片树>` 双查，本班两次靠它免掉回退事故。
+**§15.113 续记四：第十发收口 + 架构师真装 + formation 3.2 真机五断言四过（2026-10-31）**
+
+**第十发 sha-3b55b7c（源 0b5d1b88）**：biome 的 noUnusedVariables 当哨兵揪出「去 alive」那笔
+**误删了清参块**（注释还在描述清参、`setSearchParams` 调用没了——back/refresh 会重复建草稿）。
+修复=清参块补回+顶部 ref 守卫（StrictMode 双触发/清参落地前的迟到到达都归一）。真机验证：种子后
+**URL 已无参数**、预填在位。滚版链完整（relay 13:11 OK→digest 082f35ff 双等→rollout→imageID
+逐字节）。期间并行会话滚 sha-5df2044（源 bb3f884e=我的台账笔，祖先核验过）——滚版窗口三度交汇，
+`git pull` 后整行替换成了标准动作。
+
+**架构师真装**：官方市场 `NoBBXkvxZnJNHlCrAwWp-w` v5（POST /api/mypacks/install 需 **packId+version**
+双参）→ `/api/fleets/copilot` 从诚实 null 变 `{agentId:"fleet-architect"}` → 副驾 iframe
+**「聚焦预设: 舰队架构师」上屏**。踩坑三个：①dsh child 共享——主对话在途回合令 set_agent
+即时拒（「Cannot switch agent while the agent is responding」，文案如实但场景是共享 runtime
+而非主对话）；②WS stop_turn 清掉自己那条测试回合后切换即成；③child crash 后重启会把 agent
+弹回原值（聚焦非持久）。
+
+**formation 3.2 五断言真机四过**：①一句话改线→架构师自主 fleet_draft→**dry-run diff 完整呈现**
+（成员行+orchestration JSON 双侧 diff+成本/下一步说明）✓；②**无直接 apply 入口**✓——批准纯对话式
+（"Reply with approve"），且 agent 试图直写 DB（python）被 **MCP 桥校验诚实拒绝**
+（`invalid escalation: justification is only valid together with sandbox_permissions` 上屏）；
+③多轮修订✓（cadence 自作主张加 */5 → diff 如实披露 → 对话调整 → 架构师反问身份语义）；④聚焦
+端到端✓。⑤**批准→apply→广播→编队重渲未走通**：回合中途 **dsh child 崩溃
+（"Agent runtime exited unexpectedly"）**——崩溃前**零半写**（fleet 2 岗 0 边全程不变，批准通道
++校验层顶住了 agent 失控直写），但 apply 闭环卡在 runtime 稳定性。归判：**真缺陷观察**（child
+长回合+重工具调用崩溃，fleet-model-drift-poisoning 自愈同族），非本 change 缺陷——3.2 保持
+「需真装架构师」注记并附四过一blocked 实录。
+
+**走查账号残留清零**（草稿×4、集合×4 累计；架构师包**保留**——3.2 闭环收口仍需）。副驾重开落
+新会话的坑：**先点进原对话再发言**，否则话术发给新 session 的同 agent（本班两次误发，无实害）。
+
+### §15.114 定时车道 persona 会话驻留上产：零重启换人设真机实证（add-cell-session-persona 切片①，2026-10-31）
+
+**变更**：cell 定时车道（节奏/集群扇出/委托聚合）persona 回合从「整 child 重启换人设（5-10s/次）」改为
+**park-before-first-prompt 会话驻留**——桥 `preset/set`（pod adapter 已在产）cell 侧接线：`#preparedPresets`
+世代记账（spawn 清空/delete 同步删）、`runPersonaTurn` 双路径（park 路径无 reservation 无重启，运行时默认
+不动；legacy 三源显式回退 `detail.presetPath` 留痕）、聚合回合重锚 `reanchorInitiatorPersona`（能 park 则
+park，旧 child 字节等价 switch）。**waitForIdle 双路径保留**（收尾进程级串行下不与用户对话交错——这是纪律
+不是重启副产品）。真并发不在本切片（dsh 收尾串行是进程级硬限制）。
+
+**出片实录**：公开线被泄漏守卫拒（源私→公禁推，守卫是纪律不是障碍）→ 照上一代同线 **testaction001/
+build-pool**；第一次误用 `--branch`（那是出片仓分支）拍成 main@8321cb41——**镜像未滚即发现**，删池侧错拍
+分支重拍 `--ref release/cell-session-persona` → 快照 2037686（源真 sha **ff1e6bfe** = 生产源 0b5d1b88 +
+本变更 99cc4917 cherry-pick，touched 文件零漂移核过）→ build 7m42s 绿（target 行核过 yizuo/platform）→
+relay OK 18s → ccr digest `a57dffca`。**GitOps 只滚本变更两面**（platform+platform-demo；facet/runner
+源虽为我线祖先仍不动——最小爆炸半径）→ ArgoCD 假绿（律重演：hard-refresh 后仍 OutOfSync，须 patch
+operation 强推同步）→ 双 deploy rollout 绿 + imageID=digest 同一性过 + pod 内特征串 `classifyPresetSetError`
+grep=1。
+
+**真机验收（判据全过）**：滚版后 25 分钟**三个自然 cron 回合**（双 cell 1da519/3fdc7b8e）全部
+`detail.presetPath:"parked"`（06:18 一发 ok、06:11/06:21 两发 failed 系回合自身预算/错误非机制——
+对照：06:02 旧行无此字段）；全量日志 **0 条** `preset park fell back`、**0 条** `cron-preset-switch`
+预约；spawn 仅冷启动×2 + 凭据车道×2（并行会话在同 cell PATCH 成员触发 mcp-delivery attempt4 重启，
+与定时车道无关）。run-now 验证单（ob-scout）排队未及跑（队列被并行会话凭据churn占住）——自然回合
+证据已足，触发单留队列自愈。
+
+**测试**：真桥×假 child 5/5（DSH_BIN 模块加载律入测试头注）+ park-lane 9/9 + 既有回归 187/187 + lint 清。
+**纪律**：commit 只 add 本变更文件；spec delta 走 cron-module ADDED + scheduling-cluster-aware MODIFIED；
+底稿 `docs/agent-parallel-execution-explore.md`（四层诊断/五档承载/carrier 可配/细粒度台账×永忆/词元价目/
+自迭代闭环六切片——本片为①）。
+
+**§15.113 续记五：架构师工具面缺陷全链（真缺陷→应用 API 救急→种子根修）+ 共享 child 争用律（2026-10-31）**
+
+**真缺陷（工具面级）**：市场包装的团队架构师（v5，`NoBBXkvxZnJNHlCrAwWp-w`）**manifest 无
+mcpServers 声明** → 聚焦会话 keep 集（部署基线+PACK_BASELINE_MCP+包声明三源）不含
+fleet-architect → **架构师天生哑巴**：tool_search 零 fleet_*，persona 纪律要求的 fleet_draft/
+fleet_apply 全不在名册 → agent 用 bash 乱翻（同账号内读 fleets.db 行/其他舰队编排/packs 库表
+清单——无跨租户泄漏但完全违反 persona 纪律）；早前的 child 崩溃回合即哑巴乱翻的连锁。
+
+**救急（应用 API，无直写）**：focus overlay（add-focus-overlay D2）——
+`PUT /api/agent/overlay {preset:"fleet-architect", overlay:{addMcp:["fleet-architect"]}}`：
+①addable 宇宙含 bundled 行 ✓；②PUT 撞 set_preset 闸 409（共享 child 流式闸）×40+；③**教训：
+绝不 stop 别人的回合**——cell 里有智语·群 bot 接真实用户流量（「深度拆解两家公司」长请求走同一
+child），409 是正当生产负载；④overlay 落地后 effective 十件含 fleet-architect ✓。
+
+**验证（工具面活了）**：WS 直驱回合 `mcp__fleet-architect__fleet_draft` 真实流转，且 **draft
+校验活着**——拒「persona 'ticket-resolve' already holds a post」非法草案（[add] 走查测试岗 行在
+草案内），架构师随后正经找空 persona（delegation search_agents/facet browse）。下一跑即闭环窗口。
+
+**根修（入仓 10b014ea）**：`docs/fleet-architect.seed.json` 补
+`mcpServers:[{registryName:"fleet-architect", fullSurface:true, fullSurfaceReason:…}]`——
+发布闸明文豁免 cell 本地绑定引用（lib/publish-tool-gate: "local-binding reference — exempt"），
+shape 验 NAME_RE 即过；钉名三套测试 35/0 绿。**下次铸造班重发 v6**（facet token 用后即删，需
+设备配对重取）；存量安装靠 overlay 或重装 v6。
+
+**共享 child 争用律**：主 child 流式闸（ctx.isStreaming）覆盖主对话+bot 车道；舰队成员回合走
+独立 lane 不设该闸。走查班的车道选择：能等隙则 WS focus-retry 循环（8s 间隔，15-40min 窗口）；
+不要停别人回合；cookie 过期症状=WS 连上即断（storage 里浏览器会话 ~4h 寿命），pod 内现铸回填。
+
+### §15.115 回合细粒度计量上产：14 列 + 日汇总永久表真机实证（add-turn-metering 切片②，2026-10-31）
+
+**变更**：`member_turn_events` additive 加 15 列（身份维度 preset_id/source/provider/effort/carrier/
+carrier_instance/lane_id/depth/wave + usage 细分 cached_input/cache_write/reasoning + 时相三段
+queue_wait/spin_up/ttft）+ `member_turn_daily` 日汇总永久表（fleet×member×carrier×provider×model×
+UTC day 键，ON CONFLICT 原子增量，max 合并 CASE 防 NULL 抹值）。**usage_input 保持上游未缓存语义，
+计费输入=input+cached+write 三列和**（TokenUsage 实证：inputTokens 是未缓存输入——旧列一直只记了
+未缓存部分，本片把口径补齐）。采集单缝：入队 stamp `t.queuedAt`（唯一 enqueue 点+进白名单）、
+`markExecutionCarrier`（worker 认领方写/enqueue 默认 cell|remote）、collectTurn 首 assistant 时刻、
+`switchPresetForJob` 返 spinMs（排除 idle 等待不双计）。降级 D6：加列 INSERT 失败回退旧形状，事件
+本体永不因计量回归；rollup 失败仅 warn 节流。价目留白（provider/model/day 维度就位，折算=切片③）。
+
+**出片实录**：源真 sha **2bb80636**（=生产源 ff1e6bfe + 本变更 c045aa8c cherry-pick）→ 快照
+ff36269 → build 绿（target 行核过）→ **relay 锁整轮互斥且 cron 被 sub2api manifest-list 403 流
+拖长（10 万+ FAIL 行），手动补单八连静默退出**——按在册配方绕过：`skopeo copy --all` 单 tag 直搬
+（digest 590122cd）→ GitOps 两面 bump → ArgoCD patch operation 强推 → 双 deploy 绿 + imageID 同一
+性过 + healthz ok。**新坑入册：node:sqlite 与 better-sqlite3 跨驱动不可混读写同库**（测试初版用
+node:sqlite 直读 better-sqlite3 的 WAL——DROP COLUMN 后写者 autocommit 帧对新连接不可见，假象
+count=0；测试统一 better-sqlite3 后即解）。
+
+**真机验收（判据全过）**：滚版后 20 分钟两行实证——① persona 回合全链计量行
+`carrier=cell / queue_wait_ms=2159（重启后 catch-up 积压真排队）/ spin_up_ms=0（驻留）/ ttft_ms=
+39724 / usage 诚实 NULL（failed 回合未报）`；② 日汇总行 `provider=volces × model=deepseek-v4.1-
+flash × 2026-10-31` turns=1 failed=1 queue_wait sum=max=2159 spin_up sum=0 ttft sum=39724——
+provider 从 dshModels 落点解析成列，切片③可按 (model, day) 直连词元价目。③ usage 行
+`usage_input=47641 / usage_output=1578` 落列。
+
+**挂账**：a2a derived 车道（facade/runner 侧直接写事件的路径）不带 carrier 标记——诚实 NULL 在册，
+enrichment 归切片⑤（carrier 可配）随执行载体面一起补。**测试**：test-turn-metering 4/4 + park-lane
+扩断言（spinUp=0/legacy>0 直通）+ 回归 117/117 + lint 清。
+
+
+### §15.116 回合计费估算与对账上产：价目缓存+日行估算列真机实证（add-turn-pricing 切片③，2026-10-31）
+
+**变更**：sub2api-admin 门加 3 只读（readModelPricing per-token 四分量 / listGroups 组倍率 /
+readUserUsageToday `today_actual_cost` 计费真数——S3/S5 唯一计费真源口径不变）；`server/turn-pricing.js`
+价目缓存（同步 pricingFor 供写缝、10min 定时刷新、未命中补拉、无价模型 TTL 重试、降级 last-good）；
+`member_turn_daily` 加 cost 四分量（USD REAL，**回合时刻价**逐回合累积——天内变价不重算历史）+
+pricing_at；turn 行只加 pricing_at 戳不记钱（D4a）。v1 估算=默认单价×1.0，组倍率/折扣/effort 倍率
+由对账因子显式化（v1.1 校准）。对账面=运维脚本（pod 内跑，cell_registry 寻主 cell，30% WARN，
+不自动调价）。
+
+**真机验收（判据全过）**：预热日志 `[turn-pricing] warmed: 13 model(s) priced`；真回合（ob-scout
+run-now，status=ok usage 21481/840）事件行 `pricing_at` 戳落位、**turn 行无钱列**（D4a PRAGMA
+实证）；日行 `cost_input_usd=0.00020505 / cost_output_usd=0.000822 / cost_cache_read_usd=
+0.000144`（单价 sanity：input≈$0.15/1M、output≈$0.60/1M、cache read 折价，全对）；对账脚本
+pod 内真跑通（est $0.0012、priced 1/18 有价样本口径如实）。
+
+**两坑在册**：①**切片②先建的表，切片③加列 `CREATE TABLE IF NOT EXISTS` 会静默跳过**——日表
+cost 列在产缺位（真机走查逮住），补 ALTER 循环（与 events 表同纪律）二发出片；②**对账主体
+口径**：today_actual_cost 按 owner email 推定的 sub2api 账号返回 $0——**车道 LLM key 的计费
+账号 ≠ owner 推定账号**，v1.1 对账主体须换「车道 key 所属账号」（lane 侧已知 key，findUserByKey
+可得）。出片纪律重演两次踩稳：快照 tag=快照仓 commit 短 sha（勿当源 sha 用）+ 修丁在 release
+分支直提后须 cherry-pick 回 feat（branch 本地态被 trace.db 卡过 checkout，先 checkout -- 再切）。
+
+**测试**：test-turn-pricing 4/4 + 回归 75/75 + lint 清。
+
+**§15.113 续记六：apply 闭环打穿（五断言全过）+ 舰队上下文漂移真缺陷 + 走查班收束（2026-10-31）**
+
+**五断言生产证据齐**：①dry-run diff 呈现✓（多次，含成员行+orchestration 双侧 diff）；②无直接
+apply 入口✓（draft 校验拒非法草案；apply 侧 409 复检把口头批准的阻塞项再拦一道——纵深防御实锤）；
+③多轮修订✓；④聚焦端到端✓（含「切当前 agent 静默早退」形态——WS 客户端等 agent_changed 会永远等，
+connect burst 的 `current_agent` 才是判据）；⑤**apply 执行+落地生效✓**——`fleet_apply isError=false`
+（"Applied (edit)"，reconcile 同步 updated cron job），overview **即时**反映变化（广播/读链真通）。
+另：ask_user_question 交互批准通道真机工作（answer_question first-wins 接受）。
+
+**新真缺陷：舰队上下文漂移**——指令未重申舰队 id 时，架构师 apply 落到**会话最后读过的舰队**
+（公司式集群被误加第 11 岗，走查测试岗+reconcile 更新了它的 cron job）；已用
+`DELETE /api/fleets/:id/members/:mid` 干净回滚（双方舰队终态核验：目标 2 岗 0 边、公司式 10 岗、
+全库零 stray）。与蓝图构造间「证据缺集群身份」同族：**draft/apply 呈现不含 fleet 身份**，漂移
+不可见。修复方向=工具结果与 diff 呈现钉 fleet id（下一次班落）。
+
+**LLM 行为波动观察（非系统缺陷）**：同 persona 不同会话对「边入 draft」的服从差异大——早前会话
+产出成员+orchestration 双 diff，本会话六次 draft 反复丢边/错置（orchestration.edges 写成
+members[1]）。指令显式给 from/to 值也只能提高概率。对闭环班的心智预期：diff→apply 主链稳定，
+边合成需 1-3 轮校正。
+
+**走查班收束**：测试岗零残留（误写已回滚、目标舰队未动、无 stray）；架构师包保留（v6 重发待
+facet 配对）；km pin 契约决策单待拍板（decision-library-pin.md）。
+
+### §15.117 永忆四补丁上产：事实页锚+换防交接锚+成本周报真机实证（add-fleet-memory-anchors 切片④，2026-10-31）
+
+**变更**：①回合事实页头部锚行 `[turn turn_id/run_id/carrier/model/tokens(in,out,billed=input+cached+write)/status]`——捕获缝透传 meta（ledgerTurn/model），缺席如实 `-`；②事实/观测分流 spec 钉住（五类事实恒 `f/`、L0 恒 `d/`，零新写路径）；③swap 事实**先于**清史落页（清史改为交接后清）+ 离任锚（末次回合 turnId/status/model/carrier，listTurnEvents 读）；④`server/fleet-cost-digest.js` 周报——UTC ISO 周、每成员 turns/成本/排队概貌+movers（成本×2×$0.001 噪声地板、等待+50%×30s 地板、无对照如实），一页 cost-weekly 进 `f/` 作 L2 蒸馏输入；6h 步进+进程内周记账（重启重写一页无害），全程降级开。
+
+**真机验收（判据全过）**：①锚行落盘实证——fd-memory 盘上 `f-fleet_1792719144128/notes/eeeb6b60.md`（generated 08:46:36，滚版后自然回合）：`[turn turn_id=turn_d677bbec… run_id=run_750a13f0… carrier=cell model=deepseek-v4.1-flash tokens=-/-/- status=failed]`——failed 回合未报 usage，tokens 三段如实 `-`（诚实空缺非 0）；②周报页真车道落盘实证——与 server.js 同源 fleetMemoryFor 构造跑 sweep，两支活跃舰队各一页 `舰队成本周报 2026-W44` 落 `f/` 盘上；③swap 离任锚=单测+结构序（真机自然换防挂账——并行会话在同账号作业，不为取证动真舰队）。
+
+**坑在册**：pod 内手工脚本 `import("/app/db.js")` 无 getFleetDatabase 导出——真源在 `server/routes/fleets-db.js`；fd-memory 读面 `GET /pages?project=` （namespace 参数会 400 project_required）且列表不返 body（正文走盘上 wiki 或 /memory 检索面）。
+**测试**：test-fleet-memory-anchors 7/7 + 回归 42/42 + lint 清。
+
+
+**§15.113 续记七：pin 契约拍板 A + 两切片落地 + 漂移修 + 第十一发（2026-10-31）**
+
+**用户拍板**：km pin 契约 = **A 安装时重绑**（AskUserQuestion 四选项，决策单在
+`openspec/changes/add-knowledge-memory-surface/decision-library-pin.md`）。
+
+**漂移修（2d6e43d2）**：validateFleetDraft 返回带 `targetFleet {id,name}`；MCP 渲染首行
+`Fleet: id (name)`；fleet_apply 结果含落点舰队——漂移在批准前可见（§15.113 续记六缺陷收口），
+architect 双套 17 测试绿。
+
+**km 3.2 两切片（6bf61921，钉库测试 11/11）**：
+①mint 侧：buildCastManifest 装配 `manifest.libraryPins`（[{pin,name}]）——cast 路由按内容
+dataSources 的 library:<id> 解析作者集合名；**钉不到=409 拒铸**（铸出无人能重绑的引用比没 pin 更糟）。
+②消费侧：dsh-profile 组合期重绑——pack persona 的 manifest 带 libraryPins 时，library entry 注入
+`LIBRARY_COLLECTIONS=<同名集合 id>`（resolveLibraryPinScope 纯函数）；无同名集合→entry 保持部署
+默认+warn（needsLibraryPin 诚实降级）。**实现形态偏差（有意）**：决策单写「绑定落安装记录」，
+实取**组合期解析**——同名匹配每次组合现算，改名/删除即时跟随，零迁移零安装记录行；精神一致
+（per-install 重绑、不携内容），形态更轻。
+
+**第十一发 sha-5bbab97（源 2704669e）**：携带漂移修+km 3.2；滚版链进行中。
+**下班清单**：市场重发架构师 v6（facet 设备配对取 token）；在靶干净闭环班（formation 4.3 第三
+眼见）；pin 契约 facet 侧透传需求单（跨仓）；km 5.3 已收、2.3 仍 runner 侧。
+
+**§15.113 续记八：第十一发上产+漂移修上产即验+边合成瓶颈定谳（2026-10-31）**
+
+**第十一发 sha-5bbab97 上产**（e0082d4，imageID=11beab1b 逐字节）：pod 五串全绿（Fleet 渲染/
+targetFleet/libraryPins/resolveLibraryPinScope/missingLibraryPins）。滚版前**祖先双查两次拦停**：
+并行线三次换源（ff1e6bfe→8f0e4209），每轮 `git cherry`（五笔全 `-` 等价）+运行时树差（对方零独有
+行）双查后才 bump——「我的源是严格超集」是唯一安全判据，文档差异（台账尾）不算数。
+
+**漂移修上产即验**：在靶闭环班的 draft 结果**全部首行 `Fleet: fleet_… (工单分诊集群·试跑)`**——
+目标身份在批准前可见，修复目的达成。
+
+**边合成瓶颈定谳（新挂账）**：同一会话 20+ 次 fleet_draft 全部丢边/错置（orchestration.edges 写成
+members[1]、边写成 a2a target）——deepseek-v4.1-flash 对 draft 边词汇的服从是能力瓶颈，提示工程
+（人设里加 worked example）或 fleet_draft 加边速记参数属**架构师工效学下一 change**。全程
+"Nothing persisted" 零副作用；双方舰队终态核验干净（目标 2 岗 0 边/公司式 10 岗/全库零 stray）。
+
+**§15.113 续记九：边速记上产+在靶闭环全通+走查班终收束（2026-10-31）**
+
+**边速记工效学收口（634ab5d5，13/13）**：fleet_draft 加顶层 `edges:["from→to[:kind]"]` 速记
+（schema 同步明示 orchestration 通道）——MCP 层解析（标题对名册解析、ids 与 draft-N 直通、坏形态
+具名不静默丢），抽 `lib/fleet-architect-edge-shorthand.js`（MCP 顶层 stdio connect 使模块不可
+测试，共享 lib 两边引用）。**事故自食**：速记初版直接写在共享工作树被并行会话切支清掉——全部
+重做走临时 worktree（本班两犯，律彻底内化：共享树零未提交停留）。正则两坑修：端点两侧吃空格、
+`->` 双箭头歧义（测例改规范形态 `:kind` 后置）。
+
+**第十二发 sha-2c50648 上产**（38e0644，imageID=e2470a9a 逐字节）：祖先双查（生产源 b6779a11
+六笔 cherry 等价+运行时零独有行）。
+
+**在靶闭环全通（走查班终极眼见）**：WS 直驱——①速记一发命中：首份 draft 即含
+`[handoff] m_…_rwq6t4 → draft-1`+Fleet 行（20+ 丢边 → 1 发命中）；②approve →
+**fleet_apply 落靶**（"Applied (edit) → fleet_1793235503630_7n5a3u (工单分诊集群·试跑). Members: 3"，
+漂移修的结果行报落点）；③overview 即时 3 岗+1 声明 handoff 边（implicit:false）；
+④**编队栅格重渲眼见**：工单分诊集群·试跑 mini 上 **3 岗位点**（fm43b 截图）——广播→编队链全通；
+⑤清理：DELETE member 200，舰队复原（2 岗 0 边）。走查残留零。
+
+**事故记录**：并行会话 clean 掉 gui-test-screenshots/（登录态+全部走查截图证据）——台账文字证据
+在，图像证据散佚；relogin 重建。共享树未跟踪目录不设防。
+
+**两 change 终态**：formation 3.2 五断言全过+4.3 三眼见全过（改线闭环完成）——除 3.2 保留注记外
+全部勾结；km 3.2 已实施（契约 A）、3.3 试跑闭环随班可走、2.3 runner 侧、5.3 已收。两 change
+评估：**可归档**（剩余项全部外部化且有承接记录）。
+
+**§15.113 续记十：两 change 归档+主 spec 五能力同步+facet 透传需求单（2026-10-31）**
+
+**归档**：formation（d8c0b8d3，全任务勾结）与 km（c343fd1b，留 2.3 runner 侧+3.3 试跑验证跑两
+挂账注记）双双入 `archive/2026-10-31-*`；主 spec 同步六件——agent-teams-overview（+2 requirement）、
+library-tools（MODIFIED 块替换+2 新阻断 requirement，场景名覆盖校验前置）、collections/
+fleet-blueprint-studio/memory-portal-ui 各 +1、**sidebar-nav-families 新能力建册**（4 req 6 场景）；
+`validate --specs 226/0`。
+
+**同步新坑（归档闸第一次真拦）**：MODIFIED 块拷贝把 delta 的 `## ADDED Requirements` 节头卷进
+主 spec → validate 红「delta header truncates Requirements section」——剥节头后 226/0。律：**块
+拷贝后必剥 delta 节头**；场景覆盖校验按**场景名集合**不按文本块（描述文字本就允许改写）。
+
+**试跑链重大简化发现**：trial 走 `installPack`→pack 链→成员组合——3.2 两切片自动覆盖试跑成员
+的 pin 作用域，3.3 剩端到端验证跑一条（随下一走查班）。
+
+**facet 透传需求单已备**（`docs/ecosystem/facet-library-pins-requery.md`）：单条透传、无行为
+变更、验收三条；优先级低（首个 pins 包随下一铸造班上架）。
+
+**九条优化工作流终账**：九条全部实施并上产；两 change 归档；本班衍生修复 7 件（四处漏 add/
+冒烟二红/种子三修/裸键/MCP 真源/漂移/工具面）+2 真缺陷回滚零残留+决策单一枚；§15.102–115.113
+续记十共 12 节台账。
+
 ### §15.118 承载可配上产：三层解析+runner 路由+fail-open+准入闸真机闭环（add-fleet-carrier 切片⑤，2026-10-31）
 
 **变更**：`member.carrier` 列（写面/读面/物化全链）+ `constraints.carrier` 值域校验 + `resolveTaskCarrier`
@@ -6426,6 +6720,7 @@ assert 后 write，中途断言失败整块不落盘（createMember SQL/ALTER �
 占用 checkout 不得）；④快照 tag 看板已三次救场（源真 sha 行 vs 镜像 tag）。
 
 **测试**：test-fleet-carrier 8/8 + 全回归 129/129 + lint 清。
+
 
 ### §15.119 parked 回合打断全平台报数归因 + 同根工具面错位——两缺陷一修（fix-parked-preset-attribution，2026-10-31）
 
@@ -6507,12 +6802,95 @@ validatePackManifest 直接返回 errors 数组（非 {errors} 包装），测�
 + 记账尺子（计量/价目）+ 记忆缝合（锚/章程）+ 自迭代（提案器）**，validate --specs 225/0。
 **测试**：test-agent-self-iteration 5/5 + 回归 57/57 + lint 清。
 
-## §15.120 智能体三桶整体方案七单滚版（2026-10-31，feat/agent-spec-sheet）
+**§15.113 续记十一：km 3.3 验证跑——机制链全证、端到端绿被 judge 车道卡住、又一真缺陷（2026-10-31）**
 
-**内容**：「agent = 角色+技能+工具」理念的整体落地——①脊梁 define-agent-document（模型/四发射口/编辑器≠生命周期/三桶规格书/无凭据）②共享三桶规格书 AgentSpecSheet（市场详情+选择器+gallery 三消费）③guide 迁移一批（5 支官方 starter 团队 v5→v6，manifest.guide zh 逐字+en 副轨，发布门三律在案）④智能体工作室 /studio（三栏/三桶卡/只读团队图/实时校验复用 /api/packs/validate 发布门 dry-run——1.1 实施修正零新端点/双发射口）⑤蓝图并入 Studio 团队模式（AgentBucketsEditor 一个编辑器两宿主/生命周期零改/旧页两步退役已摘）⑥克隆血缘（lineage-only forkOf 块——**关键发现=provenance 是全有全无 adopted 记录**/读面种子/跨域深链 facet 零写）⑦官方 gallery（规格书卡墙/端点零改/starter 序列复用既有真源）。
+**验证跑执行实录**（钉库蓝图端到端）：集合+密语文档→钉库蓝图（member target 契约三试：
+pack-preset + {{PACK_ID:self}} 自引→VALIDATE 绿）→approve(expectVersion 乐观锁)→**CAST 200**→
+**cast 包 manifest 带 libraryPins**（[{pin,name}] 实证——km 3.2 切片①生产铁证）→trial：
+install→provision→fireRound。三处真机修正链：①成员 cadence 缺位→fireRound 空转（补 cadence+
+`confirmed` 顶层旗标过密集闸→**fired=1**）；②trial 等待条件只认 report-landed 断言（加
+lib-report 断言让 trial 等回合）；③v2/v3 经原蓝图重铸（同名闸+provenance 拒异蓝图——诚实闸按设计工作）。
 
-**出片**：四代快照（d7ac222→211ee2d→cb4c2059→**8d8a65e**）—— release 线并发窗两轮被 concurrency 取消+两轮祖先律强制 rebase（f83c6098→c8faf5ff→6db66267），**最终源 287412a7 ⊇ 6db66267 部署代双查**；池 testaction001/build-pool；relay OK 18s；digest 7633a776。GitOps 0719fc6 三面同代（platform/demo/facet；facet 从 e6ac1ef/1fc842ba 代跳齐）。imageID 双等 + pod 特征串（智能体工作室/forkOf 校验器/studio-doc-name）全在位。
+**端到端绿未达**：judge 车道（minimax-m3.1-flash）**429→持续 503**（sub2api 上游抖动，
+已知 flaky 族）——两次 trial 判据均 insufficient-evidence（judged on 空/薄证据）。机制链
+100% 分段实证；**真缺陷再逮一枚**：集合挂/摘文档两路由调不存在的业务函数（路由名
+addDocumentToCollection vs 业务层 addDocument——**生产 500，UI 集合挂文档一直坏**，d0fbf859
+修复随第十四发上产实证 addDocument export=function）。
 
-**真机走查 23/24 ✓**（playwright storageState=aloadtree，双态）：规格书九断言全过（三桶/三岗/空态显式/徽章/**guide v6 en 副轨眼见**）；gallery 45 卡/5 序列标记/45 克隆深链/匿名=0 如实；fold 重定向+草稿池；fork 种子+血缘行+发射草稿；facet 跨域深链。**走查逮回归一处**：studio 文档信息段（名称/描述/标签）在换共享编辑器时被误删——当场修（d8c6a1dd）随三代出片带回。唯一存疑项「studio 实时校验绿」为脚本时序假象——发射预设成功本身证明校验管线（发射前同端点再校验、按钮 docValid 前禁用）。走查产物已清（2 预设+1 草稿删）。
+**工件处置**：7 个草稿蓝图删除；mn2h82 保留（cast 包 tppHcFGvb45RKKJQxPL3cQ 的锚，unpublish
+随下一铸造班——市场留一枚带 pins 的测试包，恰是 facet 透传的活验收样本）；trial fleet 保留
+（dissolve 路由形态待查）。**跨仓需求单结案**：facet 投影是选择性负载，detail/install 走 raw
+manifest 已透传 libraryPins（NoBBX 与 tppHc 双样本实证）——facet 侧零改动需求。
 
-**挂账**：guides 第二批（2 支仅原作者闸+4 支 unlisted）；studio 4.x AI 起草（工具面 HTTP 桥）；release 线 ~11 处既有 e2e（base 对照判别在案，非本流引入）。
+**km 3.3 终态**：机制链（pins 铸造→组合期重绑→trial 继承）分段全证；端到端绿=随 judge 车道
+恢复的一次 trial 重跑（蓝图与包就位，零新代码）。
+
+### §15.121 六切片挂账收口 + 归档簿记对齐 + 公开门首航三红（2026-10-31）
+
+**挂账两条代码收口（f9ced403）**：①**derived 车道 carrier 标记**（§15.115 挂账）——handoff/fanout
+深度闸、tool-args 缺参、event-wake 限流四条合成失败行补 `metering:{carrier}`（`derivedLaneCarrier`：
+a2a→remote；persona 三层解析同 dispatch 单点，词汇映射 runner→remote/worker→worker/auto·cell→cell；
+tool 无车道恒 NULL 与已执行 tool 回合一致；carrierInstance 恒 NULL=无身体被认领；层序被测试对钉
+`resolveTaskCarrier`）；②**对账主体 v1.1**（§15.116 挂账）——`resolveSubject` 计费真数主体换
+「车道 key 所属账号」（`--lane-key` 旗标→env `LLM_API_KEY`→owner email 降级且**带标签输出**
+via=...，真机走查的 $0 误读根因即 owner 推定≠计费账号）；脚本 CLI 面收进执行守卫（import 安全可测）。
+
+**归档簿记缺口（608b4921）**：①②③④四切片的归档提交只落 feat 线——release 补齐四归档目录+
+`agent-turn-metering`/`agent-turn-pricing` 两主 spec，validate --specs **227/0**（+2），openspec
+list 零残留。教训=双线作业时归档提交须当场双落（⑤⑥当时双落了，①②③④漏了 release 侧）。
+
+**超集律实战（9de91b4a merge）**：现产已推进到并行班部署代 `sha-9365355`（源 `a575325c`，
+feat/agent-spec-sheet 七单线）——**bump 前核祖先亮红**（a575325c ⊄ 我的线）。处置=merge 部署代
+进 release（零冲突；spec-sheet 特性线、§15.120 台账随行）；并行班两个未落盘文件 stash 过桥
+（台账尾部冲突第 4 次重演，两侧全保）。**律再证：非祖先不得替代，merge 不 reset。**
+
+**公开门首航三红（门=CI 全链，私池经济门不跑 lint/unit 故此前全漏）**：
+1. **hotRow 死代码**（eb56d4bc，切片⑥测试文件）——lint 单红，秒修；
+2. **test-bots-event-wake 端到端超时**——**二分四跳定谳切片⑤**（0b5d1b88 绿→2bb80636 绿→
+   8f0e4209 绿→b6779a11 红）：⑤给 manual 任务派生 `sourceTag`（origin.fleet→准入闸计数）后，
+   事件唤醒任务从此算「舰队任务」，runCronJobTurn 就绪预门（fix-fleet-turn-veracity D1）对它生效，
+   测试 seamCtx 无 dshBridge 替身 → 按 RUNTIME_READY_WAIT_MS 空等 120s → skipped。**续记十二
+   「恒就绪替身」同族第五处应验**（预言原句：靠下一次有人踩到）。修复=seamCtx 补替身（6c011fa3）。
+   生产无恙（bridge 恒在 isReady 即真）——但暴露预门对「manual 派生 sourceTag」新形态的等待语义，
+   合理保留（wake 落地后等冷启动就是舰队回合设计）。
+3. **归因误标两连（真生产缺陷，随⑤已上产数小时）**：`buildTurnRequest` source 判序
+   `schedule||sourceTag ? cron : event?…`——⑤后每条**事件唤醒回合被误标 cron**、每条**派发回合
+   被误标 cron**（test-fleet-runs 两个 seam 用例钉住了正确语义）。修=event 先判、cron 收窄到
+   schedule 触发、initiator 派发语义恢复（注释「Event wakes outrank everything」与代码一致化）。
+4. **test-fleet-runs usage 钉子**——切片②扩 normalizeUsage 三键（细分 absent→null）未同步该
+   断言，补齐含细分形状的钉子。
+5. **facet oauth 断言**——快照净化器把测试里的免键 clientId 换占位符而 facet.js 默认值没动，
+   CI 必红本地必绿（两树差异）。修=断言改「形状+跨目标一致性」（净化器注释本来就声称这个语义），
+   字面量不上板 gitleaks 不命中，脱敏条目摘除。
+6. **并入线 17 处 lint error**（9c82d14e）——spec-sheet 特性线文件从未过公开 lint 门：未用参数
+   四处（biome 安全修复）、过时抑制注释四处摘除、fork 播种 effect 语义抑制、死读删除、两个源码
+   文本钉子文件 noTemplateCurlyInString 文件级关闭。biome.json `recommended` 弃用告警挂账
+   （下个大版本 `biome migrate`）。
+
+**快照仓两坑**：①`make-public-snapshot --init` 重建目录会抹掉 mirror 远程，重加即可；②cwd
+被重置后 `git push mirror main` 推的是**主仓 main ref**（错树）——修=快照目录内 `push HEAD:main`，
+已当场 force 复位（ca6a7b4a→正确快照）。
+
+**公开门二三四轮（每轮一门逮一真伤，七轮出片节奏重演）**：二轮=source 判序终版（四级证据强弱
+event>initiator>schedule/裸 sourceTag>manual——turnSourceFor 四钉+fleet-runs 两 seam 钉+event-wake
+钉全容；首轮第一版判序把 initiator 排在 cron 后，fleet-turn-events 两钉子当场打脸）+ starter-teams
+快照面诚实降级（staging guides.json 被 openspec/changes 整目录排除，降级而非破净化红线）+
+persistence rename ENOENT 收纳（jobs.json 拆目录竞态 unhandledRejection）；三轮=词汇表断言的降级
+补齐（上笔降级漏了这块）；四轮 **CI+image-build-check 双绿**（快照 69478a0=源 87ff9e66）。
+本地全量回归 **3005 测零红**（EXIT=0，排除 supervisor-ports——多会话固定端口互卡在册环境用例、
+supply-owner-acceptance-live——live 车道自带无 token 干净跳过）。**快照面要点：快照仓
+image-build-check 只构建不推**（no image was pushed），真出片仍走通用池——两道门各司其职。
+
+**测试**：turn-metering 7/7（+3 新）、turn-pricing 5/5（+1 新）、fleet-runs 22/0、event-wake 3/3、
+carrier 8/8、facet-cli 12/0、五文件 lint 清；全量 3005/0。
+
+**滚版+真机验收（判据五过一挂）**：池出片 sha-ef9e330（源 87ff9e66，快照仓 sha=ef9e3304）→
+relay OK 4s → ccr inspect digest `bbd7d018` → GitOps 4089916 双面 bump → 双 pod Running 且
+**imageID 双等 bbd7d018**；pod 内标记三件在位（derivedLaneCarrier/resolveSubject/keylessClientId）；
+服务活性实证（API 401 鉴权面+后台节拍）；**对账 v1.1 pod 内实跑**：`subject=admin@finddatatech.cloud
+(via env LLM_API_KEY)`、词元 actual **$10.5685 非 $0**（§15.116 的 owner 推定 $0 痛点正面解决）、
+est $0.0458 (priced 23/227)、drift 0.004——factor 语义=真数含该 key 账号全域用量（chat/全员）而
+估算只计本 owner 舰队 priced 样本，体量差是口径差非误差，校准是人类决策；生产台账当日 360+82 行
+carrier 列全在位（cell）。**挂账（更新后）**：swap 离任锚真机自然换防；runner 真远端回合（目录
+a2a entry 待建）；a2a derived 合成行的真机眼见（等自然深度闸/限流事件）；biome.json `recommended`
+弃用（下个大版本 migrate）；对账 v1.1 的 v1.2=估算侧也换车道 key 视角对齐口径。

@@ -6933,3 +6933,12 @@ sha-6aa999c ⊇ 其 a2031f82 所指内容，追并即闭环。第六轮 CI+image
 （km 3.3 终态同款）。runner 路由的「裸 roster 键目录条目」属 runner 部署车道（agent-runner
 deployment descriptor+registry card 注册）——挂账精化为该车道动作；其路由匹配/远端执行两半
 （单测钉+fail-open 活体+carrier=remote 活体）今日全部有证。现场还原（cadence 停+DELETE 200）。
+
+**§15.121 续三：对账 v1.2 落地+活体对齐（2026-11-01）**——估算侧换车道 key 视角（挂账 v1.2 收口）：
+LANE VIEW 主口径=registry **全 cell 扫描**聚合 member_turn_daily（车道 key 服所有 cell 的舰队回合），
+OWNER VIEW 降次行（份额对照）。**活体跑通（本地 CELL_DATA_ROOT=全量 cp 的 11 cell 库+pod env 两键
+umask 077 不回显+节点 NodePort 直打 sub2api）**：lane-est **$0.1052** (33/335 priced) vs 真数
+$0.9498 → **drift 0.111**（v1 的 0.004 收窄 27 倍）；owner 占比 96.7%（取证班回合集中在走查 cell，
+符合预期）；残差三因首次量化呈现（非舰队 chat 同账号用量+未计价样本 302/335+排除倍率）。
+测试 7/7（双 cell 聚合/无表 cell 诚实零）。双分支推齐（087b162d/d5ad42ab）。pod 内 /app/scripts
+副本随下一班自然出片更新（ops 脚本非运行时面，不专班滚版）。

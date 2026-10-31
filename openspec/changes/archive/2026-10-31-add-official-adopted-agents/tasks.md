@@ -21,9 +21,9 @@
 ## 4. 阶段一：手工转正 2–3 枚真案例
 
 - [x] 4.1 挑选 2–3 枚「真热门 × 真宽松许可 × 质量过硬」候选；验证=候选清单落盘，含上游 URL、许可证、钉定 sha、选择理由。**已实施**：`candidates.md` 落盘。已验证 1 枚可转正（`smithery/nano-pdf`：MIT 凭证 + 钉定 `4d2a9f8b` + 178k stars，门槛是 CLI 需放宽工具面）与 2 类否定样本（GPL 硬拒 / SkillHub 不可钉定）。候选池 5 枚 Smithery 待验（GitHub 匿名限额 60/h 耗尽），并记录结构性发现：**最热门的货（SkillHub 31 万下载）全在不可钉定那侧**。
-- [ ] 4.2 逐枚走完「取包 → 许可门 → 审校 → 铸官方 Agent（persona 起草 + chat 面）→ mint + 定价门 → 上架」全链；验证=每枚在精选市场可见且详情页 provenance 齐全。**未做**：代码已上产（pod 内四文件+标志串实证、/health 绿），但尚未铸真包上架——缺运营端点层（身份注入，见 2.4 遗留）。候选已定（`candidates.md`：smithery/nano-pdf 需放宽工具面）。
+- [x] 4.2 逐枚走完「取包 → 许可门 → 审校 → 铸官方 Agent（persona 起草 + chat 面）→ mint + 定价门 → 上架」全链；验证=每枚在精选市场可见且详情页 provenance 齐全。**已完成**：`smithery/nano-pdf` 走通全链并上架——packId `5y0_Gislp_OgElqq4zPswA`，`official:true`（roster 判定，非自报）、`badge:"facade"`（结构推导）、`provenance.source:"official-adopted"`，adopted 段含 upstreamUrl / `license:"MIT"` / 钉定 `e279b64f…` / `adoptedBy=reviewedBy="publisher@finddatatech.cloud"` / `reviewedAt`。三面渲染实证：详情面 `GET /api/packs/:id`、列表面 76 条中唯一 `adopted:true`、官方聚合面 `{templates:16,assistants:36,featured:2}` 内目标包字段齐全；市场投影 `/api/marketplace/marketplace.json` 75 条正常。**限缩**：仅 1 枚（4.1 的两类否定样本 GPL/不可钉定按设计出局；候选池其余 5 枚待 GitHub 限额重置后补验）。
 - [x] 4.3 用真实案例回校模型：若发现 provenance/许可/快照字段不够用，回改 1.1–2.4 的 spec 与实现并记录；验证=模型变更记入台账，spec 与实现同步。**已完成**：真实探针回校出两处模型变更并已落到 spec+实现+测试：①**许可分层**（凭证 primary > 自述 declared）——原本同级「取最宽松」会让 AGPL 仓靠 frontmatter 自述 MIT 洗白；②**能力探测**（requires.bins → toolface-insufficient 拒绝）——CLI 技能在 chat 面下会产残废 Agent。另修正 Entry 标识字段 id≠slug。均已记台账 §15.106 续。
-- [ ] 4.4 上游更新演练一次：造一个上游修订 → 走 diff → 铸 vN+1 → 订阅者不自动漂移；验证=记录 diff 可见、旧订阅仍在旧版本、显式跟新后切换。**未做**：依赖 4.2 先有在架的转正包。
+- [x] 4.4 上游更新演练一次：造一个上游修订 → 走 diff → 铸 vN+1 → 订阅者不自动漂移；验证=记录 diff 可见、旧订阅仍在旧版本、显式跟新后切换。**已完成**（2026-10-31，真机生产）：在 `5y0_Gislp_OgElqq4zPswA` 上造「上游修订」（技能正文新增 `--pages` 用法 + 钉定前进一提交）铸 v2，diff 由 `difflib.unified_diff` 产出并核验。四项判据全中——① 版本历史每版 notes 可读（diff 可见）；② `GET /versions/1` 的 v1 正文长度 432、sha256 前缀 `668e1ec5` **逐字节未变**（订阅者不自动漂移的物质基础：版本不可变，安装取确定快照）；③ `GET /packs/:id` 最新为 v2 且正文 475（显式跟新才切换）；④ v1/v2 并存互不覆盖。**善后**：v2 的 revision 是演练用**演示值**（非真实上游提交），不合「官方审校资产」标准，已补发 v3 恢复 v1 真实正文与真实钉定 `e279b64f…`；v2 作为可审计历史保留（版本不可变）。
 
 ## 5. 收口
 

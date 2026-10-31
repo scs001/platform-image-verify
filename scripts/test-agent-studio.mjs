@@ -92,7 +92,6 @@ test("i18n: studio chrome keys exist in all five locales", () => {
 // ── fold-blueprint-into-studio ────────────────────────────────────────────────
 const teamMode = read("web/src/components/studio/BlueprintTeamMode.tsx");
 const bucketsEditor = read("web/src/components/studio/AgentBucketsEditor.tsx");
-const blueprintPage = read("web/src/pages/BlueprintStudioPage.tsx");
 
 test("fold: blueprint team mode rides the existing lifecycle endpoints, untouched", () => {
   // Same /api/blueprints pool + lifecycle calls — no second lifecycle, no
@@ -126,6 +125,8 @@ test("fold: old route redirects (two-step retire), pool reachable from team tab"
   assert.match(app, /to="\/studio\?from=blueprint"/, "old /blueprints redirects into the studio team mode");
   assert.match(app, /fromBlueprint|from=blueprint/, "studio honors the source marker");
   assert.match(teamMode, /autoFocusPool/, "pool focus rides the redirect");
-  // The old page file stays on disk until the walkthrough retires it (D2).
-  assert.ok(blueprintPage.length > 0, "old component retained pre-walkthrough");
+  // Step 2 of the two-step retire executed (92f13fbe): the dead component is
+  // gone from the tree; only the redirect remains.
+  assert.ok(!fs.existsSync(path.join(root, "web/src/pages/BlueprintStudioPage.tsx")), "old component removed");
+  assert.ok(!app.includes("pages/BlueprintStudioPage"), "no import of the retired page");
 });

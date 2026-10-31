@@ -2109,6 +2109,8 @@
     "approve": "Approve",
     "cast": "Cast to market",
     "castRef": "Cast: pack {{packId}} v{{version}}",
+      "sign": "Sign trial report (final key)",
+      "unsign": "Unsign",
     "savedValid": "Saved, validation green"
     },
     "validate": {

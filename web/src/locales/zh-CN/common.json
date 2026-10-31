@@ -2109,6 +2109,8 @@
     "approve": "批准",
     "cast": "铸造上架",
     "castRef": "已铸造：pack {{packId}} v{{version}}",
+      "sign": "签字试跑报告（终审钥匙）",
+      "unsign": "撤签",
     "savedValid": "已保存，校验绿"
     },
     "validate": {

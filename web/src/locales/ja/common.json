@@ -2109,6 +2109,8 @@
     "approve": "承認",
     "cast": "マーケットへ鋳造",
     "castRef": "鋳造済：pack {{packId}} v{{version}}",
+      "sign": "試験レポートに署名（最終キー）",
+      "unsign": "署名を取消",
     "savedValid": "保存しました、検証グリーン"
     },
     "validate": {

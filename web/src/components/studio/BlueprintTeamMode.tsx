@@ -46,6 +46,8 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<ValidationVerdict | null>(null);
   const [trial, setTrial] = useState<TrialReport | null>(null);
+  // 签字状态随报告刷新（双钥匙：模型判绿是证据，主人签字是终审）
+  const [signed, setSigned] = useState(false);
   const [judgeDefault, setJudgeDefault] = useState<bp.JudgeDefaultProbe | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -78,6 +80,7 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
       setContent(b.content as BlueprintContent);
       setVerdict(null);
       setTrial(null);
+      setSigned(false);
       setJsonText(JSON.stringify(b.content, null, 2));
       setTrack("form");
     } catch (err) {
@@ -360,6 +363,7 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
                     await bp.runTrial(blueprint.id);
                     const { report } = await bp.getTrialReport(blueprint.id);
                     setTrial(report);
+                    setSigned(report?.signoff?.by != null);
                   })
                 }
               >
@@ -375,6 +379,42 @@ export function BlueprintTeamMode({ autoFocusPool = false }: { autoFocusPool?: b
               </div>
             )}
 
+            {status === "draft" && trial && !signed && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                data-testid="studio-blueprint-sign"
+                disabled={busy !== null}
+                onClick={() =>
+                  act("sign", async () => {
+                    const { report } = await bp.signTrialReport(blueprint.id);
+                    setTrial(report);
+                    setSigned(report?.signoff?.by != null);
+                  })
+                }
+              >
+                {t("studio.blueprint.sign")}
+              </Button>
+            )}
+            {status === "draft" && trial && signed && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full"
+                data-testid="studio-blueprint-unsign"
+                disabled={busy !== null}
+                onClick={() =>
+                  act("unsign", async () => {
+                    const { report } = await bp.unsignTrialReport(blueprint.id);
+                    setTrial(report);
+                    setSigned(report?.signoff?.by != null);
+                  })
+                }
+              >
+                {t("studio.blueprint.unsign")}
+              </Button>
+            )}
             {status === "draft" && (
               <Button
                 size="sm"

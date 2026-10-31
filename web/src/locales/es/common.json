@@ -2109,6 +2109,8 @@
     "approve": "Aprobar",
     "cast": "Fundir al mercado",
     "castRef": "Fundido: pack {{packId}} v{{version}}",
+      "sign": "Firmar el informe de prueba (clave final)",
+      "unsign": "Quitar firma",
     "savedValid": "Guardado, validación verde"
     },
     "validate": {

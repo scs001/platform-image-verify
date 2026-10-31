@@ -2109,6 +2109,8 @@
     "approve": "Approuver",
     "cast": "Coulser au marché",
     "castRef": "Coulé : pack {{packId}} v{{version}}",
+      "sign": "Signer le rapport d'essai (clé finale)",
+      "unsign": "Retirer la signature",
     "savedValid": "Enregistré, validation verte"
     },
     "validate": {

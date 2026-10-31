@@ -6051,7 +6051,54 @@ provenance 投影 8 行；`mcp-catalog.js` 仅少一个空行。71/71 测试绿�
 > 且以每个角色现役镜像的源为准**。
 
 **最终重出片**：快照树 `2f8f0fc`（= `40651d64` + 两笔生产修复）→ verify 仓 `c21964f`
-→ `image` run `41150156272`。
+→ `image` run `41150156272` 五项 smoke 全过 → digest 双等 `sha256:00b43438`。
+
+**但上线没用这枚新镜像——pull GitOps 时发现生产已被并行会话推进**
+滚版前 `git pull` GitOps，发现 platform / platform-demo 已不是 `be368d1`，而是
+`sha-02c953d`（源 `5e92a698`，九条优化那次发布，§15.110），只有 facet 还停在回滚的
+`08f4835`。于是生产实际是**两个角色跑在两条分叉线上**：
+
+| 角色 | 镜像 | 源 | 线 |
+|---|---|---|---|
+| platform / platform-demo | `sha-02c953d` | `5e92a698` | 九条优化线 |
+| facet | `sha-08f4835` | 85980ad（roll 派生） | roll 线 |
+
+两线自 `4587726f` 分叉，各 46 / 72 独有提交。**因此我那枚 `c21964f` 也不能上**：
+它基于 roll 线，缺九条优化，滚 platform 会回退别人的工作；滚 facet 则与 platform 不同代。
+
+**正解：facet 直接回到平台现役同代镜像 `sha-02c953d`。** 决定前做了三重实证：
+1. **祖先核验**（`5e92a698` 含 `9ac32bae`，即 Dockerfile 白名单修复已在其中）；
+2. **运行期文件内容比对**：facet 的 8 个运行期文件里 6 个与旧镜像逐字节相同，
+   `marketplace-json.js` 仅重构 + 新增 8 行 provenance，`mcp-catalog.js` 仅少一个空行
+   —— 纯向上滚动，无功能回退；
+3. **运行中 pod 内实测**（最硬）：平台 pod 里 `/app/facet/*.js` 8 个文件齐全、
+   `facet/index.js` 的 6 个本地 import 与 6 个上层模块 import **全部可解析**、
+   可达闸 `isPubliclyReachable`×3、`MAX_DESCRIPTION`×2、`p.adopted` 投影在。
+
+> **纪律**：`sha-XXX` 是**镜像仓 commit**，不是 paas commit，`git merge-base --is-ancestor`
+> 对它必然失败（本轮两次误用）。判断「新镜像能否替换现役」有两个真判据：
+> ① 内容超集（逐文件 diff，不容「生产有、新树无」的功能性删除）；
+> ② **能起就验**——多角色镜像直接在运行 pod 里核 `/app/<role>/*.js` 齐全性 + import 可解析性。
+
+**上线**：GitOps `5a7da60`（facet.yaml:66 → `sha-02c953d`）双推 → ArgoCD hard refresh
+→ `Synced` → `deployment "facet" successfully rolled out` → 新 pod
+`facet-8584fb598f-ncxrm` **1/1 Running，ready=true，restarts=0**，
+imageID `sha256:0a91466e`（与平台现役逐字节同代），日志
+`[facet] listening on http://127.0.0.1:3200`。**三面同代恢复。**
+
+**provenance 三面渲染实证**（包 `5y0_Gislp_OgElqq4zPswA`，nano-pdf）：
+- **详情面** `GET /api/packs/:id` → `official:true, badge:"facade"`，
+  `provenance.source:"official-adopted"`，adopted 段完整含
+  upstreamUrl（openclaw/openclaw tree/main/skills/nano-pdf）、`license:"MIT"`、
+  钉定 `e279b64f…`、`adoptedBy/reviewedBy:"publisher@finddatatech.cloud"`、`reviewedAt`；
+- **列表面** `GET /api/packs?pageSize=100` → 76 条中**唯一** `adopted:true` 就是它；
+- **官方聚合面** `GET /api/packs/official` → 结构是
+  `{templates:16, assistants:36, featured:2}`，目标包落在 assistants，字段
+  `official:true, badge:"facade", adopted:true`；
+- **facet 市场投影** `/api/marketplace/marketplace.json` → 75 条。
+
+**弃用说明**：本轮出过的 `1ac326f` / `c21964f` 两枚镜像**均未上线**，留在 TCR 供审计；
+`c21964f` 的内容（Dockerfile 修复 + 门 + 两修）已全部进 paas 主线，未来从主线出片自然带上。
 
 **顺带记两笔操作坑**：
 - `git commit -m ... -- <paths>` 参数顺序必须 `-m` 在 `--` **之前**，否则 `-m` 及消息全文

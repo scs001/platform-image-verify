@@ -1250,13 +1250,32 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
   };
   // Turn settle capture (the seam every member turn passes through): turn
   // outcome + health flips. Wrapped around recordFleetTurnEvent below.
-  ctx.captureFleetTurnFact = (job, outcome) => {
+  ctx.captureFleetTurnFact = (job, outcome, meta) => {
     try {
       const fleetId = job?.sourceTag?.fleetId ?? job?.origin?.fleet?.fleetId ?? null;
       const memberId = job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null;
       if (!fleetId || !memberId) return;
       const status = outcome?.status ?? "failed";
-      ctx.captureFleetFact(fleetId, memberId, "turn", `回合${status === "ok" ? "成功" : "失败"}`, String(outcome?.text ?? outcome?.error ?? "").slice(0, 400));
+      // Turn fact anchor (add-fleet-memory-anchors D1): one header line binding
+      // the memory page to the ledger row — "每一页记忆都知道自己是谁花的钱
+      // 买的". Absent pieces stay blank (honest absence, never a 0).
+      const m = outcome?.metering ?? {};
+      const usage = outcome?.usage ?? {};
+      const input = Number.isFinite(usage.input) ? usage.input : null;
+      const output = Number.isFinite(usage.output) ? usage.output : null;
+      const cached = Number.isFinite(usage.cacheReadTokens) ? usage.cacheReadTokens : null;
+      const write = Number.isFinite(usage.cacheWriteTokens) ? usage.cacheWriteTokens : null;
+      const billed = input != null ? input + (cached ?? 0) + (write ?? 0) : null;
+      const anchor = `${[
+        `[turn`,
+        `turn_id=${meta?.ledgerTurn?.turnId ?? "-"}`,
+        `run_id=${meta?.ledgerTurn?.runId ?? "-"}`,
+        `carrier=${m.carrier ?? "-"}`,
+        `model=${meta?.model ?? "-"}`,
+        `tokens=${input ?? "-"}/${output ?? "-"}/${billed ?? "-"}`,
+        `status=${status}`,
+      ].join(" ")}]`;
+      ctx.captureFleetFact(fleetId, memberId, "turn", `回合${status === "ok" ? "成功" : "失败"}`, `${anchor}\n${String(outcome?.text ?? outcome?.error ?? "").slice(0, 400)}`);
       if (healthFlip(fleetId, memberId, status)) {
         ctx.captureFleetFact(fleetId, memberId, "health", `状态迁移 → ${status}`, `岗位 ${memberId} 的执行状态从 ${status === "ok" ? "失败" : "成功"}迁回。`);
       }
@@ -1311,7 +1330,7 @@ setInterval(sweepRuns, 60 * 60 * 1000).unref();
 // open here too — the warn is the whole blast radius.
 ctx.recordFleetTurnEvent = (job, outcome, meta) => {
   try {
-    ctx.captureFleetTurnFact?.(job, outcome);
+    ctx.captureFleetTurnFact?.(job, outcome, meta);
     if (meta?.ledgerTurn) return ctx.fleetTurnLedger.end(job, meta.ledgerTurn, outcome, meta);
     return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
   } catch (e) {
@@ -1690,6 +1709,21 @@ try {
   }).catch(() => {});
 } catch (e) {
   console.warn(`[turn-pricing] attach failed (degrade open): ${e?.message || e}`);
+}
+// Fleet cost weekly digest (add-fleet-memory-anchors 补丁4): one 成本周报 page
+// per active fleet per ISO week into `f/` — the metering axis feeding the
+// memory axis (L2 distiller fuel). Degrade open everywhere.
+try {
+  const { attachFleetCostDigest } = await import("./server/fleet-cost-digest.js");
+  attachFleetCostDigest({
+    fleetsDb: getFleetDatabase(),
+    captureFact: (fleetId, memberId, kind, title, body) => {
+      try { ctx.captureFleetFact?.(fleetId, memberId === "fleet" ? null : memberId, kind, title, body); } catch { /* degrade */ }
+    },
+    listActiveFleets: () => getFleetDatabase().listFleets().filter((f) => f.state === "active"),
+  });
+} catch (e) {
+  console.warn(`[fleet-cost-digest] attach failed (degrade open): ${e?.message || e}`);
 }
 console.log("Platform fully initialized");
 

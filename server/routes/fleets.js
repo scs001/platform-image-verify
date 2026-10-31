@@ -2803,6 +2803,22 @@ export function createFleetRoutes(app, ctx = null) {
       // whether the child-side delete landed, so the new incumbent can never
       // inherit the old one's child-side state (production 2026-10-25: the
       // swap cleared only the mirror; the child resumed its 2.36MB session).
+      // 换防交接锚 (add-fleet-memory-anchors D2): the swap fact lands BEFORE
+      // the history wipe — "清史改为交接后清" — so the page can carry the
+      // outgoing incarnation's last-turn anchor (身体换了，记忆跟着走). The
+      // wipe semantics below are unchanged.
+      let outgoingAnchor = "";
+      try {
+        const last = db.listTurnEvents?.(member.id, { limit: 1 })?.[0] ?? null;
+        if (last) {
+          const metering = last.metering ?? {};
+          outgoingAnchor = ` 离任锚：末次回合 turn_id=${last.turnId ?? "-"} status=${last.status} model=${last.model ?? "-"} carrier=${last.carrier ?? "-"}`;
+        }
+      } catch { /* anchor is best-effort */ }
+      try {
+        ctx?.captureFleetFact?.(fleet.id, member.id, "swap", `岗位「${member.title}」换防`, `新在岗者 ${String(targetId).slice(0, 80)}${req.body?.freshSession === true ? "（清史重开——对话史清空，记忆与报数史照旧）" : ""}${outgoingAnchor}`);
+      } catch { /* capture never surfaces */ }
+
       if (req.body?.freshSession === true) {
         const task = taskIndexFor(fleet.id).get(member.id);
         if (task?.sessionId) {
@@ -2819,11 +2835,6 @@ export function createFleetRoutes(app, ctx = null) {
 
       const updated = db.updateMember(member.id, { targetKind, targetId });
       const reconcile = await runReconcile(fleet.id);
-      // Fleet working memory (add-zhiyu-team-memory): the restaff is a team
-      // fact — the incoming member's next digest tells it whose post it took.
-      try {
-        ctx?.captureFleetFact?.(fleet.id, member.id, "swap", `岗位「${member.title}」换防`, `新在岗者 ${String(targetId).slice(0, 80)}${req.body?.freshSession === true ? "（清史重开——对话史清空，记忆与报数史照旧）" : ""}`);
-      } catch { /* capture never surfaces */ }
       const tasks = taskIndexFor(fleet.id);
       const view = memberView(db, fleet, updated, tasks, { resolver: targetResolver, model: modelCtx() });
       res.json({ member: view, reconcile });

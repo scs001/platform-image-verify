@@ -6358,3 +6358,26 @@ walkthrough 残留（走查钉库集合）已删。
 **UI 眼见替班配方**：`/auth/login?rd=…` 直跳 Logto → storageState 存盘复用；SPA 点击用
 `evaluate(el=>el.click())`；切换按钮等渲染（0.7s 重试轮）；卡片点击**圈定主内容区**——侧栏会话同名
 文本会截胡（T2 首次点到 /chat/cron-job…）。截图存 gui-test-screenshots/（t0–t9）。
+
+**§15.113 续记二：fromCollection 种子三修 + 走查班收笔 + supervisor-ports 并发陷阱（2026-10-31）**
+
+**种子流三轮真机驱动修复**（每轮都由 Playwright 真机截图揪出，代码评审全绿）：
+①盖进已打开蓝图（seed effect spread `content` 与 auto-open effect 竞态）→ ②改纯前端新草稿骨架 →
+编辑器渲染门是 `detail`（已存记录），纯 content 落不进 → ③走 onCreate 同款「建档→打开」→
+**alive 自砍**：清参 `setSearchParams` 触发 deps 变化 → cleanup 立即取消自己的建档→打开链
+（草稿建了、open 没落地，截图抓到「列表有未命名场景、右侧空态」）→ ④去 alive（ref 防重足够）。
+终态真机三验全绿：草稿建档+打开+`library:<id>` 预填+选库下拉解析+**「本次编辑 diff: 无 diff 记录」**
+（对照首轮盖蓝图的 dirty diff）——sha-54982d3（源 0008d298，digest 10e56e47 双等）上产。
+走查残留清零（3 测试集合+2 测试草稿经 API 删）。
+
+**裸键收口**：sha-238237c 起五语言 `tasks.actions.edit` 上产，真机复验 `tasks.actions.edit`
+裸键消失、「编辑」标签在位（t10 截图）。bundle 侧验证配方：`grep -o 'runNow:"[^"]*",edit:"[^"]*"'
+assets/*.js` 五语言五行（插入保序）。
+
+**supervisor-ports 并发陷阱**：`test-supervisor-ports.mjs` 绑定固定端口，**三个并行会话同时跑
+test:unit 时互抢端口 → 三实例全部 120s 超时挂死**（本机撞上 6:17AM/10:00/10:04 三个僵尸，
+我自己 10:04 的队列被自己 10:04 的实例卡住——`ps -o lstart` 对 task 日志出生时间定位自家 PID，
+`kill -9` 子进程后队列继续走完）。**改判**：该测试非 flaky 也非真缺陷，是「并行会话 × 固定端口」
+的设计性互斥冲突；建议上 random port。另 `test-supply-owner-acceptance-live.mjs` 需 live 凭据，
+本地无环境必红——两者都属**环境绑定用例**，全量回归时应排除或打 skip 标记。排除后全量重跑中
+（/tmp/unit-full2.log）。

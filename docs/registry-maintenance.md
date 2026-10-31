@@ -6123,6 +6123,42 @@ v2 因版本不可变只能留档（notes 里写明它是演练版）。**律：
 - 发布端点的请求体是 `{manifest, packId}` 包装，不是裸 manifest——直接 POST manifest
   得到 `{"error":"manifest required"}`（`gateway/packs.js:1339` 读 `req.body?.manifest`）。
 
+**§15.111 续：走查逮出第四处真缺陷——市场投影的 adopted 标记永不渲染（2026-10-31）**
+
+三面渲染验证时发现 `/api/marketplace/marketplace.json` 的 `plugins[].provenance`
+**在任何情况下都不出现**（包已 `official:true` ∧ `adopted:true`，详情/列表/官方聚合
+三面都有，唯独这一面没有）。
+
+**根因（我这刀自己写的）**：`official` 是**路由层**按部署 roster 注入的字段
+（`withOfficial` / `isOfficial` 都在 `registerPackRoutes` 作用域），
+而 `registry.list()` 返回的 summary **从不带 official**。`facet/marketplace-json.js`
+却直接读 `p.official === true && p.adopted === true` → `p.official` 恒为 `undefined`
+→ 条件恒假 → 标记永不出现。当时那句注释「两个面永不打架」并未成立。
+
+**为什么测试没发现**：`scripts/test-adoption-display.mjs` 的假 registry 让每行
+**自带 `official: true`**，模拟了根本不存在的字段——用例钉的是错契约，所以一直是绿的。
+这是「假数据比真实现更宽松」的典型：夹具自己造了实现里拿不到的数据。
+
+**修法**：`registerMarketplaceJson` 接收 `officialAuthors`（`facet/index.js` 从同一个
+`OFFICIAL_AUTHOR_EMAILS` 传入），自行按 roster 判定，规则与网关侧逐字一致
+（trim + lowercase + 空名单全 false）。展示面判定权从「行上有没有字段」变成
+「部署名单说了算」，与三轴互不相交的原则一致。
+
+**回归**：`test-adoption-display.mjs` 夹具改成真实契约（行只带 SQL 投影的 `adopted`
++ `authorEmail`，`official` 由 roster 决定）；三条轴逐一钉住（roster∧adopted 有标记 /
+仅 roster 无 / 仅 adopted 无）。`test-facet-marketplace-json.mjs` 补同名三态用例。
+**反向自证**：把 `isOfficial(p.authorEmail)` 改回 `p.official`，两条用例立刻红；
+改回修复后 72/72 绿。
+
+> **律**：测试夹具不许提供实现层拿不到的数据。想钉「投影正确」，夹具就必须
+> 复现真实读路径的字段集；否则用例只证明了夹具自己的假设。
+
+**出片**：从产线源 `5e92a698` 单开 worktree `fix-facet-marketplace-provenance`
+（`226df482` 修复 + `f1530f76` 用例/门），相对生产源只差 2 个 facet 文件、无删除
+→ 快照 → verify 仓 `da5fd8a` → `image` run `41153650935`。
+**不用 HEAD 出片的原因**：HEAD 还夹带其他会话在途的 `server/cron-mcp.js`
+（+109 行）与 `server/routes/fleets.js`（+19 行），我没有验证过它们，不能替人上线。
+
 **§15.108 续记四：7 条内网端点条目的需求单已逐线开出（2026-10-31）**
 复测改判：7 条在网关上 POST 全回 401（不存在名回 405）——**公网路由本已存在**，「网关没接它们」
 不成立；真正拦路的是 finddata 台账 §3.z 记录的旧约束（auth_server `_forward_headers` 白名单

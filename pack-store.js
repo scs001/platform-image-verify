@@ -73,12 +73,24 @@ export function deleteDraft(id) {
 // for a custom preset holding the id (add-custom-presets D6 — the market's
 // one-directional never-overwrite-foreign-content policy treats custom
 // presets as owners too), or null when the id is free.
+//
+// Ownership is MATERIALIZATION truth (the rival's install report says
+// "installed"), not manifest declaration: a pack whose own install SKIPPED
+// the id never put it in the catalog, so its bare claim must not block —
+// otherwise two packs that each skipped against the other's declaration
+// deadlock the id out of the catalog entirely (真机实锤 2026-11-01: 走查钉库试跑
+// ↔ 乙班 互指 skipped，walkthrough-reader 从目录消失，fleet 成员 vacant
+// "target object no longer exists"，试跑永远红). Re-materialization stays
+// collision-free by construction: an install materializes only when no
+// rival has materialized, so "installed" reports can never multiply.
 function agentOwner(agentId, excludePackId) {
   for (const installed of db.listInstalledPacks()) {
     if (installed.packId === excludePackId) continue;
-    if ((installed.manifest?.agents ?? []).some((a) => a?.id === agentId)) {
-      return { kind: "pack", name: installed.name };
-    }
+    if (!(installed.manifest?.agents ?? []).some((a) => a?.id === agentId)) continue;
+    const materialized = (installed.report?.agents ?? []).some(
+      (r) => r?.id === agentId && r?.status === "installed",
+    );
+    if (materialized) return { kind: "pack", name: installed.name };
   }
   const preset = db.getUserPreset(agentId);
   if (preset) return { kind: "custom", name: preset.name };

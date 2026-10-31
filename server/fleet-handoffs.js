@@ -18,7 +18,7 @@
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./fleet-orchestration.js";
 import { derivedLaneCarrier } from "./fleet-events.js";
 
-export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rosterPresetId = (id) => id, chainFor = () => null }) {
+export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) => id, chainFor = () => null }) {
   const withChain = (fleet, edgeKind) => {
     const chain = chainFor(edgeKind);
     return chain ? { ...fleet, chain } : fleet;

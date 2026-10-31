@@ -78,7 +78,7 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { renderChatFleetContext } from "./server/fleet-chat-context.js";
-import { recordTurnEvent, derivedLaneCarrier } from "./server/fleet-events.js";
+import { recordTurnEvent } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
 import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "./server/fleet-memory.js";

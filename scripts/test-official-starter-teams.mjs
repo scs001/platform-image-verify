@@ -98,9 +98,13 @@ test("migrated steps↔seed alignment: 3 steps, seed name narrated, no ghost pos
 
 test("v4 lexicon: no legacy terms in the migrated copy and the sequence", () => {
   for (const t of STARTER_TEAMS) {
-    const text = JSON.stringify(STAGED[t.packId]);
-    for (const term of ["集群", "阵列", "能力包", "能力市场", "舰队"]) {
-      assert.equal(text.includes(term), false, `${t.name}: migrated copy must not carry legacy term '${term}'`);
+    // snapshot face: staging copy excluded — the staged-side lexicon check
+    // degrades; the oneLine (shipped module) side always runs.
+    if (STAGED) {
+      const text = JSON.stringify(STAGED[t.packId]);
+      for (const term of ["集群", "阵列", "能力包", "能力市场", "舰队"]) {
+        assert.equal(text.includes(term), false, `${t.name}: migrated copy must not carry legacy term '${term}'`);
+      }
     }
   }
   for (const t of STARTER_TEAMS) {

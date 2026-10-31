@@ -103,7 +103,7 @@ function carrierCtx({ listAgents, runnerEntry = true }) {
     },
     executors: [],
   };
-  const entry = runnerEntry ? { id: "pack-a", mode: "a2a", name: "Runner X" } : null;
+  const entry = runnerEntry ? { id: "registry-packs-p-pack-a", mode: "a2a", name: "Runner X", url: "https://registry.test/agent/packs/p/pack-a/" } : null;
   attachCronRunner(ctx, {
     listAgents: listAgents ?? (() => (entry ? [entry] : [])),
     runPersona: async (_c, j) => {
@@ -118,11 +118,11 @@ function carrierCtx({ listAgents, runnerEntry = true }) {
   return ctx;
 }
 
-test("runner declared + catalog entry → remote executor with the entry's agent id", async () => {
+test("runner declared + catalog entry (agent key match) → remote executor with the entry's id", async () => {
   const ctx = carrierCtx({});
   const out = await ctx.runCronJobTurn(job({ carrier: "runner" }), { turnTimeoutMs: 2000 });
   assert.equal(out.ok, true);
-  assert.deepEqual(ctx.executors[0], ["remote", "pack-a"]);
+  assert.deepEqual(ctx.executors[0], ["remote", "registry-packs-p-pack-a"]);
 });
 
 test("runner declared without deployment → fail-open primary chain, recorded", async () => {
@@ -142,15 +142,36 @@ test("cell declared → primary chain even with the pool active (claim gate)", a
   assert.deepEqual(ctx.executors[0], ["persona", "pack-a"]);
 });
 
-// ── ② runner entry lookup ────────────────────────────────────────────────────
-test("runnerEntryFor matches the roster preset, ignores chat/a2a mismatch", () => {
+// ── ② runner entry lookup (add-runner-route-key-match: agent-KEY matching) ───
+test("runnerEntryFor matches the deployed agent key (registry path tail), ignores chat entries", () => {
+  const rosterPresetId = (id) => String(id ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
   const agents = [
     { id: "chat-agent", mode: "chat", name: "Chat" },
-    { id: "agent-runner-x", mode: "a2a", name: "Runner X" },
+    // The registry-bridge shape: catalog id is prefixed, the route rides the url's /agent<path>/.
+    { id: "registry-packs-x-runner", mode: "a2a", name: "Runner X", url: "https://registry.test/agent/packs/x/runner/" },
   ];
-  const rosterPresetId = (id) => (id === "agent-runner-x" ? "packs-x-runner" : id);
-  assert.equal(runnerEntryFor({ preset: "packs-x-runner" }, { listAgents: () => agents, rosterPresetId })?.id, "agent-runner-x");
-  assert.equal(runnerEntryFor({ preset: "no-such" }, { listAgents: () => agents, rosterPresetId }), null);
+  const job = { id: "job_t1", preset: "runner" };
+  assert.equal(runnerEntryFor(job, { listAgents: () => agents, rosterPresetId })?.id, "registry-packs-x-runner", "path tail (agent key) matches the persona key");
+  assert.equal(runnerEntryFor({ id: "job_t2", preset: "no-such" }, { listAgents: () => agents, rosterPresetId }), null, "no entry → null (runner-no-entry at the caller)");
+});
+
+test("runnerEntryFor: cross-pack same agent key → ambiguous fail-open, never a guess", () => {
+  const rosterPresetId = (id) => String(id ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const agents = [
+    { id: "registry-packs-aaa-reception", mode: "a2a", url: "https://registry.test/agent/packs/aaa/reception/" },
+    { id: "registry-packs-bbb-reception", mode: "a2a", url: "https://registry.test/agent/packs/bbb/reception/" },
+  ];
+  const job = { id: "job_t3", preset: "reception" };
+  assert.equal(runnerEntryFor(job, { listAgents: () => agents, rosterPresetId }), null, "ambiguous → null");
+  assert.equal(job.carrierFallback, "runner-ambiguous", "the reason is recorded on the job");
+});
+
+test("runnerEntryFor: a raw path field wins over the url parse", () => {
+  const rosterPresetId = (id) => String(id ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const agents = [
+    { id: "registry-legacy", mode: "a2a", path: "/packs/p/keeper/", url: "https://registry.test/agent/some/other/" },
+  ];
+  assert.equal(runnerEntryFor({ id: "job_t4", preset: "keeper" }, { listAgents: () => agents, rosterPresetId })?.id, "registry-legacy");
 });
 
 // ── ③ claim gate + admission cap at the pool level ───────────────────────────

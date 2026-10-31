@@ -51,15 +51,41 @@ export function resolveTaskCarrier(job, { db = null } = {}) {
   return "auto";
 }
 
-// The runner route (add-fleet-carrier D2): a runner-deployed persona appears
-// in the catalog as an a2a entry whose roster preset matches the task's. Found
-// → the remote executor with the entry's agent id; not found → null (the
-// caller fails open to the primary chain with a recorded reason).
+// The runner route (add-fleet-carrier D2; matching REWRITTEN by
+// add-runner-route-key-match): a runner-deployed persona appears in the
+// catalog as an a2a entry whose DEPLOYED AGENT KEY matches the task's persona
+// roster key — the agent key is the registry path's last segment
+// (/packs/<packId>/<agentKey>), the same namespace member personas are keyed
+// in. Matching by entry id CANNOT work: the registry bridge always prefixes
+// catalog ids with "registry-" (mapAgent), so an id never equals a bare
+// roster key (活体取证 2026-11-01: chat∩a2a same-id = empty over all 84
+// catalog agents). Not found OR ambiguous (≥2 entries sharing the agent key
+// across packs — e.g. "reception" ×3) → null; the caller fails open to the
+// primary chain with the recorded reason (runner-no-entry / runner-ambiguous).
 export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null } = {}) {
   if (!job?.preset) return null;
   const agents = (listAgents ?? catalog.listAgents)();
   const roster = rosterPresetId ?? dshProfile.rosterPresetId;
-  return agents.find((a) => a?.mode === "a2a" && roster(a.id) === job.preset) ?? null;
+  // The catalog entry carries the route only inside its url
+  // ({REGISTRY_URL}/agent{path}/); a raw path field wins when present.
+  const agentPathOf = (a) => {
+    if (typeof a?.path === "string" && a.path.trim()) return a.path;
+    if (typeof a?.url !== "string") return null;
+    const m = a.url.match(/\/agent(\/[^?#]*)\/?$/);
+    return m ? m[1] : null;
+  };
+  const agentKeyOf = (a) => {
+    const segs = (agentPathOf(a) ?? "").split("/").filter(Boolean);
+    const key = segs[segs.length - 1] ?? "";
+    return key ? roster(key) : null;
+  };
+  const hits = agents.filter((a) => a?.mode === "a2a" && agentKeyOf(a) === job.preset);
+  if (hits.length === 1) return hits[0];
+  if (hits.length > 1) {
+    console.warn(`[fleets] carrier runner for ${job.id}: ${hits.length} a2a entries share the agent key '${job.preset}' (${hits.map((h) => agentPathOf(h) ?? h.id).join(", ")}) — failing open (runner-ambiguous)`);
+    job.carrierFallback = "runner-ambiguous";
+  }
+  return null;
 }
 
 const IDLE_POLL_MS = 250;
@@ -1242,10 +1268,13 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       let personaExecutorUsed = personaExecutor;
       const carrier = resolveTaskCarrier(job);
       if (carrier === "runner") {
+        delete job.carrierFallback; // fresh per turn — cron task records persist across fires
         const entry = runnerEntryFor(job, { listAgents: listAgentsFn });
         if (entry) {
           personaJob = { ...job, preset: entry.id, targetType: "a2a" };
           personaExecutorUsed = a2aExecutor;
+        } else if (job.carrierFallback === "runner-ambiguous") {
+          console.warn(`[fleets] carrier runner for ${job.id}: ambiguous a2a entries for '${job.preset}' — failing open to the primary chain`);
         } else {
           console.warn(`[fleets] carrier runner for ${job.id}: no a2a entry for '${job.preset}' — failing open to the primary chain`);
           job.carrierFallback = "runner-no-entry";

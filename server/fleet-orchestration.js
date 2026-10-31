@@ -25,12 +25,16 @@ function num(v, fallback) {
 }
 
 // Normalize constraints with defaults filled.
+export const CARRIERS = ["auto", "cell", "worker", "runner"];
 export function constraintsOf(orchestration) {
   const c = orchestration?.constraints ?? {};
   return {
     maxChainDepth: num(c.maxChainDepth, DEFAULT_MAX_CHAIN_DEPTH),
     spanMax: num(c.spanMax, DEFAULT_SPAN_MAX),
     budgetPerEdgeMin: num(c.budgetPerEdgeMin, DEFAULT_BUDGET_PER_EDGE_MIN),
+    // Turn carrier (add-fleet-carrier): the fleet-level default placement —
+    // null = unset (resolution falls through to the deployment default/auto).
+    carrier: CARRIERS.includes(c.carrier) ? c.carrier : null,
   };
 }
 
@@ -73,6 +77,9 @@ export function validateOrchestration({ members = [], orchestration = null } = {
   }
   if (orchestration.constraints?.maxChainDepth > 32) {
     errors.push({ error: "constraints.maxChainDepth must not exceed 32" });
+  }
+  if (orchestration.constraints?.carrier != null && !CARRIERS.includes(orchestration.constraints.carrier)) {
+    errors.push({ error: `constraints.carrier must be one of ${CARRIERS.join("|")}` });
   }
 
   const known = new Set(members.map((m) => m.id));

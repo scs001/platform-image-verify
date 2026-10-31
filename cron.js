@@ -393,6 +393,7 @@ async function addJob({
   targetAgents,
   sourceTag,
   projectId,
+  carrier,
   // add-cron-automation-parity: the two new schedule forms + the finite cap.
   delayMinutes,
   interval,
@@ -484,6 +485,10 @@ async function addJob({
     // tool posts (add-tool-posts): preset is the "server::tool" target — a
     // deterministic MCP call, no dsh runtime.
     targetType: isClusterTask ? "cluster" : agent ? "a2a" : tool ? "tool" : "persona",
+    // Turn carrier (add-fleet-carrier): the placement dimension rides the task
+    // — cell | worker | runner | auto (null = unset → auto). Dispatch and the
+    // remote router read it; the engine never invents values.
+    carrier: carrier ?? null,
     ...(isClusterTask
       ? {
           clusterId,
@@ -535,7 +540,7 @@ async function updateJob(id, changes = {}) {
     throw new Error("only schedule tasks can be updated in place");
   }
 
-  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns } = changes;
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns, carrier } = changes;
 
   if (cron !== undefined) {
     if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
@@ -604,6 +609,9 @@ async function updateJob(id, changes = {}) {
     if ((task.runs ?? 0) >= maxRuns) task.status = "completed";
   }
   if (prompt !== undefined) task.prompt = prompt;
+  // Turn carrier (add-fleet-carrier): placement-only drift — the task id, its
+  // bound session and execution history survive (换身体不换会话).
+  if (carrier !== undefined) task.carrier = carrier ?? null;
   if (tz !== undefined) task.tz = tz || null;
   if (sessionTitle !== undefined) task.sessionTitle = sessionTitle || null;
   if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null;

@@ -80,6 +80,10 @@ function saveTasks() {
       prompt: t.prompt,
       preset: t.preset ?? null,
       targetType: t.targetType ?? "persona",
+      // Turn carrier (add-fleet-carrier): the placement config persists with
+      // the task (contrast: executionCarrier stays transient — that one is the
+      // ACTUAL body, this one is the CONFIGURED wish).
+      carrier: t.carrier ?? null,
       // Turn metering (add-turn-metering): the enqueue stamp survives a restart
       // so a queued-across-boot task still reports its true wait. executionCarrier
       // stays transient (re-derived at enqueue — restart re-queues nothing in
@@ -264,7 +268,7 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null }) {
+function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null, carrier = null }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // Exactly one target flavor: a cell persona, a market a2a agent, or a tool
@@ -281,6 +285,7 @@ function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiato
     prompt,
     preset: persona ?? agent ?? tool ?? null,
     targetType: agent ? "a2a" : tool ? "tool" : "persona",
+    carrier: carrier ?? null,
     sessionId: `task-${id}`,
     sessionTitle: sessionTitle || null,
     tz: null,
@@ -299,6 +304,9 @@ function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiato
     // the persona the conversation ran under (the aggregator restores it).
     initiator: initiator ?? null,
     initiatorPreset: initiatorPreset ?? null,
+    // Origin chain (dispatch/handoff/fanout) rides the task so the fleet
+    // admission gate can count per-fleet in-flight (add-fleet-carrier D4).
+    sourceTag: origin?.fleet?.fleetId ? { fleetId: origin.fleet.fleetId, memberId: origin.fleet.memberId ?? null } : null,
     // Creating front-end tag (the MC bridge's idempotency key); persisted,
     // never exposed on the wire.
     origin: origin ?? null,

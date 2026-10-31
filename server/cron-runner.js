@@ -23,6 +23,44 @@ import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 import { classifyErrorKind } from "./fleet-events.js";
 import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
 import { classifyPresetSetError } from "../dsh-bridge.js";
+import { getFleetDatabase } from "./routes/fleets-db.js";
+
+// ── Turn carrier (add-fleet-carrier) ─────────────────────────────────────────
+//
+// The placement dimension, resolved per turn: member.carrier → fleet
+// constraints.carrier → CELL_CARRIER_DEFAULT → "auto". Two small sqlite reads
+// (local db, µs) — no cache to drift. Exported for tests (the db is injectable).
+export function resolveTaskCarrier(job, { db = null } = {}) {
+  const wanted = String(job?.carrier ?? "").trim();
+  if (wanted === "cell" || wanted === "worker" || wanted === "runner") return wanted;
+  const fleetId = job?.sourceTag?.fleetId ?? null;
+  if (fleetId) {
+    try {
+      const fdb = db ?? getFleetDatabase();
+      // member layer (the live row — covers the reconcile drift window where
+      // the task still carries the old materialized value)
+      const member = fdb?.getMember?.(job?.sourceTag?.memberId);
+      if (["cell", "worker", "runner"].includes(member?.carrier)) return member.carrier;
+      const fleet = fdb?.getFleet?.(fleetId);
+      const fc = fleet?.orchestration?.constraints?.carrier;
+      if (fc === "cell" || fc === "worker" || fc === "runner") return fc;
+    } catch { /* degrade to auto */ }
+  }
+  const envDefault = String(process.env.CELL_CARRIER_DEFAULT ?? "").trim();
+  if (envDefault === "cell" || envDefault === "worker" || envDefault === "runner") return envDefault;
+  return "auto";
+}
+
+// The runner route (add-fleet-carrier D2): a runner-deployed persona appears
+// in the catalog as an a2a entry whose roster preset matches the task's. Found
+// → the remote executor with the entry's agent id; not found → null (the
+// caller fails open to the primary chain with a recorded reason).
+export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null } = {}) {
+  if (!job?.preset) return null;
+  const agents = (listAgents ?? catalog.listAgents)();
+  const roster = rosterPresetId ?? dshProfile.rosterPresetId;
+  return agents.find((a) => a?.mode === "a2a" && roster(a.id) === job.preset) ?? null;
+}
 
 const IDLE_POLL_MS = 250;
 // Monotonic round sequence (unique rotated child ids even within one ms).
@@ -1168,7 +1206,31 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       // here; the event seam records it null.
       out = await toolExecutor(ctx, job, timeoutMs);
     } else {
-      out = await personaExecutor(ctx, job, timeoutMs, activeTurns, { startedAt });
+      // Turn carrier routing (add-fleet-carrier): runner → the remote executor
+      // via the catalog's a2a entry; anything else stays on the primary chain.
+      // Fail-open by contract — a runner declaration without a deployment (or
+      // an unreachable entry) runs the turn on the primary chain with a
+      // recorded carrierFallback, never a refused round.
+      let personaJob = job;
+      let personaExecutorUsed = personaExecutor;
+      const carrier = resolveTaskCarrier(job);
+      if (carrier === "runner") {
+        const entry = runnerEntryFor(job, { listAgents: listAgentsFn });
+        if (entry) {
+          personaJob = { ...job, preset: entry.id, targetType: "a2a" };
+          personaExecutorUsed = a2aExecutor;
+        } else {
+          console.warn(`[fleets] carrier runner for ${job.id}: no a2a entry for '${job.preset}' — failing open to the primary chain`);
+          job.carrierFallback = "runner-no-entry";
+        }
+      } else if (carrier === "worker" && (!ctx.workerPool || !ctx.workerPool.cap)) {
+        console.warn(`[fleets] carrier worker for ${job.id}: worker pool inactive — failing open to the primary chain`);
+        job.carrierFallback = "worker-pool-inactive";
+      }
+      out = await personaExecutorUsed(ctx, personaJob, timeoutMs, activeTurns, { startedAt });
+      if (job.carrierFallback) {
+        out = { ...out, detail: { ...(out?.detail ?? {}), carrierFallback: job.carrierFallback } };
+      }
     }
 
     try {

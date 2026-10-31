@@ -20,7 +20,7 @@ import {
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs, staleWindowMs } from "../fleet-reconcile.js";
-import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf } from "../fleet-orchestration.js";
+import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf, CARRIERS } from "../fleet-orchestration.js";
 import { validateFleetDraft, applyFleetDraft } from "../fleet-architect.js";
 import { splitToolTarget } from "../tool-turn.js";
 import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
@@ -432,6 +432,21 @@ export function createFleetRoutes(app, ctx = null) {
   const modelRoster = () => (Array.isArray(ctx?.dshModels) ? ctx.dshModels.map((m) => m.id) : null);
   const modelCtx = () => ({ roster: modelRoster(), cellDefault: ctx?.bootModel?.id ?? null });
 
+  // In-flight fleet turns (fix-parked-preset-attribution D1): the run ledger's
+  // open turns name the post each turn executes, whatever its target kind. This
+  // is the signal that survives persona parking — a parked round mounts its
+  // persona on the SESSION and deliberately leaves the runtime's deployment
+  // default alone, so attribution MUST NOT read `ctx.currentPreset` for it.
+  // Absent ledger (tests, desktop without fleet runs) → empty, and attribution
+  // falls back to the running-task scan exactly as before.
+  const openTurns = () => {
+    try {
+      return ctx?.fleetTurnLedger?.openTurns?.() ?? [];
+    } catch {
+      return []; // degrade open: attribution must never fail on a ledger hiccup
+    }
+  };
+
   // A per-request target resolver: a roster read resolves one target per
   // member across every fleet, and the default resolver re-merges the catalog
   // each time (~30ms × 60 members ≈ 1.8s of blocked event loop — long enough
@@ -563,6 +578,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -938,6 +954,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -1543,6 +1560,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -1716,6 +1734,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -1774,6 +1793,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -1868,6 +1888,7 @@ export function createFleetRoutes(app, ctx = null) {
       const attribution = resolveAttribution({
         currentPreset: ctx?.currentPreset ?? null,
         runningTasks: cron.listJobs(),
+        openTurns: openTurns(),
         personaMembers,
         rosterPresetId,
       });
@@ -2735,6 +2756,12 @@ export function createFleetRoutes(app, ctx = null) {
       if (dims.error) return res.status(400).json({ error: dims.error });
       if (effort !== undefined) updates.effort = dims.effort;
       if (contextBudget !== undefined) updates.contextBudget = dims.contextBudget;
+      if (carrier !== undefined) {
+        if (carrier !== null && !CARRIERS.includes(carrier)) {
+          return res.status(400).json({ error: `carrier must be one of ${CARRIERS.join("|")} or null` });
+        }
+        updates.carrier = carrier ?? null;
+      }
 
       const updated = db.updateMember(member.id, updates);
       const reconcile = await runReconcile(fleet.id);

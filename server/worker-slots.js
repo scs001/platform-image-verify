@@ -114,6 +114,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   // switch (the worker IS its persona) and minus the primary bridge.
   async function runOnWorker(worker, task, { turnTimeoutMs }) {
     const sessionId = task.sessionId;
+    worker.currentFleet = task.sourceTag?.fleetId ?? null;
     worker.currentSession = sessionId;
     worker.lastUsedAt = Date.now();
     chatHistory.recordMessage(sessionId, "user", task.prompt);
@@ -149,6 +150,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       await engine.beginExecution(id, (task, opts) => runOnWorker(worker, task, opts));
     } finally {
       worker.busy = false;
+      worker.currentFleet = null;
       worker.lastUsedAt = Date.now();
       emitPoolState();
       scheduleNext();
@@ -160,13 +162,32 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   // check must hold before the async spawn lands the worker in the set, or
   // two simultaneous due tasks both see room for themselves.
   let spawning = 0;
+  // Fleet admission gate (add-fleet-carrier): per-fleet in-flight ceiling —
+  // the fleet dimension of "agents decide, platform caps". Queued, never
+  // failed or preempted; a slot release lets the FIFO proceed. Remote turns
+  // are NOT counted (runner-side budget governs those).
+  // The spawn→runTaskOn gap is async — a fleet's second task could slip past
+  // the gate while the first worker is still materializing. pendingFleets
+  // bridges it: incremented SYNCHRONOUSLY at claim time, decremented once the
+  // worker records its currentFleet.
+  const pendingFleets = new Map();
+  function fleetInFlight(fleetId) {
+    if (!fleetId) return 0;
+    return [...workers].filter((w) => w.busy && w.currentFleet === fleetId).length + (pendingFleets.get(fleetId) ?? 0);
+  }
   function scheduleNext() {
+    const fleetCap = (() => {
+      const n = Number(process.env.FLEET_MAX_INFLIGHT);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 4;
+    })();
     while (waiting.length) {
       const idx = waiting.findIndex((id) => {
         const t = engine.getRecord(id);
         if (!t || t.paused || t.status === "expired" || t.status === "completed") return false;
         const persona = t.preset;
         if (!persona) return false;
+        const fleetId = t.sourceTag?.fleetId ?? null;
+        if (fleetId && fleetInFlight(fleetId) >= fleetCap) return false; // admission gate: stay queued
         if ([...workers].some((w) => !w.busy && w.persona === persona)) return true;
         return workers.size + spawning < cap;
       });
@@ -177,14 +198,30 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       const persona = task.preset;
       const idle = [...workers].find((w) => !w.busy && w.persona === persona);
       if (idle) {
-        void runTaskOn(idle, id);
+        const idleFleetId = task.sourceTag?.fleetId ?? null;
+        if (idleFleetId) pendingFleets.set(idleFleetId, (pendingFleets.get(idleFleetId) ?? 0) + 1);
+        const p = runTaskOn(idle, id);
+        if (idleFleetId) {
+          const left = (pendingFleets.get(idleFleetId) ?? 1) - 1;
+          if (left <= 0) pendingFleets.delete(idleFleetId);
+          else pendingFleets.set(idleFleetId, left);
+        }
+        void p;
         continue;
       }
       spawning++;
+      const spawnFleetId = task.sourceTag?.fleetId ?? null;
+      if (spawnFleetId) pendingFleets.set(spawnFleetId, (pendingFleets.get(spawnFleetId) ?? 0) + 1);
       spawnWorker(persona)
         .then((w) => {
           spawning--;
-          return runTaskOn(w, id);
+          const p = runTaskOn(w, id);
+          if (spawnFleetId) {
+            const left = (pendingFleets.get(spawnFleetId) ?? 1) - 1;
+            if (left <= 0) pendingFleets.delete(spawnFleetId);
+            else pendingFleets.set(spawnFleetId, left);
+          }
+          return p;
         })
         .catch((err) => {
           spawning--;
@@ -199,6 +236,12 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   function dispatcher(task) {
     if (!task) return false;
     if (task.trigger !== "manual" && task.trigger !== "schedule") return false;
+    // Carrier gate (add-fleet-carrier): the CONFIGURED placement decides
+    // claim eligibility — cell tasks stay on the primary chain, runner tasks
+    // route through the remote executor; only worker/auto tasks are claimed.
+    // auto = today's behavior (claim when the pool is active).
+    const carrier = task.carrier ?? "auto";
+    if (carrier === "cell" || carrier === "runner") return false;
     // a2a targets are remote turns (add-agent-delegation-a2a) — no persona to
     // pin; they ride the primary chain's remote executor.
     if (task.targetType === "a2a") return false;

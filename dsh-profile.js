@@ -1177,6 +1177,40 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     else console.warn(`[dsh-profile] skipping MCP server "${name}": unknown config shape`);
   }
 
+  // Per-preset tool faces (fix-parked-preset-attribution D2): the filter doc
+  // gains a `byPreset` section for every installed pack persona, so a session
+  // created with THAT preset resolves its own allowlist instead of the
+  // deployment default's. This is what makes a PARKED round hold its own tool
+  // face: the cell writes one MCP patch per boot for the deployment default
+  // (parking deliberately does not move it), and without per-preset sections
+  // `applyMcpToolRestrict(agentCtx, presetId)` falls back to the whole-home
+  // map — i.e. the default persona's face. Same shape the pod adapter already
+  // writes (agent-runner/compose.js), so the reader is unchanged.
+  async function packPersonaToolFaces() {
+    let faces = null;
+    try {
+      const db = await import("./db.js");
+      if (!db.isDbReady()) return null;
+      const byPreset = {};
+      for (const installed of db.listInstalledPacks()) {
+        for (const agent of installed.manifest?.agents ?? []) {
+          if (!agent?.id) continue;
+          const tools = effectiveMcpTools(installed.manifest, agent);
+          if (!Object.keys(tools).length) continue;
+          const presetId = rosterPresetId(agent.id);
+          byPreset[presetId] = { mcpTools: { ...(byPreset[presetId]?.mcpTools ?? {}), ...tools } };
+        }
+      }
+      if (Object.keys(byPreset).length) faces = { byPreset };
+    } catch (e) {
+      // Degrade open: an unreadable installed-pack set leaves the doc as it was
+      // (no per-preset sections ⇒ every preset reads the whole-home map).
+      console.warn(`[dsh-profile] per-preset tool faces unavailable: ${e?.message || e}`);
+    }
+    return faces;
+  }
+
+
   // Cell memory mount (add-memory-federation-v1): appended after the user's
   // own servers; fail-open — any failure leaves the patch without the row.
   const memoryMount = await cellMemoryMount(process.env, ownerEmail);
@@ -1197,9 +1231,14 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // reads the deployment's own project files, the second ENUMERATES the
   // internal tool names (the walkthrough caught "wire-ops" that way). Absent
   // declaration ⇒ nothing denied (byte-for-byte pre-change composition).
-  writeToolFilterPatch(capByOperatorFace(scope.mcpTools, Object.keys(servers)), {
-    denyTools: scope.publicFacing ? PUBLIC_FACING_DENIED_TOOLS : null,
-  });
+  const personaFaces = await packPersonaToolFaces();
+  writeToolFilterPatch(
+    {
+      mcpTools: capByOperatorFace(scope.mcpTools, Object.keys(servers)),
+      ...(personaFaces ?? {}),
+    },
+    { denyTools: scope.publicFacing ? PUBLIC_FACING_DENIED_TOOLS : null },
+  );
 
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
   // probe of every http entry with the exact URL+headers the patch carries —

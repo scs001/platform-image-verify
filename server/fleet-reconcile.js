@@ -70,6 +70,9 @@ export function materializedSpec({ fleet, member, rosterPresetId = (id) => id, c
     prompt: member.cadence.promptTemplate,
     sessionTitle: `${fleet.name} · ${member.title}`,
     sourceTag: { fleetId: fleet.id, memberId: member.id },
+    // Turn carrier (add-fleet-carrier): the member's placement rides the task
+    // so the dispatch face resolves per task. Null = unset → auto.
+    carrier: member.carrier ?? null,
   };
   if (member.targetKind === "cluster") {
     return { ...base, clusterId: member.targetId, ...(clusterName ? { clusterName } : {}) };
@@ -93,6 +96,9 @@ export function materializedSpec({ fleet, member, rosterPresetId = (id) => id, c
 export function specDrift(task, spec) {
   const changes = {};
   if ((task.cron ?? null) !== (spec.cron ?? null)) changes.cron = spec.cron;
+  // Carrier drift (add-fleet-carrier): placement-only change — the task id,
+  // bound session and execution history stay put (换身体不换会话).
+  if ((task.carrier ?? null) !== (spec.carrier ?? null)) changes.carrier = spec.carrier;
   if ((task.tz ?? null) !== (spec.tz ?? null)) changes.tz = spec.tz;
   if ((task.prompt ?? null) !== (spec.prompt ?? null)) changes.prompt = spec.prompt;
   if ((task.sessionTitle ?? null) !== (spec.sessionTitle ?? null)) changes.sessionTitle = spec.sessionTitle;

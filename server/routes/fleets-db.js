@@ -226,6 +226,10 @@ export function createFleetDatabase({ file } = {}) {
   for (const col of [
     "ALTER TABLE fleet_members ADD COLUMN effort TEXT",
     "ALTER TABLE fleet_members ADD COLUMN context_budget INTEGER",
+    // Turn carrier (add-fleet-carrier): the member's placement dimension —
+    // cell | worker | runner | auto (null = unset). Null reads as unset so the
+    // three-layer resolution falls through to fleet/deployment/auto.
+    "ALTER TABLE fleet_members ADD COLUMN carrier TEXT",
     "ALTER TABLE fleets ADD COLUMN effort TEXT",
     "ALTER TABLE fleets ADD COLUMN context_budget INTEGER",
   ]) {
@@ -549,8 +553,8 @@ export function createFleetDatabase({ file } = {}) {
   function createMember(member) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, effort, context_budget, sort_key, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, effort, context_budget, carrier, sort_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       member.id,
       member.fleetId,
@@ -564,6 +568,7 @@ export function createFleetDatabase({ file } = {}) {
       member.fallbackModel ?? null,
       member.effort ?? null,
       Number.isFinite(member.contextBudget) ? member.contextBudget : null,
+      member.carrier ?? null,
       Number.isFinite(member.sortKey) ? member.sortKey : now,
       now,
       now,
@@ -597,6 +602,7 @@ export function createFleetDatabase({ file } = {}) {
       fallbackModel: "fallback_model",
       effort: "effort",
       contextBudget: "context_budget",
+      carrier: "carrier",
     };
     const setParts = [];
     const values = [];
@@ -1791,6 +1797,7 @@ function deserializeMember(row) {
     fallbackModel: row.fallback_model ?? null,
     effort: row.effort ?? null,
     contextBudget: row.context_budget ?? null,
+    carrier: row.carrier ?? null,
     sortKey: row.sort_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

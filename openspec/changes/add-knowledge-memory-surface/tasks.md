@@ -14,7 +14,7 @@
 
 - [x] 3.1 `server/blueprint-validate.js` 接受 `dataSources[].ref = library:<collectionId>` 第三引用种类，校验作者在见性，悬空/不可见指名拒绝；蓝图文具面（blueprint-author 纪律文本）同步枚举合法引用种类；单测三例（合法/悬空/他人集合）
 - [ ] 3.2（**工具层机制已落**：`LIBRARY_COLLECTIONS` 白名单=所钉集合∪shared，e2e 覆盖；**实化编译挂账**：assembleManifest 有意不携带 dataSources（包不携带库内容），pin 需经部署描述符传递=扩包 manifest/部署契约，跨仓决策待拍）实化链把库引用编译为成员车道过滤参数（铸造作者侧解析、产物固化部署账号内 collection id），未钉库成员不获访问；回归=既有铸造→实化合同套全绿 + 新增钉库成员车道断言
-- [ ] 3.3（**UI 已落**：dataSources 段选库下拉（本人集合、library:<id> 一键钉）+ fromCollection 深链种子；**试跑闭环挂账**：钉库蓝图试跑→绿报告断言未走，依赖 3.2 实化编译）构造间 UI：dataSources 段提供选库（本人集合下拉）+ 引用可见性标记；试跑沿用同边界；真机或 e2e 走一条"钉库蓝图试跑→绿报告含库断言"
+- [ ] 3.3（**UI 已落且真机眼见**（2026-10-31 §15.113）：集合行「用它造 agent」→ 构造间 `library:<id>` 预填+选库下拉解析集合名（t8b 截图）；走查揪出种子盖进已打开蓝图真缺陷 → 改新草稿骨架+handoffSeededRef 闸 auto-open（27e35353）；**试跑闭环挂账**：钉库蓝图试跑→绿报告断言未走，依赖 3.2 实化编译）构造间 UI：dataSources 段提供选库（本人集合下拉）+ 引用可见性标记；试跑沿用同边界；真机或 e2e 走一条"钉库蓝图试跑→绿报告含库断言"
 
 ## 4. 展示三件（D1/D2/D3）
 
@@ -26,4 +26,4 @@
 
 - [x] 5.1 i18n：族名/漏斗/直链新键五语言齐，跑 locale 完整性门绿
 - [x] 5.2 全量回归：`test:unit` + fleet/blueprint/documents 合同套 + e2e（2.1/2.3/3.3 新增条）绿；`openspec validate` 绿
-- [ ] 5.3 真机走查挂账：滚版后在产 fleet 房间实测库调用与边界（引用台账格式登记 docs/registry-maintenance.md 相应节）
+- [ ] 5.3 真机走查挂账：滚版后在产 fleet 房间实测库调用与边界（引用台账格式登记 docs/registry-maintenance.md 相应节）（**2026-10-31 部分眼见 §15.113**：cell profile 挂载实证（library+cron 在 mcp.patch.yml）+ 蓝图钉库三态生产探针（悬空按名拒/格式错拒/真 ref 零库错）+ 记忆漏斗 L0/L1/L2 真机眼见；**房间内 agent 实调 library_* 待真机班**）

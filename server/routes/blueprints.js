@@ -18,6 +18,7 @@ import {
 } from "../blueprint-validate.js";
 import { resolvePackReferences } from "../pack-manifest-source.js";
 import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
+import { SELF_REF_RE } from "../blueprint-validate.js";
 import { resolveJudgeLane } from "../blueprint-judge.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，
@@ -315,7 +316,23 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
       Boolean(blueprint.castPackId) &&
       Array.isArray(blueprint.trialReport?.errors) &&
       blueprint.trialReport.errors.some((e) => /Pack (version )?not found/i.test(String(e)));
-    if (blueprint.status !== "approved" && !reseal && !pointerStale) {
+    // 首铸自引用自愈（2026-10-31 全链走查实录）：首铸时 castPackId 尚不存在，
+    // {{PACK_ID:self}} 解析不出就原样封进 v1 manifest——试跑舰队成员 preset 解析
+    // 不出（target 空），回合不起、判红，且报告不带 Pack-not-found（pointerStale
+    // 救不了）→ 死锁。故：铸出物 manifest 仍带未解析 self 占位时允许铸造态再铸
+    // （第二铸 selfPackId 已知，占位补齐），批准人本人纪律不变。判据读市场铸出物
+    // 本身（精确、不误伤 pointerStale/reseal 的负例）。
+    let selfPendingFirstCast = false;
+    if (
+      blueprint.status === "cast" &&
+      blueprint.castPackId &&
+      blueprint.approvedBy === user.email &&
+      typeof publisher.getPack === "function"
+    ) {
+      const castPack = await publisher.getPack({ packId: blueprint.castPackId, user });
+      selfPendingFirstCast = Boolean(castPack?.manifest && JSON.stringify(castPack.manifest).includes("{{PACK_ID:self}}"));
+    }
+    if (blueprint.status !== "approved" && !reseal && !pointerStale && !selfPendingFirstCast) {
       return res.status(409).json({ error: `blueprint is '${blueprint.status}' — approval must come first` });
     }
     if (blueprint.approvedBy !== user.email) {

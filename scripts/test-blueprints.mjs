@@ -861,6 +861,69 @@ test("铸造前置闸：报告被陈旧指针错误覆盖（无签字）时仍�
   }
 });
 
+test("铸造前置闸：首铸自引用未解析（铸出物带 {{PACK_ID:self}}）时放行再铸补齐；已解析则照旧 409", async () => {
+  let seq = 0;
+  const manifests = {};
+  const publishClient = {
+    async publish(args) {
+      seq += 1;
+      const pid = `pk_${seq}`;
+      manifests[pid] = args.manifest;
+      return { ok: true, packId: pid, version: 1, body: {} };
+    },
+    async getPack({ packId }) {
+      const manifest = manifests[packId];
+      if (!manifest) return null;
+      return { manifest };
+    },
+  };
+  const store = createBlueprintDatabase({ file: path.join(mkdtempSync(path.join(tmp, "db-")), "blueprints.db") });
+  const app = express();
+  app.use(express.json({ limit: "1mb" }));
+  app.use((req, _res, next) => {
+    const email = req.headers["x-test-user"];
+    req.user = typeof email === "string" && email ? { email, groups: [] } : null;
+    next();
+  });
+  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver: async () => ({}) });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+        const selfContent = {
+      ...JSON.parse(JSON.stringify(VALID_CONTENT)),
+      agents: [{ id: "walkthrough-reader", name: "走查读库岗", persona: "你是走查读库岗。" }],
+      fleet: {
+        name: "首铸自引用",
+        members: [
+          {
+            ref: "reader",
+            title: "走查读库岗",
+            parentRef: null,
+            target: { kind: "pack-preset", packId: "{{PACK_ID:self}}", presetId: "walkthrough-reader" },
+            kpiSlots: [],
+            cadence: { cron: "*/5 * * * *", tz: "Asia/Shanghai", promptTemplate: "巡检并报数。", enabled: true },
+          },
+        ],
+      },
+    };
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: selfContent }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    // 首铸：castPackId 尚不存在 → self 占位原样进 manifest（stub 直接体现为 publish 收到的 manifest）
+    const first = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(first.cast.selfPending, true, "首铸自引用必须如实报 selfPending");
+    // 铸出物带未解析占位 → 再铸放行（第二铸补齐）
+    const second = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(second.blueprint.castPackId, "pk_2", "首铸自引用未解析时允许铸造态再铸");
+    // 已解析（第二铸 manifest 无占位）→ 照旧 409 不放水
+    const denied = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+    assert.equal(denied.status, 409, "占位已补齐后不得无限再铸");
+  } finally {
+    await close(server);
+  }
+});
+
 // 自愈第三刀（2026-10-30 真机实录）：旧 id 失效时重建会撞「同名包已存在」409——
 // 本蓝图自己的活包仍占着名（改名流程早发出新 id，只是指针没跟上）。正解=认回同名
 // 活包在其下发新版；认回必须先证 provenance（manifest._casting.blueprintId 等于本

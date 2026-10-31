@@ -361,6 +361,9 @@ export function createFleetDatabase({ file } = {}) {
     "queue_wait_ms INTEGER",
     "spin_up_ms INTEGER",
     "ttft_ms INTEGER",
+    // Turn pricing (add-turn-pricing): the price-table version stamp only —
+    // money lives on the DAILY row (D4a: estimates never impersonate billing).
+    "pricing_at INTEGER",
   ]) {
     try {
       db.exec(`ALTER TABLE member_turn_events ADD COLUMN ${col}`);
@@ -402,6 +405,15 @@ export function createFleetDatabase({ file } = {}) {
     ttft_ms_max INTEGER,
     spin_up_ms_sum INTEGER NOT NULL DEFAULT 0,
     spin_up_ms_max INTEGER,
+    -- Turn pricing estimates (add-turn-pricing): USD REAL, accumulated per
+    -- turn at the TURN-TIME price (a same-day price change never re-prices
+    -- history). Only PRICED turns contribute — the turns counter includes
+    -- everything, so the priced-sample size reads from pricing_at non-null.
+    cost_input_usd REAL NOT NULL DEFAULT 0,
+    cost_output_usd REAL NOT NULL DEFAULT 0,
+    cost_cache_write_usd REAL NOT NULL DEFAULT 0,
+    cost_cache_read_usd REAL NOT NULL DEFAULT 0,
+    pricing_at INTEGER,
     updated_at INTEGER NOT NULL,
     UNIQUE(fleet_id, member_id, carrier, provider, model, day)
   )`);
@@ -998,6 +1010,7 @@ export function createFleetDatabase({ file } = {}) {
     // shape so the EVENT itself never regresses — the metering columns and the
     // daily rollup skip for this row, and a throttled warn surfaces the drift.
     const m = event.metering ?? {};
+    const pricing = event.pricing ?? null;
     const meteringArgs = [
       m.presetId ?? null,
       m.presetSource ?? null,
@@ -1022,10 +1035,10 @@ export function createFleetDatabase({ file } = {}) {
           INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
                                           turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail,
                                           preset_id, preset_source, provider, effort, carrier, carrier_instance, lane_id, depth, wave,
-                                          usage_cached_input, usage_cache_write, usage_reasoning, queue_wait_ms, spin_up_ms, ttft_ms)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          usage_cached_input, usage_cache_write, usage_reasoning, queue_wait_ms, spin_up_ms, ttft_ms, pricing_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
-        .run(...base, ...meteringArgs);
+        .run(...base, ...meteringArgs, Number.isFinite(pricing?.pricingAt) ? pricing.pricingAt : null);
     } catch (e) {
       meteringWarnOnce(`metering columns unavailable, legacy event shape (${e.message})`);
       out = db
@@ -1053,9 +1066,10 @@ export function createFleetDatabase({ file } = {}) {
           fleet_id, member_id, carrier, provider, model, day,
           turns, ok_count, failed_count, skipped_count,
           usage_input, usage_cached_input, usage_cache_write, usage_reasoning, usage_output,
-          queue_wait_ms_sum, queue_wait_ms_max, ttft_ms_sum, ttft_ms_max, spin_up_ms_sum, spin_up_ms_max, updated_at
+          queue_wait_ms_sum, queue_wait_ms_max, ttft_ms_sum, ttft_ms_max, spin_up_ms_sum, spin_up_ms_max,
+          cost_input_usd, cost_output_usd, cost_cache_write_usd, cost_cache_read_usd, pricing_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fleet_id, member_id, carrier, provider, model, day) DO UPDATE SET
           turns = turns + 1,
           ok_count = ok_count + excluded.ok_count,
@@ -1075,6 +1089,11 @@ export function createFleetDatabase({ file } = {}) {
           spin_up_ms_sum = spin_up_ms_sum + excluded.spin_up_ms_sum,
           spin_up_ms_max = CASE WHEN excluded.spin_up_ms_max IS NOT NULL AND (spin_up_ms_max IS NULL OR excluded.spin_up_ms_max > spin_up_ms_max)
             THEN excluded.spin_up_ms_max ELSE spin_up_ms_max END,
+          cost_input_usd = cost_input_usd + excluded.cost_input_usd,
+          cost_output_usd = cost_output_usd + excluded.cost_output_usd,
+          cost_cache_write_usd = cost_cache_write_usd + excluded.cost_cache_write_usd,
+          cost_cache_read_usd = cost_cache_read_usd + excluded.cost_cache_read_usd,
+          pricing_at = COALESCE(excluded.pricing_at, pricing_at),
           updated_at = excluded.updated_at
       `).run(
         event.fleetId,
@@ -1097,6 +1116,13 @@ export function createFleetDatabase({ file } = {}) {
         Number.isFinite(m.ttftMs) ? Math.max(0, Math.round(m.ttftMs)) : null,
         Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : 0,
         Number.isFinite(m.spinUpMs) ? Math.max(0, Math.round(m.spinUpMs)) : null,
+        // Turn pricing (add-turn-pricing): only PRICED turns contribute money —
+        // an unpriced turn (pricingAt null) adds nothing and stamps nothing.
+        Number.isFinite(pricing?.inputUsd) ? pricing.inputUsd : 0,
+        Number.isFinite(pricing?.outputUsd) ? pricing.outputUsd : 0,
+        Number.isFinite(pricing?.cacheWriteUsd) ? pricing.cacheWriteUsd : 0,
+        Number.isFinite(pricing?.cacheReadUsd) ? pricing.cacheReadUsd : 0,
+        Number.isFinite(pricing?.pricingAt) ? pricing.pricingAt : null,
         Date.now(),
       );
     } catch (e) {
@@ -1820,6 +1846,9 @@ function deserializeTurnEvent(row) {
       cacheWrite: row.usage_cache_write ?? null,
       reasoning: row.usage_reasoning ?? null,
     },
+    // Turn pricing (add-turn-pricing): the version stamp only — money reads
+    // from the DAILY row, never from the event (D4a).
+    pricingAt: row.pricing_at ?? null,
   };
 }
 

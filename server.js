@@ -94,6 +94,7 @@ import * as lineTokenRenewal from "./server/line-token-renewal.js";
 import * as lineCredentialsLib from "./line-credentials.js";
 import { createCredentialDelivery } from "./server/dsh-mcp-delivery.js";
 import { buildLaneLookup } from "./server/llm-lane.js";
+import * as turnPricing from "./server/turn-pricing.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -1676,6 +1677,20 @@ await chartRefresh.initChartRefresh({
   broadcast: ctx.broadcast,
   ownerEmail: () => ctx.runtimeOwnerEmail ?? null,
 });
+// Turn pricing warm-up (add-turn-pricing): pre-pull the deployment's model
+// roster from the 词元 admin door so the first turns already price; the timer
+// keeps the cache fresh (10min) and the miss-fill covers newly seen models.
+// Degraded without SUB2API_ADMIN_KEY — pricing stays empty, columns honest NULL.
+try {
+  const pricing = turnPricing.attachTurnPricing({ modelsProvider: async () => (ctx.dshModels ?? []).map((m) => m.id) });
+  ctx.turnPricingWarmup = pricing.warmup;
+  pricing.warmup.then((r) => {
+    if (r?.ok) console.log(`[turn-pricing] warmed: ${r.cached} model(s) priced`);
+    else console.log(`[turn-pricing] degraded: ${r?.reason ?? "unavailable"}`);
+  }).catch(() => {});
+} catch (e) {
+  console.warn(`[turn-pricing] attach failed (degrade open): ${e?.message || e}`);
+}
 console.log("Platform fully initialized");
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────

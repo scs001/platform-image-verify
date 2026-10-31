@@ -18,5 +18,5 @@
 ## 4. 收尾
 
 - [x] 4.1 五语言 chrome parity（桶标签/空态/徽章与来源文案）；验收：`scripts/check-locales.js` 通过。
-- [ ] 4.2 真机走查：市场详情看一个官方 agent 与一个社区 agent，三桶/徽章/来源/引导符合契约；验收：走查记录落台账。（挂账：随滚版班——e2e hermetic 套件与真机眼见待跑）
+- [ ] 4.2 真机走查：市场详情看一个官方 agent 与一个社区 agent，三桶/徽章/来源/引导符合契约；验收：走查记录落台账。（e2e hermetic：packs+onboarding 套件本树 10 败全为 release 线既有——base 对照 11 败判别；真机眼见随滚版班）
 - [x] 4.3 为下游预留：组件导出可被 `add-agent-studio` 预览与 `add-official-agent-gallery` 消费；验收：导出面单测/类型检查通过。

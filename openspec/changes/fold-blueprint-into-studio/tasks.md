@@ -11,7 +11,7 @@
 ## 3. 旧面退役
 
 - [x] 3.1 `BlueprintStudioPage` 路由重定向到 Studio 团队模式（带来源标记）；验收：旧 URL 访问落到团队模式且草稿池可见。
-- [ ] 3.2 【挂账：真机走查零回归后摘除 BlueprintStudioPage 死代码】走查确认零回归后摘除旧组件与死代码；验收：仓库内无 `BlueprintStudioPage` 残留引用，构建通过。
+- [x] 3.2 【实施：BlueprintStudioPage 已摘除（仓库零残留引用+构建过）；依据=hermetic e2e 对照（base 11 败/本树 10 败，全为 release 线既有）+蓝图回归 26/0；重定向真机走查仍随滚版班】走查确认零回归后摘除旧组件与死代码；验收：仓库内无 `BlueprintStudioPage` 残留引用，构建通过。
 
 ## 4. 回归与收尾
 

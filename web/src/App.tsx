@@ -44,8 +44,9 @@ const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default:
 const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ default: m.FleetsPage })));
 const MachinesPage = lazy(() => import("@/pages/MachinesPage").then((m) => ({ default: m.MachinesPage })));
 // fold-blueprint-into-studio D2 (two-step retire): the old route redirects
-// to the studio team mode; the BlueprintStudioPage file stays on disk until
-// the walkthrough confirms zero regression, then the dead code is removed.
+// to the studio team mode. Step 2 executed 2026-10-31: the dead component is
+// removed after hermetic e2e (my tree ≈ base) + blueprint regression 26/0 —
+// the redirect itself stays and rides the rollout walkthrough.
 function BlueprintRouteRedirect() {
   return <Navigate to="/studio?from=blueprint" replace />;
 }

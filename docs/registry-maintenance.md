@@ -5954,6 +5954,79 @@ biome-ignore 注明"字面占位符即夹具"），test-fleet-owner-surface 9/9 
 **④ 滚版硬门已备**：生产现役 `sha-be368d1`（双清单）；本次将滚 `sha-02c953d`，
 镜像落 TCR 后核 relay OK 行与 digest 双等，再 GitOps bump。
 
+### §15.111 facet 二次崩溃循环：Dockerfile 逐文件白名单吃掉新 import——升级为静态门（2026-10-31）
+
+**事故**：`sha-be368d1` 滚三面时 platform/platform-demo 健康，**facet 起来即
+CrashLoopBackOff**：
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/app/facet/mcp-registry-json.js'
+imported from /app/facet/index.js
+```
+
+紧急回滚 facet 到 `sha-08f4835`（GitOps `40931b7`），pod `1/1 Running` 恢复。
+platform 侧 adoption 功能照常在线，只有 provenance 展示面缺席（facet 是市场读面宿主）。
+
+**根因（不是 adoption 代码，是并行变更漏改的一行）**：facet 是同一镜像的**第二个角色**，
+`Dockerfile` 用**逐文件 COPY 白名单**而非整目录：
+
+```dockerfile
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js \
+  /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js \
+  /app/facet/publish-gate.js ./facet/
+```
+
+`add-marketplace-projection-fanout` 新增了 `facet/mcp-registry-json.js` 并在
+`facet/index.js:32` 加了 import，**但没改这行白名单**。该变更撞巧只滚过 platform/demo
+（facet 没滚），缺陷潜伏至今，被我这次「三面同代」暴露。
+
+**同类第二次**：`310dd63f` 的复盘写的就是 `publish-gate.js` 同款（facet 崩、platform 活）。
+两次都栽在同一行，说明**人工核白名单不可靠**。
+
+**为什么既有门抓不到**：image.yml 的 smoke 全部跑默认 CMD（`server.js` = platform 角色）。
+facet 角色缺文件时，platform 侧 `/api/config`、`/api/ready`、dsh 合同、browser lane、
+module identity **五项全绿**。出片「全绿」与 facet 可启动性完全解耦。
+
+**修法（代码 + 门一起，不让它第三次发生）**
+
+1. `Dockerfile` 白名单补 `mcp-registry-json.js` + `credential-pattern.js`，并在行上方写明
+   「LIST HAS NOW BEEN THE ROOT CAUSE TWICE」。
+2. 新增 `scripts/test-facet-image-files.mjs`（`test:unit` 的 `test-*.mjs` glob 自动收编）：
+   - 从 `facet/index.js` 算**相对 import 传递闭包**，与 Dockerfile COPY 清单对撞；
+   - **缺文件**判红、**清单里列了不存在的文件**判红、**清单里多列不可达文件**判红；
+   - 可达性闭包天然排除 `facet/cli/`（npm 包）与 `marketplace-repo.js`（离线导出器），
+     比维护豁免表稳。
+3. 门自带**两条事故回归自证**：把 `mcp-registry-json.js` 从文本里拿掉必须判红、
+   塞一个 `ghost-file.js` 必须判红——防「门自己悄悄失效」。
+
+**反向自证实证**：
+
+```
+$ (拿掉 /app/facet/mcp-registry-json.js)
+✗ facet 镜像文件门未通过：
+  - 缺 COPY：facet/mcp-registry-json.js 被 facet/index.js 可达（直接或传递 import），
+    但未在 Dockerfile facet COPY 清单里 → 该角色会 ERR_MODULE_NOT_FOUND 崩溃循环，
+    而 platform 角色 smoke 门抓不到。
+$ node --test scripts/test-facet-image-files.mjs   → 3/3 pass
+```
+
+**律（入册）**：
+- **同镜像多角色必须逐角色验启动**——platform smoke 全绿不证明 facet 能起。
+  「三面同代」roll 出去才算验证（这也是本次能立刻定位的原因：三面只崩一面）。
+- **白名单式 COPY 是负资产**：新增文件必须同步改清单，靠人记必漏。有静态门之前，
+  每次动 `facet/*.js` 都要手跑那次门。
+- 出片前 `node --test scripts/test-facet-image-files.mjs`（或整套 `test:unit`）。
+
+**修后重出片**：快照树 `40651d64`（含修复 + 门）→ 公开快照 → verify 仓 `1ac326f`
+（修剪至只剩 `image.yml`，未触任何 mac/win 重腿）→ `image` run `41147913577`，
+五项 smoke 全过。
+
+**顺带记两笔操作坑**：
+- `git commit -m ... -- <paths>` 参数顺序必须 `-m` 在 `--` **之前**，否则 `-m` 及消息全文
+  会被当成 pathspec（`error: pathspec '-m' did not match...`）。
+- 本环境 `rm -R` 被安全包装改写成不存在的 `rm-RECURSIVE`，清目录用
+  `rsync -a --delete` 代替；`find ... -exec rm-RECURSIVE` 会直接报错退出。
+
 **§15.108 续记四：7 条内网端点条目的需求单已逐线开出（2026-10-31）**
 复测改判：7 条在网关上 POST 全回 401（不存在名回 405）——**公网路由本已存在**，「网关没接它们」
 不成立；真正拦路的是 finddata 台账 §3.z 记录的旧约束（auth_server `_forward_headers` 白名单
@@ -5965,3 +6038,15 @@ fd-quant#1、fd-craw-private#2（facet-ops/facet-market 一对，gitee 源仓 to
 B=明确内部专用则给条目加 required group，别再对匿名目录泄 mesh 主机名+端口），验收均锚
 `/api/mcp-registry.json` 出现/消失与 preflight 状态。另报备：facet-ops-mcp 本地 checkout 的
 gitee remote URL 内嵌 oauth token（现失效），建议该线清掉嵌密写法。
+
+**⑤ 滚版收笔（§15.110 续）**：run 41146601939 绿（Build→Smoke gate→**Push image** 全过）
+→ relay `08:15:11 OK yizuo/platform:sha-02c953d (240s)` → **hkccr/ccr digest 双等
+`sha256:0a91466e`** → GitOps `9492e4f` 双清单 bump（platform.yaml:54 + platform-demo.yaml:71，
+注释含源真 sha/发布树/digest）→ gitee/github 双推 → ArgoCD hard-refresh → 双 deploy rollout
+成功 → **pod imageID 逐字节 = 0a91466e** → in-pod 五刀特征全实证（db.js projects 表 /
+cron interval 校验串 / hubSourceView / nav-family-toggle / fleet-mini-formation /
+memory-funnel 六串在 dist assets 与 server 文件）。**滚版完成，生产跑九条优化五刀。**
+
+**挂账（走查班）**：九腿 UI 眼见（切换条常显/经营 tab/Project 侧栏分组/定时任务新表单与
+编辑/编队视图+断线上板/副驾 fleets 线/nav 族折叠/记忆漏斗/钉库直链）+ in-pod HTTP 探针
+（容器无 curl，走域名打）+ km 2.3/3.2、formation 3.2 真机项。

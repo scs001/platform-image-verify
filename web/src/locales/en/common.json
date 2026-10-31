@@ -1709,6 +1709,7 @@
       "mine": "Mine"
     },
     "market": {
+      "galleryTitle": "Official agents — spec at a glance, full three buckets in the detail",
       "searchPlaceholder": "Search agents…",
       "search": "Search",
       "empty": "No agents in the market yet.",

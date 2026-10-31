@@ -1709,6 +1709,7 @@
       "mine": "マイ"
     },
     "market": {
+      "galleryTitle": "公式エージェント — 概要表示、詳細で三 Bucket を表示",
       "searchPlaceholder": "エージェントを検索…",
       "search": "検索",
       "empty": "市場にエージェントがまだありません。",

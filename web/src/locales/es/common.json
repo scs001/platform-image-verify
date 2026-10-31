@@ -1709,6 +1709,7 @@
       "mine": "Mío"
     },
     "market": {
+      "galleryTitle": "Agentes oficiales — resumen spec, los tres buckets completos en el detalle",
       "searchPlaceholder": "Buscar agentes…",
       "search": "Buscar",
       "empty": "Aún no hay agentes en el mercado.",

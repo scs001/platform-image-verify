@@ -1709,6 +1709,7 @@
       "mine": "Mien"
     },
     "market": {
+      "galleryTitle": "Agents officiels — aperçu spec, les trois buckets complets dans le détail",
       "searchPlaceholder": "Rechercher des agents…",
       "search": "Rechercher",
       "empty": "Aucun agent sur le marché pour l'instant.",

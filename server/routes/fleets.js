@@ -2344,6 +2344,28 @@ export function createFleetRoutes(app, ctx = null) {
       // 迭代回路回调 (fleet-owner-iteration): approved 的 config-change 拍板项
       // 触发铸版链——结论先行落审计, 链在后台写轴迭代行, 链路失败不翻盘。
       // 结果随响应附在 iteration 键下 (additive, 既有响应语义逐字节)。
+      // Carrier-change approval callback (add-agent-self-iteration): member-
+      // level placement via the SAME updateMember face a human PATCH uses —
+      // resolution/fail-open semantics unchanged. No cast chain (the config-
+      // change lane's template chain is for pack structure).
+      if (op === "approve" && (updated.itemType === "carrier-change" || item?.itemType === "carrier-change")) {
+        try {
+          const changes = updated.detail?.changes ?? item?.detail?.changes ?? null;
+          const memberId = changes?.memberId;
+          const carrier = changes?.carrier;
+          if (memberId && (carrier === null || CARRIERS.includes(carrier))) {
+            const member = db.getMember(memberId);
+            if (member && member.fleetId === owned.fleet.id) {
+              db.updateMember(memberId, { carrier: carrier ?? null });
+              try {
+                ctx?.captureFleetFact?.(owned.fleet.id, memberId, "decision-resolved", updated.question, `承载提议已批准：carrier=${carrier ?? "auto"}（裁决者 ${owned.user.email}）`);
+              } catch { /* capture never surfaces */ }
+            }
+          }
+        } catch (e) {
+          console.warn(`[fleets] carrier-change approval failed (decision kept): ${e?.message || e}`);
+        }
+      }
       let iteration = null;
       if (op === "approve" && (updated.itemType === "config-change" || item?.itemType === "config-change")) {
         try {

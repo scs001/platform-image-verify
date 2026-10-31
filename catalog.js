@@ -221,6 +221,9 @@ function packAgentDoc() {
         name: a.name,
         description: a.description || `来自功能集「${installed.name}」的角色`,
         persona: a.persona,
+        // Memory constitution (add-agent-self-iteration): passthrough for the
+        // persona composition tail.
+        memory: a.memory ?? undefined,
         tags: Array.isArray(a.tags) ? a.tags : undefined,
         icon: a.icon,
         packId: installed.packId,

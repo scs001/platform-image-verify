@@ -1967,6 +1967,15 @@ export function catalogEntryPersona(entry) {
     );
     lines.push("回答用中文（除非用户使用其他语言）：结论先行，结构清晰，给出可执行的下一步；引用数据时标注来源。");
   }
+  // Memory constitution (add-agent-self-iteration): the agent's own
+  // declaration composed as the persona's tail — the self-writing face
+  // (memory_write_page) and the recall face (fleetContext digest) read it.
+  const guidance = typeof entry?.memory === "object" && entry?.memory !== null
+    ? String(entry.memory.guidance ?? "").trim()
+    : "";
+  if (guidance) {
+    lines.push(`【记忆章程】${guidance}`);
+  }
   if (entry?.packId) lines.push(PACK_FOCUS_NOTE);
   else if (entry?.customPreset) lines.push(CUSTOM_FOCUS_NOTE);
   lines.push("You are powered by the {{model}} model; your working directory is {{cwd}}.");

@@ -107,8 +107,48 @@ export function buildWeeklyBody(thisWeek, lastWeek, { weekKey }) {
   return lines.join("\n");
 }
 
+// The carrier-anomaly evaluator (add-agent-self-iteration ②): the FIRST
+// memory→proposal bridge. Four conditions ALL hit → a carrier-change proposal
+// into the fleet's decision lane: queue-wait max ≥5min, ≥3 distinct days
+// above it, ≥6-turn sample, current placement cell/auto. Evidence rides the
+// detail (provenance + samples); a human approves — 提议≠生效.
+const WAIT_FLOOR_MS = 5 * 60_000;
+const DAYS_FLOOR = 3;
+const SAMPLE_FLOOR = 6;
+
+// Pure — exported for tests. perMember: [{memberId, turns, queueWaitMax, carrier, hotDays}]
+export function carrierAnomalies(perMember, { waitFloorMs = WAIT_FLOOR_MS, daysFloor = DAYS_FLOOR, sampleFloor = SAMPLE_FLOOR } = {}) {
+  return perMember.filter(
+    (m) =>
+      (m.carrier ?? "auto") !== "worker" &&
+      (m.carrier ?? "auto") !== "runner" &&
+      m.queueWaitMax >= waitFloorMs &&
+      m.hotDays >= daysFloor &&
+      m.turns >= sampleFloor,
+  );
+}
+
+async function maybeProposeCarrierChange({ fleet, member, weekKey, propose }) {
+  const evidence = {
+    proposedBy: "platform:cost-anomaly",
+    week: weekKey,
+    memberId: member.memberId,
+    queueWaitMaxMs: member.queueWaitMax,
+    hotDays: member.hotDays,
+    sampleTurns: member.turns,
+    costEstUsd: Number(member.costUsd.toFixed(4)),
+    pricedTurns: member.pricedTurns,
+  };
+  return propose({
+    fleetId: fleet.id,
+    changes: { memberId: member.memberId, carrier: "worker" },
+    evidence,
+    summary: `承载提议 · ${member.memberId} 排队等待持续超阈（周 ${weekKey}，max ${(member.queueWaitMax / 60_000).toFixed(0)}min）→ 建议 worker（前置：TASK_WORKER_MAX>0）`,
+  });
+}
+
 // The sweep: one page per active fleet whose ISO week hasn't been written yet.
-export async function runFleetCostDigests({ fleetsDb, captureFact, listActiveFleets, now = new Date(), written = null }) {
+export async function runFleetCostDigests({ fleetsDb, captureFact, listActiveFleets, now = new Date(), written = null, propose = null, memberCarriers = null }) {
   const book = written ?? new Map();
   const weekKey = isoWeekKey(now);
   const prevKey = prevWeekKey(weekKey);
@@ -132,6 +172,38 @@ export async function runFleetCostDigests({ fleetsDb, captureFact, listActiveFle
       captureFact(fleet.id, "fleet", "cost-weekly", `舰队成本周报 ${weekKey}`, body);
       book.set(fleet.id, weekKey);
       writtenCount += 1;
+      // Carrier anomaly proposals (add-agent-self-iteration): evaluate AFTER
+      // the page lands; per-member day-level re-aggregation for the hot-day
+      // count (the weekly aggregate collapses days).
+      if (typeof propose === "function") {
+        const perMember = thisWeek.map((m) => {
+          const hotDays = new Set(
+            rows
+              .filter((r) => r.member_id === m.memberId && (r.queue_wait_ms_max ?? 0) >= WAIT_FLOOR_MS)
+              .map((r) => r.day),
+          );
+          return { ...m, hotDays: hotDays.size, carrier: memberCarriers?.get?.(m.memberId) ?? null };
+        });
+        const anomalies = carrierAnomalies(perMember);
+        for (const a of anomalies) {
+          // Dedup: an OPEN carrier-change proposal for the same member skips
+          // this week's proposal (the decision lane is the window).
+          try {
+            const open = (fleetsDb.listDecisions?.({ fleetId: fleet.id, state: "open" }) ?? []).find(
+              (x) => x.itemType === "carrier-change" && x.detail?.changes?.memberId === a.memberId,
+            );
+            if (open) continue;
+            await maybeProposeCarrierChange({
+              fleet,
+              member: a,
+              weekKey,
+              propose,
+            });
+          } catch {
+            // degrade open: proposal failures never touch the digest or turns
+          }
+        }
+      }
     } catch {
       // degrade open: a broken digest never surfaces anywhere
     }

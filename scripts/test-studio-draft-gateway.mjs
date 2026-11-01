@@ -17,7 +17,7 @@ import { createServer as netServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { before, test } from "node:test";
+import { test } from "node:test";
 import { signSession } from "../server/session.js";
 import { spawnTestServer } from "./lib/test-server.mjs";
 

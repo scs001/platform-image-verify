@@ -15,6 +15,14 @@ import type {
   PaperTradingConnection,
 } from "@platform/core";
 import { connectorSessionLive, mintConnectorToken, suggestSlot } from "@/lib/connector-mint";
+import i18n from "@/i18n";
+
+// Supply-annotation reads state the UI locale (add-mcp-annotation-overlay):
+// the server resolves and falls back to zh; the client never picks fields.
+const uiLocale = (): string | undefined => {
+  const lang = i18n?.language;
+  return typeof lang === "string" && lang ? lang : undefined;
+};
 import type { ServerMessage } from "@platform/core";
 import { mintConfigFrom, mintRegistryToken, registrySessionLive } from "@/lib/registry-mint";
 
@@ -103,7 +111,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const [mcpServers, skills] = await Promise.all([
-        api.fetchMcpServers(),
+        api.fetchMcpServers(uiLocale()),
         api.fetchSkills(),
       ]);
       set({ mcpServers, skills, loading: false });
@@ -114,7 +122,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
 
   refreshMcpServers: async () => {
     try {
-      const mcpServers = await api.fetchMcpServers();
+      const mcpServers = await api.fetchMcpServers(uiLocale());
       set({ mcpServers });
     } catch (err) {
       set({ error: (err as Error).message });
@@ -132,7 +140,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
 
   refreshMarketCatalog: async () => {
     try {
-      const marketCatalog = await api.fetchMarketCatalog();
+      const marketCatalog = await api.fetchMarketCatalog(uiLocale());
       set({ marketCatalog });
     } catch (err) {
       set({ error: (err as Error).message });

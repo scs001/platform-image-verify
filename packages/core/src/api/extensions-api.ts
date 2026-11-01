@@ -431,8 +431,16 @@ export async function disconnectPaperTrading(): Promise<PaperTradingConnection> 
 
 // ── MCP Servers ──────────────────────────────────────────────────────────────
 
-export async function fetchMcpServers(): Promise<McpServer[]> {
-  const res = await http(`${BASE_URL}/mcp`);
+// Supply-annotation reads carry the UI locale (add-mcp-annotation-overlay):
+// the server owns resolution and the zh fallback; the client only states its
+// locale — the same posture packs-api's localeQuery established. A caller
+// that does not know the locale (older store) keeps the Accept-Language path.
+function localeQuery(locale?: string): string {
+  return locale ? `?locale=${encodeURIComponent(locale)}` : "";
+}
+
+export async function fetchMcpServers(locale?: string): Promise<McpServer[]> {
+  const res = await http(`${BASE_URL}/mcp${localeQuery(locale)}`);
   if (!res.ok) throw new Error(`Failed to fetch MCP servers: ${res.statusText}`);
   const data = await res.json();
   return data.servers || [];
@@ -662,8 +670,8 @@ export async function seedSkillPackage(file: File): Promise<SkillPackageSeed> {
 
 // ── Market Catalog ───────────────────────────────────────────────────────────
 
-export async function fetchMarketCatalog(): Promise<MarketCatalog> {
-  const res = await http(`${BASE_URL}/market`);
+export async function fetchMarketCatalog(locale?: string): Promise<MarketCatalog> {
+  const res = await http(`${BASE_URL}/market${localeQuery(locale)}`);
   if (!res.ok) throw new Error(`Failed to fetch market catalog: ${res.statusText}`);
   return res.json();
 }

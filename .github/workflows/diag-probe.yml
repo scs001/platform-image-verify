@@ -1,0 +1,58 @@
+# Diagnostic probe — runs on GitHub runners whose network path to the
+# production edge is independent of the operator's local route. Dispatch-only
+# on this branch; never triggered by push. Talks to the live deployment's
+# authenticated API with the walkthrough session cookie (a repo secret, never
+# echoed). Judges the LLM lane through the persona-evolution evaluate face
+# (the same judge lane blueprint assertions use).
+name: diag-probe
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reachability (unauthenticated faces)
+        run: |
+          for u in \
+            "https://platform.finddatatech.cloud/api/config" \
+            "https://facet.finddatatech.cloud/api/mcp-catalog?locale=zh-CN" \
+            "https://auth.finddatatech.cloud/.well-known/openid-configuration"; do
+            code=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "$u" || echo 000)
+            echo "$u -> $code"
+          done
+      - name: Auth + judge-lane probe (cookie secret)
+        env:
+          PAAS_COOKIE: ${{ secrets.PAAS_SESSION_COOKIE }}
+        run: |
+          cat > /tmp/probe.mjs <<'PROBE'
+          const BASE = "https://platform.finddatatech.cloud";
+          const cookie = process.env.PAAS_COOKIE;
+          const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie } })
+            .then((r) => r.json()).catch((e) => ({ error: String(e).slice(0, 120) }));
+          console.log("auth:", me.authenticated, me.email ?? JSON.stringify(me).slice(0, 140));
+          if (!me.authenticated) { console.log("VERDICT: session-cookie rejected at edge"); process.exit(0); }
+          const H = { cookie, "content-type": "application/json" };
+          const cr = await fetch(`${BASE}/api/agent/presets`, { method: "POST", headers: H,
+            body: JSON.stringify({ name: "车道探针-可删", persona: "你是车道探针岗。回答保持简短并报告当前状态，末尾附一行「探针 OK」标记。遇到不确定先确认。", skills: [], mcpServers: [], tags: ["walktest"] }) });
+          const p = await cr.json();
+          console.log("preset:", cr.status, p.preset?.id ?? p.error);
+          if (!p.preset) process.exit(0);
+          const pr = await fetch(`${BASE}/api/persona-evolution/propose`, { method: "POST", headers: H,
+            body: JSON.stringify({ targetKind: "preset", targetRef: p.preset.id,
+              amendedPersona: "你是车道探针岗。回答保持简短并报告当前状态，末尾附一行「探针 OK」标记。遇到不确定先确认。",
+              evidence: { source: "车道探针：基线缺探针标记", fixed: "补探针标记", boundary: "探针场景" } }) });
+          const cd = await pr.json();
+          console.log("propose:", pr.status, cd.candidate?.id ?? cd.error);
+          if (!cd.candidate) process.exit(0);
+          const ev = await fetch(`${BASE}/api/persona-evolution/candidates/${cd.candidate.id}/evaluate`, { method: "POST", headers: H,
+            body: JSON.stringify({ scenarioPrompt: "用户问：今天走查进展如何？请简短汇报。" }) });
+          const ed = await ev.json().catch(() => ({}));
+          console.log("evaluate:", ev.status, "| passed:", ed.passed, "| reason:", (ed.reason ?? ed.error ?? "").slice(0, 90));
+          console.log("VERDICT: LANE=" + (ed.passed === true ? "UP (judge ranked a verdict)" : "DOWN (" + (ed.reason ?? ed.error ?? ev.status) + ")"));
+          PROBE
+          node /tmp/probe.mjs

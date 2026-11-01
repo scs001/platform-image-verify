@@ -179,6 +179,15 @@ jobs:
         with:
           name: platform-exe
           path: dist
+      - name: Generate update metadata (latest*.yml)
+        # The lane metadata electron-updater reads (add-desktop-in-app-update):
+        # version + per-file sha512/size, generated from the artifacts just
+        # downloaded — hash consistency with what the client verifies is the
+        # spec's 拒装 precondition.
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          node scripts/gen-desktop-latest-yml.mjs dist "$VERSION"
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:
@@ -186,6 +195,7 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.exe
+            dist/*.yml
 
       - name: Publish installers to MinIO (public download page)
         # Legacy optional mirror: never configured (empty secrets 410/failed
@@ -207,10 +217,14 @@ jobs:
           curl -fsSL -o /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc
           chmod +x /usr/local/bin/mc
           mc alias set minio "$MINIO_ENDPOINT" "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY"
-          # Upload this release's installers (overwrites same-name objects;
-          # different versions accumulate so all releases stay downloadable).
+          # Upload this release's installers + update metadata (overwrites
+          # same-name objects; different versions accumulate so all releases
+          # stay downloadable). latest*.yml at the bucket root = the
+          # electron-updater channel contract (add-desktop-in-app-update):
+          # DESKTOP_UPDATE_URL points at this bucket's public URL.
           mc cp dist/*.dmg minio/"$MINIO_BUCKET"/
           mc cp dist/*.exe minio/"$MINIO_BUCKET"/
+          mc cp dist/*.yml minio/"$MINIO_BUCKET"/
           # Regenerate a cumulative index.html listing every installer in the
           # bucket so the public "download page" shows all versions. Parse
           # `mc ls --json` (not the human format) so filenames with spaces

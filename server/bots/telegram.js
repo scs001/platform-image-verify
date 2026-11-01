@@ -35,6 +35,7 @@ function toMessage(update) {
     chatKey: String(m.chat.id),
     senderName: m.from?.username || [m.from?.first_name, m.from?.last_name].filter(Boolean).join(" ") || "unknown",
     text,
+    platformMessageId: m.message_id != null ? String(m.message_id) : null,
   };
 }
 

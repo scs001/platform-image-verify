@@ -11,12 +11,18 @@ SIGKILL 即丢）；各平台适配器已解析消息标识（企微 MsgId 等�
 
 ## D1 受理队列（write-ahead，盘上）
 
-- 落盘位置走既有 data 目录约定（`PLATFORM_DATA_DIR` 下），每受理项一个 JSON 文件或追加日志
-  （实现择一，append-only 单文件 + 处理游标更贴合重启接管：读游标之后未处理项即补处理面）。
-- 顺序：验签 → 落盘（fsync 语义，见 D4）→ 200/平台应答 → 异步处理 → 处理完成打标。
-- bootBuffer 合流：启动窗未加载完 registry 时同样落盘受理（不再内存排队、不再 503 丢），
-  registry 就绪后按队列补处理——BOOT_BUFFER_MAX 语义从「丢」变「盘上限」。
-- 重启接管：启动时扫描队列游标，未完成项依序补处理（与首处理同一路径，幂等层兜底重叠）。
+- 落盘位置：`PLATFORM_DATA_DIR/bot-acceptance`（prod /data 下，随卷持久）；显式
+  `BOTS_ACCEPTANCE_DIR` > PLATFORM_DATA_DIR > `dirname(DB_PATH)`（测试 tmp 同根）。
+  每受理项一个 JSON 文件，**tmp+rename 原子替换**，0600 权限（载荷含平台签名头）。
+- 状态机单向：`pending → dispatched → done`，`transition` 守卫使重复认领（接管与 boot drain
+  竞速）返回 null——**单处理保证**。`dispatched` 意为回合已启动：崩溃后接管**不重跑**（防双回
+  信），如实结算 done(interrupted)；`pending`（从未启动）才补处理。
+- 顺序：验签 → 解析 → 落盘 → 平台应答 → 异步回合 → 打标。重复键（平台重试/边缘重放）在受理
+  时命中幂等索引：ack 不二跑，done(duplicate) 可观测。
+- bootBuffer 合流：启动窗同样落盘受理，registry 就绪后认领重放——旧 BOOT_BUFFER_MAX 的「丢」
+  变「盘上限」（BOTS_ACCEPTANCE_MAX，超限 503 由平台侧重试兜底）。
+- 重启接管：构造即装载（load 是构造器的职责）；接管 pass 与 boot drain 认领互斥，重放与首处理
+  同路径，幂等层兜底重叠。
 
 ## D2 幂等键
 
@@ -37,11 +43,12 @@ SIGKILL 即丢）；各平台适配器已解析消息标识（企微 MsgId 等�
 
 ## D5 打断回合补拍（与 cron 补拍合流）
 
-- `sweepOpenRuns` 判孤儿处挂钩：孤儿 run 有 sourceTag（fleetId/memberId）→ 查该成员 cadence
-  节拍偏移，`withinToleranceWindow` 同源复用（不复制规则）→ 窗内补一拍（复用既有 catch-up
-  enqueue 路径，带 makeup 来源标记），窗外 missed 记账。
-- 双发防线：补拍走队列幂等（同一节拍 catch-up 只入队一次——cron 引擎已有 catchUp 去重集合，
-  合流而非并列）。
+- `sweepOpenRuns` 结算 cron 源孤儿 run 后挂钩 `onInterruptedRun`（factory 注入参数，server.js
+  传 `cron.makeUpInterruptedBeat`——决策单点在 cron 模块导出，可测）。
+- `makeUpInterruptedBeat({fleetId, memberId})`：杀开关 → 无任务/暂停 → `no-task`；
+  `withinToleranceWindow`（2× 周期、地板 6h，同源复用不复制）不过 → `outside-tolerance`；
+  窗内 → `catchUpPending = true` + `fireTask`（与 boot 补拍同 marker 同引擎路径=无双发），
+  返回 `makeup`。窗外/不补的痕迹=已结算 run 行（interrupted/failed 如实在账）+ warn。
 
 ## D6 测试
 

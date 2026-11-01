@@ -722,3 +722,99 @@ test("leaked header: a run whose turn finished but never settled is closed by th
   assert.equal(fleetDb.reclaimOrphanRuns(), 1);
   assert.equal(fleetDb.getRun(zeroRow.runId).status, "failed");
 });
+
+// ── interrupted-beat catch-up (add-rollout-gap-durability) ──────────────────
+
+// A cron-sourced run the pod roll killed: the beat was consumed at fire time
+// (lastRun stamped), so the boot downtime pass never sees the gap. The sweep
+// settles the leaked run and hands the decision to makeUpInterruptedBeat —
+// same tolerance rule, same engine fire path.
+async function cadenceTask(memberId) {
+  const rec = await cron.addJob({ cron: "*/5 * * * *", prompt: "p", preset: `p-${memberId}`, sessionTitle: "t", sourceTag: { fleetId: "f_run", memberId } });
+  // The live record — addJob's return is a clientShape copy, and lastRun must
+  // land on the record the decision actually reads.
+  const live = engine.getRecord(rec.id);
+  live.lastRun = new Date().toISOString(); // the beat fired just now
+  return live;
+}
+
+test("interrupted cron run inside tolerance → sweep settles it and fires ONE makeup", async () => {
+  fixtureFleet(fleetDb, { members: [member("m_mk")] });
+  const task = await cadenceTask("m_mk");
+  // The killed beat: a run opened by the cron turn, its row written (the turn
+  // started), the header never settled (process died).
+  const killer = createFleetTurnLedger({ db: fleetDb });
+  const job = rootJob("f_run", "m_mk");
+  const h = killer.begin(job, { startedAt: Date.now() - 60_000 });
+  killer.end(job, h, { ok: false, error: "killed by rollout" }, { startedAt: Date.now() - 60_000, endedAt: Date.now() - 59_000 });
+
+  const verdicts = [];
+  const sweeper = createFleetTurnLedger({
+    db: fleetDb,
+    engineRecords: () => engine.allRecords(),
+    onInterruptedRun: ({ fleetId, memberId }) => {
+      const v = cron.makeUpInterruptedBeat({ fleetId, memberId });
+      verdicts.push(v);
+      return v;
+    },
+  });
+  const settled = sweeper.sweepOpenRuns({ now: Date.now(), graceMs: 0 });
+  assert.equal(settled, 1, "the leaked header settled");
+  assert.deepEqual(verdicts, ["makeup"]);
+  assert.equal(task.catchUpPending, true, "the makeup rides the same engine marker");
+});
+
+test("interrupted cron run outside tolerance → honest no-makeup verdict", async () => {
+  fixtureFleet(fleetDb, { members: [member("m_old")] });
+  const task = await cadenceTask("m_old");
+  task.lastRun = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(); // beat fired 10 days ago
+  const killer = createFleetTurnLedger({ db: fleetDb });
+  const job = rootJob("f_run", "m_old");
+  const h = killer.begin(job, { startedAt: Date.now() - 60_000 });
+  killer.end(job, h, { ok: false, error: "killed by rollout" }, { startedAt: Date.now() - 60_000, endedAt: Date.now() - 59_000 });
+
+  const sweeper = createFleetTurnLedger({
+    db: fleetDb,
+    engineRecords: () => engine.allRecords(),
+    onInterruptedRun: ({ fleetId, memberId }) => cron.makeUpInterruptedBeat({ fleetId, memberId }),
+  });
+  sweeper.sweepOpenRuns({ now: Date.now(), graceMs: 0 });
+  assert.equal(task.catchUpPending, undefined, "no makeup past the tolerance window");
+});
+
+test("makeup decision: no task / paused / kill-switch verdicts", async () => {
+  assert.equal(cron.makeUpInterruptedBeat({ fleetId: "f_run", memberId: "m_none" }), "no-task");
+  fixtureFleet(fleetDb, { members: [member("m_paused")] });
+  const task = await cadenceTask("m_paused");
+  await cron.pauseJob(task.id);
+  assert.equal(cron.makeUpInterruptedBeat({ fleetId: "f_run", memberId: "m_paused" }), "no-task", "a paused post gets no beat");
+  await cron.resumeJob(task.id);
+  process.env.PLATFORM_CRON_CATCHUP = "0";
+  assert.equal(cron.makeUpInterruptedBeat({ fleetId: "f_run", memberId: "m_paused" }), "kill-switch");
+  delete process.env.PLATFORM_CRON_CATCHUP;
+  assert.equal(cron.makeUpInterruptedBeat({ fleetId: "f_run", memberId: "m_paused" }), "makeup", "kill switch released");
+});
+
+test("sweep ignores non-cron runs — manual/event runs have no cadence beat to consume", async () => {
+  fixtureFleet(fleetDb, { members: [member("m_man")] });
+  await cadenceTask("m_man");
+  const killer = createFleetTurnLedger({ db: fleetDb });
+  const job = { ...rootJob("f_run", "m_man"), trigger: "manual", source: "manual" };
+  const h = killer.begin(job, { startedAt: Date.now() - 60_000 });
+  killer.end(job, h, { ok: false }, { startedAt: Date.now() - 60_000, endedAt: Date.now() - 59_000 });
+  // Force the row's root_source to manual the way a manual ignition does.
+  fleetDb.db.prepare("UPDATE fleet_runs SET root_source = 'manual' WHERE run_id = ?").run(h.runId);
+
+  const verdicts = [];
+  const sweeper = createFleetTurnLedger({
+    db: fleetDb,
+    engineRecords: () => engine.allRecords(),
+    onInterruptedRun: ({ fleetId, memberId }) => {
+      verdicts.push(cron.makeUpInterruptedBeat({ fleetId, memberId }));
+      return "makeup";
+    },
+  });
+  sweeper.sweepOpenRuns({ now: Date.now(), graceMs: 0 });
+  assert.deepEqual(verdicts, [], "the hook never fires for a non-cron run");
+  assert.equal(engine.allRecords().find((t) => t?.sourceTag?.memberId === "m_man")?.catchUpPending, undefined);
+});

@@ -98,6 +98,7 @@ export const registry = {
       chatKey: msg.chat_id,
       senderName: payload.event?.sender?.sender_id?.open_id || "unknown",
       text,
+      platformMessageId: msg.message_id || null,
     };
   },
 

@@ -197,6 +197,25 @@ function withinToleranceWindow(task, now = Date.now()) {
   }
 }
 
+// Interrupted-beat makeup decision (add-rollout-gap-durability): a cron-sourced
+// fleet run a pod roll killed already consumed its cadence beat (lastRun was
+// stamped at fire time), so the boot downtime pass never sees this gap. One
+// decision point, same tolerance rule as the boot pass, same engine fire path
+// (catchUpPending marker + fireTask) — exported so the ledger wiring stays
+// thin and the rule is pinned by tests rather than only exercised at boot.
+// Verdicts: "makeup" | "no-task" | "outside-tolerance" | "kill-switch".
+function makeUpInterruptedBeat({ fleetId, memberId }) {
+  if (process.env.PLATFORM_CRON_CATCHUP === "0") return "kill-switch";
+  const task = engine
+    .allRecords()
+    .find((t) => t?.type === "recurring" && t?.sourceTag?.fleetId === fleetId && t?.sourceTag?.memberId === memberId);
+  if (!task || task.paused) return "no-task";
+  if (!withinToleranceWindow(task)) return "outside-tolerance";
+  task.catchUpPending = true;
+  void fireTask(task.id);
+  return "makeup";
+}
+
 // Count occurrences strictly between lastRun and now for a recurring task that
 // was NOT running (load-time gap). Increments the missed counter and appends a
 // history marker so the UI can show why a task skipped. Returns the number of
@@ -795,5 +814,6 @@ export {
   // Downtime catch-up decision (P2, 2026-10-26) — exported so the window and
   // the kill switch are pinned by a test rather than only exercised at boot.
   withinToleranceWindow,
+  makeUpInterruptedBeat,
   shutdown,
 };

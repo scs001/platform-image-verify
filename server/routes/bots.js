@@ -12,6 +12,7 @@
 import express from "express";
 import crypto from "node:crypto";
 import * as bots from "../bots.js";
+import { createBotAcceptance } from "../bot-acceptance.js";
 import { BOT_TYPES, credentialFieldsFor, qrCapabilityFor, adapterForBot } from "../bots/adapter.js";
 import { qrSvg } from "../bots/qr.js";
 import { GENERIC_BOT_TYPES } from "../../lib/generic-bot-types.js";
@@ -23,14 +24,13 @@ export const WEBHOOK_PREFIX = "/api/bots/webhook/";
 // Boot window handling. Measured 2026-10-29 in fd-prod: the cell calls
 // server.listen 8.2s BEFORE bots.initBots finishes (db open + dsh handshake),
 // while WeCom/WeChat drop a callback at roughly 5s. Waiting therefore loses
-// either way — so during boot the webhook is ACKED at once and buffered, and
-// the buffered request is replayed through the FULL pipeline (signature check
-// included) once the registry is up. A forged request earns a bare 200 and no
-// processing; nothing is dispatched before verification still.
+// either way — so during boot the webhook is ACKED at once and ACCEPTED TO
+// DISK (add-rollout-gap-durability: the old in-memory bootBuffer died with
+// the process), and the accepted request is replayed through the FULL
+// pipeline (signature check included) once the registry is up. A forged
+// request earns a bare 200 and no processing; nothing is dispatched before
+// verification still.
 const BOOT_REPLAY_WAIT_MS = Number(process.env.BOTS_WEBHOOK_BOOT_WAIT_MS) || 30_000;
-// Bounded: a boot lasting longer than this is broken, and an unbounded buffer
-// is a memory sink under a webhook flood.
-const BOOT_BUFFER_MAX = Number(process.env.BOTS_WEBHOOK_BOOT_BUFFER_MAX) || 20;
 
 export function registerBotRoutes(ctx) {
   const { app, db } = ctx;
@@ -41,9 +41,58 @@ export function registerBotRoutes(ctx) {
     return false;
   };
 
-  // Buffered boot-window webhooks, drained once bots.initBots settles.
-  const bootBuffer = [];
+  // Durable acceptance store (add-rollout-gap-durability): every webhook is
+  // on disk before the ack, boot-window ones included (the old bootBuffer was
+  // memory-only and died with the process). Tests inject their own instance.
+  const acceptance = ctx.botsAcceptance ?? createBotAcceptance();
+  acceptance.cleanup();
   let bootDrainArmed = false;
+
+  // Startup takeover: records a previous process left behind map to honest
+  // actions — `dispatched` means the turn had already started (re-running
+  // risks a double reply, so settle as interrupted), `pending` boot records
+  // replay through the full pipeline once the registry is up, `pending`
+  // message records dispatch directly (already verified and parsed).
+  for (const rec of acceptance.all()) {
+    if (rec.state === "dispatched") acceptance.markDone(rec.id, "interrupted");
+  }
+  void bots.whenBooted(BOOT_REPLAY_WAIT_MS).then(async (ready) => {
+    if (!ready) {
+      console.warn(`[bots] registry not ready at takeover; ${acceptance.pending().length} accepted webhook(s) stay pending for the next boot`);
+      return;
+    }
+    for (const rec of acceptance.pending()) {
+      // Claim first: the takeover races the boot drain on the same store, and
+      // the state machine makes the second claim a no-op.
+      if (!acceptance.markDispatched(rec.id)) continue;
+      try {
+        if (rec.kind === "boot") {
+          console.log(`[bots] takeover: replaying accepted boot webhook for ${rec.botId}`);
+          await handleVerifiedWebhook(rec.botId, rec.given, rec.adapterReq, null);
+        } else {
+          console.log(`[bots] takeover: dispatching accepted webhook for ${rec.botId}`);
+          await bots.handleMessage(rec.botId, rec.message);
+        }
+        acceptance.markDone(rec.id, "takeover");
+      } catch (e) {
+        console.warn(`[bots] takeover webhook for ${rec.botId} failed: ${e.message}`);
+        acceptance.markDone(rec.id, `takeover failed: ${e.message}`);
+      }
+    }
+  });
+
+  // Turn dispatch for an accepted record: claim before the turn (a crash
+  // after the claim must not re-run it — double reply), settle honestly.
+  function dispatchAccepted(rec) {
+    if (!rec?.message) return;
+    acceptance.markDispatched(rec.id);
+    bots.handleMessage(rec.botId, rec.message)
+      .then(() => acceptance.markDone(rec.id))
+      .catch((e) => {
+        console.warn(`[bots] "${rec.botId}" accepted turn failed: ${e.message}`);
+        acceptance.markDone(rec.id, `turn failed: ${e.message}`);
+      });
+  }
 
   // ── Inbound webhook ────────────────────────────────────────────────────────
   // Raw body: WeCom/WeChat send XML and every platform signs the bytes as sent,
@@ -59,15 +108,21 @@ export function registerBotRoutes(ctx) {
       const botId = req.params.botId;
       const given = req.params.secret;
 
-      // Boot window: registry not loaded yet and the bot is not in it. Ack and
-      // buffer — see the BOOT_* block above for the measured numbers.
+      // Boot window: registry not loaded yet and the bot is not in it. Accept
+      // to disk and ack — the drain replays through the full pipeline once
+      // the registry is up (a forged request earns a bare 200 and no
+      // processing, exactly like the old memory buffer).
       if (bots.bootPending() && !bots.getEntry(botId)) {
-        if (bootBuffer.length >= BOOT_BUFFER_MAX) {
-          console.warn(`[bots] boot buffer full (${BOOT_BUFFER_MAX}); dropping a webhook for ${botId}`);
-          return res.sendStatus(503);
+        try {
+          acceptance.accept({ kind: "boot", botId, given, adapterReq });
+        } catch (e) {
+          if (e.code === "BOTS_ACCEPTANCE_FULL") {
+            console.warn(`[bots] acceptance store full (${acceptance.MAX_RECORDS}); refusing boot webhook for ${botId}`);
+            return res.sendStatus(503);
+          }
+          throw e;
         }
-        bootBuffer.push({ botId, given, adapterReq });
-        console.log(`[bots] webhook for ${botId} buffered until the registry loads (${bootBuffer.length} queued)`);
+        console.log(`[bots] webhook for ${botId} accepted to disk until the registry loads`);
         res.type("text/plain").send("success");
         armBootDrain();
         return;
@@ -82,17 +137,25 @@ export function registerBotRoutes(ctx) {
     bootDrainArmed = true;
     void bots.whenBooted(BOOT_REPLAY_WAIT_MS).then(async (ready) => {
       bootDrainArmed = false;
-      const queued = bootBuffer.splice(0, bootBuffer.length);
+      const queued = acceptance.pending("boot");
       if (!queued.length) return;
       if (!ready) {
-        console.warn(`[bots] registry still not loaded after ${BOOT_REPLAY_WAIT_MS}ms; dropping ${queued.length} buffered webhook(s)`);
+        // Pending is the new not-dropped: the records stay on disk for the
+        // next drain pass (or the next process's takeover).
+        console.warn(`[bots] registry still not loaded after ${BOOT_REPLAY_WAIT_MS}ms; ${queued.length} accepted webhook(s) stay pending on disk`);
+        armBootDrain();
         return;
       }
       for (const item of queued) {
+        // Claim first — the startup takeover races this drain on the same
+        // store; the state machine makes the second claim a no-op.
+        if (!acceptance.markDispatched(item.id)) continue;
         try {
           await handleVerifiedWebhook(item.botId, item.given, item.adapterReq, null);
+          acceptance.markDone(item.id, "boot-drain");
         } catch (e) {
-          console.warn(`[bots] buffered webhook replay failed for ${item.botId}: ${e.message}`);
+          console.warn(`[bots] accepted webhook replay failed for ${item.botId}: ${e.message}`);
+          acceptance.markDone(item.id, `replay failed: ${e.message}`);
         }
       }
     });
@@ -157,22 +220,44 @@ export function registerBotRoutes(ctx) {
       return done(400, "Bad Request");
     }
 
-    // Ack immediately: every one of these platforms retries on a slow reply,
-    // and an agent turn takes far longer than their timeout.
-    done(200, "success");
-    if (message) {
-      console.log(`[bots] "${entry.bot.name}" inbound from ${message.chatKey}: "${String(message.text).slice(0, 60)}"`);
-      bots.handleMessage(entry.bot.id, message).catch((e) =>
-        console.warn(`[bots] "${entry.bot.name}" turn failed: ${e.message}`),
-      );
-    } else {
+    if (!message) {
       // Forensics (fd-prod lesson): the canonical text XML parsed locally but
       // not in prod — the length, content-type and first bytes name the
       // culprit (empty body vs gzip magic vs unexpected shape).
       console.log(
         `[bots] "${entry.bot.name}" non-text payload ignored (len=${adapterReq.raw.length} ct=${adapterReq.headers["content-type"] ?? "?"} head=${JSON.stringify(adapterReq.raw.slice(0, 40))})`,
       );
+      done(200, "success");
+      return;
     }
+
+    // Durable acceptance BEFORE the ack (add-rollout-gap-durability): the
+    // record — keyed by the platform message id when the adapter supplies
+    // one — is on disk before the platform learns the message was taken, so
+    // a pod roll after the ack can only delay, never lose. A retry or edge
+    // replay of the same message id lands on the key and is acked WITHOUT a
+    // second turn.
+    const key = message.platformMessageId ? `${botId}:${message.platformMessageId}` : null;
+    let accepted;
+    let duplicate;
+    try {
+      ({ record: accepted, duplicate } = acceptance.accept({ kind: "message", botId, key, message }));
+    } catch (e) {
+      if (e.code === "BOTS_ACCEPTANCE_FULL") {
+        console.warn(`[bots] acceptance store full (${acceptance.MAX_RECORDS}); refusing webhook for "${entry.bot.name}"`);
+        return done(503, "Service Unavailable");
+      }
+      throw e;
+    }
+    if (duplicate) {
+      console.log(`[bots] "${entry.bot.name}" duplicate webhook (key=${key}) — acked, no second turn`);
+      done(200, "success");
+      return;
+    }
+    console.log(`[bots] "${entry.bot.name}" inbound from ${message.chatKey}: "${String(message.text).slice(0, 60)}"`);
+    // Ack after the record is durable, before the (possibly minutes-long) turn.
+    done(200, "success");
+    dispatchAccepted(accepted);
   }
 
   // ── Generic bot types (read-only registry face) ────────────────────────────

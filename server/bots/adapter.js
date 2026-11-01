@@ -8,8 +8,12 @@
 //        Verify the request. Returns the literal body to echo when the request
 //        is the platform's URL-verification handshake, or null when it is a
 //        real message to parse. THROWS to reject (the route answers 403).
-//   parseMessage(req, cred) -> Promise<{ chatKey, senderName, text } | null>
+//   parseMessage(req, cred) -> Promise<{ chatKey, senderName, text, platformMessageId? } | null>
 //        null = ignore (edits, reactions, our own echoes, non-text messages).
+//        platformMessageId: the platform's own message identifier when the
+//        payload carries one (WeCom/WeChat MsgId, Feishu/Telegram message_id)
+//        — the webhook acceptance layer's idempotency key input; absent/null
+//        means the payload dedupes by nothing (never a guessed key).
 //   sendText(cred, chatKey, text) -> Promise<void>
 //   start?(bot, deliver) / stop?()   // optional polling loop (telegram)
 //   qr: { strategy, hintKey, field?, resolve?(cred) }

@@ -68,6 +68,7 @@ export function createFleetTurnLedger({
   trace = null,
   rosterPresetId = (id) => id,
   now = Date.now,
+  onInterruptedRun = null,
 } = {}) {
   const open = new Map(); // turnId → handle
   const bySession = new Map(); // sessionId → turnId
@@ -256,7 +257,24 @@ export function createFleetTurnLedger({
       // leaked header was never finalized, so it still reads 0.
       if (!hasTurnRows(r.run_id)) continue;
       const run = settle(r.run_id);
-      if (run && run.status !== "open") closed += 1;
+      if (run && run.status !== "open") {
+        closed += 1;
+        // Interrupted-beat catch-up (add-rollout-gap-durability): a cron-sourced
+        // run killed by a pod roll consumed its cadence beat (lastRun was set at
+        // fire time, so the boot downtime catch-up never sees this gap). The
+        // host decides — same tolerance rule as the boot pass: makeup or an
+        // honest miss, both observable.
+        if (r.root_source === "cron" && r.root_member_id && typeof onInterruptedRun === "function") {
+          try {
+            const verdict = onInterruptedRun({ fleetId: r.fleet_id, memberId: r.root_member_id, runId: r.run_id });
+            if (verdict && verdict !== "makeup") {
+              console.warn(`[fleet-runs] interrupted cron beat of run ${r.run_id} not made up (${verdict})`);
+            }
+          } catch (e) {
+            console.warn(`[fleet-runs] interrupted-beat makeup for run ${r.run_id} failed: ${e?.message || e}`);
+          }
+        }
+      }
     }
     return closed;
   }

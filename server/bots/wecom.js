@@ -112,7 +112,7 @@ export const registry = {
     const text = xmlField(message, "Content");
     const from = xmlField(message, "FromUserName");
     if (!text || !from) return null;
-    return { chatKey: from, senderName: from, text };
+    return { chatKey: from, senderName: from, text, platformMessageId: xmlField(message, "MsgId") || null };
   },
 
   async sendText(cred, chatKey, text) {

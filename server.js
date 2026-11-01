@@ -1250,6 +1250,11 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
   engineRecords: () => engine.allRecords(),
   trace,
   rosterPresetId,
+  // Interrupted-beat catch-up (add-rollout-gap-durability): a cron run the
+  // pod roll killed consumed its cadence beat — the decision (same tolerance
+  // rule as the boot downtime pass, same engine fire path) lives in one place
+  // on the cron module.
+  onInterruptedRun: ({ fleetId, memberId }) => cron.makeUpInterruptedBeat({ fleetId, memberId }),
 });
 
 // Fleet working memory (add-zhiyu-team-memory 刀A): turn facts captured as

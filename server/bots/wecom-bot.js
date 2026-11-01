@@ -182,7 +182,8 @@ export const registry = {
     if (typeof rawText !== "string") return null; // non-text (image/voice/file/event)
     const text = chattype === "group" ? stripGroupMentions(rawText) : rawText.trim();
     if (!text) return null; // @-only or whitespace: no turn
-    return { chatKey, senderName: sender, text };
+    const messageId = parsed.json ? (parsed.json.msgid ?? parsed.json.msgId ?? null) : (parsed.xml.msgid ?? null);
+    return { chatKey, senderName: sender, text, platformMessageId: messageId ? String(messageId) : null };
   },
 
   async sendText(_cred, chatKey, text) {

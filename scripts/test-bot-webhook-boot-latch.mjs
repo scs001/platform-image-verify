@@ -72,9 +72,11 @@ after(async () => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
+let fixtureMessageId = 1;
 const updateFor = (chatId, text) => ({
   update_id: Math.floor(Math.random() * 1e6),
-  message: { message_id: 1, chat: { id: chatId }, from: { username: "u" }, date: 0, text },
+  // Real platforms never reuse ids — the acceptance idempotency key would collapse a fixed one.
+  message: { message_id: fixtureMessageId++, chat: { id: chatId }, from: { username: "u" }, date: 0, text },
 });
 
 test("a webhook arriving before the registry loads is acked at once, then processed", async () => {

@@ -111,9 +111,13 @@ async function makeBot(name = "tg") {
   return bot;
 }
 
+let fixtureMessageId = 1;
 const update = (chatId, text) => ({
   update_id: Math.floor(Math.random() * 1e6),
-  message: { message_id: 1, chat: { id: chatId }, from: { username: "u" }, date: 0, text },
+  // A REAL platform never reuses a message id — the acceptance layer's
+  // idempotency key (add-rollout-gap-durability) would correctly collapse a
+  // fixed id into one message.
+  message: { message_id: fixtureMessageId++, chat: { id: chatId }, from: { username: "u" }, date: 0, text },
 });
 
 // Deliver a webhook and wait for the turn it kicks off (the route acks first).

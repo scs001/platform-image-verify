@@ -23,6 +23,7 @@
     "scripts/probe-llm-retry.mjs",
     "scripts/probe-stream-channel.mjs",
     "scripts/test-session-resume.mjs",
+    "scripts/test-tool-description-overlay.mjs",
     "scripts/test-tool-scope-register-seam.mjs"
   ]
 }

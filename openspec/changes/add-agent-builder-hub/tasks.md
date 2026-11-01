@@ -22,5 +22,5 @@
 ## 4. 真机走查与出片
 
 - [ ] 4.1 真机走查五语言：zh-CN/en/ja/es/fr 逐语言过四区（标签无缺键、无溢出）；验证：走查截图入台账
-- [ ] 4.2 隐藏布局回归：layout-configuration 隐藏 Agents tab 后 `/agents` 深链仍解析；验证：e2e 断言
+- [x] 4.2 隐藏布局回归：layout-configuration 隐藏 Agents tab 后 `/agents` 深链仍解析；验证：e2e 断言
 - [ ] 4.3 出片走查（按 paas-release 线）+ 台账记录；验证：生产 sha 面上眼见四区 + 词表行

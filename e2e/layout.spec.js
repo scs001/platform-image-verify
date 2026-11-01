@@ -207,7 +207,7 @@ test.describe("workbench layout (logto mode)", () => {
     expect(put.json.defaultPreset).toBe("simple");
 
     const cfg = await api("/api/config", { cookie: userCookie });
-    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents", "apps"]);
+    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "memory", "agents", "apps"]);
     // `connections` belongs to the non-technical skeleton: the business-role
     // recipes (legal/stock/economic) all resolve to this preset, and it is
     // where those users make tools/search work at all. Dropping it made the

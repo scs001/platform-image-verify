@@ -275,3 +275,15 @@ test("runnerEntryFor: packId pin misses → ambiguity still fails open honestly"
   assert.equal(runnerEntryFor(job3, { listAgents: () => agents, rosterPresetId, packId: "zzz" }), null);
   assert.equal(job3.carrierFallback, "runner-ambiguous");
 });
+
+test("packId survives the row round-trip: create→get and update→get both read it back", () => {
+  // The deserialize read face must map pack_id — a write-only column would
+  // silently null the pin at materialization (reconcile reads the hydrated
+  // row, never the write path's arguments).
+  db.createMember({ id: "m_pin", fleetId: "fleet_c1", title: "钉包岗", parentId: null, targetKind: "persona", targetId: "reception", kpiSlots: [], cadence: null, sortKey: 2, packId: "bbb", createdAt: Date.now(), updatedAt: Date.now() });
+  assert.equal(db.getMember("m_pin")?.packId, "bbb", "createMember persists and getMember hydrates packId");
+  db.updateMember("m_pin", { packId: "ccc" });
+  assert.equal(db.getMember("m_pin")?.packId, "ccc", "updateMember persists and getMember hydrates packId");
+  db.updateMember("m_pin", { packId: null });
+  assert.equal(db.getMember("m_pin")?.packId, null, "null clears the pin");
+});

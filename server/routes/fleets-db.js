@@ -1804,6 +1804,7 @@ function deserializeMember(row) {
     effort: row.effort ?? null,
     contextBudget: row.context_budget ?? null,
     carrier: row.carrier ?? null,
+    packId: row.pack_id ?? null,
     sortKey: row.sort_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

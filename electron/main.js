@@ -19,6 +19,8 @@ import { resolveEnv } from "./config/settings.js";
 import { registerStewardIpc } from "./steward-ipc.js";
 import { runFirstRun } from "./bootstrap/first-run.js";
 import { openPreferencesWindow, registerPreferencesIpc } from "./preferences/window.js";
+import { createDesktopUpdater } from "./updater.js";
+import { registerUpdaterIpc } from "./preferences/update-ipc.js";
 import { setSupervisor } from "./preferences/ipc.js";
 import { runSmokeSelftest, selftestEnabled } from "./smoke-selftest.js";
 
@@ -242,6 +244,12 @@ async function boot() {
   registerStatusIpc(supervisor);
   registerPreferencesIpc(supervisor);
   registerStewardIpc({ dataDir, nodeBin, projectRoot: PROJECT_ROOT, isPackaged: app.isPackaged });
+  // In-app update lifecycle (add-desktop-in-app-update): delayed silent check
+  // after boot, manual entry + state face in the preferences window. Signed
+  // mac builds may flip autoUpdateSupported on later — unsigned stays notify-only.
+  const updater = createDesktopUpdater({ signed: Boolean(process.env.DESKTOP_SIGNED) });
+  registerUpdaterIpc(updater);
+  updater.scheduleBootCheck();
   console.log(`[electron] boot: supervisor ${attached ? "ATTACHED to steward" : "constructed embedded"}, starting…`);
 
   // Folder picker for the chat working directory (main window).

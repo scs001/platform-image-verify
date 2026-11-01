@@ -285,3 +285,65 @@ document.getElementById('stewardUnpairBtn')?.addEventListener('click', async () 
   statusEl.textContent = r.ok ? '✓ 已解除配对并停上报（凭据已焚毁）' : `✗ 解配失败：${r.error}`;
   await refreshStewardPanel();
 });
+
+// ── In-app update tab (add-desktop-in-app-update) ────────────────────────────
+
+const updateStateTextEl = document.getElementById('updateStateText');
+const updateVersionTextEl = document.getElementById('updateVersionText');
+const updateDegradeTextEl = document.getElementById('updateDegradeText');
+const updateQuitInstallBtnEl = document.getElementById('updateQuitInstallBtn');
+const updateOpenDownloadBtnEl = document.getElementById('updateOpenDownloadBtn');
+const updateActionStatusEl = document.getElementById('updateActionStatus');
+
+const UPDATE_STATUS_TEXT = {
+  idle: '未检查（启动后会自动静默查一次）',
+  checking: '检查中…',
+  downloading: '发现新版本，后台下载中…（不打断使用；退出时自动安装）',
+  downloaded: '新版本已就绪——退出应用时自动安装，或现在点「退出并安装」',
+  'up-to-date': '已是最新版本',
+  'notify-only': '有新版本（未签名构建仅提示，见下方说明）',
+  error: '检查失败（通道不可达或暂不可用——应用照常可用）',
+};
+
+function renderUpdateState(st) {
+  updateStateTextEl.textContent = UPDATE_STATUS_TEXT[st.status] || st.status;
+  if (st.status === 'error' && st.error) updateStateTextEl.textContent += `：${st.error}`;
+  if (st.version) updateStateTextEl.textContent += `（${st.version}）`;
+  updateVersionTextEl.textContent = st.runningVersion || '—';
+  // macOS notify-only degrade note rides the status, not a platform branch:
+  // the shell flips status to notify-only exactly when the build can't auto-swap.
+  updateDegradeTextEl.style.display = st.status === 'notify-only' ? '' : 'none';
+  updateQuitInstallBtnEl.style.display = st.status === 'downloaded' ? '' : 'none';
+  updateOpenDownloadBtnEl.style.display = st.url ? '' : 'none';
+}
+
+async function refreshUpdatePanel() {
+  const st = await window.platform.getUpdateState();
+  renderUpdateState(st);
+  const visible = await window.platform.getVisibleSettings();
+  document.getElementById('updateChannelInput').value = visible.DESKTOP_UPDATE_URL || '';
+}
+
+document.getElementById('updateCheckBtn')?.addEventListener('click', async () => {
+  updateActionStatusEl.textContent = '';
+  updateStateTextEl.textContent = '检查中…';
+  const st = await window.platform.checkForUpdate();
+  renderUpdateState(st);
+});
+
+document.getElementById('updateQuitInstallBtn')?.addEventListener('click', async () => {
+  const r = await window.platform.quitAndInstallUpdate();
+  if (!r.ok) updateActionStatusEl.textContent = '✗ 当前没有已下载完成的更新';
+});
+
+document.getElementById('updateOpenDownloadBtn')?.addEventListener('click', async () => {
+  await window.platform.openUpdateDownload();
+});
+
+document.getElementById('updateChannelSaveBtn')?.addEventListener('click', async () => {
+  const v = document.getElementById('updateChannelInput').value.trim();
+  const r = await window.platform.setSettingField('DESKTOP_UPDATE_URL', v || null);
+  updateActionStatusEl.textContent = r.ok ? '✓ 通道已保存，下次检查生效' : `✗ ${r.error}`;
+});
+
+refreshUpdatePanel();

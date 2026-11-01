@@ -25,4 +25,11 @@ contextBridge.exposeInMainWorld("platform", {
   // Uplink pairing (add-cell-lifecycle chapter 4): bind-code pair + unpair.
   pairSteward: (code, label) => ipcRenderer.invoke("steward:pair", { code, label }),
   unpairSteward: () => ipcRenderer.invoke("steward:unpair"),
+
+  // In-app update lifecycle (add-desktop-in-app-update): state face, explicit
+  // check, quit-into-install (Windows downloaded), notify-only download (mac).
+  getUpdateState: () => ipcRenderer.invoke("update:get-state"),
+  checkForUpdate: () => ipcRenderer.invoke("update:check"),
+  quitAndInstallUpdate: () => ipcRenderer.invoke("update:quit-and-install"),
+  openUpdateDownload: () => ipcRenderer.invoke("update:open-download"),
 });

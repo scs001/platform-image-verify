@@ -121,6 +121,7 @@
     <div class="tab active" data-tab="general">General</div>
     <div class="tab" data-tab="wanxing">Wanxing Fleet</div>
     <div class="tab" data-tab="steward">后台管家</div>
+    <div class="tab" data-tab="update">更新</div>
   </div>
 
   <div class="tab-panel active" data-panel="general">
@@ -215,6 +216,32 @@
       <button id="stewardUninstallBtn" class="secondary" style="display:none">卸载后台管家</button>
       <button id="stewardRepairBtn" class="secondary" style="display:none">重新注册自启</button>
       <span id="stewardStatus"></span>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel="update">
+    <div class="form-group">
+      <label>当前版本</label>
+      <p id="updateVersionText" class="hint">查询中…</p>
+    </div>
+    <div class="form-group">
+      <label>更新状态</label>
+      <p id="updateStateText" class="hint">未检查</p>
+      <p id="updateDegradeText" class="hint" style="display:none;color:#a06000">当前构建未签名，macOS 仅提示新版本不自动安装（Gatekeeper 约束）——点「打开下载页」手动获取安装包。</p>
+    </div>
+    <div class="form-group">
+      <label>更新通道（发布道 URL）</label>
+      <div class="field-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="updateChannelInput" placeholder="留空用内置默认道" style="flex:1;min-width:240px">
+        <button id="updateChannelSaveBtn">保存</button>
+      </div>
+      <p class="hint">留空 = 内置默认发布道；改动后下一次检查生效（无需重启）。</p>
+    </div>
+    <div class="actions">
+      <button id="updateCheckBtn">检查更新</button>
+      <button id="updateQuitInstallBtn" style="display:none">退出并安装</button>
+      <button id="updateOpenDownloadBtn" class="secondary" style="display:none">打开下载页</button>
+      <span id="updateActionStatus"></span>
     </div>
   </div>
 

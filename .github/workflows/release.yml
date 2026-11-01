@@ -188,6 +188,26 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           node scripts/gen-desktop-latest-yml.mjs dist "$VERSION"
+
+      - name: Push lane to registry (OCI relay)
+        # The release lane is RustFS on the TAILNET (100.64.0.10:9000) — this
+        # runner can't reach it. The wire-downloads precedent: CI pushes the
+        # artifacts as an OCI image to hkccr (runners CAN reach the registry),
+        # and the cheap-3 sync worker (desktop-lane-sync, cron) pulls it and
+        # distributes to the lane. :current, overwritten each release.
+        env:
+          TCR_USER: ${{ secrets.TCR_USER }}
+          TCR_PASS: ${{ secrets.TCR_PASS }}
+        run: |
+          set -euo pipefail
+          for v in TCR_USER TCR_PASS; do [ -z "${!v}" ] && unset "$v"; done
+          [ -z "${TCR_USER:-}" ] && { echo "TCR creds not configured — lane relay skipped"; exit 0; }
+          printf 'FROM scratch\nCOPY dist/ /lane/\n' > Dockerfile.lane
+          IMAGE="hkccr.ccs.tencentyun.com/yizuo/desktop-releases:current"
+          echo "$TCR_PASS" | docker login hkccr.ccs.tencentyun.com --username "$TCR_USER" --password-stdin
+          docker build -q -f Dockerfile.lane -t "$IMAGE" . >/dev/null
+          docker push "$IMAGE" >/dev/null
+          echo "::notice::lane image pushed: $IMAGE"
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:

@@ -32,6 +32,16 @@ export function createDesktopUpdater({ platform = process.platform, signed = fal
   const listeners = new Set();
   let wired = false;
 
+  // E2E instrumentation: the mirror appears the moment this module initializes
+  // inside the packaged app — a MISSING file means the app died before wiring
+  // (boot crash), an idle file means the check never fired. Distinguishes the
+  // two silences the first E2E round could not.
+  if (process.env.UPDATER_STATE_FILE) {
+    try {
+      writeFileSync(process.env.UPDATER_STATE_FILE, JSON.stringify({ status: "module-loaded", at: Date.now() }));
+    } catch { /* instrumentation never breaks the updater */ }
+  }
+
   const setState = (patch) => {
     Object.assign(state, patch, { checkedAt: Date.now(), runningVersion: app.getVersion() });
     // E2E instrumentation (desktop-update-e2e): env-gated state mirror — the

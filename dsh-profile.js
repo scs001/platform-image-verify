@@ -1388,7 +1388,8 @@ export function writeToolDescriptionOverlay(briefs, { dirs = null } = {}) {
     const server = key.slice(0, sep);
     const leaf = key.slice(sep + 2);
     if (!server || !leaf) continue;
-    (descriptions[server] ??= {})[leaf] = {
+    descriptions[server] ??= {};
+    descriptions[server][leaf] = {
       brief,
       source: typeof v.source === "string" ? v.source : null,
       updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : null,

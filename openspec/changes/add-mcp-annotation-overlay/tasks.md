@@ -17,7 +17,7 @@
 - [x] 3.1 `McpServerCard`/`McpMarketCard`：有注释渲染通俗名+一句话，连接要素折叠高级区可展开原值；无注释渲染不变；验证：组件测试两态 + Playwright 对照
 - [x] 3.2 `ToolBlock`：一次性拉注释索引（D5），有注释工具块原名旁渲染通俗标签、复制得原名；无注释不变；验证：组件测试两态
 - [x] 3.3 `AgentSpecSheet` full 变体工具桶：通俗名+原始 registryName 双显；验证：组件测试
-- [ ] 3.4 pack 草稿编辑器 mcpServers 描述副轨录入（沿 skills 覆盖交互先例）；验证：编辑器保存双语 manifest 过 `POST /api/packs/validate`
+- [x] 3.4 pack 草稿编辑器 mcpServers 描述副轨录入（沿 skills 覆盖交互先例）；验证：编辑器保存双语 manifest 过 `POST /api/packs/validate`
 
 ## 4. facet 接 locale
 

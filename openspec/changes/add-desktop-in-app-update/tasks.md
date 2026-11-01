@@ -6,8 +6,11 @@
   tailnet-only 零公网暴露）：桶 `yizuo-desktop` 已建+匿名读策略（GetObject）+v1.3.19 三件套
   （exe/dmg×2+electron-builder 自产 latest*.yml）上传，**yml sha512 与实物比对一致**，匿名 GET
   206 全通；坑=mc 上游 410（MinIO 撤档）→curl --aws-sigv4 零安装直干；yml url 是破折号消毒名、
-  原始件带空格——按 yml 名补传才是客户端视角。CI 上传自动化挂账：GitHub 托管 runner 不在
-  tailnet，需 TAILSCALE_AUTHKEY（tailscale/github-action）或自托管 runner 或 tailnet 同步工
+  原始件带空格——按 yml 名补传才是客户端视角。CI 上传自动化**已收口**：OCI 中继道（wire-downloads 先例）——release 班把安装器+latest*.yml
+  打为 hkccr yizuo/desktop-releases:current（runner 够得着注册表）→ cheap-3 desktop-lane-sync.sh
+  （cron */10，已部署实测）拉取→sha512 校验→curl sigv4 推 RustFS；test tag 全链演练 SYNCED 眼见
+  +残留即清；坑录三条=curl 7.88 缺 x-amz-content-sha256 显式补/docker create 无 CMD 失败
+  （--entrypoint /）/openssl base64 折行（校验器折行合并）
 - [x] 1.2 CI 发布班：release.yml 增「生成 latest*.yml」（gen-desktop-latest-yml.mjs，sha512/size
   原子写）+ 随 GitHub Release 与 MinIO 道上传；哈希一致性测试在 3.1
 

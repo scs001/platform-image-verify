@@ -7,16 +7,26 @@ import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/packs/Badge";
 import { useTranslation } from "react-i18next";
 
+// Supply annotation (add-mcp-annotation-overlay): projected server-side to the
+// request locale (zh 唯一回落); absent for unannotated entries — raw rendering.
+type SupplyAnnotation = {
+  name: string | null;
+  summary: string | null;
+  whenToUse: string | null;
+  source: string | null;
+};
+
 type McpCard = {
   name: string;
   displayName: string;
   description: string;
   endpoint: string;
   requiredGroups: string[];
+  annotation?: SupplyAnnotation;
 };
 
 type McpDepth = McpCard & {
-  tools: { name: string; description: string }[] | null;
+  tools: { name: string; description: string; annotation?: SupplyAnnotation }[] | null;
   toolCount: number | null;
   license: string | null;
   providerOrganization: string | null;
@@ -28,6 +38,7 @@ type SkillRow = {
   name: string;
   displayName: string;
   description: string;
+  annotation?: SupplyAnnotation;
   repositoryUrl: string | null;
   author: string | null;
   version: string | null;
@@ -109,10 +120,12 @@ function ServersSection() {
           className="w-full text-left border border-border rounded-lg p-4 hover:bg-muted/40 transition-colors"
         >
           <div className="flex items-center justify-between">
-            <span className="font-medium">{c.displayName}</span>
+            {/* add-mcp-annotation-overlay: the localized human name leads when
+                present; the raw displayName stays in the depth view. */}
+            <span className="font-medium">{c.annotation?.name || c.displayName}</span>
             {c.requiredGroups.length > 0 && <Badge>{t("mcp.requiresGroup", { group: c.requiredGroups[0] })}</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{c.description}</p>
+          <p className="text-sm text-muted-foreground mt-1">{c.annotation?.summary || c.description}</p>
           <code className="text-xs text-muted-foreground mt-2 block break-all">{c.endpoint}</code>
         </button>
       ))}
@@ -160,8 +173,8 @@ function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
       {doc && (
         <>
           <header>
-            <h2 className="text-lg font-semibold">{doc.displayName}</h2>
-            <p className="text-sm text-muted-foreground mt-1">{doc.description}</p>
+            <h2 className="text-lg font-semibold">{doc.annotation?.name || doc.displayName}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{doc.annotation?.summary || doc.description}</p>
           </header>
 
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm" data-testid="mcp-depth-facts">
@@ -196,7 +209,15 @@ function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
               <ul className="space-y-2">
                 {doc.tools.map((tool) => (
                   <li key={tool.name} className="border border-border rounded-md p-3" data-testid={`mcp-tool-${tool.name}`}>
-                    <div className="font-mono text-xs text-foreground">{tool.name}</div>
+                    {/* add-mcp-annotation-overlay: the human label leads, the
+                        raw callable name stays visible (never replaced). */}
+                    <div className="flex items-baseline gap-2">
+                      {tool.annotation?.name && <span className="text-xs font-medium text-foreground">{tool.annotation.name}</span>}
+                      <span className="font-mono text-xs text-muted-foreground">{tool.name}</span>
+                    </div>
+                    {tool.annotation?.summary && (
+                      <p className="text-xs text-foreground mt-1 whitespace-pre-wrap leading-5">{tool.annotation.summary}</p>
+                    )}
                     {tool.description && (
                       <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-5">{tool.description}</p>
                     )}
@@ -274,10 +295,10 @@ function SkillsSection() {
         {slice.map((s) => (
           <div key={s.name} className="border border-border rounded-lg p-4 space-y-1.5" data-testid={`skill-card-${s.name}`}>
             <div className="flex items-baseline gap-2">
-              <span className="font-medium">{s.displayName}</span>
+              <span className="font-medium">{s.annotation?.name || s.displayName}</span>
               {s.version && <span className="text-xs text-muted-foreground">v{s.version}</span>}
             </div>
-            <p className="text-sm text-muted-foreground">{s.description || t("mcp.skills.noDescription")}</p>
+            <p className="text-sm text-muted-foreground">{s.annotation?.summary || s.description || t("mcp.skills.noDescription")}</p>
             <div className="text-xs text-muted-foreground space-y-0.5" data-testid={`skill-provenance-${s.name}`}>
               <div>
                 {t("mcp.skills.source")}：{s.repositoryUrl

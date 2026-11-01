@@ -180,3 +180,31 @@ test("errors name the exact locale field path", () => {
   const bad = { steps: [step("One", "a"), step("Two", "b"), step("x".repeat(61), "c")] };
   assert.ok(has(errorsOf(withOverlay({ guide: bad })), "i18n.en.guide.steps[2].title"));
 });
+// ── mcpServers overlay (add-mcp-annotation-overlay) ──────────────────────────
+
+const MCP_BASE = {
+  ...BASE,
+  mcpServers: [{ registryName: "wire-ops", allowTools: ["create_issue"], description: "工单读写：建单、查单、改状态。" }],
+};
+
+test("a legal mcpServers description overlay passes", () => {
+  assert.deepEqual(
+    errorsOf({ ...MCP_BASE, i18n: { en: { mcpServers: { "wire-ops": { description: "Issue tracking: create, query, and transition tickets." } } } } }),
+    [],
+  );
+});
+
+test("mcpServers overlay referencing an undeclared registryName is rejected", () => {
+  assert.ok(has(errorsOf({ ...MCP_BASE, i18n: { en: { mcpServers: { ghost: { description: "x" } } } } }), "does not declare in mcpServers"));
+});
+
+test("mcpServers overlay only covers description", () => {
+  assert.ok(has(errorsOf({ ...MCP_BASE, i18n: { en: { mcpServers: { "wire-ops": { allowTools: ["x"] } } } } }), "unknown key"));
+});
+
+test("mcpServers base description cap is enforced on the zh main track", () => {
+  assert.ok(
+    has(errorsOf({ ...MCP_BASE, mcpServers: [{ registryName: "wire-ops", description: "x".repeat(301) }] }), "at most 300"),
+  );
+  assert.deepEqual(errorsOf({ ...MCP_BASE, mcpServers: [{ registryName: "wire-ops", description: "工单读写。" }] }), []);
+});

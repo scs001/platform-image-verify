@@ -40,6 +40,7 @@
 | 能力包 / Pack | **智能体 / Agent** | 用户 2026-10-30 明令。安装单位。 |
 | 能力市场 | **智能体市场 / Agent Market** | 用户 2026-10-30 明令。 |
 | 壹座·Packs（品牌） | **壹座·智能体基础设施** | 用户 2026-10-30 明令。registry 落地页品牌串在对侧仓，挂账。 |
+| 壹座·智能体工作室 / Agent Studio（构建面品牌） | **智能体构建器 / Agent Builder** | 用户 2026-11-01 明令。`/agents` 升格四区门面（构建/供给/我的创作/调优）；ja エージェントビルダー、es Constructor de Agentes、fr Constructeur d'Agents；路由/slug/testid 零改（add-agent-builder-hub）。 |
 
 代码键/API/事件/spec 目录名仍一律含 `fleet`，**永不翻译**（沿用 native-lexicon 的既有纪律，
 改名是显示层的活）。
@@ -191,6 +192,10 @@
 | 13 | ✅ `fold-blueprint-into-studio`（**已实施+归档**：团队模式承载蓝图池+双轨不绕闸+共享三桶编辑器+/blueprints 重定向；真机全链 green→签字→封签 v7） | 脊梁 | 12 | 大 |
 | 14 | ✅ `add-agent-fork-lineage`（**已实施+归档**：lineage-only 血缘块（forkOf）+读面种子+发射口携带+facet 跨域深链） | 脊梁 | 11 | 中 |
 | 15 | ✅ `add-official-agent-gallery`（**已实施+归档**：官方筛选卡墙=投影升级（零新端点）+starter 标记+克隆深链） | 脊梁 | 11 | 中 |
+| 16 | ✅ `add-agent-builder-hub`（一级门面「智能体构建器」四区：构建/供给/我的创作/调优；slug 复用 agents 零路由破坏；2026-11-01 立案） | 2 | 12、14 | 大 |
+| 17 | ✅ `add-mcp-annotation-overlay`（供给注释层：MCP/tool/skill 三类对象 human 五语言轨（zh 主轨）+ canonical brief；registry metadata 透传零改码；含 mcpServers 进 pack i18n 白名单；2026-11-01 立案） | 3a | 16 | 大 |
+| 18 | ✅ `add-tool-description-enrichment`（canonical 轨接运行时工具面：tool-filter 同款 overlay 通道，只增强不改名，publicFacing 跳过；2026-11-01 立案） | 5.2 | 17 | 中 |
+| 19 | ✅ `add-persona-self-evolution`（角色桶自进化：persona_amend 提议→A/B 臂盲评→人批分流（自建预设物化 / pack persona 走 fork）→lineage；2026-11-01 立案） | 5.2 | 7、16 | 大 |
 
 ---
 

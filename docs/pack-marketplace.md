@@ -2,6 +2,8 @@
 
 功能集（pack）= 内联技能内容 + registry MCP 引用 + persona 角色的版本化清单，发布到 **谦面（facet）服务**的注册处（自有 SQLite `packs.db`），其他用户在「设置 → 功能集」浏览、检查、一键订阅。设计决策：OpenSpec change `add-pack-marketplace`（D1–D15，已归档）+ `add-facet-platform`（S0–S4，市场归属迁至谦面；ADR-0015）。
 
+组合模型锚：市场条目的内容模型即「智能体文档 Agent Document」——persona + skills + mcp 三桶作为一个单元创作、校验与呈现（三桶规格书），发布门与安装门共用同一套 manifest 校验器；契约见 `openspec/specs/agent-document/spec.md`（`define-agent-document`）。
+
 ## 1. 架构速览（facet 拓扑，2026-10-03 cutover 后）
 
 ```

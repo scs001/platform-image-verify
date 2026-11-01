@@ -11,14 +11,50 @@
     "disconnect": "切断",
     "retry": "再試行",
     "more": "さらに読み込む",
-    "dismiss": "閉じる"
+    "dismiss": "閉じる",
+    "extensions": {
+      "mcp": {
+        "advanced": "詳細"
+      }
+    },
+    "personaEvo": {
+      "title": "persona 改訂レビュー",
+      "subtitle": "エージェントがターン後に提案する persona 改訂：提案 → A/B 評価 → 人間の最終承認。カスタムプリセットは反映され、pack persona はフォーク草稿を作成（本体は不変）。",
+      "empty": "改訂はまだありません。実際のターンで役割の隙間が見つかると、ここに候補が届きます。",
+      "target": {
+        "preset": "カスタムプリセット",
+        "pack": "pack persona"
+      },
+      "current": "現行 persona",
+      "amended": "改訂後 persona",
+      "viewDiff": "差分を見る",
+      "evidence": "根拠：{source} · 修正：{fixed}",
+      "evaluate": "A/B 評価を実行",
+      "promote": "承認して反映",
+      "promoteFork": "承認してフォーク草稿を作成",
+      "status": {
+        "candidate": "候補",
+        "evaluated": "ゲート通過",
+        "promoted": "昇格済み",
+        "rejected": "却下済み"
+      }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "説明（zh 主トラック）",
+        "mcpDescriptionEn": "説明（en オーバーレイ）"
+      }
+    }
   },
   "nav": {
     "chat": "チャット",
-    "family": { "knowledge": "ナレッジ", "build": "構築" },
+    "family": {
+      "knowledge": "ナレッジ",
+      "build": "構築"
+    },
     "knowledge": "ライブラリ",
     "resources": "成果",
-    "agents": "エージェント",
+    "agents": "エージェントビルダー",
     "bots": "ボット",
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
@@ -55,7 +91,7 @@
   },
   "agentsPage": {
     "studio": "スタジオ",
-    "title": "エージェント",
+    "title": "エージェントビルダー",
     "agents": "エキスパート",
     "market": "エージェント",
     "create": "エキスパートを作成",
@@ -71,7 +107,11 @@
     "clusterCreated": "作成日時",
     "clusterTerminate": "グループを解散",
     "clusterTerminateHint": "解散するとグループは停止します。インストール済みのエージェントはそのまま残ります。",
-    "close": "閉じる"
+    "close": "閉じる",
+    "build": "構築",
+    "supply": "供給",
+    "creations": "作成物",
+    "tuning": "チューニング"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1318,7 +1358,12 @@
       "onceAbsolute": "指定日時",
       "onceRelative": "現在から相対",
       "minutesAfterNow": "分後に実行",
-      "unit": { "minute": "分", "hour": "時間", "day": "日", "week": "週" },
+      "unit": {
+        "minute": "分",
+        "hour": "時間",
+        "day": "日",
+        "week": "週"
+      },
       "errors": {
         "prompt": "プロンプトを入力してください",
         "maxRuns": "最大実行回数は正の整数である必要があります",
@@ -1338,7 +1383,13 @@
       "title": "実行履歴（{{count}} 件）",
       "progress": "{{runs}}/{{cap}} 実行済み",
       "missed": "{{count}} 件未実行",
-      "state": { "done": "成功", "failed": "失敗", "interrupted": "中断", "skipped": "スキップ", "missed": "未実行" }
+      "state": {
+        "done": "成功",
+        "failed": "失敗",
+        "interrupted": "中断",
+        "skipped": "スキップ",
+        "missed": "未実行"
+      }
     },
     "trigger": {
       "schedule": "定期",
@@ -2048,85 +2099,85 @@
     },
     "title": "エージェントスタジオ",
     "roster": {
-       "new": "新規エージェント",
-       "empty": "まだエージェントがありません —「新規エージェント」から開始"
-      },
+      "new": "新規エージェント",
+      "empty": "まだエージェントがありません —「新規エージェント」から開始"
+    },
     "canvas": {
-       "empty": "左からエージェントを選ぶか、新規作成してください"
-      },
+      "empty": "左からエージェントを選ぶか、新規作成してください"
+    },
     "agent": {
-       "id": "ID（ゲート規則により自動割当）",
-       "name": "表示名"
-      },
+      "id": "ID（ゲート規則により自動割当）",
+      "name": "表示名"
+    },
     "doc": {
-       "section": "ドキュメント情報（manifest 信封）",
-       "name": "名前",
-       "description": "説明",
-       "tags": "タグ（カンマ区切り）"
-      },
+      "section": "ドキュメント情報（manifest 信封）",
+      "name": "名前",
+      "description": "説明",
+      "tags": "タグ（カンマ区切り）"
+    },
     "skill": {
-       "importLocal": "ローカルスキルから取り込む…",
-       "inline": "インライン新規スキル",
-       "description": "説明（300 字以内）",
-       "content": "スキル本文（SKILL.md）"
-      },
+      "importLocal": "ローカルスキルから取り込む…",
+      "inline": "インライン新規スキル",
+      "description": "説明（300 字以内）",
+      "content": "スキル本文（SKILL.md）"
+    },
     "mcp": {
-       "pick": "レジストリのサーバーを選択…"
-      },
+      "pick": "レジストリのサーバーを選択…"
+    },
     "team": {
-       "tab": "チーム構造",
-       "empty": "このドキュメントにはまだチーム構造（fleet ブロック）がありません — グラフはドキュメントをそのまま読み取り専用で表示します",
-       "readOnlyHint": "グラフは読み取り専用：メンバーはロールカードで編集、編成エッジはブループリント/テンプレートが担います"
+      "tab": "チーム構造",
+      "empty": "このドキュメントにはまだチーム構造（fleet ブロック）がありません — グラフはドキュメントをそのまま読み取り専用で表示します",
+      "readOnlyHint": "グラフは読み取り専用：メンバーはロールカードで編集、編成エッジはブループリント/テンプレートが担います"
     },
     "blueprint": {
-    "pick": "ブループリント下書きを開く…",
-    "new": "新規ブループリント",
-    "untitled": "無題ブループリント",
-    "empty": "プールから下書きを開くか新規作成 — ブループリントのライフサイクル（検証→試験→承認→鋳造）と下書きプールはそのままです",
-    "status": {
+      "pick": "ブループリント下書きを開く…",
+      "new": "新規ブループリント",
+      "untitled": "無題ブループリント",
+      "empty": "プールから下書きを開くか新規作成 — ブループリントのライフサイクル（検証→試験→承認→鋳造）と下書きプールはそのままです",
+      "status": {
         "draft": "下書き",
         "approved": "承認済",
         "cast": "鋳造済"
       },
-    "track": {
+      "track": {
         "form": "フォーム",
         "json": "JSON"
       },
-    "boundary": {
+      "boundary": {
         "name": "シーン名",
         "oneLine": "一行ポジショニング",
         "outOfScope": "スコープ外"
       },
-    "judge": "判定モデル",
-    "judgeFollowDefault": "デプロイ既定に従う",
-    "judgeFollows": "デプロイ既定に従う（{{model}} に解決）",
-    "sources": "データソース（ナレッジコレクション/レジストリ名）",
-    "pickCollection": "ナレッジコレクションを選択…",
-    "jsonHint": "編成/監視/検収セクションは JSON トラックで編集。両トラック同源で、提出時に完全な検証チェーンを通ります。",
-    "jsonApply": "解析してフォームに反映",
-    "saveValidate": "保存して検証",
-    "trial": "試験実行",
-    "trialReport": "試験レポート",
-    "approve": "承認",
-    "cast": "マーケットへ鋳造",
-    "castRef": "鋳造済：pack {{packId}} v{{version}}",
+      "judge": "判定モデル",
+      "judgeFollowDefault": "デプロイ既定に従う",
+      "judgeFollows": "デプロイ既定に従う（{{model}} に解決）",
+      "sources": "データソース（ナレッジコレクション/レジストリ名）",
+      "pickCollection": "ナレッジコレクションを選択…",
+      "jsonHint": "編成/監視/検収セクションは JSON トラックで編集。両トラック同源で、提出時に完全な検証チェーンを通ります。",
+      "jsonApply": "解析してフォームに反映",
+      "saveValidate": "保存して検証",
+      "trial": "試験実行",
+      "trialReport": "試験レポート",
+      "approve": "承認",
+      "cast": "マーケットへ鋳造",
+      "castRef": "鋳造済：pack {{packId}} v{{version}}",
       "sign": "試験レポートに署名（最終キー）",
       "unsign": "署名を取消",
-    "savedValid": "保存しました、検証グリーン"
+      "savedValid": "保存しました、検証グリーン"
     },
     "validate": {
-       "running": "検証中…",
-       "ok": "検証合格 — 公開ゲートと同一の検証器",
-       "bad": "{{n}} 件の問題（公開ゲートの原文）"
-      },
+      "running": "検証中…",
+      "ok": "検証合格 — 公開ゲートと同一の検証器",
+      "bad": "{{n}} 件の問題（公開ゲートの原文）"
+    },
     "emit": {
-       "preset": "パーソナルプリセットとして保存（このセル）",
-       "draft": "エージェント下書きとして保存（→ マーケット）",
-       "busy": "発射中…",
-       "presetOk": "プリセット「{{name}}」を作成しました — 会話セレクターで選べます",
-       "draftOk": "下書きを作成しました —「自分の作成物」で公開へ進めます",
-       "failed": "発射に失敗：{{message}}"
-      },
+      "preset": "パーソナルプリセットとして保存（このセル）",
+      "draft": "エージェント下書きとして保存（→ マーケット）",
+      "busy": "発射中…",
+      "presetOk": "プリセット「{{name}}」を作成しました — 会話セレクターで選べます",
+      "draftOk": "下書きを作成しました —「自分の作成物」で公開へ進めます",
+      "failed": "発射に失敗：{{message}}"
+    },
     "remove": "削除"
   },
   "overlay": {
@@ -3183,7 +3234,10 @@
       "ignore": "却下"
     },
     "title": "記憶",
-    "funnel": { "title": "蒸留ファネル", "segTitle": "{{layer}} · {{count}} 件 · {{pct}}%" },
+    "funnel": {
+      "title": "蒸留ファネル",
+      "segTitle": "{{layer}} · {{count}} 件 · {{pct}}%"
+    },
     "subtitle": "エージェントが覚えているすべて",
     "all": "すべて",
     "layerLabel": "層",
@@ -3263,7 +3317,7 @@
       "add": "追加",
       "hint": "レジストリ登録のサーバー名または内部ライブラリの論理名のみ。エンドポイントと認証情報は禁止です。",
       "placeholder": "例：policy-feed",
-                        "pickCollection": "ナレッジコレクションを選択…",
+      "pickCollection": "ナレッジコレクションを選択…",
       "remove": "削除"
     },
     "json": {
@@ -3432,7 +3486,10 @@
         "failing": "連続失敗 {{count}}"
       },
       "empty": "エージェントチームがありません——テンプレート棚から実体化するか、新規作成してください。",
-      "viewMode": { "cards": "カード", "formation": "編成" },
+      "viewMode": {
+        "cards": "カード",
+        "formation": "編成"
+      },
       "formationEmpty": "空の編成",
       "formationTruncated": "{{count}} 席 · サムネイル",
       "formationUnavailable": "編成データを取得できません",
@@ -3482,6 +3539,31 @@
       "evaluated": "評価済み・確認待ち",
       "promoted": "有効",
       "rejected": "却下"
+    }
+  },
+  "agents": {
+    "tab": {
+      "build": "構築",
+      "supply": "供給",
+      "creations": "作成物",
+      "tuning": "チューニング",
+      "apps": "アプリ"
+    }
+  },
+  "hub": {
+    "build": {
+      "title": "ビジュアルビルダー",
+      "desc": "三つのバケット（persona / スキル / ツール）でエージェントを組み立て、チームも編成。キャンバスは編集可能で検証はリアルタイム、プレセットや市場ドラフトへ直接出力できます。",
+      "cta": "キャンバスを開く"
+    },
+    "supply": {
+      "packs": "エージェント市場",
+      "skills": "スキル",
+      "mcp": "MCP"
+    },
+    "tuning": {
+      "personaTitle": "persona 改訂",
+      "personaEmpty": "persona バケットの自己チューニングを準備中：改訂提案 → A/B 評価 → 人間による最終承認。公開後ここに表示されます。"
     }
   }
 }

@@ -103,6 +103,11 @@ export interface PackManifestSkill {
 export interface PackManifestMcp {
   registryName: string;
   requiredGroup?: string;
+  // Display description (add-mcp-annotation-overlay): the zh MAIN track text
+  // for what this referenced server is for; the manifest i18n overlay covers
+  // it per registryName, so what arrives here is already locale-projected
+  // when the read face projected. Display only — never runtime config.
+  description?: string;
   // Tool allowlist (add-mcp-tool-scoping): leaf names narrowing this
   // reference; absent = the server's full tool surface.
   allowTools?: string[];

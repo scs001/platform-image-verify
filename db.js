@@ -1022,6 +1022,36 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    // add-persona-self-evolution: the persona amendment candidate store (the
+    // role-bucket twin of skill_candidates v109). Candidates live OUTSIDE
+    // custom_presets and packs on purpose (D1): promotion is the only bridge,
+    // and it SPLITS — presets materialize via the CRUD path, pack personas
+    // fork into drafts (D3). current_persona snapshots the text the amendment
+    // addresses (the eval arm + the lineage anchor); lineage records the
+    // promotion outcome (previous persona / fork draft id) on the candidate.
+    version: 112,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS persona_candidates (
+        id TEXT PRIMARY KEY,
+        target_kind TEXT NOT NULL,
+        target_ref TEXT NOT NULL,
+        agent_id TEXT,
+        current_persona TEXT,
+        amended_persona TEXT NOT NULL,
+        evidence TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'candidate',
+        eval_report TEXT,
+        proposed_by TEXT,
+        created_at TEXT NOT NULL,
+        decided_at TEXT,
+        decided_by TEXT,
+        lineage TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_persona_candidates_status ON persona_candidates(status)`,
+      `CREATE INDEX IF NOT EXISTS idx_persona_candidates_target ON persona_candidates(target_kind, target_ref, agent_id)`,
+    ],
+  },
 ];
 
 function nowIso() {

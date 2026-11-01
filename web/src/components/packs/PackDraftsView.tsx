@@ -172,6 +172,7 @@ export function compileDraftManifest(
     guide?: { steps: { title: string; body: string }[] };
     bots?: PackManifestBot[];
     provenance?: PackManifest["provenance"];
+    i18n?: Record<string, Record<string, unknown>>;
   };
   // The guide travels ONLY when all three steps are complete — the server
   // validator rejects a malformed one outright.
@@ -190,6 +191,11 @@ export function compileDraftManifest(
     mcpServers: entries.mcpServers ?? [],
     agents: entries.agents ?? [],
     ...(Array.isArray(entries.bots) && entries.bots.length > 0 ? { bots: entries.bots } : {}),
+    // Locale overlay (add-mcp-annotation-overlay 3.4): an mcpServers en track
+    // authored in the editor rides the entries JSON (the guide/provenance
+    // precedent). Plain drafts never carry the key — byte-identical manifests;
+    // the validator decides whether the overlay shape is legal.
+    ...(entries.i18n && typeof entries.i18n === "object" && !Array.isArray(entries.i18n) ? { i18n: entries.i18n } : {}),
     // Adopted provenance (add-official-adopted-agents 1.4): rides the entries
     // JSON so an adoption draft published through this editor keeps its audit
     // trail (upstream source, license, pinned revision, operator/reviewer).
@@ -252,6 +258,25 @@ function PackDraftEditor({
     return init;
   });
   const [toolsOpenFor, setToolsOpenFor] = useState<string | null>(null);
+  // Supply descriptions (add-mcp-annotation-overlay 3.4): the zh MAIN track
+  // lives on the entry (`description`), the en secondary track in the
+  // entries' i18n overlay keyed by registryName. Display only — the runtime
+  // contract fields never enter these editors.
+  const [mcpDescriptions, setMcpDescriptions] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const m of draft.entries.mcpServers ?? []) {
+      if (m.registryName && typeof m.description === "string") init[m.registryName] = m.description;
+    }
+    return init;
+  });
+  const [mcpEnDescriptions, setMcpEnDescriptions] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    const overlay = (draft.entries as { i18n?: { en?: { mcpServers?: Record<string, { description?: string }> } } }).i18n?.en?.mcpServers;
+    for (const [name, ov] of Object.entries(overlay ?? {})) {
+      if (typeof ov?.description === "string") init[name] = ov.description;
+    }
+    return init;
+  });
   const [agents, setAgents] = useState(() => withKeys(draft.entries.agents ?? []));
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -282,11 +307,13 @@ function PackDraftEditor({
           skills: skills.map((e) => e.value),
           mcpServers: mcpPicked.map((registryName) => {
             const tools = mcpTools[registryName] ?? [];
-            if (tools.length > 0) return { registryName, allowTools: tools };
+            const zhDesc = mcpDescriptions[registryName]?.trim();
+            const base = { registryName, ...(zhDesc ? { description: zhDesc } : {}) };
+            if (tools.length > 0) return { ...base, allowTools: tools };
             if (registryName in fullSurfaceReasons) {
-              return { registryName, fullSurface: true, fullSurfaceReason: fullSurfaceReasons[registryName] ?? "" };
+              return { ...base, fullSurface: true as const, fullSurfaceReason: fullSurfaceReasons[registryName] ?? "" };
             }
-            return { registryName };
+            return base;
           }),
           agents: agents.map((e) => e.value),
           // Guide rides the entries JSON. SAVE keeps steps as authored (even
@@ -297,6 +324,18 @@ function PackDraftEditor({
               ? { guide: { steps } as { steps: { title: string; body: string }[] } }
               : {})(
             guideSteps.map((st) => ({ title: st.title.trim(), body: st.body.trim() })),
+          ),
+          // mcpServers en overlay rides the entries JSON too (add-mcp-
+          // annotation-overlay 3.4): only picked servers with a non-empty en
+          // description serialize; an absent key keeps old drafts identical.
+          ...((enMcp: Record<string, { description: string }>) =>
+            Object.keys(enMcp).length ? { i18n: { en: { mcpServers: enMcp } } } : {})(
+            Object.fromEntries(
+              mcpPicked
+                .map((registryName) => [registryName, mcpEnDescriptions[registryName]?.trim()] as const)
+                .filter(([, d]) => typeof d === "string" && d.length > 0)
+                .map(([n, d]) => [n, { description: d as string }]),
+            ),
           ),
         },
       });
@@ -712,6 +751,31 @@ function PackDraftEditor({
                         )}
                       </>
                     )}
+                  </div>
+                  {/* Supply descriptions (add-mcp-annotation-overlay 3.4): the
+                      zh MAIN track on the entry, the en track in the overlay —
+                      display only, the runtime contract fields never move. */}
+                  <div className="mt-1.5 grid gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="w-28 shrink-0">{t("packs.editor.mcpDescription")}</span>
+                      <input
+                        value={mcpDescriptions[name] ?? ""}
+                        maxLength={300}
+                        onChange={(e) => setMcpDescriptions((prev) => ({ ...prev, [name]: e.target.value }))}
+                        className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+                        data-testid={`pack-mcp-description-${name}`}
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="w-28 shrink-0">{t("packs.editor.mcpDescriptionEn")}</span>
+                      <input
+                        value={mcpEnDescriptions[name] ?? ""}
+                        maxLength={300}
+                        onChange={(e) => setMcpEnDescriptions((prev) => ({ ...prev, [name]: e.target.value }))}
+                        className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs"
+                        data-testid={`pack-mcp-description-en-${name}`}
+                      />
+                    </label>
                   </div>
                   {selected.length === 0 && (
                     <div className="mt-2 space-y-1" data-testid={`pack-mcp-full-surface-${name}`}>

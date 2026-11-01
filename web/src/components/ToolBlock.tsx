@@ -9,7 +9,55 @@ import { QuestionCard } from "@/components/QuestionCard";
 import { ActionCard } from "@/components/ActionCard";
 import { ConnectCta } from "@/components/ConnectCta";
 import { baseName, fileUrl, producedFilePaths, resolveRef } from "@/lib/file-preview";
-import { memo, useId } from "react";
+import { memo, useEffect, useId, useState } from "react";
+
+// ── Supply annotation index (add-mcp-annotation-overlay D5) ─────────────────
+// One fetch per locale, module-cached: the light {servers, tools} index from
+// /api/supply-annotations. A tool block looks up `mcp__<server>__<leaf>`; any
+// failure degrades to null (raw rendering, byte-identical to before).
+interface ToolAnnotation {
+  label: string;
+  summary: string;
+}
+type AnnotationIndex = { servers: Record<string, ToolAnnotation>; tools: Record<string, ToolAnnotation> };
+const annotationIndexCache = new Map<string, Promise<AnnotationIndex>>();
+function annotationIndex(locale: string): Promise<AnnotationIndex> {
+  let p = annotationIndexCache.get(locale);
+  if (!p) {
+    p = fetch(`/api/supply-annotations?locale=${encodeURIComponent(locale)}`)
+      .then((r) => (r.ok ? r.json() : { servers: {}, tools: {} }))
+      .catch(() => ({ servers: {}, tools: {} }));
+    annotationIndexCache.set(locale, p);
+  }
+  return p;
+}
+
+// `mcp__<server>__<leaf>` → { server, leaf }; any other name → null.
+function parseMcpToolName(name: string): { server: string; leaf: string } | null {
+  if (!name.startsWith("mcp__")) return null;
+  const rest = name.slice(5);
+  const i = rest.indexOf("__");
+  if (i <= 0 || i + 2 >= rest.length) return null;
+  return { server: rest.slice(0, i), leaf: rest.slice(i + 2) };
+}
+
+function useToolAnnotation(name: string): ToolAnnotation | null {
+  const { i18n } = useTranslation();
+  const [ann, setAnn] = useState<ToolAnnotation | null>(null);
+  useEffect(() => {
+    const parsed = parseMcpToolName(name);
+    if (!parsed) return;
+    let alive = true;
+    annotationIndex(i18n.language).then((idx) => {
+      if (!alive) return;
+      setAnn(idx.tools[`${parsed.server}__${parsed.leaf}`] ?? null);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [name, i18n.language]);
+  return ann;
+}
 
 interface Props {
   block: Extract<Block, { kind: "tool" }>;
@@ -43,6 +91,7 @@ function ToolBlockBase({ block, onToggle }: Props) {
   const { t } = useTranslation();
   const { name, args, state, result, partial, open } = block;
   const bodyId = useId();
+  const toolAnn = useToolAnnotation(name);
   const openPreview = usePreviewStore((s) => s.open);
   // Subscribed (not read by getState) so a later workspace switch re-resolves
   // the file reference against the root the server would now serve from.
@@ -124,7 +173,17 @@ function ToolBlockBase({ block, onToggle }: Props) {
         ) : (
           <>
             <Wrench className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="min-w-0 truncate font-mono font-semibold text-foreground">{name}</span>
+            {/* add-mcp-annotation-overlay: the localized human label leads
+                when the tool carries an annotation — the raw callable name
+                stays visible beside it and is never replaced. */}
+            {toolAnn ? (
+              <span className="min-w-0 truncate" data-testid="tool-annotation-label">
+                <span className="font-medium text-foreground">{toolAnn.label}</span>{" "}
+                <span className="font-mono text-[10px] text-muted-foreground">{name}</span>
+              </span>
+            ) : (
+              <span className="min-w-0 truncate font-mono font-semibold text-foreground">{name}</span>
+            )}
           </>
         )}
         <span

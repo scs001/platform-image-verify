@@ -29,6 +29,15 @@ export interface McpServer {
   // "bundled" marks servers seeded from platform.bundle.json (websearch et al);
   // their deployment wiring is managed outside this form.
   origin?: "user" | "bundled" | "file" | "registry";
+  // Supply annotation (add-mcp-annotation-overlay), projected to the request
+  // locale SERVER-side (zh 唯一回落). Absent for unannotated servers — the
+  // card renders the raw name/connection exactly as before.
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +78,14 @@ export interface MarketMcpServer {
   installInstructions: string;
   requiresConfig?: boolean;
   origin?: "bundled" | "registry";
+  // Supply annotation (add-mcp-annotation-overlay), projected to the request
+  // locale server-side; absent for unannotated entries (raw rendering).
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
   // Tool surface snapshot (add-mcp-tool-scoping): the registry entry's stored
   // tool_list, served so the pack editor's tool picker offers real names;
   // null when the entry predates a snapshot refresh.
@@ -414,8 +431,16 @@ export async function disconnectPaperTrading(): Promise<PaperTradingConnection> 
 
 // ── MCP Servers ──────────────────────────────────────────────────────────────
 
-export async function fetchMcpServers(): Promise<McpServer[]> {
-  const res = await http(`${BASE_URL}/mcp`);
+// Supply-annotation reads carry the UI locale (add-mcp-annotation-overlay):
+// the server owns resolution and the zh fallback; the client only states its
+// locale — the same posture packs-api's localeQuery established. A caller
+// that does not know the locale (older store) keeps the Accept-Language path.
+function localeQuery(locale?: string): string {
+  return locale ? `?locale=${encodeURIComponent(locale)}` : "";
+}
+
+export async function fetchMcpServers(locale?: string): Promise<McpServer[]> {
+  const res = await http(`${BASE_URL}/mcp${localeQuery(locale)}`);
   if (!res.ok) throw new Error(`Failed to fetch MCP servers: ${res.statusText}`);
   const data = await res.json();
   return data.servers || [];
@@ -645,8 +670,8 @@ export async function seedSkillPackage(file: File): Promise<SkillPackageSeed> {
 
 // ── Market Catalog ───────────────────────────────────────────────────────────
 
-export async function fetchMarketCatalog(): Promise<MarketCatalog> {
-  const res = await http(`${BASE_URL}/market`);
+export async function fetchMarketCatalog(locale?: string): Promise<MarketCatalog> {
+  const res = await http(`${BASE_URL}/market${localeQuery(locale)}`);
   if (!res.ok) throw new Error(`Failed to fetch market catalog: ${res.statusText}`);
   return res.json();
 }

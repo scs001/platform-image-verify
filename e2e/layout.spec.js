@@ -50,12 +50,14 @@ let userCookie;
 // (only the shell knows it is the shell), so the resolved payload carries it
 // and the browser filters it at render — which the sidebar test asserts.
 // `fleets` (agent-fleet-core) is a plain web surface and rides in both lists.
-const ALL_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleets", "fleet"];
-const BROWSER_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleets"];
+// Registry order (packages/core surfaces.ts NAV_SURFACES). memory/machines/
+// zhiyu/blueprints landed after this spec's original list — aligned here.
+const ALL_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints", "fleet"];
+const BROWSER_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints"];
 const ALL_SETTINGS = [
-  "general", "account", "wechat-app", "devices", "connections", "mcp",
+  "general", "account", "wechat-app", "devices", "connections", "mcp", "plugins",
   "models", "channels", "diagnostics", "status",
-]; // branding/roles/layout are admin-only → filtered for a plain user
+]; // branding/roles/layout are admin-only → filtered; plugins rides (dsh supply)
 
 async function api(pathname, { method = "GET", cookie, body } = {}) {
   const headers = {};
@@ -168,8 +170,10 @@ test.describe("workbench layout (logto mode)", () => {
     expect(cfg.status).toBe(200);
     expect(cfg.json.resolvedLayout.nav).toEqual(ALL_NAV);
     expect(cfg.json.resolvedLayout.settings).toEqual(ALL_SETTINGS);
-    // No pack marketplace in this deployment → the market tab is absent.
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents"]); // market needs the pack marketplace (absent here); apps tab retired (simplify-chat-and-agents-ia)
+    // add-agent-builder-hub: the hub's four areas; the market gate moved to
+    // the supply cabinet client-side, so a market-less deployment keeps the
+    // full set. Apps stays retired from every factory preset.
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["build", "supply", "creations", "tuning"]);
   });
 
   test("the sidebar renders exactly the resolved tab set (baseline)", async ({ page, context }) => {
@@ -203,7 +207,7 @@ test.describe("workbench layout (logto mode)", () => {
     expect(put.json.defaultPreset).toBe("simple");
 
     const cfg = await api("/api/config", { cookie: userCookie });
-    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents", "apps"]);
+    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "memory", "agents", "apps"]);
     // `connections` belongs to the non-technical skeleton: the business-role
     // recipes (legal/stock/economic) all resolve to this preset, and it is
     // where those users make tools/search work at all. Dropping it made the
@@ -215,7 +219,7 @@ test.describe("workbench layout (logto mode)", () => {
       "devices",
       "connections",
     ]);
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents"]);
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["build", "supply", "creations", "tuning"]);
   });
 
   test("the sidebar reflects the narrowed layout on the next load", async ({ page, context }) => {
@@ -290,6 +294,26 @@ test.describe("workbench layout (logto mode)", () => {
       .toBe(true);
     const after = await api("/api/config", { cookie: userCookie });
     expect(after.json.resolvedLayout.nav).not.toContain("tasks");
+  });
+
+  test("a hidden Agents nav tab keeps /agents deep links resolving (builder hub)", async ({ page, context }) => {
+    // add-agent-builder-hub 4.2: deployment-hide the Agents tab entirely; the
+    // hub route survives hiding (hidden surfaces keep their routes).
+    const hide = await api("/api/layout/config", { method: "PUT", cookie: adminCookie, body: { hidden: ["tasks", "apps", "agents"] } });
+    expect(hide.status).toBe(200);
+
+    await context.addCookies([{ name: "paas_session", value: userCookie, url: BASE, httpOnly: true, sameSite: "Lax" }]);
+    await pinLocaleEn(page);
+    await page.goto(`${BASE}/chat`);
+    await expect(page.getByTestId("sidebar")).toBeVisible();
+    await expect(page.getByTestId("nav-agents")).toHaveCount(0);
+    await page.goto(`${BASE}/agents?tab=supply`);
+    await expect(page.getByTestId("agents-page")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("supply-section")).toBeVisible();
+
+    // Restore the chain's state for any later steps.
+    const restore = await api("/api/layout/config", { method: "PUT", cookie: adminCookie, body: { hidden: ["tasks", "apps"] } });
+    expect(restore.status).toBe(200);
   });
 
   test("unknown surfaces and malformed payloads are rejected with nothing persisted", async () => {

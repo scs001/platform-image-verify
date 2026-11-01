@@ -56,7 +56,7 @@ async function loadBridge() {
   const anchor = findDshAnchor();
   if (!anchor) return null;
   const tmp = mkdtempSync(path.join(tmpdir(), "preset-bridge-"));
-  for (const f of ["platform-preset-bridge.js", "platform-tool-scope.js"]) {
+  for (const f of ["platform-preset-bridge.js", "platform-tool-scope.js", "platform-tool-description.js"]) {
     copyFileSync(path.join(TEMPLATE_DIR, f), path.join(tmp, f));
   }
   mkdirSync(path.join(tmp, "node_modules", "@deepseek-ai"), { recursive: true });

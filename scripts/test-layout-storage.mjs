@@ -98,7 +98,7 @@ test("resolveForUser: a role with no preset entry keeps the deployment default",
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "screenplay", secondary: [] } });
   assert.deepEqual(layout.nav, ALL_NAV);
   assert.deepEqual(layout.settings, ALL_SETTINGS);
-  assert.deepEqual(layout.agentsTabs, ["agents", "market"]); // factory default retires apps
+  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas (add-agent-builder-hub)
 });
 
 test("resolveForUser: user tweaks apply on top of the role layer", () => {
@@ -108,8 +108,8 @@ test("resolveForUser: user tweaks apply on top of the role layer", () => {
   const { layout } = resolveForUser({ db, env: {}, email: "u@e.c", roles: { primary: "standard", secondary: [] } });
   assert.deepEqual(layout.nav, ["chat", "agents"]);
   // Containers the user did not speak to keep their full set (the factory
-  // default — apps retired from every factory preset).
-  assert.deepEqual(layout.agentsTabs, ["agents", "market"]);
+  // default — the hub four areas, apps retired from every factory preset).
+  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]);
 });
 
 test("facts filter admin sections and marketplace tabs server-side", () => {
@@ -122,7 +122,10 @@ test("facts filter admin sections and marketplace tabs server-side", () => {
   });
   assert.equal(layout.settings.includes("roles"), false);
   assert.equal(layout.settings.includes("branding"), false);
-  assert.deepEqual(layout.agentsTabs, ["agents"]); // apps retired from every factory preset (simplify-chat-and-agents-ia)
+  // add-agent-builder-hub: the market gate moved to the supply cabinet, so a
+  // market-less deployment keeps the full hub set (apps retired from every
+  // factory preset).
+  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]);
 });
 
 // ── User tweaks ─────────────────────────────────────────────────────────────
@@ -337,5 +340,5 @@ test("/api/config ships the resolved layout for the requesting user", async () =
     "devices",
     "connections",
   ]);
-  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["agents"]);
+  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["build", "supply", "creations", "tuning"]);
 });

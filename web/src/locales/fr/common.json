@@ -11,14 +11,50 @@
     "disconnect": "Déconnecter",
     "retry": "Réessayer",
     "more": "Charger plus",
-    "dismiss": "Fermer"
+    "dismiss": "Fermer",
+    "extensions": {
+      "mcp": {
+        "advanced": "Avancé"
+      }
+    },
+    "personaEvo": {
+      "title": "Révisions de persona",
+      "subtitle": "Révisions de rôle proposées par les agents après les tours : proposition → évaluation A/B → révision finale humaine. Les presets perso se matérialisent ; accepter une persona de pack ouvre un brouillon de fork — le pack n'est jamais écrit.",
+      "empty": "Aucune révision pour l'instant. Les agents déposent des candidats ici quand un tour réel expose un manque de rôle.",
+      "target": {
+        "preset": "preset perso",
+        "pack": "persona de pack"
+      },
+      "current": "Persona actuelle",
+      "amended": "Persona révisée",
+      "viewDiff": "Voir le diff",
+      "evidence": "Preuve : {source} · corrige : {fixed}",
+      "evaluate": "Lancer l'évaluation A/B",
+      "promote": "Accepter et matérialiser",
+      "promoteFork": "Accepter et ouvrir un brouillon de fork",
+      "status": {
+        "candidate": "candidate",
+        "evaluated": "porte franchie",
+        "promoted": "promue",
+        "rejected": "rejetée"
+      }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "Description (piste zh)",
+        "mcpDescriptionEn": "Description (superposition en)"
+      }
+    }
   },
   "nav": {
     "chat": "Discussion",
-    "family": { "knowledge": "Connaissances", "build": "Construire" },
+    "family": {
+      "knowledge": "Connaissances",
+      "build": "Construire"
+    },
     "knowledge": "Bibliothèque",
     "resources": "Résultats",
-    "agents": "Agents",
+    "agents": "Constructeur d'Agents",
     "bots": "Bots",
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
@@ -55,7 +91,7 @@
   },
   "agentsPage": {
     "studio": "Studio",
-    "title": "Agents",
+    "title": "Constructeur d'Agents",
     "agents": "Experts",
     "market": "Agents",
     "create": "Nouvel expert",
@@ -71,7 +107,11 @@
     "clusterCreated": "Créé",
     "clusterTerminate": "Dissoudre le groupe",
     "clusterTerminateHint": "La dissolution arrête le groupe ; les agents installés restent en place.",
-    "close": "Fermer"
+    "close": "Fermer",
+    "build": "Construire",
+    "supply": "Catalogue",
+    "creations": "Mes créations",
+    "tuning": "Ajustement"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1318,7 +1358,12 @@
       "onceAbsolute": "Heure précise",
       "onceRelative": "Relatif à maintenant",
       "minutesAfterNow": "minutes à partir de maintenant",
-      "unit": { "minute": "minutes", "hour": "heures", "day": "jours", "week": "semaines" },
+      "unit": {
+        "minute": "minutes",
+        "hour": "heures",
+        "day": "jours",
+        "week": "semaines"
+      },
       "errors": {
         "prompt": "Un message est requis",
         "maxRuns": "Le nombre max d'exécutions doit être un entier positif",
@@ -1338,7 +1383,13 @@
       "title": "Historique ({{count}})",
       "progress": "{{runs}}/{{cap}} exécutées",
       "missed": "{{count}} manquées",
-      "state": { "done": "fait", "failed": "échec", "interrupted": "interrompu", "skipped": "ignoré", "missed": "manqué" }
+      "state": {
+        "done": "fait",
+        "failed": "échec",
+        "interrupted": "interrompu",
+        "skipped": "ignoré",
+        "missed": "manqué"
+      }
     },
     "trigger": {
       "schedule": "Planifiée",
@@ -2048,85 +2099,85 @@
     },
     "title": "Studio d'agents",
     "roster": {
-       "new": "Nouvel agent",
-       "empty": "Aucun agent — commencez par « Nouvel agent »"
-      },
+      "new": "Nouvel agent",
+      "empty": "Aucun agent — commencez par « Nouvel agent »"
+    },
     "canvas": {
-       "empty": "Choisissez un agent à gauche, ou créez-en un"
-      },
+      "empty": "Choisissez un agent à gauche, ou créez-en un"
+    },
     "agent": {
-       "id": "ID (attribué selon les règles du portail)",
-       "name": "Nom affiché"
-      },
+      "id": "ID (attribué selon les règles du portail)",
+      "name": "Nom affiché"
+    },
     "doc": {
-       "section": "Infos du document (enveloppe du manifeste)",
-       "name": "Nom",
-       "description": "Description",
-       "tags": "Étiquettes (séparées par des virgules)"
-      },
+      "section": "Infos du document (enveloppe du manifeste)",
+      "name": "Nom",
+      "description": "Description",
+      "tags": "Étiquettes (séparées par des virgules)"
+    },
     "skill": {
-       "importLocal": "Importer depuis les compétences locales…",
-       "inline": "Nouvelle compétence en ligne",
-       "description": "Description (≤300 caractères)",
-       "content": "Corps de la compétence (SKILL.md)"
-      },
+      "importLocal": "Importer depuis les compétences locales…",
+      "inline": "Nouvelle compétence en ligne",
+      "description": "Description (≤300 caractères)",
+      "content": "Corps de la compétence (SKILL.md)"
+    },
     "mcp": {
-       "pick": "Choisir un serveur du registre…"
-      },
+      "pick": "Choisir un serveur du registre…"
+    },
     "team": {
-       "tab": "Structure d'équipe",
-       "empty": "Ce document n'a pas encore de structure d'équipe (bloc fleet) — le graphe restitue le document, en lecture seule",
-       "readOnlyHint": "Graphe en lecture seule : les membres s'éditent via les cartes de rôle ; les arêtes d'orchestration relèvent des blueprints/modèles"
+      "tab": "Structure d'équipe",
+      "empty": "Ce document n'a pas encore de structure d'équipe (bloc fleet) — le graphe restitue le document, en lecture seule",
+      "readOnlyHint": "Graphe en lecture seule : les membres s'éditent via les cartes de rôle ; les arêtes d'orchestration relèvent des blueprints/modèles"
     },
     "blueprint": {
-    "pick": "Ouvrir un brouillon de blueprint…",
-    "new": "Nouveau blueprint",
-    "untitled": "Blueprint sans titre",
-    "empty": "Ouvrez un brouillon du pool ou créez-en un — le cycle de vie du blueprint (valider → essayer → approuver → couler) et son pool restent inchangés",
-    "status": {
+      "pick": "Ouvrir un brouillon de blueprint…",
+      "new": "Nouveau blueprint",
+      "untitled": "Blueprint sans titre",
+      "empty": "Ouvrez un brouillon du pool ou créez-en un — le cycle de vie du blueprint (valider → essayer → approuver → couler) et son pool restent inchangés",
+      "status": {
         "draft": "Brouillon",
         "approved": "Approuvé",
         "cast": "Coulé"
       },
-    "track": {
+      "track": {
         "form": "Formulaire",
         "json": "JSON"
       },
-    "boundary": {
+      "boundary": {
         "name": "Nom de scène",
         "oneLine": "Positionnement en une ligne",
         "outOfScope": "Hors périmètre"
       },
-    "judge": "Modèle juge",
-    "judgeFollowDefault": "Suivre le défaut de déploiement",
-    "judgeFollows": "Suivre le défaut de déploiement (résolu vers {{model}})",
-    "sources": "Sources de données (collections de connaissances / noms du registre)",
-    "pickCollection": "Choisir une collection de connaissances…",
-    "jsonHint": "Les sections organisation/supervision/acceptation s'éditent via la piste JSON ; les deux pistes partagent une source et passent la chaîne complète à la soumission.",
-    "jsonApply": "Analyser et charger dans le formulaire",
-    "saveValidate": "Enregistrer et valider",
-    "trial": "Essai",
-    "trialReport": "Rapport d'essai",
-    "approve": "Approuver",
-    "cast": "Coulser au marché",
-    "castRef": "Coulé : pack {{packId}} v{{version}}",
+      "judge": "Modèle juge",
+      "judgeFollowDefault": "Suivre le défaut de déploiement",
+      "judgeFollows": "Suivre le défaut de déploiement (résolu vers {{model}})",
+      "sources": "Sources de données (collections de connaissances / noms du registre)",
+      "pickCollection": "Choisir une collection de connaissances…",
+      "jsonHint": "Les sections organisation/supervision/acceptation s'éditent via la piste JSON ; les deux pistes partagent une source et passent la chaîne complète à la soumission.",
+      "jsonApply": "Analyser et charger dans le formulaire",
+      "saveValidate": "Enregistrer et valider",
+      "trial": "Essai",
+      "trialReport": "Rapport d'essai",
+      "approve": "Approuver",
+      "cast": "Coulser au marché",
+      "castRef": "Coulé : pack {{packId}} v{{version}}",
       "sign": "Signer le rapport d'essai (clé finale)",
       "unsign": "Retirer la signature",
-    "savedValid": "Enregistré, validation verte"
+      "savedValid": "Enregistré, validation verte"
     },
     "validate": {
-       "running": "Validation…",
-       "ok": "Valide — les mêmes validateurs que le portail de publication",
-       "bad": "{{n}} problème(s) (libellés du portail de publication)"
-      },
+      "running": "Validation…",
+      "ok": "Valide — les mêmes validateurs que le portail de publication",
+      "bad": "{{n}} problème(s) (libellés du portail de publication)"
+    },
     "emit": {
-       "preset": "Enregistrer comme préréglage personnel (ce cell)",
-       "draft": "Enregistrer comme brouillon d'agent (→ marché)",
-       "busy": "Émission…",
-       "presetOk": "Préréglage « {{name}} » créé — sélectionnez-le dans le sélecteur de conversation",
-       "draftOk": "Brouillon créé — poursuis la publication dans « Mes créations »",
-       "failed": "Échec de l'émission : {{message}}"
-      },
+      "preset": "Enregistrer comme préréglage personnel (ce cell)",
+      "draft": "Enregistrer comme brouillon d'agent (→ marché)",
+      "busy": "Émission…",
+      "presetOk": "Préréglage « {{name}} » créé — sélectionnez-le dans le sélecteur de conversation",
+      "draftOk": "Brouillon créé — poursuis la publication dans « Mes créations »",
+      "failed": "Échec de l'émission : {{message}}"
+    },
     "remove": "Retirer"
   },
   "overlay": {
@@ -3183,7 +3234,10 @@
       "ignore": "Ignorer"
     },
     "title": "Mémoire",
-    "funnel": { "title": "Entonnoir de distillation", "segTitle": "{{layer}} · {{count}} éléments · {{pct}}%" },
+    "funnel": {
+      "title": "Entonnoir de distillation",
+      "segTitle": "{{layer}} · {{count}} éléments · {{pct}}%"
+    },
     "subtitle": "Tout ce que vos agents retiennent",
     "all": "Tout",
     "layerLabel": "Couche",
@@ -3263,7 +3317,7 @@
       "add": "Ajouter",
       "hint": "Uniquement des noms de serveurs du registre ou des noms logiques de la bibliothèque interne : ni endpoints ni identifiants.",
       "placeholder": "p. ex. policy-feed",
-                        "pickCollection": "Choisir une collection…",
+      "pickCollection": "Choisir une collection…",
       "remove": "Retirer"
     },
     "json": {
@@ -3432,7 +3486,10 @@
         "failing": "en échec {{count}}"
       },
       "empty": "Aucune équipe d'agents — provisionnez-en une depuis l'étagère de gabarits ou créez-en une.",
-      "viewMode": { "cards": "Cartes", "formation": "Formation" },
+      "viewMode": {
+        "cards": "Cartes",
+        "formation": "Formation"
+      },
       "formationEmpty": "Formation vide",
       "formationTruncated": "{{count}} postes · vignette",
       "formationUnavailable": "Données de formation indisponibles",
@@ -3482,6 +3539,31 @@
       "evaluated": "évaluée, à confirmer",
       "promoted": "active",
       "rejected": "rejetée"
+    }
+  },
+  "agents": {
+    "tab": {
+      "build": "Construire",
+      "supply": "Catalogue",
+      "creations": "Mes créations",
+      "tuning": "Ajustement",
+      "apps": "Apps"
+    }
+  },
+  "hub": {
+    "build": {
+      "title": "Constructeur visuel",
+      "desc": "Composez un agent à partir de trois compartiments — persona, compétences, outils — ou agencez une équipe sur le canevas ; éditable avec validation en direct et émission vers les presets et brouillons du marché.",
+      "cta": "Ouvrir le canevas"
+    },
+    "supply": {
+      "packs": "Marché d'agents",
+      "skills": "Compétences",
+      "mcp": "MCP"
+    },
+    "tuning": {
+      "personaTitle": "Révisions de persona",
+      "personaEmpty": "L'auto-ajustement de la persona est en préparation : propositions de révision → évaluation A/B → révision finale humaine. Atterrira ici."
     }
   }
 }

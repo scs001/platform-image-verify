@@ -38,6 +38,10 @@ export interface SpecSkill {
 export interface SpecMcpRef {
   registryName: string;
   requiredGroup?: string;
+  /** Manifest display description (add-mcp-annotation-overlay), locale-projected
+   *  by the read face when an overlay covers it; the raw registryName stays
+   *  visible beside it either way. */
+  description?: string | null;
   allowTools?: string[];
   fullSurface?: boolean;
   fullSurfaceReason?: string;
@@ -327,7 +331,15 @@ export function AgentSpecSheet({
           {mcpRows.map((r) => (
             <li key={r.registryName} className="py-0.5">
               <div className="flex items-center gap-2">
+                {/* add-mcp-annotation-overlay: the human description leads
+                    when the manifest carries one — the raw registryName stays
+                    visible (mono) and is never replaced. */}
                 <span className="font-mono text-xs">{r.registryName}</span>
+                {r.description && (
+                  <span className="min-w-0 truncate text-xs text-foreground" data-testid={`${testIdPrefix}-mcp-description-${r.registryName}`}>
+                    {r.description}
+                  </span>
+                )}
                 {r.requiredGroup && <Badge>{t("packs.detail.requiresGroup", { group: r.requiredGroup })}</Badge>}
                 <span className="text-xs text-muted-foreground" data-testid={`${testIdPrefix}-mcp-tool-face-${r.registryName}`}>
                   {toolFace(r)}

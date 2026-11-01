@@ -187,3 +187,19 @@ test("projectPackList projects records and returns zh requests untouched", () =>
   // Accept-Language channel, same priority as the market.
   assert.equal(projectPackList(packs, { acceptLanguage: "en-US" })[0].name, "Policy Sentinel Cluster");
 });
+
+// ── mcpServers projection (add-mcp-annotation-overlay) ───────────────────────
+
+test("mcpServers description projects per registryName; uncovered entries pass through", () => {
+  const manifest = {
+    name: "名",
+    description: "描述",
+    mcpServers: [{ registryName: "wire-ops", description: "工单读写" }, { registryName: "fetch" }],
+    i18n: { en: { mcpServers: { "wire-ops": { description: "Issue tracking" } } } },
+  };
+  const p = projectManifestForLocale(manifest, "en");
+  assert.equal(p.mcpServers[0].description, "Issue tracking");
+  assert.equal(p.mcpServers[0].registryName, "wire-ops");
+  assert.equal(p.mcpServers[1], manifest.mcpServers[1]); // untouched, same reference
+  assert.equal(projectManifestForLocale(manifest, "zh"), manifest); // byte-identical default path
+});

@@ -58,6 +58,7 @@ import {
   installSessionToolGate,
   setSessionToolGate,
 } from "./platform-tool-scope.js";
+import { installMcpToolDescriptionOverlay } from "./platform-tool-description.js";
 
 // JsonRpcLineTransport lives in the SDK server package's own dependency
 // closure. Re-anchor resolution at the server package's entry file (its real
@@ -435,6 +436,11 @@ function apply(ctx, config) {
   // exactly this reason (a late shadow misses the first generation and only
   // the guard/restrict layers would remain).
   installMcpToolRegisterShadow(ctx);
+  // Registration-time description enrichment (add-tool-description-enrichment
+  // D1): chained AFTER the scope shadow (outermost) so an enriched schema is
+  // what a passing registration actually registers. No-ops without the
+  // overlay file — every pre-change composition byte-identical.
+  installMcpToolDescriptionOverlay(ctx);
   const input = config.input ?? process.stdin;
   const output = config.output ?? process.stdout;
   const exit = config.exit ?? ((code) => process.exit(code));

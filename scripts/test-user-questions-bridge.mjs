@@ -51,6 +51,7 @@ async function loadBridge({ fallbackMs } = {}) {
   for (const file of [
     "platform-preset-bridge.js",
     "platform-tool-scope.js",
+    "platform-tool-description.js",
     "platform-permission-bridge.js",
     "platform-user-questions-bridge.js",
   ]) {

@@ -7005,3 +7005,31 @@ poll 步进顺延，**绝对封顶 2× 基础窗**（越界即持住不越），
 从铸包 manifest 恢复——上一班的配额停用破坏了去重重跑前置，fireRound 依赖岗位 cadence job 的
 前置律在册）→ fire ✓→执行 ✓→model_upstream 失败即停顺延 ✓→诚实红 ✓（自适应代码路径活体走通）。
 **km 3.3 绿回执唯余 deepseek 车道 503 恢复**（纯外部等待）；机制+窗口+行为三面全证。
+
+**§15.121 续九：runner 路由 packId 消歧全链上产+真机活体矩阵（add-runner-packid-disambiguation 归档，2026-11-01）**——
+需求方拍板方案 A（成员声明 packId 钉跨包同名）。实现=`fleet_members.pack_id` additive + PATCH 面收
+packId（≤64 或 null 清除）+ memberView 透出 + reconcile materializedSpec/specDrift 穿线 + cron
+addJob/updateJob + task-engine saveTasks/createManualTask + `runnerEntryFor({packId})` 按 path 段
+`/packs/<packId>/` 过滤（钉中唯一→远端；钉后仍多/钉不中→维持 runner-ambiguous，不猜测）。**第七次
+超集并线**：生产在跑源 b9d48b17（feat/agent-builder 四单）非我祖先→并进 release 线（8292f9f8，零
+重叠文件）。**并线连带两修都是真缺陷**：①dsh-profile.js:1391 noAssignInExpressions（lint 门）；
+②adapter allowlist 漏录 test-tool-description-overlay.mjs（ADR-0023 边界门；同族 test-tool-scope-
+register-seam 有录，a7079b94 落榜）。CI 四轮：红→修→红→修→绿（41270591216）→池 sha-57af8e61→
+tag sha-57af8e6（**tag 以 run target: 行为准，7 位截断**）→relay cron 未及走**手动 skopeo copy --all
+单 tag 绕过**（既定急件配方）→digest 89460ec2 双仓一致→GitOps b286bbe→**发现推 github 不滚版**：
+cheap 集群 ArgoCD 源=gitee（fd-infra-deploy 的 gitee remote 带双 pushURL，一推双到；**必须核
+gitee ls-remote**）→hard refresh 后 imageID 实证。**真机逮出第三例「写面修过读面漏网」**：PATCH
+packId 回读 null——`deserializeMember` 漏 packId 映射（写面 createMember/updateMember 都有），物化
+静默归零；修复 9ea251fc+**行回环测试**（create→get/update→get/null 清除）钉死，carrier 套件 13/13。
+CI 第四轮绿→池 sha-108aeee4→tag sha-108aeee→digest aa6ec5b2→GitOps 7b28368→imageID 双验。
+**活体矩阵（一次性舰队 fleet_1793505495398_0v7x79，成员 reception@runner）**：未钉→turn 1497
+`runner-ambiguous`；钉 Ut_bJMuW→turn 1554 **无 carrierFallback**、a2a 执行器真实远端尝试；钉
+KmpgjvkE→turn 1560 同样无回退（A2A: 502）；钉 zzz→turn 1562 `runner-ambiguous`（钉不中负面面）。
+**绿远端回合挂账**：reception 同名 4 entry 的三包接待服务后端在网关侧全 502/503 下线（供给侧状态，
+非本机制；同 km 车道类外因）——错误如实传播本身就是 fail-path 活体。验收即清：舰队 dissolve、包
+卸载、catalog 复原（reception chat 条目归零）。**新律五条**：①`curl -b file` 对无结尾换行的单行
+name=value 文件**静默不发 Cookie 头**（烧 30+ 分钟假鉴权故障）——一律 `-H "Cookie: $CK"`；②cheap
+集群 GitOps 真源是 gitee，只推 github 不滚版；③修存储字段必 grep 读面水化（deserializeMember 类）
+——第三演；④pack manifest `agents[].id` 装包即成 chat 条目 id——这是让 persona 成员合法命中部署
+a2a 键的正当夹具路径（自建预设 id 带 user. 前缀到不了）；⑤validation 失败先问 curl 发没发 header
+再怀疑服务端。specs 230/0，change 归档 2026-11-01-add-runner-packid-disambiguation。

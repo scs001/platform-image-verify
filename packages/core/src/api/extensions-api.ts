@@ -29,6 +29,15 @@ export interface McpServer {
   // "bundled" marks servers seeded from platform.bundle.json (websearch et al);
   // their deployment wiring is managed outside this form.
   origin?: "user" | "bundled" | "file" | "registry";
+  // Supply annotation (add-mcp-annotation-overlay), projected to the request
+  // locale SERVER-side (zh 唯一回落). Absent for unannotated servers — the
+  // card renders the raw name/connection exactly as before.
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +78,14 @@ export interface MarketMcpServer {
   installInstructions: string;
   requiresConfig?: boolean;
   origin?: "bundled" | "registry";
+  // Supply annotation (add-mcp-annotation-overlay), projected to the request
+  // locale server-side; absent for unannotated entries (raw rendering).
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
   // Tool surface snapshot (add-mcp-tool-scoping): the registry entry's stored
   // tool_list, served so the pack editor's tool picker offers real names;
   // null when the entry predates a snapshot refresh.

@@ -55,9 +55,9 @@ let userCookie;
 const ALL_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints", "fleet"];
 const BROWSER_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints"];
 const ALL_SETTINGS = [
-  "general", "account", "wechat-app", "devices", "connections", "mcp",
+  "general", "account", "wechat-app", "devices", "connections", "mcp", "plugins",
   "models", "channels", "diagnostics", "status",
-]; // branding/roles/layout are admin-only → filtered for a plain user
+]; // branding/roles/layout are admin-only → filtered; plugins rides (dsh supply)
 
 async function api(pathname, { method = "GET", cookie, body } = {}) {
   const headers = {};

@@ -13,6 +13,15 @@
 // its six-field shape (no tool surfaces in the default payload), and per-server
 // depth routes carry the tool surface and provenance on demand. The skills
 // catalog rides the same visibility rule over the bridge's skill entries.
+//
+// add-mcp-annotation-overlay: supply annotations project per request locale
+// through the ONE shared helper (lib/supply-annotations.js, zh 唯一回落);
+// unannotated entries carry no annotation key — the payload stays
+// byte-identical to the pre-change shape. Raw stored text remains in
+// name/description (never replaced).
+
+import { resolveLocale } from "../lib/pack-locale.js";
+import { projectAnnotation } from "../lib/supply-annotations.js";
 
 // The one visibility rule every MCP-server surface shares: no required groups =
 // public, groups = a viewer carrying one of them (group names or org ids).
@@ -31,35 +40,54 @@ export function registerFacetMcpRoutes(app, {
   skillsFn = () => [], // injection seam for the skills catalog
   refreshFn = null, // optional forced refresh before serving (tests inject noop)
 }) {
-  const listVisible = (entries, viewer) =>
-    entries
-      .filter((e) => visibleTo(e, viewer))
-      .map((e) => ({
-        name: e.name,
-        displayName: e.displayName || e.name,
-        description: e.description || "",
-        endpoint: e.configTemplate?.url ?? "",
-        requiredGroups: Array.isArray(e.groups) ? e.groups : [],
-      }));
+  const requestLocale = (req) =>
+    resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
 
-  const listSkills = (entries, viewer) =>
+  const projected = (annotation, locale) => {
+    if (!annotation) return undefined;
+    const p = projectAnnotation(annotation, locale);
+    return p ?? undefined;
+  };
+
+  const listVisible = (entries, viewer, locale) =>
     entries
       .filter((e) => visibleTo(e, viewer))
-      .map((e) => ({
-        name: e.name,
-        displayName: e.displayName || e.name,
-        description: e.description || "",
-        repositoryUrl: e.repositoryUrl ?? null,
-        author: e.author ?? null,
-        version: e.version ?? null,
-        tags: Array.isArray(e.tags) ? e.tags : [],
-      }));
+      .map((e) => {
+        const row = {
+          name: e.name,
+          displayName: e.displayName || e.name,
+          description: e.description || "",
+          endpoint: e.configTemplate?.url ?? "",
+          requiredGroups: Array.isArray(e.groups) ? e.groups : [],
+        };
+        const ann = projected(e.annotations, locale);
+        if (ann) row.annotation = ann;
+        return row;
+      });
+
+  const listSkills = (entries, viewer, locale) =>
+    entries
+      .filter((e) => visibleTo(e, viewer))
+      .map((e) => {
+        const row = {
+          name: e.name,
+          displayName: e.displayName || e.name,
+          description: e.description || "",
+          repositoryUrl: e.repositoryUrl ?? null,
+          author: e.author ?? null,
+          version: e.version ?? null,
+          tags: Array.isArray(e.tags) ? e.tags : [],
+        };
+        const ann = projected(e.annotations, locale);
+        if (ann) row.annotation = ann;
+        return row;
+      });
 
   app.get("/api/mcp-catalog", async (req, res) => {
     if (typeof refreshFn === "function") await refreshFn().catch(() => {});
     const viewer = resolveUser(req);
     const entries = entriesFn();
-    res.json({ servers: listVisible(entries, viewer) });
+    res.json({ servers: listVisible(entries, viewer, requestLocale(req)) });
   });
 
   // Per-server depth view (add-facet-infra-pages): tool surface + provenance.
@@ -72,7 +100,15 @@ export function registerFacetMcpRoutes(app, {
     if (!entry || !visibleTo(entry, viewer)) {
       return res.status(404).json({ error: "Server not found" });
     }
-    res.json({
+    const locale = requestLocale(req);
+    const toolAnnotations = entry.annotations?.tools ?? null;
+    const tools = Array.isArray(entry.toolDetails)
+      ? entry.toolDetails.map((t) => {
+          const ann = toolAnnotations && typeof t?.name === "string" ? projected(toolAnnotations[t.name], locale) : undefined;
+          return ann ? { ...t, annotation: ann } : t;
+        })
+      : (entry.toolDetails ?? null);
+    const row = {
       name: entry.name,
       displayName: entry.displayName || entry.name,
       description: entry.description || "",
@@ -80,13 +116,16 @@ export function registerFacetMcpRoutes(app, {
       requiredGroups: Array.isArray(entry.groups) ? entry.groups : [],
       // Depth payload — absent fields stay null; the view renders "not
       // declared" rather than inventing values (spec: honest rendering).
-      tools: entry.toolDetails ?? null,
+      tools,
       toolCount: entry.numTools ?? entry.toolList?.length ?? null,
       license: entry.license ?? null,
       providerOrganization: entry.providerOrganization ?? null,
       deployment: entry.deployment ?? null,
       tags: Array.isArray(entry.tags) ? entry.tags : [],
-    });
+    };
+    const ann = projected(entry.annotations, locale);
+    if (ann) row.annotation = ann;
+    res.json(row);
   });
 
   // Skills catalog (add-facet-infra-pages): provenance marks per
@@ -94,7 +133,7 @@ export function registerFacetMcpRoutes(app, {
   app.get("/api/skills-catalog", async (req, res) => {
     if (typeof refreshFn === "function") await refreshFn().catch(() => {});
     const viewer = resolveUser(req);
-    res.json({ skills: listSkills(skillsFn(), viewer) });
+    res.json({ skills: listSkills(skillsFn(), viewer, requestLocale(req)) });
   });
 
   return { listVisible, listSkills, visibleTo };

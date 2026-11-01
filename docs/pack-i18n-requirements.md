@@ -39,6 +39,16 @@
 - **官网/物料双语文案**（fd-official-web / docs/marketing）——已另有 spec 管（product-portal、five-lines-collateral），不叠。
 - 任何存量 pack 的强迁：字符串旧写法永久合法（主轨 zh），只在新版时自然升级。
 
+### 3.1 口径增补（2026-11-01，add-mcp-annotation-overlay 推翻记账）
+
+用户裁定（2026-11-01 explore 会话）**推翻本需求书 §3 第一条的排除面**：多语言范围**扩到供给内容的显示层**——MCP server / MCP tool / skill 三类对象增加「供给注释层」（human 五语言轨，zh 必填主轨；canonical brief 面向智能体）。具体口径：
+
+- **仍排除**：SKILL.md/persona **正文**翻译（注释层只做显示名/一句话/何时用的策展，不改内容本体）。
+- **新增的注释真源与优先级**：registry 行 `metadata.annotations`（JSON 透传，registry 侧零改码；两平面共读）> 仓库供给目录 `market-catalog.json` 的 `annotation` 键 > 上游原文。读时合并投影、零源行写；locale 解析与 zh 唯一回落复用 `lib/pack-locale.js`。
+- **形状契约**：`lib/supply-annotations.js`（validateAnnotation/mergeAnnotations/projectAnnotation）——human.zh 必填（name≤60/summary≤200/whenToUse≤160 可选）、canonical.brief≤300、tools 子注释按叶名递归。
+- **pack manifest 联动**：`mcpServers[]` 增可选 zh 主轨 `description`（≤300），`LOCALE_OVERLAY_KEYS` 增 `mcpServers`（按声明 registryName 覆盖），沿 `pack-locale-tracks` 既有校验器（同一校验器、无双规则）。
+- **展示面**：壹座 MCP 卡/市场卡/聊天工具块/规格书工具桶与 facet 目录卡/深度页/技能卡按 locale 渲染注释；无注释对象逐字节照旧（「缺字段如实渲染、不发明」既律不变）。
+
 ## 4. 验收口径
 
 1. **兼容性**：含 A 结构的 manifest 发布后，旧客户端（不读 locale 字段）表现与今天逐一比对等价；旧字符串 manifest 走新发布门照样通过。

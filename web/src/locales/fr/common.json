@@ -11,7 +11,12 @@
     "disconnect": "Déconnecter",
     "retry": "Réessayer",
     "more": "Charger plus",
-    "dismiss": "Fermer"
+    "dismiss": "Fermer",
+    "extensions": {
+      "mcp": {
+        "advanced": "Avancé"
+      }
+    }
   },
   "nav": {
     "chat": "Discussion",

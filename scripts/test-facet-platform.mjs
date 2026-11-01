@@ -449,3 +449,56 @@ test("2.5 facet proxy forwards the config channel's actor headers (agent-service
     await new Promise((r) => upstream.close(r));
   }
 });
+
+// ── Supply annotation projection (add-mcp-annotation-overlay) ────────────────
+
+test("facet catalog projects annotations per locale; unannotated entries stay byte-identical", async () => {
+  const { registerFacetMcpRoutes } = await import("../facet/mcp-catalog.js");
+  const entries = [
+    {
+      name: "annotated",
+      displayName: "Annotated",
+      description: "raw description",
+      configTemplate: { url: "https://mcp.x/annotated/mcp" },
+      groups: [],
+      annotations: {
+        human: {
+          zh: { name: "注释名", summary: "中文一句话。" },
+          en: { name: "Annotated name", summary: "English summary." },
+        },
+        tools: { do_thing: { human: { zh: { name: "做事", summary: "做一件事。" } } } },
+      },
+      toolDetails: [{ name: "do_thing", description: "raw tool text" }],
+    },
+    { name: "bare", displayName: "Bare", description: "bare desc", configTemplate: { url: "https://mcp.x/bare/mcp" }, groups: [] },
+  ];
+  const app = express();
+  registerFacetMcpRoutes(app, { resolveUser: () => null, entriesFn: () => entries });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const en = await (await fetch(`${base}/api/mcp-catalog?locale=en`)).json();
+    const a = en.servers.find((s) => s.name === "annotated");
+    assert.equal(a.annotation.name, "Annotated name");
+    assert.equal(a.annotation.summary, "English summary.");
+    const bare = en.servers.find((s) => s.name === "bare");
+    assert.equal(bare.annotation, undefined); // unannotated → no key, shape unchanged
+    assert.equal(bare.description, "bare desc");
+
+    const ja = await (await fetch(`${base}/api/mcp-catalog?locale=ja`)).json();
+    assert.equal(ja.servers.find((s) => s.name === "annotated").annotation.name, "注释名"); // ja 缺 → zh 唯一回落
+
+    const depth = await (await fetch(`${base}/api/mcp-catalog/annotated?locale=en`)).json();
+    assert.equal(depth.annotation.name, "Annotated name");
+    const tool = depth.tools.find((t) => t.name === "do_thing");
+    assert.equal(tool.annotation.name, "做事"); // 工具子注释，ja/en 缺 → zh
+    assert.equal(tool.description, "raw tool text"); // 原文永不替换
+
+    const bareDepth = await (await fetch(`${base}/api/mcp-catalog/bare`)).json();
+    assert.equal(bareDepth.annotation, undefined);
+    assert.equal(bareDepth.tools, null); // honest not-captured rendering unchanged
+  } finally {
+    server.close();
+  }
+});

@@ -72,13 +72,17 @@ export function McpServerCard({ server, onEdit }: McpServerCardProps) {
 
   const typeLabel = server.config.command ? "Stdio" : "HTTP";
   const isAuto = server.source === "startup";
+  // Supply annotation (add-mcp-annotation-overlay): the localized human track
+  // replaces the raw name/connection line when present; the raw values stay
+  // reachable in the advanced disclosure (never replaced).
+  const ann = server.annotation;
 
   return (
     <div data-testid="mcp-card" data-source={server.source} data-name={server.name} className="border border-border rounded-lg p-4 bg-card">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-foreground truncate">{server.name}</h3>
+            <h3 className="font-medium text-foreground truncate">{ann?.name || server.name}</h3>
             <span data-testid="mcp-type-badge" className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
               {typeLabel}
             </span>
@@ -94,13 +98,31 @@ export function McpServerCard({ server, onEdit }: McpServerCardProps) {
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            {server.config.command ? (
-              <code className="text-xs">{server.config.command} {server.config.args?.join(" ")}</code>
-            ) : (
-              <code className="text-xs">{server.config.url}</code>
-            )}
-          </p>
+          {ann?.summary ? (
+            <p className="text-sm text-muted-foreground" data-testid="mcp-annotation-summary">{ann.summary}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {server.config.command ? (
+                <code className="text-xs">{server.config.command} {server.config.args?.join(" ")}</code>
+              ) : (
+                <code className="text-xs">{server.config.url}</code>
+              )}
+            </p>
+          )}
+          {ann && (
+            <details className="mt-1" data-testid="mcp-annotation-advanced">
+              <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+                {t("extensions.mcp.advanced")} · <code className="text-[10px]">{server.name}</code>
+              </summary>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {server.config.command ? (
+                  <code className="text-[10px] break-all">{server.config.command} {server.config.args?.join(" ")}</code>
+                ) : (
+                  <code className="text-[10px] break-all">{server.config.url}</code>
+                )}
+              </p>
+            </details>
+          )}
           {/* Personal overlay: only whether this globally-configured server is
               available to me. Config, URL and credentials stay global. */}
           {binding?.globalEnabled && (

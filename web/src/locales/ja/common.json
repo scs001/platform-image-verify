@@ -11,7 +11,12 @@
     "disconnect": "切断",
     "retry": "再試行",
     "more": "さらに読み込む",
-    "dismiss": "閉じる"
+    "dismiss": "閉じる",
+    "extensions": {
+      "mcp": {
+        "advanced": "詳細"
+      }
+    }
   },
   "nav": {
     "chat": "チャット",

@@ -8,6 +8,7 @@ import { createExternalSourceRegistry, requestedPageSize } from "../../external-
 import { previewInstall, performInstall, previewUpdate, performUpdate } from "../../external-install.js";
 import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
 import { resolveLocale } from "../../lib/pack-locale.js";
+import { projectAnnotation } from "../../lib/supply-annotations.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
@@ -45,13 +46,15 @@ export function registerExtensionRoutes(ctx) {
 
   // List all MCP server configurations (from database). Supply annotations
   // (add-mcp-annotation-overlay) ride by name from the merged catalog — the
-  // config store itself never stores annotations. Unannotated servers carry
-  // no annotation key: the pre-change payload, byte-identical.
-  app.get("/api/extensions/mcp", async (_req, res) => {
+  // config store itself never stores annotations — projected to the request
+  // locale server-side (the ONE projection helper; zh 唯一回落). Unannotated
+  // servers carry no annotation key: the pre-change payload, byte-identical.
+  app.get("/api/extensions/mcp", async (req, res) => {
     if (!db.isDbReady()) {
       return res.status(503).json({ error: "Extensions management is disabled (database unavailable)" });
     }
     const servers = extensionStore.listMcpServers();
+    const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
     let annotationsByName = null;
     try {
       annotationsByName = await extensionStore.getAnnotationsByName();
@@ -60,7 +63,12 @@ export function registerExtensionRoutes(ctx) {
     }
     res.json({
       servers: annotationsByName
-        ? servers.map((s) => (annotationsByName.has(s.name) ? { ...s, annotation: annotationsByName.get(s.name) } : s))
+        ? servers.map((s) => {
+            const raw = annotationsByName.get(s.name);
+            if (!raw) return s;
+            const projected = projectAnnotation(raw, locale);
+            return projected ? { ...s, annotation: projected } : s;
+          })
         : servers,
     });
   });
@@ -451,7 +459,15 @@ export function registerExtensionRoutes(ctx) {
   app.get("/api/extensions/market", async (req, res) => {
     try {
       const catalog = await extensionStore.getMarketCatalog(req.user ?? null);
-      res.json(catalog);
+      // Supply annotations project to the request locale server-side (the ONE
+      // helper); unannotated entries pass through byte-identical.
+      const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+      const project = (entry) => {
+        if (!entry?.annotation) return entry;
+        const projected = projectAnnotation(entry.annotation, locale);
+        return projected ? { ...entry, annotation: projected } : entry;
+      };
+      res.json({ mcpServers: catalog.mcpServers.map(project), skills: catalog.skills.map(project) });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

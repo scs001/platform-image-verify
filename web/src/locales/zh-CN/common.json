@@ -11,7 +11,12 @@
     "disconnect": "断开",
     "retry": "重试",
     "more": "加载更多",
-    "dismiss": "关闭"
+    "dismiss": "关闭",
+    "extensions": {
+      "mcp": {
+        "advanced": "高级"
+      }
+    }
   },
   "nav": {
     "chat": "对话",

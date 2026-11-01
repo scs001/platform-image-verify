@@ -7050,3 +7050,23 @@ a2a 键的正当夹具路径（自建预设 id 带 user. 前缀到不了）；�
 **§15.121 续十（2026-11-01）——官方卡墙清洗 8 支残留下架+其余团队分批方案+MCP 命名契约**。①50 支官方包盘点：41 支 aloadtree 名下、28 支内容薄。**下架批执行完毕**：政策盯梢·收费探针3/契约探针（persona 6 字）、跨境电商政策盯梢（16 字，与盯梢团队重复）、投研晨会·构造样例（cast 产物）、演示分身/p2 的分身/facet-demo 的分身/演示者最小门面（走查演示残留）——前 4 支 aloadtree 身份直下；后 4 支**仅原作者闸**（setUnlisted 按 author_email，gateway/packs.js:827）→铸对应身份执行（facet-demo/p2walk1025/platform-test@findmail.com）。**坑：雷池对连续裸 curl POST 触发规则回 HTML 错误页**——慢速（间隔 6-10s）+浏览器 UA+Referer 即过；程序化写操作遇 HTML 错误页先疑 WAF 不是应用。官方卡墙现存 50 支零残留。②**改版批待点单**（约 10 支业务团队：官网内容/萬星运营/谦面运营/识律营销/法规追踪/识律政心/情报舆情/跨境电商盯梢/柏讯系——同五支 starter 基线治疗，persona 深化+skills 补实+mcp 已钉大多到位）。③**MCP 名字与翻译**：并行班两张单在管——add-mcp-annotation-overlay（14/18：双向注释层 human 五语言+canonical brief、读时投影不改源、无注释如实渲染原文、三桶规格书工具桶接注释名）+add-tool-description-enrichment（7/12：运行时注入）；本线配合=包内容不发明假 server 名（如实钉扎已遵守），等注释层上产后规格书自动接本地化名。
 
 **§15.121 续十一（2026-11-01）——改版批 10 支业务团队全链上产（modernize-official-business-teams，两轮发布 10/10+10/10，走查 15/15）**。用户「开始」点单后当日全链闭合。①**内容**：10 支 35 岗 persona 全部重写至 375-734 字（【职责边界】【工作纪律】【输出契约】结构段；改版前节拍/槽位/铁律逐字保留——四分类、草稿优先、量级话术、32,296 口径、六源就绪、9610/1210/9710/9810、三判据、写操作永不直调、「本轮无信号」合法结论等全数在稿）；24 条新技能（ASCII 名+≥200 字程序性内容，零编造工具名）；**本体建设五岗原本连 report_status 都没有（64-114 字）→补齐契约+显式槽位**。②**真缺陷一枚**：情报舆情闸位 persona 用 fd-sentiment 打分面但包内未钉该 registryName（工具面对岗位不可达）→补钉 fd-sentiment 五个真实工具叶（aggregate_scores/current_prompt_version/list_scores/score_batch/score_document）。③**溯源建制**：staging/source-snapshot.json（35 岗改版前 persona 全文）+registry-allowtools.json（8 个 registryName 工具真值，从 50 支在架官方包实测收割——**/api/servers 及 /api/servers/<name> 全 404，平台无此路由，工具真值只能从同域在架包 manifest 收割**）入库；槽位名单从快照正则自动派生，不手抄。④**发布终态（两轮）**：首轮 v8/v6/v10/v5/v4/v5/v6/v13/v5/v5（10/10）→走查逮字面转义事故→修复重发 v9/v7/v11/v6/v5/v6/v7/v14/v6/v6（10/10），API 回读两轮全合规（v+1/skills 2-3/mcp/槽位/多段）。⑤**走查 15/15**：货架 10 卡全在（46 卡墙）、详情逐支版本/三桶/内容标记（机器也读得懂/模型分/fleets.db/integrity 面未暴露/量级话术/32,296/snapshot_version/9610/只读盘账/本轮无信号）/无转义、构建器画布门面、fork 深链 /studio?fork=、匿名=登录墙+OFFICIAL ASSETS 预告（语义如实）。⑥**字面转义事故三律（本轮最重）**：①脚本里给中文文本插换行，`"\\n\\n"`（Python heredoc 内）落盘是反斜杠+n 两个字面字符不是换行——**凡是程序化拼装自然语言文本，落盘后必须断言 `"\n" in text and "\\n" not in text`**；②该缺陷静态基线测试没逮住（测试只断言结构词与槽位），**真机浏览器走查才现形——UI 走查不可被「API 回读全对」替代，渲染层是最后一道独立证据**；③修复后把断言同时钉进基线测试与发布脚本（`assert !persona.includes("\\n")`），同类缺陷从此进不了发布门。⑦走查选择器律再证：官方货架卡 testid=`gallery-<packId>-compact`、详情=`role=dialog`、**货架名随 locale 走（en 下 Marketing Site Content/Wanxing Fleet Ops）——断言内容标记不断言中文包名**；/agents 是构建器画布门面不是岗位列表（岗位证据在包详情），匿名访问客户端跳 /login 且登录页预告 OFFICIAL ASSETS。⑧基线测试断言律：诚实纪律句按语义族匹配（绝不编造/不给结论/不替其编造/不臆造），首版 24 岗缺诚实句=测试逐岗逮出后按岗位类型逐条手写补入（不批量模板硬贴）。specs 本程 233/0 保持，modernize-official-business-teams delta validate --strict 绿，待 archive。
+
+**§15.121 续十二：滚版缝隙治丢上产+接管眼见（add-rollout-gap-durability 全链归档，2026-11-01）**——
+用户问「滚版还会丢消息/全平台停机吗，无感升级怎么做，桌面能不能应用内升级」→ 三问催两单。**单①
+全链当日闭环**：webhook 盘上受理（`server/bot-acceptance.js`：tmp+rename 原子/0600/pending→
+dispatched→done 单向状态机/认领竞态守卫/24h 保留/盘上限满 503）+五适配器 platformMessageId 幂等
+（同 id 重放 ack 不二跑；无标识不造键）+boot 窗合流（旧 bootBuffer 内存丢弃变盘上排队）+重启接管
+（pending 补处理/dispatched 如实 interrupted 不重跑防双回）+`cron.makeUpInterruptedBeat`（滚版
+打断的 cron 源孤儿 run 容差补拍单点决策，与 boot 补拍同 marker 同路径=无双发）。**测试 16 件新增
+全绿**；三夹具律=平台从不复用 message_id（恒定 id 被幂等正确折叠——test-bots/user-questions-host/
+boot-latch 三处改自增；跨文件污染假象追了一轮，根因全是夹具失真）。全量 3099/3102——唯一红
+`6.3④ 试跑执行器`经**基线全量对照定谳为在册序依赖红**（并行班 trial-fire 线所有，单独跑绿）。
+上产：CI 41306287401 绿→池 ba53bdc2→手动 relay 双仓 566de51a→bump d21f2ad→imageID 实证。
+**A 面真机眼见**：webhook 落盘先行（cell 级 `cells/<id>/data/bot-acceptance/`）→ 预置 pre-crash
+pending 记录 + cell 重铸 → `takeover: dispatching accepted webhook` 日志眼见 → 双记录 done 收案
+→ 验收即清。**B 面挂账**：打断回合 makeup 确定性杀窗卡走查 cell 深队列（~16 分钟），单测充韧，
+首次自然「回合在飞时滚版」经 fleet-runs warn/makeup 标记观测。**共享工作树劫持二演**：rebase 卷入
+并行 cutover 会话本地提交（a167c8c1）→ abort 后 reset 到 origin tip+择拣己件（ab33c867），他人件
+保全 backup-release-cutover-1101。**残留无感化路径**（本单未含）：Recreate→滚动（hostPort 解绑）+
+preStop 排水+bot 死窗边缘受理——另单。单② add-desktop-in-app-update（桌面应用内升级）四件套已
+立项待工。specs 233/0，归档 2026-11-01-add-rollout-gap-durability。

@@ -29,5 +29,11 @@
 
 ## 4. 上产与真机验收
 
-- [ ] 4.1 出片线：池出片 → relay/ccr → GitOps bump（gitee 真源，核祖先）→ imageID 实证
-- [ ] 4.2 真机：滚版期间 bot 回调→重启接管补处理眼见；打断回合 makeup/missed 两面取证；验收即清
+- [x] 4.1 出片线：公开门 CI 绿（41306287401）→ 池绿（快照 ba53bdc2/tag sha-ba53bdc 7 位截断）→
+  手动 relay 双仓 digest 一致（566de51a）→ GitOps bump d21f2ad（源 ab33c867 ⊇ 43430df8 祖先律核过；
+  gitee 真源）→ pod imageID 实证 566de51a
+- [x] 4.2 真机：**A 面眼见全绿**——webhook 落盘先行（cell 级 `cells/<id>/data/bot-acceptance/`，
+  key+message 全在盘）→ 预置 pre-crash pending 记录 + cell 重铸 → 日志 `takeover: dispatching
+  accepted webhook` 眼见 → 两条记录 state=done 收案。**B 面挂账**：打断回合 makeup 的确定性杀窗
+  卡走查 cell 深队列（~16 分钟延迟，单测 4/4 充韧）——首次「回合在飞时滚版」自然发生时经
+  fleet-runs warn/makeup 标记观测。验收即清（舰队 200/bot 200/盘上记录归零）

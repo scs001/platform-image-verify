@@ -38,6 +38,12 @@
         "promoted": "promue",
         "rejected": "rejetée"
       }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "Description (piste zh)",
+        "mcpDescriptionEn": "Description (superposition en)"
+      }
     }
   },
   "nav": {

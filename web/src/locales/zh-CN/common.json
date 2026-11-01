@@ -38,6 +38,12 @@
         "promoted": "已晋升",
         "rejected": "已驳回"
       }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "描述（zh 主轨）",
+        "mcpDescriptionEn": "描述（en 副轨）"
+      }
     }
   },
   "nav": {

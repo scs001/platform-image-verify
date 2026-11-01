@@ -38,6 +38,12 @@
         "promoted": "promovida",
         "rejected": "rechazada"
       }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "Descripción (pista zh)",
+        "mcpDescriptionEn": "Descripción (superposición en)"
+      }
     }
   },
   "nav": {

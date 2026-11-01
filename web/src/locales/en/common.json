@@ -38,6 +38,12 @@
         "promoted": "promoted",
         "rejected": "rejected"
       }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "Description (zh main track)",
+        "mcpDescriptionEn": "Description (en overlay)"
+      }
     }
   },
   "nav": {

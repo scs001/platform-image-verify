@@ -38,6 +38,12 @@
         "promoted": "昇格済み",
         "rejected": "却下済み"
       }
+    },
+    "packs": {
+      "editor": {
+        "mcpDescription": "説明（zh 主トラック）",
+        "mcpDescriptionEn": "説明（en オーバーレイ）"
+      }
     }
   },
   "nav": {

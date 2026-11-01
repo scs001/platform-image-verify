@@ -6985,3 +6985,23 @@ open until… (5/5 upstream failures)` 诚实 skip→model_upstream 直败——
 **这对 km/蓝图线是个设计题不是等待题**：静窗在常年繁忙的走查 cell 不存在。候选方向（归该线拍板）：
 ①trial 回合跳队（优先执行道）；②窗口自适应——成员任务 queued/running 期间 deadline 顺延（诚实且
 简单）；③试跑舰队落专用静 cell。台账在案，机制其余环节已证全通。
+**§15.120 五续（2026-11-01 晨）——agentOwner 修复 10 班上产（三面 2650457e）+ 签腿绿窗自动逮**。①rebase 净（feat 分支 3 commits onto release 线 b578cf72；祖先律 75184930/b578cf72 双 ⊆ HEAD ✓）；首踢误拿 rebase 前旧 tip（b2c3f2ec）——**fd-build-snapshot 在 push 前读本地 ref，rebase 后必先 force-with-lease 推再踢**（已立此序）；烧一次取消（41235691562 cancelled，私仓分钟止损）。②**tag 截断四演**：池预测 sha-1e473b23（8 位），实际推 `sha-1e473b2`（快照 commit `--short` 7 位）——查 push log 为准。③GitOps ded0c34 三面同代（platform/demo/facet），**digest 注释写实值**（吸取 5e88ef4 垃圾注释教训）；origin 是 github+gitee 双 pushURL，一推双到。④三 pod imageID 全=2650457e + pod 内 `MATERIALIZATION truth` 特征 ×1 ✓。⑤签腿：车道 deepseek-v4.1-flash（openrouter 上游）整夜扑（19:41 唯一 ok 窗；19:43-45 连败重开熔断 until 19:55:55；20:00 再 503）——waiter 后台轮询 member reports，逮「紫色河马」正文回合即自动踢试跑⑩；**坑补录：kubectl cp 拷 fleets.db 必带 -wal/-shm，否则读到 checkpoint 前旧快照误判「回合停摆」**（member_turn_events 19:05 后的事件全在 WAL 里）。
+
+**§15.120 六续（2026-11-01 晨）——签腿收链连破三缺陷，机件全通只剩上游车道**。①**蓝图 content 里 preset id 存两份**（content.agents[].id 与 fleet.members[].target.presetId）——只改 members 侧→pack v4 manifest 内部不一致（agents[] 旧 id/target 新 id）→装包物化旧 id→目录无新 id→成员 vacant「target object no longer exists」；补改 agents[0].id→v5 一致 ✓。**律=改 preset id 必两处同改（cast 不代推导）**。②**双链同岗互斥**：并行班在跑原版蓝图试跑（同账号 aloadtree），其车队占着同名 persona→唯一性冲突规则把我的乙班成员 born empty（sentinel）；治本=乙班换唯一 id `walkthrough-reader-yiban`——**多包勿共用 preset id，唯一性冲突按 id 不按 pack**。③试跑锁连环 409 溯因三件：并行班 10 分钟窗背靠背占锁（30s 轮询饿死，改 10s 轮 stored ranAt 释放信号即踢）+ session 过期盲轮询（closer 全程要验 auth/me）+ fireRound 无超时嫌疑挂账。④**机件终局全绿**：v5 install 物化 yiban→dnyyrv 成员复活（label 走查读库岗在）→cadence */5 持续点火→prompt 已钉「summary 逐字含全文」；唯一变量=openrouter 车道整夜 503 扑（failing 5 连败 model_upstream，健康窗 1-3 分钟/20-60 分钟一次）。closer4b 后台自动收链（释放即踢→判绿→签字→封签→市场包验证）。⑤坑：/tmp 文件并行会话共享（probe.json 被写他班结果）——临时文件用会话唯一前缀。
+
+**§15.120 七续（终章，2026-11-01 晨）——全链首绿+签字+封签 v7，蓝图管线真机全闭环**。23:18 热窗一击：试跑 32 秒全程完成（fireRound→成员回合→报告落账 r_1793488717031→judge mimo 判词「报数全文逐字含紫色河马与47度」→**green=true**）——此前 10+ 班全红的三层根因（车道 503 扑+成员 vacant+内容方差）全部治愈后的首次全绿。**签字**（双钥匙终审）：signoff by=aloadtree ranAt 匹配 ✓；**封签重铸**：reseal 闸按契约放行（cast 态+本人批准+本人签字+ranAt 一致）→pack **v7**，manifest 内嵌 trialReport（green:true+signoff 在案）✓。可售实体眼见。清理：乙班 v7 unlist（版本不可变留存）、试跑舰 dnyyrv 归档；原版链（tppHc/mn2h82/并行班 ttoflp）归并行班处置。**管线机件定谳全绿**：draft→编辑→校验→批准→铸造（首铸 selfPending 自愈/再铸重建/同名即时解析三形态全部眼见）→试跑（全新装机/dedup 复用/唯一性冲突降级三形态全眼见）→判据（机器断言+LLM judge mimo-v2.6-flash deployment 真机跑通）→签字→封签→可售。剩余挂账：guides 第二批/studio 4.x AI 桥/fireRound 无超时/试跑端点同步 10 分钟+WAF 掐长连（可改异步受理+轮询，立案归蓝图执行线）。
+
+**§15.120 八续（2026-11-01）——七单全归档，规格书工作流立法毕**。按依赖序逐单归档：spec-sheet（新建 agent-spec-sheet capability，ADDED 直拷+节名律 `## ADDED Requirements`→主 spec 必须改名 `## Requirements`，否则 2 需求不可见验出）→fold（fleet-blueprint-studio MODIFIED 块替换，超集律核过：主 2 场景+新 1）→fork（新建 agent-fork-lineage）→gallery（official-pack-showcase 追加 3 需求）→**脊梁 define-agent-document 六件文档功课**（roadmap §6 补 9-15 行+creating-packs/pack-marketplace 两文档「三桶/四发射口」指针+agent-document capability 立法+严格 validate）→studio（5.3 补「发射不改工作文档」断言 12/12；6.3 被 fold D2 取代注记；**4.x 拆出 add-studio-ai-drafting 立案**：proposal/tasks/spec 三件齐 validate 绿——AI 起草=桥+草稿+人采用门，零发射口调用）→guides（4.2 走查实证销账；3.3 第二批挂账在案随批注明）。specs 终态 **230/0**；分支 tip 81d8ae3e 推 origin。规格书工作流七单立法闭环，后续迭代在主 spec 上开新单。
+
+**§15.120 九续（2026-11-01）——add-studio-ai-drafting 实施（1.1/1.2/2.1/2.2/2.3 五件毕）**。实施定案一处偏离原案并如实记：pack-author/fleet-architect 的 MCP 工具面本就是 drafts_list/validate/save（无起草工具）——「桥」落地为**一条鉴权起草函数**（POST /api/studio/draft：kind 白名单 agent-doc|blueprint 结构性限定、复用部署 judge 车道 resolveJudgeLane、20/h 限流、零持久化零发射口调用、无车道如实 503）而非 MCP 工具代理（原案「代理既有 MCP 工具」无对象可代理，照搬会造第二套空转面）。画布「AI 起草」面板：草稿态独立（aiDraft state），采用=唯一写入门（显式 setDoc），取消逐字段零污染。测试 9/0（源断言 5+网关行为 4）+studio 邻居 12/12+check-locales 过。tip e0d8c546 推 origin。剩 3.1 真机走查（随滚版班）。
+
+**§15.121 续八：trial 窗口自适应上产+行为活体验证（add-trial-window-adaptive 全链，2026-11-01）**——
+propose 四件套→apply：`nextTrialDeadline` 纯函数（inflight=cron 任务 queued/running → deadline 按
+poll 步进顺延，**绝对封顶 2× 基础窗**（越界即持住不越），非在途即停）+ 生产 collectAndWait 接线
+（cron.listJobs 在途判定零新探针）+ `windowExtendedMs` 如实进证据面。**CI 第九轮逮住我方真缺陷**
+（deadline 声明 const 却在循环赋值——noConstAssign；本地 biome 输出被管道吞掉的教训=lint 必须显式
+核退出码）。第六次超集追并（七单全归档 specs 230/0+AI 起草桥随行）→ 第十一轮 CI 绿 → 池绿 →
+**sha-493d43d（digest 30727056）双 pod imageID 同一**。真机行为验证：trial 重跑（去重舰队 cadence
+从铸包 manifest 恢复——上一班的配额停用破坏了去重重跑前置，fireRound 依赖岗位 cadence job 的
+前置律在册）→ fire ✓→执行 ✓→model_upstream 失败即停顺延 ✓→诚实红 ✓（自适应代码路径活体走通）。
+**km 3.3 绿回执唯余 deepseek 车道 503 恢复**（纯外部等待）；机制+窗口+行为三面全证。

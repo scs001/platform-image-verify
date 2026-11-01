@@ -89,3 +89,7 @@ Logto 管理台（auth-admin.finddatatech.cloud）→ Organizations → `creator
 - 更新无推送：徽标在打开「我的功能集」时拉取比较（design D13）。
 - 滥用举报/下架工具未建：作者可自行 unpublish；admin 可直连 facet store 处理（备份后操作）。
 - CLI 不写 MCP 配置、不创建订阅（快照语义）；registry SSO token 自动写入留 v2。
+
+## Agent Document：三桶模型与四个发射口
+
+市场上每一支 pack 都是一份 Agent Document 的发射产物：三桶（角色预设+技能+MCP 工具面）在详情页以规格书呈现（AgentSpecSheet），官方集合以卡墙呈现并带克隆入口（/studio?fork= 深链）。能力 spec 见 `openspec/specs/agent-document/spec.md`。

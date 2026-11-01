@@ -230,3 +230,8 @@ npx @finddatatechnology/facet publish <功集id> --from https://<你的实例地
 | 校验报 allowTools | 空数组或名字格式不对（`[A-Za-z0-9._-]`，1-128 字符） |
 | 一键流报告「pending」 | 预设里的技能属于别的包 / server 对不上目录——按报告替换后重发 |
 | 详情页看不到新版本 | 发布的是草稿未点发布，或包是 private 且你在用别的身份看 |
+
+
+## Agent Document：三桶模型与四个发射口
+
+壹座把「一个 agent」看作一份 **Agent Document**：角色预设（persona）+ 技能（skills）+ MCP 工具面（mcpServers）三桶，一份文档四处发射——① 会话预设（在 /studio 画布编辑后直接发射）② pack 草稿（走 pack-authoring 的校验/发布链）③ 舰队模板（装台器按模板装舰队）④ 蓝图（蓝图构造间，试跑签字封签后可售）。能力 spec 见 `openspec/specs/agent-document/spec.md`。

@@ -2092,6 +2092,7 @@
     }
   },
   "studio": {
+    "aiDraft": { "title": "AI 下書き", "promptLabel": "このエージェントの仕事を一文で説明…", "action": "下書き", "adopt": "採用", "discard": "破棄" },
     "fork": {
       "unavailable": "このエージェントを読み取れません（{{status}}）— フォークは読み取り可視性に従います",
       "seeded": "「{{name}}」を作業ドキュメントとして読み込みました — 血統をスタンプ済み"

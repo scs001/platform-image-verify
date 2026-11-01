@@ -16,4 +16,4 @@
 ## 4. 回归与走查
 
 - [x] 4.1 迁移一致性：发布版 manifest 的 guide 文案与被删除的客户端文案逐字相等（迁移当批）；验收：一致性断言测试（或在 PR 内以脚本比对留档）。
-- [ ] 4.2 真机走查：【挂账随滚版班；manifest 侧已 API 回读验证（v6 guide/en/notes/官方身份 5/5）】市场详情/官方 starter 卡/欢迎态三处引导呈现正确；facet 域同一 pack 引导一致；验收：走查记录落台账。
+- [x] 4.2 真机走查：【manifest 侧已 API 回读验证（v6 guide/en/notes/官方身份 5/5）】市场详情/官方 starter 卡/欢迎态三处引导呈现正确；facet 域同一 pack 引导一致；验收：走查记录落台账。【2026-10-31 台账 §15.120 走查实证：市场详情 guide 来自 manifest v6（客服班组三步）+引导步骤 3+官方徽章+facet 域一致（走查 01-detail-official.png 与 facet 06-facet.png）；残余批次（第二批 4 支）见 3.3 挂账。】

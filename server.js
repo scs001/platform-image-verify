@@ -71,6 +71,7 @@ import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/cl
 import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
 import { createBlueprintRoutes } from "./server/routes/blueprints.js";
 import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
+import { createStudioDraftRoutes } from "./server/routes/studio-draft.js";
 import { registerPackAuthorRoutes } from "./server/pack-author.js";
 import { createSkillEvolutionRoutes } from "./server/skill-evolution-routes.js";
 import { createPersonaEvolutionRoutes } from "./server/persona-evolution-routes.js";
@@ -363,6 +364,9 @@ createFleetRoutes(app, ctx);
 // validate/approve/cast routes. 治包不治舰（design D1）——与 architect 的
 // 活舰编排互不引写路径；auth 语义与 fleets 同款（owner 作用域资产）。
 createBlueprintRoutes(app, ctx);
+// Studio AI drafting (add-studio-ai-drafting): the canvas's draft accelerator —
+// one authenticated drafting function, zero persistence, zero emit-mouth calls.
+createStudioDraftRoutes(app, ctx);
 // Builder bridges (add-builder-team-templates): the blueprint-author and
 // pack-author MCP children land validation-green drafts into the owner's
 // pools. Loopback-only credential (auth.js), owner resolved server-side.

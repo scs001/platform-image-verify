@@ -14,6 +14,7 @@
 // lane change never needs a restart.
 
 import { app, shell } from "electron";
+import { writeFileSync } from "node:fs";
 import { autoUpdater } from "electron-updater";
 import { readSettings } from "./config/settings.js";
 import { autoUpdateSupported, macNotifyCheck, DEFAULT_UPDATE_URL } from "./updater-core.js";
@@ -33,6 +34,13 @@ export function createDesktopUpdater({ platform = process.platform, signed = fal
 
   const setState = (patch) => {
     Object.assign(state, patch, { checkedAt: Date.now(), runningVersion: app.getVersion() });
+    // E2E instrumentation (desktop-update-e2e): env-gated state mirror — the
+    // Windows GUI process detaches from stdout, so the test polls this file.
+    if (process.env.UPDATER_STATE_FILE) {
+      try {
+        writeFileSync(process.env.UPDATER_STATE_FILE, JSON.stringify(state));
+      } catch { /* instrumentation must never break the updater */ }
+    }
     for (const fn of listeners) {
       try {
         fn({ ...state });

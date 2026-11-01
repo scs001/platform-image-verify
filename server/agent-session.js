@@ -915,6 +915,9 @@ async function switchPresetToInner(id) {
       userGroups: ctx.runtimeOwnerGroups ?? null,
       ownerEmail: ctx.runtimeOwnerEmail,
       agentPreset: id,
+      // Tool-description enrichment switch (add-tool-description-enrichment
+      // D5): per-owner preference, default on; absent pref = enabled.
+      enrichmentEnabled: ctx.db.getPreference("tool.description.enrichment") !== false,
       // The lane's outputs must land in the workspace the runtime actually
       // serves from (it can change); the bridge's cwd IS that value.
       workspace: ctx.dshBridge?.getCwd?.() ?? null,
@@ -939,6 +942,7 @@ async function switchPresetToInner(id) {
         userGroups: ctx.runtimeOwnerGroups ?? null,
         ownerEmail: ctx.runtimeOwnerEmail,
         agentPreset: ctx.currentPreset,
+        enrichmentEnabled: ctx.db.getPreference("tool.description.enrichment") !== false,
       });
       await dshProfile.writeSkillsPatch({ agentPreset: ctx.currentPreset });
     } catch (restoreErr) {

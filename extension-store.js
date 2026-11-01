@@ -212,6 +212,33 @@ export async function getAnnotationsByName() {
   return byName;
 }
 
+// Canonical briefs for the runtime tool-description overlay (add-tool-
+// description-enrichment): `{ tools: { "<server>__<leaf>": { brief, source,
+// updatedAt } } }` from the merged annotations' canonical track. Only CURATED
+// briefs contribute — a human-only annotation enriches nothing (the runtime
+// side must never see machine-inferred text). Server-level canonical briefs
+// have no single tool-face target and stay out of this index.
+export async function getCanonicalBriefs() {
+  const { mcpServers } = await mergedMarketCatalog();
+  const tools = {};
+  for (const s of mcpServers) {
+    const ann = s.annotation;
+    if (!ann) continue;
+    const source = ann.provenance?.source ?? null;
+    const updatedAt = ann.provenance?.updatedAt ?? null;
+    for (const [leaf, toolAnnotation] of Object.entries(ann.tools || {})) {
+      const brief = toolAnnotation?.canonical?.brief;
+      if (typeof brief !== "string" || !brief.trim()) continue;
+      tools[`${s.name}__${leaf}`] = {
+        brief,
+        source,
+        updatedAt: toolAnnotation.provenance?.updatedAt ?? updatedAt,
+      };
+    }
+  }
+  return { tools };
+}
+
 // Light annotation index for the chat tool blocks (add-mcp-annotation-overlay
 // D5): `{ servers: { name: {label, summary} }, tools: { "<server>__<leaf>":
 // {label, summary} } }`, projected to `locale` through the ONE projection

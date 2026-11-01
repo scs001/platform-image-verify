@@ -894,7 +894,7 @@ export function authorizationHeadersChanged(prev, next) {
   return false;
 }
 
-export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false, workspace = null } = {}) {
+export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false, workspace = null, enrichmentEnabled = true } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
   try {
@@ -1243,6 +1243,24 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     { denyTools: scope.publicFacing ? PUBLIC_FACING_DENIED_TOOLS : null },
   );
 
+  // Tool description overlay (add-tool-description-enrichment D1): curated
+  // canonical briefs from the annotation layer. Owner switch off or a
+  // public-facing face writes nothing (D3: the internal-vocabulary defense
+  // stays — enrichment must not carry internal wording to the model face).
+  // The briefs accessor lazy-imports the extension store (same posture as the
+  // DB read above); any failure degrades to no overlay, never a broken patch.
+  if (enrichmentEnabled && !scope.publicFacing) {
+    try {
+      const { getCanonicalBriefs } = await import("./extension-store.js");
+      writeToolDescriptionOverlay(await getCanonicalBriefs());
+    } catch (e) {
+      writeToolDescriptionOverlay(null);
+      console.warn(`[dsh-profile] tool-description overlay unavailable: ${e?.message || e}`);
+    }
+  } else {
+    writeToolDescriptionOverlay(null);
+  }
+
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
   // probe of every http entry with the exact URL+headers the patch carries —
   // a 401'd server must be VISIBLE instead of silently tool-less. Async on
@@ -1290,7 +1308,9 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 // same parameterization writePresetsPatch takes, so agent-runner's per-role
 // homes carry the filter through the one shared writer (zero format drift).
 const TOOL_SCOPE_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-tool-scope.js");
+const TOOL_DESCRIPTION_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-tool-description.js");
 const TOOL_FILTER_FILE = "tool-filter.json";
+const TOOL_DESCRIPTION_FILE = "tool-description.json";
 
 export function writeToolFilterPatch(mcpTools, { dirs = null, denyTools = null } = {}) {
   const profileDir = dirs
@@ -1332,12 +1352,58 @@ export function writeToolFilterPatch(mcpTools, { dirs = null, denyTools = null }
   atomicWriteTextSync(join(profileDir, TOOL_FILTER_FILE), JSON.stringify(doc, null, 2) + "\n");
   try {
     atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+    // The description module rides the same refresh (the preset bridge imports
+    // it — add-tool-description-enrichment); a stale copy keeps the prior
+    // briefs serving, same degraded-window posture as the scope module.
+    atomicWriteTextSync(join(profileDir, "platform-tool-description.js"), readFileSync(TOOL_DESCRIPTION_BRIDGE_SOURCE, "utf8"));
   } catch (err) {
     // A stale copy from an earlier materialization keeps the guard alive; the
     // warning names the degraded window instead of failing composition.
     console.warn(`[dsh-profile] could not refresh platform-tool-scope.js (${err.message}); the existing copy (if any) keeps serving`);
   }
   return join(profileDir, TOOL_FILTER_FILE);
+}
+
+// ── Tool description overlay (add-tool-description-enrichment D1) ─────────────
+// Materializes the annotation layer's canonical briefs as the config the
+// preset bridge's description module reads: tool-description.json beside the
+// copied bridge files (the tool-filter.json precedent — a plain data file, no
+// patch row). `briefs` is getCanonicalBriefs()'s shape ({ tools: {
+// "<server>__<leaf>": { brief, source, updatedAt } } }); null/empty REMOVES
+// any stale file, so a disabled switch or a public-facing face leaves no
+// overlay behind — the consumer reads absence as "no enrichment", keeping
+// every pre-change composition byte-identical.
+export function writeToolDescriptionOverlay(briefs, { dirs = null } = {}) {
+  const profileDir = dirs
+    ? join(dirs.dshHome, "profiles", dirs.profileName || "platform")
+    : dirname(MCP_PATCH_PATH);
+  const target = join(profileDir, TOOL_DESCRIPTION_FILE);
+  const tools = briefs?.tools && typeof briefs.tools === "object" ? briefs.tools : {};
+  const descriptions = {};
+  let enriched = 0;
+  for (const [key, v] of Object.entries(tools)) {
+    const sep = key.indexOf("__");
+    const brief = typeof v?.brief === "string" ? v.brief.trim() : "";
+    if (sep <= 0 || !brief) continue;
+    const server = key.slice(0, sep);
+    const leaf = key.slice(sep + 2);
+    if (!server || !leaf) continue;
+    (descriptions[server] ??= {})[leaf] = {
+      brief,
+      source: typeof v.source === "string" ? v.source : null,
+      updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : null,
+    };
+    enriched++;
+  }
+  if (!enriched) {
+    try { rmSync(target); } catch { /* absent is the goal */ }
+    return null;
+  }
+  mkdirSync(profileDir, { recursive: true });
+  const doc = { descriptions, meta: { enriched, source: "annotations", generatedAt: new Date().toISOString() } };
+  atomicWriteTextSync(target, JSON.stringify(doc, null, 2) + "\n");
+  console.log(`[dsh-profile] tool-description overlay: ${enriched} tool(s) enriched → ${TOOL_DESCRIPTION_FILE}`);
+  return target;
 }
 
 // ── Skills discovery patch (dsh-skill-filesystem) ──────────────────────────────
@@ -1818,10 +1884,16 @@ export function writePresetsPatchSync({ dirs, default: defaultPreset = DEFAULT_A
   const bridgeTarget = join(dirname(presetsPatchPath), PRESET_BRIDGE_FILE);
   atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
   // The preset bridge imports the tool-scope module (add-mcp-tool-scoping
-  // D2) — same unconditional-copy discipline as the bridge itself.
+  // D2) — same unconditional-copy discipline as the bridge itself. The
+  // tool-description module rides for the same reason (add-tool-description-
+  // enrichment): the bridge chains its register wrapper at plugin start.
   atomicWriteTextSync(
     join(dirname(presetsPatchPath), "platform-tool-scope.js"),
     readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"),
+  );
+  atomicWriteTextSync(
+    join(dirname(presetsPatchPath), "platform-tool-description.js"),
+    readFileSync(TOOL_DESCRIPTION_BRIDGE_SOURCE, "utf8"),
   );
   // The deployment singleton folds in the catalog/custom preset definitions
   // (persisted in $DSH_HOME/.agent-presets.defs.json); an explicit dirs
@@ -2361,6 +2433,7 @@ export function writeNotifyPatch({ dirs } = {}) {
   // own dependency (platform-tool-scope.js) rides along for the same reason.
   atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, "platform-tool-description.js"), readFileSync(TOOL_DESCRIPTION_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
   const patchPath = join(profileDir, NOTIFY_PATCH_FILE);
@@ -2402,6 +2475,7 @@ export function writeServingQuestionsPatch({ dirs } = {}) {
   // must resolve regardless of which overlay a caller writes first.
   atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, "platform-tool-description.js"), readFileSync(TOOL_DESCRIPTION_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, SERVING_QUESTIONS_BRIDGE_FILE), readFileSync(SERVING_QUESTIONS_BRIDGE_SOURCE, "utf8"));
@@ -2446,6 +2520,7 @@ export function writeMattersPatch({ dirs } = {}) {
   // must resolve regardless of which overlay a caller writes first).
   atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, "platform-tool-description.js"), readFileSync(TOOL_DESCRIPTION_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, SERVING_QUESTIONS_BRIDGE_FILE), readFileSync(SERVING_QUESTIONS_BRIDGE_SOURCE, "utf8"));

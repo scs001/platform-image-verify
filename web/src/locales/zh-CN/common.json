@@ -16,6 +16,28 @@
       "mcp": {
         "advanced": "高级"
       }
+    },
+    "personaEvo": {
+      "title": "persona 修订评审",
+      "subtitle": "agent 在回合后提议的角色修订：修订提议 → A/B 评测 → 人终审。自建预设物化生效；pack persona 接受即开 fork 草稿，本体零改。",
+      "empty": "暂无修订。agent 在真实回合踩到角色缺口后会在此落候选。",
+      "target": {
+        "preset": "自建预设",
+        "pack": "pack 角色"
+      },
+      "current": "现行 persona",
+      "amended": "修订后 persona",
+      "viewDiff": "查看修订对照",
+      "evidence": "依据：{source} · 修复：{fixed}",
+      "evaluate": "跑 A/B 评测",
+      "promote": "接受并物化",
+      "promoteFork": "接受并开 fork 草稿",
+      "status": {
+        "candidate": "候选",
+        "evaluated": "过门待审",
+        "promoted": "已晋升",
+        "rejected": "已驳回"
+      }
     }
   },
   "nav": {

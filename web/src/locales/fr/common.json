@@ -16,6 +16,28 @@
       "mcp": {
         "advanced": "Avancé"
       }
+    },
+    "personaEvo": {
+      "title": "Révisions de persona",
+      "subtitle": "Révisions de rôle proposées par les agents après les tours : proposition → évaluation A/B → révision finale humaine. Les presets perso se matérialisent ; accepter une persona de pack ouvre un brouillon de fork — le pack n'est jamais écrit.",
+      "empty": "Aucune révision pour l'instant. Les agents déposent des candidats ici quand un tour réel expose un manque de rôle.",
+      "target": {
+        "preset": "preset perso",
+        "pack": "persona de pack"
+      },
+      "current": "Persona actuelle",
+      "amended": "Persona révisée",
+      "viewDiff": "Voir le diff",
+      "evidence": "Preuve : {source} · corrige : {fixed}",
+      "evaluate": "Lancer l'évaluation A/B",
+      "promote": "Accepter et matérialiser",
+      "promoteFork": "Accepter et ouvrir un brouillon de fork",
+      "status": {
+        "candidate": "candidate",
+        "evaluated": "porte franchie",
+        "promoted": "promue",
+        "rejected": "rejetée"
+      }
     }
   },
   "nav": {

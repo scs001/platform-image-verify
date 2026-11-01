@@ -16,6 +16,28 @@
       "mcp": {
         "advanced": "詳細"
       }
+    },
+    "personaEvo": {
+      "title": "persona 改訂レビュー",
+      "subtitle": "エージェントがターン後に提案する persona 改訂：提案 → A/B 評価 → 人間の最終承認。カスタムプリセットは反映され、pack persona はフォーク草稿を作成（本体は不変）。",
+      "empty": "改訂はまだありません。実際のターンで役割の隙間が見つかると、ここに候補が届きます。",
+      "target": {
+        "preset": "カスタムプリセット",
+        "pack": "pack persona"
+      },
+      "current": "現行 persona",
+      "amended": "改訂後 persona",
+      "viewDiff": "差分を見る",
+      "evidence": "根拠：{source} · 修正：{fixed}",
+      "evaluate": "A/B 評価を実行",
+      "promote": "承認して反映",
+      "promoteFork": "承認してフォーク草稿を作成",
+      "status": {
+        "candidate": "候補",
+        "evaluated": "ゲート通過",
+        "promoted": "昇格済み",
+        "rejected": "却下済み"
+      }
     }
   },
   "nav": {

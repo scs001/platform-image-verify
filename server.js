@@ -73,6 +73,7 @@ import { createBlueprintRoutes } from "./server/routes/blueprints.js";
 import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
 import { registerPackAuthorRoutes } from "./server/pack-author.js";
 import { createSkillEvolutionRoutes } from "./server/skill-evolution-routes.js";
+import { createPersonaEvolutionRoutes } from "./server/persona-evolution-routes.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
@@ -372,6 +373,10 @@ registerPackAuthorRoutes(app, ctx);
 // REST face. Candidates live outside custom_skills; promotion is the only
 // bridge and it is human-only.
 createSkillEvolutionRoutes(app, ctx);
+// Persona self-evolution (add-persona-self-evolution): the role-bucket twin —
+// persona_amend lands candidates; promotion SPLITS (preset materializes, pack
+// persona forks); sessions never hot-touch (D4).
+createPersonaEvolutionRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)

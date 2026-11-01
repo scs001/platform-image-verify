@@ -23,6 +23,7 @@ import { PacksPage } from "@/pages/PacksPage";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
 import { ExtensionsPage } from "@/pages/ExtensionsPage";
 import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
+import { PersonaAmendmentsView } from "@/components/persona/PersonaAmendmentsView";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
 import { Link } from "react-router-dom";
 import { Blocks } from "lucide-react";
@@ -446,16 +447,10 @@ export function AgentsPage() {
                 review surface gets its dedicated home here; the same component
                 also serves the skills cabinet — one component, no fork. */}
             <SkillCandidatesView />
-            {/* Persona-amendment placeholder (add-persona-self-evolution):
-                an honest empty state until that capability lands — the area
-                never renders writable controls it cannot back. */}
-            <div
-              className="rounded-lg border border-dashed border-border p-6"
-              data-testid="tuning-persona-placeholder"
-            >
-              <h3 className="text-sm font-medium">{t("hub.tuning.personaTitle")}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{t("hub.tuning.personaEmpty")}</p>
-            </div>
+            {/* Persona amendments (add-persona-self-evolution): the review
+                surface with its honest empty state (the placeholder contract —
+                the empty area keeps the tuning-persona-placeholder testid). */}
+            <PersonaAmendmentsView />
           </section>
         )}
       </div>

@@ -16,6 +16,28 @@
       "mcp": {
         "advanced": "Avanzado"
       }
+    },
+    "personaEvo": {
+      "title": "Revisión de revisiones de persona",
+      "subtitle": "Revisiones de rol propuestas por agentes tras los turnos: propuesta → evaluación A/B → revisión final humana. Los presets propios se materializan; aceptar una persona de pack abre un borrador de fork — el pack nunca se escribe.",
+      "empty": "Aún no hay revisiones. Los agentes dejan candidatos aquí cuando un turno real expone un hueco de rol.",
+      "target": {
+        "preset": "preset propio",
+        "pack": "persona de pack"
+      },
+      "current": "Persona actual",
+      "amended": "Persona revisada",
+      "viewDiff": "Ver el diff",
+      "evidence": "Evidencia: {source} · corrige: {fixed}",
+      "evaluate": "Ejecutar evaluación A/B",
+      "promote": "Aceptar y materializar",
+      "promoteFork": "Aceptar y abrir borrador de fork",
+      "status": {
+        "candidate": "candidata",
+        "evaluated": "puerta superada",
+        "promoted": "promovida",
+        "rejected": "rechazada"
+      }
     }
   },
   "nav": {

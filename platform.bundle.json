@@ -60,6 +60,13 @@
       ],
       "_comment": "技能自进化提议面(add-skill-self-evolution):单工具 skill_propose 落候选,bundled 自激活,loopback 桥;评测/晋升/拒绝是主人 REST 面,无工具"
     },
+    "persona-evolution": {
+      "command": "node",
+      "args": [
+        "server/persona-evolution-mcp.js"
+      ],
+      "_comment": "角色桶自进化提议面(add-persona-self-evolution):单工具 persona_amend 落候选,bundled 自激活,loopback 桥;评测/晋升(预设物化|pack fork)/拒绝是主人 REST 面,无工具"
+    },
     "playwright": {
       "command": "node",
       "args": [

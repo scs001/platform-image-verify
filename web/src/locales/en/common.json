@@ -16,6 +16,28 @@
       "mcp": {
         "advanced": "Advanced"
       }
+    },
+    "personaEvo": {
+      "title": "Persona amendments",
+      "subtitle": "Role amendments proposed by agents after turns: proposal → A/B evaluation → human final review. Custom presets materialize; accepting a pack persona opens a fork draft — the pack itself is never written.",
+      "empty": "No amendments yet. Agents land candidates here after real turns expose a role gap.",
+      "target": {
+        "preset": "custom preset",
+        "pack": "pack persona"
+      },
+      "current": "Current persona",
+      "amended": "Amended persona",
+      "viewDiff": "View the diff",
+      "evidence": "Evidence: {source} · fixes: {fixed}",
+      "evaluate": "Run A/B evaluation",
+      "promote": "Accept & materialize",
+      "promoteFork": "Accept & open fork draft",
+      "status": {
+        "candidate": "candidate",
+        "evaluated": "passed gate",
+        "promoted": "promoted",
+        "rejected": "rejected"
+      }
     }
   },
   "nav": {

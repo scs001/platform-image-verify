@@ -2041,6 +2041,7 @@
     }
   },
   "studio": {
+    "aiDraft": { "title": "Borrador IA", "promptLabel": "Describe en una frase lo que debe hacer este agente…", "action": "Borrador", "adopt": "Adoptar", "discard": "Descartar" },
     "fork": {
       "unavailable": "No se puede leer este agente ({{status}}) — la bifurcación sigue la visibilidad de lectura",
       "seeded": "«{{name}}» cargado como documento de trabajo — linaje estampado"

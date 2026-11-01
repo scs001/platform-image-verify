@@ -93,6 +93,12 @@ export function AgentStudioPage() {
   const [verifying, setVerifying] = useState(false);
   const [emitBusy, setEmitBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  // AI drafting (add-studio-ai-drafting): the model's output lands here — a
+  // DRAFT, never the working doc. 「采用」 is the single human gate into the
+  // three buckets; 取消 discards the draft byte-for-byte (zero pollution).
+  const [aiDraft, setAiDraft] = useState<{ open: boolean; text: string; busy: boolean; draft: Record<string, unknown> | null; error: string | null }>({
+    open: false, text: "", busy: false, draft: null, error: null,
+  });
   const seq = useRef(0);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -140,6 +146,43 @@ export function AgentStudioPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per fork id
   }, [forkId]);
+
+  const requestAiDraft = async () => {
+    setAiDraft((s) => ({ ...s, busy: true, error: null }));
+    try {
+      const r = await fetch("/api/studio/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "agent-doc", prompt: aiDraft.text }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `draft failed (${r.status})`);
+      setAiDraft((s) => ({ ...s, busy: false, draft: d.draft }));
+    } catch (err) {
+      setAiDraft((s) => ({ ...s, busy: false, error: (err as Error).message }));
+    }
+  };
+  // 人的采用是唯一写入门（spec studio-ai-drafting）：一次显式点击把草稿字段
+  // 并入工作文档；取消则草稿整体丢弃，工作文档逐字段不变。
+  const adoptAiDraft = () => {
+    const d = aiDraft.draft;
+    if (!d) return;
+    setDoc((doc0) => ({
+      ...doc0,
+      name: typeof d.name === "string" && d.name.trim() ? d.name : doc0.name,
+      description: typeof d.description === "string" && d.description ? d.description : doc0.description,
+      agents: (doc0.agents.length ? doc0.agents : [newAgent(1)]).map((a, i) =>
+        i === 0
+          ? { ...a, name: (typeof d.name === "string" && d.name.trim() ? d.name : a.name) || a.name, persona: typeof d.persona === "string" ? d.persona : a.persona }
+          : a,
+      ),
+      skills: Array.isArray(d.skills) && d.skills.length ? (d.skills as StudioDoc["skills"]) : doc0.skills,
+      mcpServers: Array.isArray(d.mcpServers) && d.mcpServers.length ? (d.mcpServers as StudioDoc["mcpServers"]) : doc0.mcpServers,
+    }));
+    setSelectedId((id) => id ?? "agent-1");
+    setAiDraft({ open: false, text: "", busy: false, draft: null, error: null });
+  };
+  const discardAiDraft = () => setAiDraft({ open: false, text: "", busy: false, draft: null, error: null });
 
   const selected = doc.agents.find((a) => a.id === selectedId) ?? null;
 
@@ -286,8 +329,45 @@ export function AgentStudioPage() {
           >
             <Plus className="h-3.5 w-3.5" /> {t("studio.roster.new")}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="studio-ai-draft-toggle"
+            onClick={() => setAiDraft((s) => ({ ...s, open: !s.open, draft: null, error: null }))}
+          >
+            {t("studio.aiDraft.title")}
+          </Button>
         </div>
       </div>
+
+      {aiDraft.open && (
+        <div className="space-y-2 border-b border-border px-4 py-2" data-testid="studio-ai-draft">
+          <textarea
+            data-testid="studio-ai-draft-prompt"
+            className="w-full rounded-md border border-border bg-background p-2 text-sm"
+            rows={2}
+            value={aiDraft.text}
+            onChange={(e) => setAiDraft((s) => ({ ...s, text: e.target.value }))}
+            placeholder={t("studio.aiDraft.promptLabel")}
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" data-testid="studio-ai-draft-run" disabled={aiDraft.busy || !aiDraft.text.trim()} onClick={() => void requestAiDraft()}>
+              {aiDraft.busy ? "…" : t("studio.aiDraft.action")}
+            </Button>
+            {aiDraft.draft && (
+              <>
+                <Button size="sm" variant="outline" data-testid="studio-ai-draft-adopt" onClick={adoptAiDraft}>
+                  {t("studio.aiDraft.adopt")}
+                </Button>
+                <Button size="sm" variant="ghost" data-testid="studio-ai-draft-discard" onClick={discardAiDraft}>
+                  {t("studio.aiDraft.discard")}
+                </Button>
+              </>
+            )}
+            {aiDraft.error && <span className="text-xs text-destructive">{aiDraft.error}</span>}
+          </div>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* ── Roster ── */}

@@ -2041,6 +2041,7 @@
     }
   },
   "studio": {
+    "aiDraft": { "title": "AI draft", "promptLabel": "Describe in one sentence what this agent should do…", "action": "Draft", "adopt": "Adopt", "discard": "Discard" },
     "fork": {
       "unavailable": "Cannot read this agent ({{status}}) — forking follows read visibility",
       "seeded": "Loaded “{{name}}” as the working document — lineage stamped"

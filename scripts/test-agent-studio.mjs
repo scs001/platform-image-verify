@@ -130,3 +130,14 @@ test("fold: old route redirects (two-step retire), pool reachable from team tab"
   assert.ok(!fs.existsSync(path.join(root, "web/src/pages/BlueprintStudioPage.tsx")), "old component removed");
   assert.ok(!app.includes("pages/BlueprintStudioPage"), "no import of the retired page");
 });
+
+test("emit does not mutate the working document (5.3)", () => {
+  // emit writes through the API only — the page's working-doc state is never
+  // reassigned by the emit paths (no setDoc/resetDoc inside emit* bodies).
+  const page = read("web/src/pages/AgentStudioPage.tsx");
+  for (const fn of ["emitPreset", "emitDraft"]) {
+    const body = page.slice(page.indexOf(`const ${fn}`), page.indexOf("};", page.indexOf(`const ${fn}`)));
+    assert.doesNotMatch(body, /setDoc\(|setDocTitle\(|resetDoc/, `${fn}: working doc untouched`);
+    assert.match(body, /await .*(createCustomPreset|createPackDraft)/, `${fn}: writes via API`);
+  }
+});

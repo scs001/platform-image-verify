@@ -321,6 +321,7 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     // Turn carrier (add-fleet-carrier): the CONFIGURED placement (null = auto)
     // — the actual body lands on the turn events' carrier column.
     carrier: member.carrier ?? null,
+      packId: member.packId ?? null,
     // Latest real turn's usage (fleet-ops-canvas): the config bar's context
     // budget histogram buckets by this over the declared budget. null = the
     // newest real round reported none (用量字段缺失 ≠ 未超预算).
@@ -2752,7 +2753,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
 
       const updates = {};
-      const { title, parentId, cadence, kpiSlots, model, fallbackModel, effort, contextBudget, carrier } = req.body ?? {};
+      const { title, parentId, cadence, kpiSlots, model, fallbackModel, effort, contextBudget, carrier, packId } = req.body ?? {};
 
       if (title !== undefined) {
         if (!title || typeof title !== "string" || !title.trim()) {
@@ -2812,6 +2813,16 @@ export function createFleetRoutes(app, ctx = null) {
           return res.status(400).json({ error: `carrier must be one of ${CARRIERS.join("|")} or null` });
         }
         updates.carrier = carrier ?? null;
+      }
+
+      // Runner disambiguation (add-runner-packid-disambiguation): the optional
+      // pack binding — cross-pack same-key agent keys resolve through it;
+      // null clears the binding (the agent key alone decides).
+      if (packId !== undefined) {
+        if (packId !== null && (typeof packId !== "string" || !packId.trim() || packId.length > 64)) {
+          return res.status(400).json({ error: "packId must be a non-empty string (≤64 chars) or null" });
+        }
+        updates.packId = packId === null ? null : packId.trim();
       }
 
       const updated = db.updateMember(member.id, updates);

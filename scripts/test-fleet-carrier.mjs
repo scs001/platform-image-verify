@@ -246,3 +246,32 @@ test("admission gate: second fleet task stays queued at the cap, FIFO on release
     delete process.env.FLEET_MAX_INFLIGHT;
   }
 });
+
+// ── ④ packId disambiguation (add-runner-packid-disambiguation) ───────────────
+test("runnerEntryFor: member packId pins the cross-pack same-key hit", () => {
+  const rosterPresetId = (id) => String(id ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const agents = [
+    { id: "registry-packs-aaa-reception", mode: "a2a", url: "https://registry.test/agent/packs/aaa/reception/" },
+    { id: "registry-packs-bbb-reception", mode: "a2a", url: "https://registry.test/agent/packs/bbb/reception/" },
+  ];
+  const job = { id: "job_p1", preset: "reception", packId: "bbb" };
+  const hit = runnerEntryFor(job, { listAgents: () => agents, rosterPresetId, packId: "bbb" });
+  assert.equal(hit?.id, "registry-packs-bbb-reception", "the pack binding pins the exact deployment");
+  assert.equal(job.carrierFallback, undefined, "no fail-open when the pin resolves");
+});
+
+test("runnerEntryFor: packId pin misses → ambiguity still fails open honestly", () => {
+  const rosterPresetId = (id) => String(id ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const agents = [
+    { id: "registry-packs-aaa-reception", mode: "a2a", url: "https://registry.test/agent/packs/aaa/reception/" },
+    { id: "registry-packs-bbb-reception", mode: "a2a", url: "https://registry.test/agent/packs/bbb/reception/" },
+  ];
+  const job = { id: "job_p2", preset: "reception" };
+  // no packId → ambiguous (unchanged behavior)
+  assert.equal(runnerEntryFor(job, { listAgents: () => agents, rosterPresetId, packId: null }), null);
+  assert.equal(job.carrierFallback, "runner-ambiguous");
+  // a packId matching NEITHER deployment → the pin filters nothing → still ambiguous
+  const job3 = { id: "job_p3", preset: "reception" };
+  assert.equal(runnerEntryFor(job3, { listAgents: () => agents, rosterPresetId, packId: "zzz" }), null);
+  assert.equal(job3.carrierFallback, "runner-ambiguous");
+});

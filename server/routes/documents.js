@@ -139,7 +139,7 @@ export function registerDocumentRoutes(ctx) {
     const { documentId } = req.body;
     if (!documentId) return res.status(400).json({ error: "Missing documentId" });
     try {
-      await collections.addDocumentToCollection(req.params.id, documentId);
+      await collections.addDocument(req.params.id, documentId);
       res.json({ ok: true });
     } catch (err) {
       res.status(err.status || 500).json({ error: err.message });
@@ -147,7 +147,7 @@ export function registerDocumentRoutes(ctx) {
   });
 
   app.delete("/api/collections/:id/documents/:documentId", async (req, res) => {
-    await collections.removeDocumentFromCollection(req.params.id, req.params.documentId);
+    await collections.removeDocument(req.params.id, req.params.documentId);
     res.json({ ok: true });
   });
 }

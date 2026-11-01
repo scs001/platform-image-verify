@@ -62,7 +62,7 @@ export function resolveTaskCarrier(job, { db = null } = {}) {
 // catalog agents). Not found OR ambiguous (≥2 entries sharing the agent key
 // across packs — e.g. "reception" ×3) → null; the caller fails open to the
 // primary chain with the recorded reason (runner-no-entry / runner-ambiguous).
-export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null } = {}) {
+export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null, packId = null } = {}) {
   if (!job?.preset) return null;
   const agents = (listAgents ?? catalog.listAgents)();
   const roster = rosterPresetId ?? dshProfile.rosterPresetId;
@@ -79,7 +79,15 @@ export function runnerEntryFor(job, { listAgents = null, rosterPresetId = null }
     const key = segs[segs.length - 1] ?? "";
     return key ? roster(key) : null;
   };
-  const hits = agents.filter((a) => a?.mode === "a2a" && agentKeyOf(a) === job.preset);
+  let hits = agents.filter((a) => a?.mode === "a2a" && agentKeyOf(a) === job.preset);
+  // Cross-pack disambiguation (add-runner-packid-disambiguation): a member
+  // that declares packId pins the hit to that pack's deployment — the path
+  // segment /packs/<packId>/ decides. Without it, ambiguity fails open.
+  if (hits.length > 1 && packId) {
+    const pinned = hits.filter((a) => (agentPathOf(a) ?? "").includes(`/packs/${packId}/`));
+    if (pinned.length === 1) return pinned[0];
+    if (pinned.length > 1) hits = pinned; // still ambiguous within the pack → fail open below
+  }
   if (hits.length === 1) return hits[0];
   if (hits.length > 1) {
     console.warn(`[fleets] carrier runner for ${job.id}: ${hits.length} a2a entries share the agent key '${job.preset}' (${hits.map((h) => agentPathOf(h) ?? h.id).join(", ")}) — failing open (runner-ambiguous)`);
@@ -1269,7 +1277,7 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       const carrier = resolveTaskCarrier(job);
       if (carrier === "runner") {
         delete job.carrierFallback; // fresh per turn — cron task records persist across fires
-        const entry = runnerEntryFor(job, { listAgents: listAgentsFn });
+        const entry = runnerEntryFor(job, { listAgents: listAgentsFn, packId: job.packId ?? null });
         if (entry) {
           personaJob = { ...job, preset: entry.id, targetType: "a2a" };
           personaExecutorUsed = a2aExecutor;

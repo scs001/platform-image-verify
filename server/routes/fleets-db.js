@@ -230,6 +230,10 @@ export function createFleetDatabase({ file } = {}) {
     // cell | worker | runner | auto (null = unset). Null reads as unset so the
     // three-layer resolution falls through to fleet/deployment/auto.
     "ALTER TABLE fleet_members ADD COLUMN carrier TEXT",
+    // Runner disambiguation (add-runner-packid-disambiguation): the optional
+    // pack binding for cross-pack same-key agent keys — null = the agent key
+    // alone decides (unique hit) or the ambiguity fails open.
+    "ALTER TABLE fleet_members ADD COLUMN pack_id TEXT",
     "ALTER TABLE fleets ADD COLUMN effort TEXT",
     "ALTER TABLE fleets ADD COLUMN context_budget INTEGER",
   ]) {
@@ -553,8 +557,8 @@ export function createFleetDatabase({ file } = {}) {
   function createMember(member) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, effort, context_budget, carrier, sort_key, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, effort, context_budget, carrier, pack_id, sort_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       member.id,
       member.fleetId,
@@ -569,6 +573,7 @@ export function createFleetDatabase({ file } = {}) {
       member.effort ?? null,
       Number.isFinite(member.contextBudget) ? member.contextBudget : null,
       member.carrier ?? null,
+      member.packId ?? null,
       Number.isFinite(member.sortKey) ? member.sortKey : now,
       now,
       now,
@@ -603,6 +608,7 @@ export function createFleetDatabase({ file } = {}) {
       effort: "effort",
       contextBudget: "context_budget",
       carrier: "carrier",
+      packId: "pack_id",
     };
     const setParts = [];
     const values = [];

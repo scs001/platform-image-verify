@@ -394,6 +394,7 @@ async function addJob({
   sourceTag,
   projectId,
   carrier,
+  packId,
   // add-cron-automation-parity: the two new schedule forms + the finite cap.
   delayMinutes,
   interval,
@@ -489,6 +490,7 @@ async function addJob({
     // — cell | worker | runner | auto (null = unset → auto). Dispatch and the
     // remote router read it; the engine never invents values.
     carrier: carrier ?? null,
+    packId: packId ?? null,
     ...(isClusterTask
       ? {
           clusterId,
@@ -540,7 +542,7 @@ async function updateJob(id, changes = {}) {
     throw new Error("only schedule tasks can be updated in place");
   }
 
-  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns, carrier } = changes;
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns, carrier, packId } = changes;
 
   if (cron !== undefined) {
     if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
@@ -612,6 +614,7 @@ async function updateJob(id, changes = {}) {
   // Turn carrier (add-fleet-carrier): placement-only drift — the task id, its
   // bound session and execution history survive (换身体不换会话).
   if (carrier !== undefined) task.carrier = carrier ?? null;
+  if (packId !== undefined) task.packId = packId ?? null;
   if (tz !== undefined) task.tz = tz || null;
   if (sessionTitle !== undefined) task.sessionTitle = sessionTitle || null;
   if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null;

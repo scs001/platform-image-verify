@@ -352,7 +352,7 @@ export function createLiveTrialDeps() {
         };
       };
       const startedAt = Date.now();
-      const deadline = startedAt + timeoutMs;
+      let deadline = startedAt + timeoutMs;
       const hardCap = startedAt + timeoutMs * 2; // 绝对封顶（add-trial-window-adaptive）
       let extendedMs = 0;
       let evidence = collect();

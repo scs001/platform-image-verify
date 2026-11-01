@@ -18,7 +18,11 @@
 // through electron-updater's built-in hash check (win) and by surfacing the
 // checksummed URL for manual download (mac notify-only).
 
-export const DEFAULT_UPDATE_URL = process.env.DESKTOP_UPDATE_URL || "https://releases.finddatatech.cloud/desktop";
+// The lane: RustFS (S3-compatible) on the tailnet — desktop machines are all
+// inside finddata's tailnet, so the lane is internal-only by design (无公网
+// 暴露；bucket yizuo-desktop carries anonymous-read for the unsigned GETs the
+// updater makes). MagicDNS alias: windows-laptop.mesh.finddata.cn:9000.
+export const DEFAULT_UPDATE_URL = process.env.DESKTOP_UPDATE_URL || "http://100.64.0.10:9000/yizuo-desktop";
 
 // Should this platform run the real auto-update flow? Windows NSIS: yes.
 // macOS: only when the host says the build is signed (autoUpdater on an

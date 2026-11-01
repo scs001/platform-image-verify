@@ -2,8 +2,12 @@
 
 ## 1. 发布道
 
-- [ ] 1.1 静态道宿址落位——**机制已选**：release.yml 既有的 MinIO 公开镜像步（从未配 secrets 而
-  跳过的 legacy 步，零新设施）；桶凭据（MINIO_* 四项）为运维配置项，配上即活——待配
+- [x] 1.1 静态道宿址落位——**RustFS 内网道**（用户 2026-11-02 提供：S3 兼容，100.64.0.10:9000，
+  tailnet-only 零公网暴露）：桶 `yizuo-desktop` 已建+匿名读策略（GetObject）+v1.3.19 三件套
+  （exe/dmg×2+electron-builder 自产 latest*.yml）上传，**yml sha512 与实物比对一致**，匿名 GET
+  206 全通；坑=mc 上游 410（MinIO 撤档）→curl --aws-sigv4 零安装直干；yml url 是破折号消毒名、
+  原始件带空格——按 yml 名补传才是客户端视角。CI 上传自动化挂账：GitHub 托管 runner 不在
+  tailnet，需 TAILSCALE_AUTHKEY（tailscale/github-action）或自托管 runner 或 tailnet 同步工
 - [x] 1.2 CI 发布班：release.yml 增「生成 latest*.yml」（gen-desktop-latest-yml.mjs，sha512/size
   原子写）+ 随 GitHub Release 与 MinIO 道上传；哈希一致性测试在 3.1
 

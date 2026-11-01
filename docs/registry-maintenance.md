@@ -7070,3 +7070,17 @@ pending 记录 + cell 重铸 → `takeover: dispatching accepted webhook` 日志
 保全 backup-release-cutover-1101。**残留无感化路径**（本单未含）：Recreate→滚动（hostPort 解绑）+
 preStop 排水+bot 死窗边缘受理——另单。单② add-desktop-in-app-update（桌面应用内升级）四件套已
 立项待工。specs 233/0，归档 2026-11-01-add-rollout-gap-durability。
+
+### §15.123 舰队服务账号切换上产收口：fleet 链挂 svc-fleet-core-1 + 周期重铸纳管（add-fleet-service-account-cutover，2026-11-01）
+
+**切换事实**：2026-11-01 19:34 CST（行 `updated_at=2026-11-01T11:34:11.930Z`）fleet cell `3fdc7b8e8ac03b68` 的 wire-customer 行原子换链——**行键保持 `platform-test@findmail.com`**（cell 属主，profile 选行按它），**授权主体换 `svc-fleet-core-1`**（token sub=`ohvn98ztddjj`）、billing 归 `svc/fleet-core-1`；stale=0、RT 在（len 43）。铸币配方三脚本 `.zcode/tmp/`：`forge-cookie.mjs`（pod `/data/auth/session-secret`+HMAC 铸 platform-test 的 `paas_session`，不碰其平台口令）→ 全新 playwright 上下文 UA=`mint-line/paas-1` → `mint-svc-fleet.mjs` **固定四步**（登录→授权页批准——consent 实测**每授权交互必弹、不按用户记忆**，修正 10-24 spike「首连免屏」旧论；→code→token）→ `read-row.mjs` 验行。SSO 登录腿禁用（登录主体必须是 svc 而行键必须保持 platform-test，同浏览器先登 platform-test 会被 prompt=none 静默复用=白切）。
+
+**事实修正两条入册**：①`token_exp` 列=ID token exp（mint+1h），14 天绝对租约在 RT 侧；②旧 platform-test 舰队链 **10-31 起已断供**（wire 复核确认）——切换兼修复，旧链 11-07 壁钟自然失效无需处置。
+
+**周期重铸终态**：`automation-4665497d` **每轮无条件重铸**（「临期<36h 才铸」的稳态 48h 数学空窗根除，10-29 改），11-01 起 **fleet svc 行纳入管辖**（与 admin 两行同轮重铸；fleet 腿=cookie 注入+svc 口令腿，上述三脚本为载体；URL 落点采样不作数，行状态才是真判据）；wire-tester2 行仍属 wire。行龄恒 ≤12 天 <13 天验收口径。
+
+**红线入册**：`svc-fleet-core-1`/`svc-fleet-ops-1` 禁人工交互式登录、禁改密/禁用（=舰队链全灭），只有周期重铸碰它们；wire 护栏 `fd-svc-guard`（xinru cron 08:50）`mint-line/paas-1` 类 UA=ok(tool) 留痕、`Mozilla*`=ALARM。
+
+**wire 侧收口**（c2cccf9 推 gitee main）：`add-fleet-service-accounts` 12/12 归档（spec fleet-service-accounts 5 requirements/10 scenarios）；A3 复核 ①②④ 过（行读毫秒级／Logto SignIn.Submit 单发 19:34:07 与「全新上下文一次铸币」自洽／其余链零扰——admin 真人行 19:50/19:54 自然重铸照常、fleet lex 行 10-23 未动／护栏日报口径），③用量归属随首轮巡线双向补录（壹座 4.2）。复核判据=「grant accountId=`ohvn98ztddjj` + 行键未动」双条件。
+
+**边界与挂账**：本体建设舰队所在 admin cell `1da519d4c1c0bf89` 授权腿仍为真人链（aloadtree，壹座自动化管）——如同切由壹座扩 2.2 覆盖即可，**决策待拍**。4.2=首轮巡线自然回合取证（ok/`wire_artifact_get` 200/无 stale+billing 抽样），11-02 09:00 巡线后补录。壹座侧独立行读当日因 prod 取证 SSH 隧道（`127.0.0.1:16443→172.16.0.188:6443` 经 `103.236.97.114` 跳板）断路未做成，由 4.2 证据轮带连通性兜底补做。台账号跳至 §15.123 避让 agent-builder 线在用的 §15.122（跨 worktree 同号异题防混淆，循 05b8cbd5 去重律）。

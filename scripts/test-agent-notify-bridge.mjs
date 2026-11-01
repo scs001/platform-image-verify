@@ -149,7 +149,7 @@ test("bridge: subclasses the preset bridge, registers the tool and routes botNot
   }
   const tmp = mkdtempSync(path.join(tmpdir(), "notify-class-"));
   try {
-    for (const f of ["bot-notify.js", "platform-notify-bridge.js", "platform-preset-bridge.js", "platform-tool-scope.js"]) {
+    for (const f of ["bot-notify.js", "platform-notify-bridge.js", "platform-preset-bridge.js", "platform-tool-scope.js", "platform-tool-description.js"]) {
       copyFileSync(path.join(TEMPLATE_DIR, f), path.join(tmp, f));
     }
     mkdirSync(path.join(tmp, "node_modules", "@deepseek-ai"), { recursive: true });
@@ -228,7 +228,7 @@ test("writeNotifyPatch lands both bridge files and the row-swap overlay", async 
     // subclass under a fresh id (a patch cannot rewrite a row's plugin name).
     assert.deepEqual(patch[0], { id: "platform-sdk-server", disabled: true });
     assert.deepEqual(patch[1], { insert: [{ id: "platform-notify-server", name: "./platform-notify-bridge.js" }] });
-    for (const f of ["platform-notify-bridge.js", "bot-notify.js", "platform-preset-bridge.js", "platform-tool-scope.js"]) {
+    for (const f of ["platform-notify-bridge.js", "bot-notify.js", "platform-preset-bridge.js", "platform-tool-scope.js", "platform-tool-description.js"]) {
       assert.ok(existsSync(path.join(home, "profiles", "platform", f)), `${f} copied beside the profile`);
     }
   } finally {

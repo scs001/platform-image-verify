@@ -51,6 +51,7 @@ test("writeServingQuestionsPatch lands the bridge chain and the notify→questio
       "bot-notify.js",
       "platform-preset-bridge.js",
       "platform-tool-scope.js",
+      "platform-tool-description.js",
     ]) {
       assert.ok(existsSync(path.join(home, "profiles", "platform", f)), `${f} copied beside the profile`);
     }
@@ -98,6 +99,7 @@ test("bridge: parks the ask, answers first-wins, cancel reason surfaces in the t
       "bot-notify.js",
       "platform-preset-bridge.js",
       "platform-tool-scope.js",
+      "platform-tool-description.js",
     ]) {
       copyFileSync(path.join(TEMPLATE_DIR, f), path.join(tmp, f));
     }

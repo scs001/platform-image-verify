@@ -1,13 +1,13 @@
 ## 1. 桥
 
-- [ ] 1.1 鉴权 HTTP 桥：server 侧端点代理 pack-author / fleet-architect 既有 MCP 工具调用（复用 cell MCP 客户端与既有鉴权/tool_risk 语义）；验收：测试断言桥按调用方身份走鉴权，无匿名通路。
-- [ ] 1.2 工具面白名单：桥只暴露起草所需工具（起草/改稿类），不暴露执行/发射类工具；验收：白名单外工具名被拒。
+- [x] 1.1 【实施定案：pack-author/fleet-architect 的 MCP 工具面本就是 drafts_list/validate/save——无起草工具可代理，桥落地为一条鉴权起草函数（复用部署 judge 车道+既有会话鉴权，非工具代理）】鉴权 HTTP 桥：server 侧端点代理 pack-author / fleet-architect 既有 MCP 工具调用（复用 cell MCP 客户端与既有鉴权/tool_risk 语义）；验收：测试断言桥按调用方身份走鉴权，无匿名通路。
+- [x] 1.2 【kind 白名单=结构性（DRAFT_KINDS 常量+按名 400，无按工具名透传面）】工具面白名单：桥只暴露起草所需工具（起草/改稿类），不暴露执行/发射类工具；验收：白名单外工具名被拒。
 
 ## 2. 画布
 
-- [ ] 2.1 「AI 起草」动作：产物落画布可编辑草稿（三桶字段逐项填充），零发射口调用；验收：测试断言无 createCustomPreset/createPackDraft/castBlueprint 调用（4.1）。
-- [ ] 2.2 人批准边界：未点「采用」不覆盖现有三桶；取消采用后文档逐字段不变；验收：测试断言（4.2）。
-- [ ] 2.3 i18n 五语言键（起草/采用/取消）。
+- [x] 2.1 【草稿态独立 aiDraft state，零发射口调用，源断言在案】「AI 起草」动作：产物落画布可编辑草稿（三桶字段逐项填充），零发射口调用；验收：测试断言无 createCustomPreset/createPackDraft/castBlueprint 调用（4.1）。
+- [x] 2.2 【采用=唯一写入门，取消零污染，源断言在案】人批准边界：未点「采用」不覆盖现有三桶；取消采用后文档逐字段不变；验收：测试断言（4.2）。
+- [x] 2.3 【check-locales 过】i18n 五语言键（起草/采用/取消）。
 
 ## 3. 走查
 

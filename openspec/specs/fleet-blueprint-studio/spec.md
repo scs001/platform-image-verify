@@ -103,6 +103,30 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 - **WHEN** 机器断言全绿、模型断言全部 `pass`、且 owner 已签该报告
 - **THEN** 收费上架通过可售闸；三者缺一即 400 指名缺哪一项
 
+### Requirement: 试跑收证窗口对在途回合自适应
+
+试跑的收证等待 SHALL 在被点火岗位的回合**仍在队列中排队或执行中**时自适应顺延 deadline（按轮询
+步进）——cell 的执行主链是全舰队共享的串行队列，繁忙 cell 上队列延迟可超过固定窗口；回合未得到
+执行机会即判超时红是误判。顺延 SHALL 有**绝对封顶**（总窗不超过基础窗口的 2 倍）——卡死任务不得
+把 trial 挂成无限等。发生顺延时 SHALL 在证据面如实记录顺延总量（`windowExtendedMs`）。回合真正
+执行后（无论成败）SHALL 停止顺延——执行后的失败证据（车道熔断/上游 503 等）照常如实落红，窗口
+顺延 MUST NOT 掩盖回合的真实失败。
+
+#### Scenario: 深队列中回合在途而基础窗口到期
+
+- **WHEN** fireRound 点火后基础窗口（10 分钟）到期，但该岗位的任务仍处于 queued/running
+- **THEN** deadline 按轮询步进顺延，trial 不在回合获得执行机会前判红；证据面携带 windowExtendedMs
+
+#### Scenario: 绝对封顶
+
+- **WHEN** 在途回合持续超过基础窗口的 2 倍总时长仍未产出报告
+- **THEN** trial 按诚实超时收证判红（不再顺延），不无限等待
+
+#### Scenario: 回合执行后即停顺延
+
+- **WHEN** 在途回合实际执行并失败（如车道上游 503）
+- **THEN** 顺延立即停止，失败证据照常落红——窗口顺延不重试、不掩盖回合的真实失败
+
 ### Requirement: v1 方言如实拒绝，不归一化兼容
 
 平台 SHALL 只接受蓝图格式 v2（`boundary` / `dataSources` / `board` / `acceptance` 结构化条目）。收到 v1 方言（出现 `vertical` / `sources` / `boards` 独有键，而对应 v2 键 `boundary` / `dataSources` / `board` 缺位）时，平台 SHALL 落一条指名 v1→v2 的错误并拒绝，SHALL NOT 归一化改写成 v2 形状后接受。

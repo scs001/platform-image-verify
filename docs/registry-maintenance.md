@@ -6994,3 +6994,14 @@ open until… (5/5 upstream failures)` 诚实 skip→model_upstream 直败——
 **§15.120 八续（2026-11-01）——七单全归档，规格书工作流立法毕**。按依赖序逐单归档：spec-sheet（新建 agent-spec-sheet capability，ADDED 直拷+节名律 `## ADDED Requirements`→主 spec 必须改名 `## Requirements`，否则 2 需求不可见验出）→fold（fleet-blueprint-studio MODIFIED 块替换，超集律核过：主 2 场景+新 1）→fork（新建 agent-fork-lineage）→gallery（official-pack-showcase 追加 3 需求）→**脊梁 define-agent-document 六件文档功课**（roadmap §6 补 9-15 行+creating-packs/pack-marketplace 两文档「三桶/四发射口」指针+agent-document capability 立法+严格 validate）→studio（5.3 补「发射不改工作文档」断言 12/12；6.3 被 fold D2 取代注记；**4.x 拆出 add-studio-ai-drafting 立案**：proposal/tasks/spec 三件齐 validate 绿——AI 起草=桥+草稿+人采用门，零发射口调用）→guides（4.2 走查实证销账；3.3 第二批挂账在案随批注明）。specs 终态 **230/0**；分支 tip 81d8ae3e 推 origin。规格书工作流七单立法闭环，后续迭代在主 spec 上开新单。
 
 **§15.120 九续（2026-11-01）——add-studio-ai-drafting 实施（1.1/1.2/2.1/2.2/2.3 五件毕）**。实施定案一处偏离原案并如实记：pack-author/fleet-architect 的 MCP 工具面本就是 drafts_list/validate/save（无起草工具）——「桥」落地为**一条鉴权起草函数**（POST /api/studio/draft：kind 白名单 agent-doc|blueprint 结构性限定、复用部署 judge 车道 resolveJudgeLane、20/h 限流、零持久化零发射口调用、无车道如实 503）而非 MCP 工具代理（原案「代理既有 MCP 工具」无对象可代理，照搬会造第二套空转面）。画布「AI 起草」面板：草稿态独立（aiDraft state），采用=唯一写入门（显式 setDoc），取消逐字段零污染。测试 9/0（源断言 5+网关行为 4）+studio 邻居 12/12+check-locales 过。tip e0d8c546 推 origin。剩 3.1 真机走查（随滚版班）。
+
+**§15.121 续八：trial 窗口自适应上产+行为活体验证（add-trial-window-adaptive 全链，2026-11-01）**——
+propose 四件套→apply：`nextTrialDeadline` 纯函数（inflight=cron 任务 queued/running → deadline 按
+poll 步进顺延，**绝对封顶 2× 基础窗**（越界即持住不越），非在途即停）+ 生产 collectAndWait 接线
+（cron.listJobs 在途判定零新探针）+ `windowExtendedMs` 如实进证据面。**CI 第九轮逮住我方真缺陷**
+（deadline 声明 const 却在循环赋值——noConstAssign；本地 biome 输出被管道吞掉的教训=lint 必须显式
+核退出码）。第六次超集追并（七单全归档 specs 230/0+AI 起草桥随行）→ 第十一轮 CI 绿 → 池绿 →
+**sha-493d43d（digest 30727056）双 pod imageID 同一**。真机行为验证：trial 重跑（去重舰队 cadence
+从铸包 manifest 恢复——上一班的配额停用破坏了去重重跑前置，fireRound 依赖岗位 cadence job 的
+前置律在册）→ fire ✓→执行 ✓→model_upstream 失败即停顺延 ✓→诚实红 ✓（自适应代码路径活体走通）。
+**km 3.3 绿回执唯余 deepseek 车道 503 恢复**（纯外部等待）；机制+窗口+行为三面全证。

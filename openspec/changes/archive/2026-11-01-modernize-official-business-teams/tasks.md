@@ -28,4 +28,4 @@
 - [x] 3.1 生产走查 15/15：货架 10 卡+46 卡墙、详情逐支（版本/三桶/内容标记/无转义）、构建器画布门面、fork 深链、匿名登录墙+官方资产预告
 - [x] 3.2 台账 §15.122（内容口径 + fd-sentiment 缺陷 + 字面转义事故三律）
 - [x] 3.3 双推（origin + gitee）
-- [ ] 3.4 archive（specs 增量并入 + validate --specs）
+- [x] 3.4 archive（主 spec 三条 MODIFIED 超集并入 + ADDED 溯源立法；validate --specs 233/0）

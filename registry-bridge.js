@@ -139,6 +139,13 @@ function pathToName(p) {
   return String(p || "").split("/").filter(Boolean).join("-");
 }
 
+// Supply annotation passthrough (add-mcp-annotation-overlay): an annotation is
+// carried verbatim when object-shaped; every other value (a stale string, an
+// array) degrades to null — validation happens at the merge point.
+function plainMetadataAnnotations(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v) ? v : null;
+}
+
 // ── mappers: registry API shapes → paas catalog shapes ───────────────────────
 
 // Server summary → market MCP entry. requiresConfig is derived downstream from
@@ -190,6 +197,11 @@ function mapServer(s) {
     // (add-facet-market-credentials D4): entries may carry
     // metadata.credential_ref naming the 壹座-side credentialRef installs
     // must wire and require (default "registry" — the incumbent behavior).
+    // Supply annotation (add-mcp-annotation-overlay D1): the curated
+    // human/canonical annotation rides registry row metadata.annotations
+    // verbatim — extension-store merges it (registry > repo catalog) and
+    // facets project it per locale. Absent → null (raw upstream rendering).
+    annotations: plainMetadataAnnotations(s.metadata?.annotations),
     credentialRef:
       typeof s.metadata?.credential_ref === "string" && s.metadata.credential_ref
         ? s.metadata.credential_ref
@@ -285,6 +297,9 @@ function mapSkill(s) {
     author: typeof s.author === "string" && s.author ? s.author : null,
     version: typeof s.version === "string" && s.version ? s.version : null,
     tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t)) : [],
+    // Supply annotation passthrough (add-mcp-annotation-overlay) — same rule
+    // as servers: metadata.annotations rides verbatim when object-shaped.
+    annotations: plainMetadataAnnotations(s.metadata?.annotations),
   };
 }
 

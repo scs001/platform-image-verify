@@ -7,6 +7,7 @@ import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
 import { previewInstall, performInstall, previewUpdate, performUpdate } from "../../external-install.js";
 import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
+import { resolveLocale } from "../../lib/pack-locale.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
@@ -42,13 +43,34 @@ export function registerExtensionRoutes(ctx) {
     return true;
   };
 
-  // List all MCP server configurations (from database).
-  app.get("/api/extensions/mcp", (_req, res) => {
+  // List all MCP server configurations (from database). Supply annotations
+  // (add-mcp-annotation-overlay) ride by name from the merged catalog — the
+  // config store itself never stores annotations. Unannotated servers carry
+  // no annotation key: the pre-change payload, byte-identical.
+  app.get("/api/extensions/mcp", async (_req, res) => {
     if (!db.isDbReady()) {
       return res.status(503).json({ error: "Extensions management is disabled (database unavailable)" });
     }
     const servers = extensionStore.listMcpServers();
-    res.json({ servers });
+    let annotationsByName = null;
+    try {
+      annotationsByName = await extensionStore.getAnnotationsByName();
+    } catch {
+      annotationsByName = null; // catalog unavailable → raw rendering
+    }
+    res.json({
+      servers: annotationsByName
+        ? servers.map((s) => (annotationsByName.has(s.name) ? { ...s, annotation: annotationsByName.get(s.name) } : s))
+        : servers,
+    });
+  });
+
+  // Supply annotation index (add-mcp-annotation-overlay D5): the light
+  // per-callable-name index the chat tool blocks look up once per session.
+  // Locale follows the shared resolver (?locale= > Accept-Language > zh).
+  app.get("/api/supply-annotations", async (req, res) => {
+    const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+    res.json(await extensionStore.getSupplyAnnotationIndex(locale));
   });
 
   // MCP preflight health signal (add-mcp-credential-hygiene): the per-server

@@ -6,6 +6,7 @@ import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import * as db from "./db.js";
 import { getMarketEntries } from "./registry-bridge.js";
+import { mergeAnnotations, projectAnnotation } from "./lib/supply-annotations.js";
 
 // Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
 const marketCatalogFile = () => bundledJson("market-catalog.json");
@@ -174,10 +175,66 @@ async function mergedMarketCatalog() {
   const registryServers = registry.mcpServers.filter((s) => !bundledMcpNames.has(s.name));
   const bundledSkillNames = new Set((skills.skills || []).map((s) => s.name));
   const registrySkills = registry.skills.filter((s) => !bundledSkillNames.has(s.name));
-  return {
+  const out = {
     mcpServers: [...(mcpServers.mcpServers || []), ...registryServers],
     skills: [...(skills.skills || []), ...registrySkills],
   };
+  // Supply annotations (add-mcp-annotation-overlay D2): merge READ-TIME — the
+  // registry's metadata.annotations outranks the repo catalog field-by-field
+  // (the entry-level bundled-first rule above governs the ENTRY shape, not the
+  // annotation, whose truth is shared across planes). Unannotated entries get
+  // no annotation key at all — byte-identical to the pre-change payload.
+  const registryMcpAnn = new Map(
+    registry.mcpServers.filter((s) => s.annotations).map((s) => [s.name, s.annotations]),
+  );
+  for (const s of out.mcpServers) {
+    const merged = mergeAnnotations({ registry: registryMcpAnn.get(s.name), catalog: s.annotation });
+    if (merged) s.annotation = merged;
+  }
+  const registrySkillAnn = new Map(
+    registry.skills.filter((s) => s.annotations).map((s) => [s.name, s.annotations]),
+  );
+  for (const s of out.skills) {
+    const merged = mergeAnnotations({ registry: registrySkillAnn.get(s.name), catalog: s.annotation });
+    if (merged) s.annotation = merged;
+  }
+  return out;
+}
+
+// Annotations keyed by supply-object name (MCP servers + skills) — the read
+// faces attach these to INSTALLED rows too (a row's own config store does not
+// carry annotations; the catalog is the annotation truth).
+export async function getAnnotationsByName() {
+  const { mcpServers, skills } = await mergedMarketCatalog();
+  const byName = new Map();
+  for (const s of mcpServers) if (s.annotation) byName.set(s.name, s.annotation);
+  for (const s of skills) if (s.annotation) byName.set(s.name, s.annotation);
+  return byName;
+}
+
+// Light annotation index for the chat tool blocks (add-mcp-annotation-overlay
+// D5): `{ servers: { name: {label, summary} }, tools: { "<server>__<leaf>":
+// {label, summary} } }`, projected to `locale` through the ONE projection
+// helper (zh 唯一回落). A tool sub-annotation contributes under every server
+// that carries it; unannotated entries contribute nothing (raw rendering).
+export async function getSupplyAnnotationIndex(locale) {
+  const { mcpServers } = await mergedMarketCatalog();
+  const servers = {};
+  const tools = {};
+  for (const s of mcpServers) {
+    if (!s.annotation) continue;
+    const projected = projectAnnotation(s.annotation, locale);
+    if (projected) {
+      servers[s.name] = { label: projected.name, summary: projected.summary };
+    }
+    for (const [leaf, toolAnnotation] of Object.entries(s.annotation.tools || {})) {
+      const projectedTool = projectAnnotation(toolAnnotation, locale);
+      if (projectedTool) {
+        tools[`${s.name}__${leaf}`] = { label: projectedTool.name, summary: projectedTool.summary };
+      }
+    }
+  }
+  return { servers, tools };
 }
 
 // Resolve a market MCP entry by name for the install admission check.

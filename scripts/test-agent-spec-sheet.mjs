@@ -92,7 +92,7 @@ test("dialog keeps its legacy guide card (client fallback retires with move-pack
   // Interim state, documented in the change: the dialog's own guide card
   // (manifest.guide ?? guideFor) stays until the content migration lands;
   // the sheet itself is passed no guide from the dialog.
-  assert.match(dialog, /guideFor\(packId\)/, "legacy fallback still present (interim)");
+  assert.ok(!/guideFor\(packId\)/.test(dialog), "client-module fallback retired (move-pack-guides 3.3 终态) — manifest.guide is the only source");
   const sheetCall = dialog.slice(dialog.indexOf("<AgentSpecSheet"), dialog.indexOf("/>", dialog.indexOf("<AgentSpecSheet")));
   assert.ok(!sheetCall.includes("guide="), "dialog does not pass guide into the sheet");
 });

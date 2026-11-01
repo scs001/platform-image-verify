@@ -241,6 +241,36 @@ export function ensureTrialFleetName(db, fleetId) {
 
 // ── 生产装配（与 routes/fleets.js from-template 路由逐字同源） ──────────────
 
+
+// ── Bounded fire (fix-trial-fire-timeout) ────────────────────────────────────
+// The trial handler holds an in-process lock for the whole run; fireRound used
+// to await cron.runJobNow unbounded — a round queued behind a busy shared DSH
+// child can park 20+ minutes, starving every later trial with 409s and
+// outliving the trial's own evidence window. Each fire now races a timeout
+// window (default 90s, BLUEPRINT_FIRE_TIMEOUT_MS overrides); a timed-out fire
+// lands in `fired` with its error (the existing `!f.error` turn filter reads
+// it honestly), and the trial keeps collecting evidence.
+export const FIRE_TIMEOUT_DEFAULT_MS = 90_000;
+
+export function fireTimeoutMs(env = process.env) {
+  const raw = Number(env.BLUEPRINT_FIRE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : FIRE_TIMEOUT_DEFAULT_MS;
+}
+
+export async function fireJobBounded(cronApi, job, timeoutMs = fireTimeoutMs(), { now = Date.now } = {}) {
+  try {
+    await Promise.race([
+      Promise.resolve(cronApi.runJobNow(job.id)),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("fire timeout"), { code: "fire-timeout" })), timeoutMs),
+      ),
+    ]);
+    return { jobId: job.id, memberId: job.sourceTag?.memberId ?? null, at: now() };
+  } catch (err) {
+    return { jobId: job.id, memberId: job.sourceTag?.memberId ?? null, at: now(), error: err?.message || String(err) };
+  }
+}
+
 export function createLiveTrialDeps() {
   return {
     now: Date.now,
@@ -316,12 +346,9 @@ export function createLiveTrialDeps() {
       const jobs = cron.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId);
       const fired = [];
       for (const job of jobs) {
-        try {
-          await cron.runJobNow(job.id);
-          fired.push({ jobId: job.id, memberId: job.sourceTag?.memberId ?? null, at: Date.now() });
-        } catch (err) {
-          fired.push({ jobId: job.id, memberId: job.sourceTag?.memberId ?? null, at: Date.now(), error: err?.message || String(err) });
-        }
+        // fix-trial-fire-timeout: bounded per job — a hung fire must not hold
+        // the trial lock past the evidence window.
+        fired.push(await fireJobBounded(cron, job));
       }
       return fired;
     },

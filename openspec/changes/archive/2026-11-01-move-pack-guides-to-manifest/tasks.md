@@ -11,7 +11,7 @@
 
 - [x] 3.1 `PackDetailDialog` 引导卡改读 manifest 数据；验收：有 guide 的 pack 渲染三步、无 guide 的不渲染（组件测试双夹具）。
 - [x] 3.2 `ChatWelcome`/`HelpDialog` 的 guide 类块切换数据源或按缺失省略；验收：欢迎态 prompt 卡不受影响（既有测试仍绿）+ guide 缺失时无兜底文案（组件测试）。
-- [ ] 3.3 `packGuides.ts` 删除 guide 步骤条目与 pack id 索引键，仅存 prompts；【第一批已完成：5 支 starter 条目已删+名与 seed 对齐；全量仅存 prompts 待第二批（2 支仅原作者闸+4 支 unlisted）】验收：客户端源码 `grep` 无按 pack id 的引导文案；`scripts/check-locales.js` 通过。
+- [x] 3.3 `packGuides.ts` 删除 guide 步骤条目与 pack id 索引键，仅存 prompts；【**第二批终局（2026-11-01，§15.120 十三续）**：登录态核实 7 支候选全退役（含最后一条 法律-合同 J9sO… /api/packs 登录读 404；4 支 unlisted 实为退役非匿名门；2 支原作者闸对象亦已退役）→无可迁内容，终局=摘除最后一条+PackDetailDialog 的 guideFor 回退退役（manifest.guide 唯一源，test-agent-spec-sheet 翻钉）+packGuides 空壳注释留痕；HelpDialog 空态兜底与 promptsFor 通道保留】验收：客户端源码 `grep` 无按 pack id 的引导文案（仅注释留痕）；`scripts/check-locales.js` 通过；test-agent-spec-sheet/official-starter-teams/onboarding-hosted 16/0。
 
 ## 4. 回归与走查
 

@@ -24,7 +24,7 @@ import { FacadeMattersPanel } from "./FacadeMattersPanel";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
 import { PackVersionList } from "./PackVersionList";
 import { FleetTemplateWizard } from "./FleetTemplateWizard";
-import { guideFor, promptsFor, type PackGuide } from "@/lib/packGuides";
+import { promptsFor, type PackGuide } from "@/lib/packGuides";
 import type { RhythmEntry } from "./RhythmEditor";
 
 interface Props {
@@ -350,13 +350,13 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   };
 
   const m = pack?.manifest;
-  // Guide resolution chain (add-pack-tutorials-and-wizard): the creator's own
-  // manifest.guide wins; the client content module covers launch packs; no
-  // content renders no card at all.
+  // Guide resolution (move-pack-guides-to-manifest 3.3 终态): the creator's
+  // own manifest.guide is the ONLY source — the client content module retired
+  // (empty record); no content renders no card at all.
   const manifestGuide = (m as { guide?: { steps: { title: string; body: string }[] } } | undefined)?.guide;
   const guide: PackGuide | null = manifestGuide
     ? { name: pack?.name ?? "", steps: manifestGuide.steps as PackGuide["steps"] }
-    : guideFor(packId);
+    : null;
   // Example questions are platform-curated (client module), never creator
   // content — shown beneath the steps as read-only decision help.
   const examples = promptsFor(packId) ?? [];

@@ -125,6 +125,8 @@ jobs:
           fi
           echo "APP_EXE=$EXE" >> "$GITHUB_ENV"
           echo "binary: $EXE"
+          # Binary sanity: Electron answers --version without booting the app.
+          "$EXE" --version; echo "version-exit=$?"
 
       # ── Phase 1: honest up-to-date ────────────────────────────────────────────
       - name: Phase 1 — lane matches running version → up-to-date
@@ -134,8 +136,8 @@ jobs:
           UPDATER_STATE_FILE: ${{ github.workspace }}/updater-state.json
         run: |
           set -euo pipefail
-          rm -f updater-state.json app-electron.log
-          "$APP_EXE" --enable-logging=file --log-file="$(pwd)/app-electron.log" &
+          rm -f updater-state.json app-out.log
+          "$APP_EXE" --enable-logging=stderr > app-out.log 2>&1 &
           for i in $(seq 1 60); do
             sleep 5
             if [ -f updater-state.json ]; then
@@ -143,10 +145,10 @@ jobs:
               echo "state: $STATUS"
               case "$STATUS" in
                 up-to-date) echo "PHASE1 OK"; break ;;
-                error) echo "PHASE1 FAIL: $(cat updater-state.json)"; tail -30 app-electron.log 2>/dev/null; exit 1 ;;
+                error) echo "PHASE1 FAIL: $(cat updater-state.json)"; tail -30 app-out.log 2>/dev/null; exit 1 ;;
               esac
             fi
-            [ "$i" = "60" ] && { echo "PHASE1 TIMEOUT — electron log tail:"; tail -40 app-electron.log 2>/dev/null || echo "(no log file)"; exit 1; }
+            [ "$i" = "60" ] && { echo "PHASE1 TIMEOUT — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log file)"; exit 1; }
           done
           if [ "${{ matrix.os }}" = "windows-latest" ]; then taskkill //F //IM "$(basename "$APP_EXE")" //T >/dev/null 2>&1 || true; else pkill -f "$(basename "$APP_EXE")" || true; fi
           sleep 3
@@ -163,8 +165,8 @@ jobs:
           # the boot check sees the newer lane.
           cp lane/latest.yml dist/latest.yml 2>/dev/null || true
           cp lane/latest-mac.yml dist/latest-mac.yml 2>/dev/null || true
-          rm -f updater-state.json app-electron.log
-          "$APP_EXE" --enable-logging=file --log-file="$(pwd)/app-electron.log" &
+          rm -f updater-state.json app-out.log
+          "$APP_EXE" --enable-logging=stderr > app-out.log 2>&1 &
           EXPECT=notify-only
           if [ "${{ matrix.os }}" = "windows-latest" ]; then EXPECT=downloaded; fi
           for i in $(seq 1 90); do
@@ -174,10 +176,10 @@ jobs:
               echo "state: $STATUS"
               case "$STATUS" in
                 $EXPECT) echo "PHASE2 OK ($EXPECT)"; break ;;
-                error) echo "PHASE2 FAIL: $(cat updater-state.json)"; tail -30 app-electron.log 2>/dev/null; exit 1 ;;
+                error) echo "PHASE2 FAIL: $(cat updater-state.json)"; tail -30 app-out.log 2>/dev/null; exit 1 ;;
               esac
             fi
-            [ "$i" = "90" ] && { echo "PHASE2 TIMEOUT (expected $EXPECT) — electron log tail:"; tail -40 app-electron.log 2>/dev/null || echo "(no log file)"; exit 1; }
+            [ "$i" = "90" ] && { echo "PHASE2 TIMEOUT (expected $EXPECT) — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log file)"; exit 1; }
           done
           node -e "
             const s = JSON.parse(require('fs').readFileSync('updater-state.json','utf8'));

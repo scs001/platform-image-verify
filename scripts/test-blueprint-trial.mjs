@@ -326,3 +326,26 @@ test("judge 阶段：证据带集群身份（2026-10-29 生产首次真跑逮住
   assert.match(seen.evidenceText, /试跑集群：工单分诊集群·试跑/);
   assert.match(seen.evidenceText, /f1/);
 });
+
+// ── Adaptive trial window (add-trial-window-adaptive) ───────────────────────
+const { nextTrialDeadline } = await import("../server/blueprint-trial.js");
+
+test("nextTrialDeadline: in-flight extends by one poll step, capped at 2× base window", () => {
+  const base = 10 * 60_000;
+  const now = 1_000_000;
+  const deadline = now + base;
+  const hardCap = now + base * 2;
+  // in-flight → +pollMs
+  assert.equal(
+    nextTrialDeadline({ deadline, hardCap, inflight: true, pollMs: 15_000 }),
+    deadline + 15_000,
+  );
+  // not in-flight → untouched (the round ran; stop extending)
+  assert.equal(nextTrialDeadline({ deadline, hardCap, inflight: false, pollMs: 15_000 }), deadline);
+  // cap: deadline+poll beyond hardCap → hold at deadline (the while condition times out honestly)
+  const late = hardCap - 5_000;
+  assert.equal(nextTrialDeadline({ deadline: late, hardCap, inflight: true, pollMs: 15_000 }), late);
+  // near-cap: a full step would cross the cap → hold (the deadline never exceeds hardCap)
+  const near = hardCap - 10_000;
+  assert.equal(nextTrialDeadline({ deadline: near, hardCap, inflight: true, pollMs: 15_000 }), near);
+});

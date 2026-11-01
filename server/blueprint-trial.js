@@ -155,6 +155,20 @@ async function judgeAll({ assertions, evidence, fleetId, deps, contentJudgeModel
 }
 
 // 主流程：装台→点火→跑一轮→收证→判绿。任何装配失败如实进 errors，不抛。
+// Adaptive trial window (add-trial-window-adaptive): the cell's execution
+// main chain is a fleet-shared SERIAL queue — on a busy cell the queue delay
+// (~16 min measured on the walkthrough cell) exceeds the fixed 10-min window,
+// so a fired round that is still queued/running never got its CHANCE to run
+// and timing out red is a misjudgment. While the fired round is in flight the
+// deadline extends by one poll step, bounded by an absolute ceiling of 2× the
+// base window (a stuck task must not hang the trial forever). Pure function —
+// unit-pinned; the production collectAndWait inlines it.
+export function nextTrialDeadline({ deadline, hardCap, inflight, pollMs }) {
+  if (!inflight) return deadline;
+  if (deadline + pollMs > hardCap) return deadline;
+  return Math.min(deadline + pollMs, hardCap);
+}
+
 export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollMs = 15_000 } = {}) {
   const now = deps.now ?? Date.now;
   const report = {
@@ -337,7 +351,10 @@ export function createLiveTrialDeps() {
           escalations: db.countOpenDecisions(fleetId) ?? 0,
         };
       };
-      const deadline = Date.now() + timeoutMs;
+      const startedAt = Date.now();
+      const deadline = startedAt + timeoutMs;
+      const hardCap = startedAt + timeoutMs * 2; // 绝对封顶（add-trial-window-adaptive）
+      let extendedMs = 0;
       let evidence = collect();
       // 等待条件：所有 report-landed 目标都已有报告（其余断言不依赖等待）。
       const needsReports = (ev) => {
@@ -348,10 +365,19 @@ export function createLiveTrialDeps() {
           return (ev.reports ?? []).some((r) => ids.has(r.memberId));
         });
       };
+      // 在途判定：被点火岗位的回合任务仍在 queued/running（串行链排队/执行中）。
+      const roundInFlight = () =>
+        cron.listJobs().some((j) => j?.sourceTag?.fleetId === fleetId && (j.state === "queued" || j.state === "running"));
       while (!needsReports(evidence) && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, pollMs));
         evidence = collect();
+        const nd = nextTrialDeadline({ deadline, hardCap, inflight: roundInFlight(), pollMs });
+        if (nd > deadline) {
+          extendedMs += nd - deadline;
+          deadline = nd;
+        }
       }
+      if (extendedMs > 0) evidence.windowExtendedMs = extendedMs;
       return evidence;
     },
   };

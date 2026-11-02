@@ -225,3 +225,54 @@ test("词表外 slug 在副轨同样被拒；未知键仍按白名单拒", () =>
   const unk = overlayErrors({ ...BASE_V2, i18n: { en: { colorway: "red" } } });
   assert.match(unk[0].error, /unknown key 'colorway'/);
 });
+
+// ── 4.3 读面投影 (v2 fields follow the locale; zh fallback on gaps) ─────────
+const { projectManifestForLocale } = await import("../lib/pack-locale.js");
+
+test("en 请求：承诺/标签/领域/你会得到/示例/印章字全走副轨，结构(kind/accent)不动", () => {
+  const manifest = {
+    ...BASE_V2,
+    tags: ["法律", "合同"],
+    i18n: {
+      en: {
+        promise: "One sentence.",
+        tags: ["Law", "Contract"],
+        domain: ["investing", "risk"],
+        audience: ["legal"],
+        outcomes: [{ title: "Library", detail: "weekly" }, { title: "Minutes" }],
+        examples: [{ title: "Risk", prompt: "Drawdown?" }, { title: "Plan", prompt: "Rebalance." }],
+        identity: { mark: { value: "W" } },
+      },
+    },
+  };
+  const p = projectManifestForLocale(manifest, "en");
+  assert.equal(p.promise, "One sentence.");
+  assert.deepEqual(p.tags, ["Law", "Contract"]);
+  assert.deepEqual(p.outcomes[0], { title: "Library", detail: "weekly" });
+  assert.deepEqual(p.outcomes[1], { title: "Minutes" });
+  assert.equal(p.examples[0].prompt, "Drawdown?");
+  assert.equal(p.identity.mark.value, "W");
+  assert.equal(p.identity.mark.kind, "glyph", "kind 是结构");
+  assert.equal(p.identity.accent, "wire", "accent 是结构");
+  assert.equal(p.domain.length, 2);
+});
+
+test("未覆盖 locale 回落中文主轨（ja 块缺席=逐字节原样）", () => {
+  const manifest = { ...BASE_V2, i18n: { en: { promise: "Only english." } } };
+  const ja = projectManifestForLocale(manifest, "ja");
+  assert.equal(ja.promise, BASE_V2.promise, "ja 回落 zh 承诺");
+  // 纯 zh 请求返回同一对象引用——默认路径零拷贝。
+  assert.equal(projectManifestForLocale(manifest, "zh"), manifest);
+});
+
+test("部分覆盖只动覆盖到的字段；长度不齐的副轨不改主轨（防御）", () => {
+  const manifest = {
+    ...BASE_V2,
+    tags: ["法律", "合同"],
+    i18n: { en: { promise: "Covered.", tags: ["only-one-bad-alignment"] } },
+  };
+  const p = projectManifestForLocale(manifest, "en");
+  assert.equal(p.promise, "Covered.");
+  assert.deepEqual(p.tags, ["法律", "合同"], "长度不齐→保基轨");
+  assert.deepEqual(p.outcomes, BASE_V2.outcomes, "未覆盖字段原样");
+});

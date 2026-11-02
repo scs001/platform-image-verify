@@ -22,6 +22,9 @@ import {
 import { NAV_SURFACES, SETTINGS_SURFACES, AGENTS_TAB_SURFACES } from "../packages/core/src/lib/surfaces.ts";
 
 const ALL_NAV = NAV_SURFACES.map((s) => s.slug);
+// add-agent-builder-workspace 3.1: `blueprints` stays in the registry (stored
+// presets keep validating) but the factory presets no longer ship it in nav.
+const FACTORY_NAV = ALL_NAV.filter((slug) => slug !== "blueprints");
 const ALL_SETTINGS = SETTINGS_SURFACES.map((s) => s.slug);
 const _ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
 
@@ -96,7 +99,7 @@ test("resolveForUser composes deployment + role + user layers", () => {
 test("resolveForUser: a role with no preset entry keeps the deployment default", () => {
   const db = fakeDb({ deployment: { [LAYOUT_CONFIG_KEY]: JSON.stringify({ defaultPreset: "standard-snapshot", rolePresets: {} }) } });
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "screenplay", secondary: [] } });
-  assert.deepEqual(layout.nav, ALL_NAV);
+  assert.deepEqual(layout.nav, FACTORY_NAV);
   assert.deepEqual(layout.settings, ALL_SETTINGS);
   assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas (add-agent-builder-hub)
 });
@@ -157,7 +160,7 @@ test("resolveForUser scopes tweaks to the requesting identity", () => {
   const alice = resolveForUser({ db, env: {}, email: "alice@example.com", roles: { primary: "standard", secondary: [] } });
   const bob = resolveForUser({ db, env: {}, email: "bob@example.com", roles: { primary: "standard", secondary: [] } });
   assert.deepEqual(alice.layout.nav, ["chat"]);
-  assert.deepEqual(bob.layout.nav, ALL_NAV);
+  assert.deepEqual(bob.layout.nav, FACTORY_NAV);
 });
 
 test("user tweaks degrade bad JSON to null", () => {

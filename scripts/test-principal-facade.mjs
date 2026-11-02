@@ -208,7 +208,10 @@ test("An invalid pack is invalid with and without the facade block identically",
   delete broken.facade;
   const without = JSON.stringify(validatePackManifest(broken));
   const withBlock = JSON.stringify(validatePackManifest(facadeManifest({ ...broken, facade: facadeManifest().facade })));
-  if (without !== JSON.stringify([{ error: "name must be a non-empty string of at most 80 characters" }])) {
+  // The message stays the contract; the validator's stable error-code pass
+  // (add-agent-builder-workspace) may add a `code` field beside it, so the
+  // baseline matches on the message rather than the exact JSON shape.
+  if (!without.includes("name must be a non-empty string of at most 80 characters")) {
     throw new Error(`unexpected baseline errors: ${without}`);
   }
   // The facade block itself is valid, so adding it changes nothing here.

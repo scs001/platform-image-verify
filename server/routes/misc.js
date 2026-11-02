@@ -10,6 +10,7 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
+import { applySpaHeaders, SHELL_CACHE_CONTROL } from "../../lib/spa-static-headers.js";
 import { storeDir } from "../../paths.js";
 import { listProjects, upsertProjectByName, renameProject } from "../../db.js";
 import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
@@ -898,12 +899,15 @@ export function registerStaticAndFallback(ctx) {
       headers: { "cache-control": "public, max-age=31536000, immutable" },
     });
   });
-  app.use(express.static(WEB_DIST));
+  // Cache posture (openspec: harden-spa-shell-resilience): shell revalidates,
+  // hashed assets live forever — same leaf module the gateway uses, so the
+  // two servers cannot drift.
+  app.use(express.static(WEB_DIST, { setHeaders: (res, filePath) => applySpaHeaders(res, filePath) }));
   // SPA fallback: any GET that isn't an API route, proxy path, or static asset
   // serves index.html so the client router handles it. `assets/` stays excluded
   // so a missing bundle 404s instead of silently returning index.html.
   app.get(/^\/(?!api\/|external\/|assets\/).*/, (_req, res) => {
-    res.sendFile(path.join(WEB_DIST, "index.html"));
+    res.sendFile(path.join(WEB_DIST, "index.html"), { headers: { "Cache-Control": SHELL_CACHE_CONTROL } });
   });
 }
 

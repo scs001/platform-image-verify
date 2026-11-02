@@ -1,4 +1,12 @@
 {
+  "shell": {
+    "error": {
+      "title": "This page could not be loaded",
+      "body": "Something went wrong while displaying this view. You can retry, or reload the page.",
+      "retry": "Try again",
+      "reload": "Reload page"
+    }
+  },
   "common": {
     "loading": "Loading…",
     "cancel": "Cancel",

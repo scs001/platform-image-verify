@@ -1,4 +1,12 @@
 {
+  "shell": {
+    "error": {
+      "title": "Impossible de charger cette page",
+      "body": "Une erreur est survenue lors de l'affichage de cette vue. Vous pouvez réessayer ou recharger la page.",
+      "retry": "Réessayer",
+      "reload": "Recharger la page"
+    }
+  },
   "common": {
     "loading": "Chargement…",
     "cancel": "Annuler",

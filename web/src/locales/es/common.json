@@ -1,4 +1,12 @@
 {
+  "shell": {
+    "error": {
+      "title": "No se pudo cargar esta página",
+      "body": "Algo falló al mostrar esta vista. Puedes reintentar o recargar la página.",
+      "retry": "Reintentar",
+      "reload": "Recargar página"
+    }
+  },
   "common": {
     "loading": "Cargando…",
     "cancel": "Cancelar",

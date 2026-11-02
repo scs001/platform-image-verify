@@ -22,6 +22,7 @@ import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { useAuthStore } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Sidebar } from "@/components/Sidebar";
+import { ShellErrorBoundary } from "@/components/ShellErrorBoundary";
 import { ToastHost } from "@/components/Toast";
 import { ToastV2Host } from "@/components/ui/toast";
 import { buildGMap, gKeyStep, type NavTarget } from "@/lib/gNav";
@@ -295,7 +296,10 @@ export default function App() {
             <PanelLeft className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
-        <Suspense fallback={<RouteFallback />}>
+        {/* Inner render boundary (openspec: harden-spa-shell-resilience): a
+            route-level crash or a stale-shell chunk failure degrades the
+            CONTENT area only — the rail and nav above stay alive. */}
+        <ShellErrorBoundary><Suspense fallback={<RouteFallback />}>
           <Routes location={routedLocation}>
             <Route path="/" element={<Navigate to="/chat" replace />} />
             {/* One route with an OPTIONAL session param: navigating /chat ↔
@@ -369,7 +373,7 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Routes>
-        </Suspense>
+        </Suspense></ShellErrorBoundary>
         <ToastHost />
         {/* Toast v2 (web-design-system): the queued multi-severity host. Mounted
             once at the root; page wiring moves onto showToast() in batch ③.

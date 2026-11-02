@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./i18n"; // side-effect: initializes i18next before <App/> renders
 import "./lib/core-wiring"; // side-effect: wires the shared core's error sink + dev store seam
 import App from "./App";
+import { ShellErrorBoundary } from "@/components/ShellErrorBoundary";
 import { loadAppConfig } from "./hooks/useAppConfig";
 import "./styles/globals.css";
 
@@ -30,9 +31,15 @@ void loadAppConfig().then((config) => {
   }
   createRoot(rootEl).render(
     <StrictMode>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      {/* Outer render boundary (openspec: harden-spa-shell-resilience): the
+          last-resort catcher — a crash in the layout itself degrades to the
+          shell error card, never a blank document. Route-level crashes are
+          caught by the inner boundary in App.tsx, which keeps the rail. */}
+      <ShellErrorBoundary>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ShellErrorBoundary>
     </StrictMode>,
   );
 });

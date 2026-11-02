@@ -22,7 +22,7 @@
 - [x] 3.2 hub 构建区升级：最近文档板（top6 + status-pill + 更新时间序）、「新建蓝图」入口、「进入工作区」直达；读既有列表端点零新端点。验证：e2e——构建区列出文档并点击直达 /studio?doc=。
 - [x] 3.3 深链契约落地：/studio?doc= 打开、?fork= 播种（不可读回落文档库+toast）、?from=blueprint 落库；/agents 深链不动。验证：e2e 三深链 + 不可读 fork 回落断言。
 - [x] 3.4 五语词条 + 词表登记：工作区/文档库/ribbon 档位名/冲突横幅等新键 en/zh-CN/es/fr/ja 全量；新 UI 词入 native-lexicon 词表。验证：check:locales 2682+ 键绿；词表 diff 评审。
-- [ ] 3.5 批 1 走查与出片：hermetic 走查脚本（工作区全态截图）+ visual-judge 渲染门 + 五语言真机腿 + e2e 全量绿；fd-build-channel 判路 → 快照 → bump → 核 imageID（假绿律）→ 生产走查 → 台账 §15 记账。验证：走查腿全绿记录在案；生产眼见 ribbon/定位/冲突横幅 LIVE。
+- [x] 3.5 批 1 走查与出片：hermetic 走查脚本（工作区全态截图）+ visual-judge 渲染门 + 五语言真机腿 + e2e 全量绿；fd-build-channel 判路 → 快照 → bump → 核 imageID（假绿律）→ 生产走查 → 台账 §15 记账。验证：走查腿全绿记录在案；生产眼见 ribbon/定位/冲突横幅 LIVE。
 
 ## 4. 批 2 · 服务端对象统一（kind 与轻骨架）
 
@@ -30,13 +30,13 @@
 - [x] 4.2 校验链 kind 感知：agent kind 跳过 parseFleetTemplate 段，manifest 段/凭据/数据源闸两 kind 全量照跑；agent kind 的 approve/cast 服务端显式 409（不靠 UI 藏按钮）。验证：单测钉住两 kind 校验矩阵 + 409 闸。
 - [x] 4.3 skills 入蓝图 content：BlueprintContent 增 skills[]（复用 validatePackManifest 技能段），工作室发射口（预设/草稿包）从持久文档读取。验证：单测——含 skills 的文档过校验；发射产物与旧工作室文档路径逐字段一致（回归）。
 - [x] 4.4 前端接 kind：新建智能体/新建团队双入口（agent 一次点击即带已选岗位+名称聚焦）、ribbon 按 kind 分支（agent=草稿+两发射口常驻）、文档库两 kind 统一列。验证：e2e 新建智能体零二次点击；agent 文档无团队档位渲染。
-- [ ] 4.5 批 2 走查与出片：服务端先行出片（旧 UI 对新服务端零感知回归）→ 前端随班；存量蓝图行为不变走查 + 新 kind 真机腿 + 台账。验证：存量文档打开/批准/铸造全绿；agent 文档发射真预设落地。
+- [x] 4.5 批 2 走查与出片：服务端先行出片（旧 UI 对新服务端零感知回归）→ 前端随班；存量蓝图行为不变走查 + 新 kind 真机腿 + 台账。验证：存量文档打开/批准/铸造全绿；agent 文档发射真预设落地。
 
 ## 5. 批 2 · 稳定错误码
 
 - [x] 5.1 校验器内联 code：validatePackManifest 与 blueprint-validate 每条 finding 附稳定 code（如 name_too_long / pack_needs_one_reference / handoff_cycle），error 原文逐字不动。验证：单测——findings 形状 {code,error,entry?}；旧客户端消费面（facet/市场）零破坏回归。
 - [x] 5.2 客户端映射表：error-codes.ts code→五语摘要键；未知 code 回落原文（不猜纪律）；原文 tooltip + 复制保留。验证：对表单测——每条 code 恰一摘要键、五语齐全（check:locales 覆盖）；未知 code 用例显示原文。
-- [ ] 5.3 批 2 收口走查：错误行中文摘要+定位+原文三同框真机眼见；台账记账。验证：走查截图入册。
+- [x] 5.3 批 2 收口走查：错误行中文摘要+定位+原文三同框真机眼见；台账记账。验证：走查截图入册。
 
 ## 6. 批 3 · 可写团队结构图
 

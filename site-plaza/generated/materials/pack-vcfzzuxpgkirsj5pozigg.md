@@ -1,0 +1,24 @@
+# 分身工坊
+
+## What this is
+
+和工坊助手聊几句，它把你的知识变成一个可发布的 AI 分身：采访你、整理语料、生成接待人设与 manifest.json，给出发布三步指引。造好的分身部署后，任何人从目录点「和这个分身聊」就能了解你——费用你出（hosted），访客免费。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "分身工坊", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install _vcfZzuxPgkiRsj5poZIgg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02

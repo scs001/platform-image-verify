@@ -1,0 +1,26 @@
+# Intel Gathering / 情报采集
+
+## What this is
+
+团队共用智能体：情报巡检岗的采集纪律——fd-info 检索面全套引用（list_since/get_item/search_info/locate_evidence/stream_health），按源清单巡检、原文先行、去重要点化、空结果带原因、未取得不编造。
+
+Shared fleet layer: collection discipline for intel patrol posts — fd-info references, source-list patrol, read-the-original before summarizing, dedupe, empty results carry a reason.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Intel Gathering", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 4z4dMrtNbTn2WcE-45QPfw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02

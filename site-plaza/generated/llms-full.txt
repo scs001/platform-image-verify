@@ -1,0 +1,2221 @@
+# Yizuo Agent Materials Plaza（壹座·智能体素材广场）
+
+> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Canonical data: https://plaza.finddatatech.cloud/generated/catalog.json. As of: 2026-11-02.
+
+## Machine surfaces
+
+- [catalog.json](https://plaza.finddatatech.cloud/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.
+- [infrastructure.md](https://plaza.finddatatech.cloud/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.
+
+## Materials (one self-contained page each, stable addresses)
+
+- [Xingyan Academy](https://plaza.finddatatech.cloud/generated/materials/pack-bq-nloblozeggfkiczktda.md): Xingyan Academy's first release, two lessons: 1) 'Getting Started with Yizuo' — your first deliverable: document library, pack install, a re
+- [Wire · Strategy Lab](https://plaza.finddatatech.cloud/generated/materials/pack-fn7pti9th5jmg3ynqut0w.md): Wire Strategy Lab, a four-skill set: strategy design (weight semantics and universe validation), backtest interpretation (five requirements 
+- [Wire · Sentiment-Driven](https://plaza.finddatatech.cloud/generated/materials/pack-amdkhzcbsc3fpsyiqmduoa.md): Wire Sentiment, a three-skill set that turns announcement text into observable dimensions that carry verbatim quotes and can be verified and
+- [Wire · Regional Economy Suite](https://plaza.finddatatech.cloud/generated/materials/pack-5mqv0jhihj0ahdnpcpc1iw.md): Regional economy comparison: a multi-indicator system backed by the city panel (209 variables × 297 cities × 2000-2024) and the statistical 
+- [Wire · Portfolio Risk](https://plaza.finddatatech.cloud/generated/materials/pack-mfyxwufp5ohspcprdhxahw.md): Wire Portfolio Risk, a four-skill set: risk budgeting (per-position and sector caps + proportional reallocation on breach + an explicit iter
+- [Wire · Macro Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-cjt2aw1qdgpgbvnifmlgdg.md): Macro cycle and conditions analysis: a six-domain indicator framework (growth / inflation / money & credit / fiscal / external trade / prope
+- [Wire · Industry-Chain Linkage](https://plaza.finddatatech.cloud/generated/materials/pack-dxt2hez1z8gibrjmagfjjw.md): Wire industry-chain linkage four-skill suite: chain mapping (multi-level upstream/midstream/downstream segments with representative names an
+- [Wire · Industry & Corporate Suite](https://plaza.finddatatech.cloud/generated/materials/pack-xozwssrjsa8mxfpkhbjzbw.md): Industry cyclical conditions and chain transmission + corporate fundamentals and financial quality + panel econometrics: industry structure 
+- [Wire · Policy Transmission](https://plaza.finddatatech.cloud/generated/materials/pack-ceuuuwyfyh-hiynj6uyqsg.md): Wire Policy Transmission four-skill set: policy identification (ministry items with source_type=ministry; read the body and extract the seve
+- [Lex · Legal Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-zxuh617bsfnj1qqk81qy-a.md): A five-tool legal research set: statute and validity checks, similar-case retrieval reports, legal concept maps, five-corpus search with cal
+- [Wire · Paper Trading Suite](https://plaza.finddatatech.cloud/generated/materials/pack-dydb2cal-m9l91imjyhsha.md): Wire paper trading three-skill suite: conversational operations (accounts/positions/orders/cancellations), strategy workflow (templates and 
+- [Wire · IC Debate](https://plaza.finddatatech.cloud/generated/materials/pack-i5n-srpbxufu6wlbh6pfvq.md): Wire IC Debate, a three-skill set: it turns the company-level debate procedure that TradingAgents/FinRobot spell out but never wire up into 
+- [Wire · Factor Selection](https://plaza.finddatatech.cloud/generated/materials/pack-kimcqr9qsygmbxej3cmedg.md): Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator
+- [Wire · Event-Driven](https://plaza.finddatatech.cloud/generated/materials/pack-bx0qjze26kju-walqnvs-a.md): Wire event-driven four-skill set: event identification (three-way retrieval over announcement list / classification / full text, mapped into
+- [Wire · Valuation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-alziwywesfbs9hqri4d-ia.md): Equity valuation and earnings-cycle analysis: DCF (five-year forecast + WACC + terminal value + sensitivity tables) + comparable companies +
+- [Wire · Equity Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-azkowu4q6mmtmbw75ow7yq.md): Full-chain single-stock research: data acquisition and methodology, peers and competition, financial modeling, thesis synthesis, and 13-chap
+- [Wire · Decision Review Suite](https://plaza.finddatatech.cloud/generated/materials/pack-wqpd5rpcfl3qihg6oldamg.md): Turns 'the call made at the time' into an auditable history: decision logging (append-only, idempotent, revisions leave traces) → settlement
+- [Wire · Data Governance](https://plaza.finddatatech.cloud/generated/materials/pack-8edswnv3lixcusakzs9vva.md): Wire data governance suite: read the data collected through forms, correct one record, undo a correction, review correction history, and exp
+- [Wire · Artifact Build](https://plaza.finddatatech.cloud/generated/materials/pack-swpvacoftftfvngmmfotwq.md): Wire artifact build suite: turn data into things visible in the console through conversation — build data-entry forms, build single-record s
+- [Wire · Adaptive Rotation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-nol2xkatzp2kierrc-gtka.md): Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength r
+- [Wire · Info Shock](https://plaza.finddatatech.cloud/generated/materials/pack-txqaaury2f-kog-rb21bcw.md): Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initi
+- [Wire · Expectation Gap](https://plaza.finddatatech.cloud/generated/materials/pack-dnynrrjjawinzqr-armbjq.md): Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + comp
+- [Text Engine · Screenplay Classics Suite](https://plaza.finddatatech.cloud/generated/materials/pack-1majyoowe-sajhzqtnmhbw.md): Retrieval and research over public-domain classic plays: structure analysis (act/scene skeleton and plot progression), character search (lin
+- [Text Engine · Paper Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-1oq93flbzzvgcn2js31ada.md): Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of p
+- [Micro-Business · Retail Signal Pack](https://plaza.finddatatech.cloud/generated/materials/pack-uxwchrypeynue1z4qql-tw.md): Retail industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): wholesale price reference (Kunming In
+- [Micro-Business · Catering Signal Pack](https://plaza.finddatatech.cloud/generated/materials/pack-bnia5thfddb3og-ft0ckja.md): Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity E
+- [Micro-Business · Core Checkup Suite](https://plaza.finddatatech.cloud/generated/materials/pack-mbcxthtyymoxdhmsuyvddq.md): Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting
+- [Lex · Litigation Documents Suite](https://plaza.finddatatech.cloud/generated/materials/pack-3uoelnbma6wiwstqxrv93g.md): Civil/commercial litigation drafting and filing prep: complaints, defenses and evidence lists, with evidence cards and checklists; v2 adds e
+- [Lex · Labor Law Suite](https://plaza.finddatatech.cloud/generated/materials/pack-ndvkyag2nfivxg7osdawxw.md): Full labor-dispute workflow plus two calculators (Lex × Wire convergence): labor arbitration end to end (application / defense / evidence li
+- [Lex · Criminal Defense Suite](https://plaza.finddatatech.cloud/generated/materials/pack-uzmqpvazqdmpluqsby-eng.md): Criminal defense suite: a master workflow chains plea/non-prosecution argumentation (review-for-prosecution) with examination outlines (firs
+- [Lex · Contract Review Suite](https://plaza.finddatatech.cloud/generated/materials/pack-mfaiaxhrvfqjaxpxyiazkq.md): Contract review under PRC (mainland) law: five industry review cards (labor & employment / loans & financing / NDA & confidentiality / sale 
+- [Lex · Civil Litigation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-rz-ebxhd5astvgcyqlhmqa.md): End-to-end analysis of civil and commercial cases: fixing the claims (S1) → basis of the claim (S2) → defense analysis (S3) → element breakd
+- [Platform Guides](https://plaza.finddatatech.cloud/generated/materials/pack-3luwfbgs3rje5biv9mvbfw.md): Operation and authoring guides for the Finddata platform: 1) the Yizuo and Wanxing manuals — using the AI assistant workbench, installing pa
+- [Facet Forge](https://plaza.finddatatech.cloud/generated/materials/pack-b99vdq0cfbnqgvmfy5isw.md): The pack-forging workshop for ecosystem creators: turn an idea into an installable pack. 1) Forge — discover the platform's MCP tools and sk
+- [Lex Console Companion](https://plaza.finddatatech.cloud/generated/materials/pack-xfyxvzonqfelnfigm0djvw.md): A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation 
+- [内容工厂](https://plaza.finddatatech.cloud/generated/materials/pack-mnvipe6mi-fboul1z0tdtw.md): 选题→初稿→审校的流水线，只出草稿供人定稿；不自动发布
+- [Infra Factory Fleet](https://plaza.finddatatech.cloud/generated/materials/pack-bkipx4urgfo5te6gjj9ihg.md): Owner-facing three-post fleet: the sentinel audits all registered fleets and infrastructure against countable thresholds and lands a per-ite
+- [Cross-border E-commerce Policy Watch](https://plaza.finddatatech.cloud/generated/materials/pack-c8wx14-4h7zj0n19-j4nwq.md): A policy-watch cluster over customs/commerce/tax/port announcement lanes, daily brief with three escalation criteria, board draft contributi
+- [Wanxing Fleet Ops](https://plaza.finddatatech.cloud/generated/materials/pack-8wjvzznk369wm0ofscdeca.md): Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing members), agent steward over the wanxing read face (degrades
+- [Facet Platform Ops](https://plaza.finddatatech.cloud/generated/materials/pack-ujui1a2cacuw7tg1z1mleg.md): Facet platform-ops cluster: inventory patrol (read-only), daily integrity sentinel that degrades honestly when integrity is not exposed, and
+- [Marketing Site Content](https://plaza.finddatatech.cloud/generated/materials/pack-ljtjzwqsr2aox7weftvlpg.md): Marketing content fleet template: topics → draft → review → publish-draft chain (staggered crons) plus an eval sentinel post. Magnitude-only
+- [Wire Intel & Sentiment](https://plaza.finddatatech.cloud/generated/materials/pack-ivcgxpg9itgnlphxt1khwq.md): Wire intel/sentiment fleet template: intel patrol + sentiment sentinel run in parallel, the chief cross-checks both and composes the morning
+- [Wire Ontology Builder](https://plaza.finddatatech.cloud/generated/materials/pack-yt87-2axuu49i123zvyyha.md): A Wire ontology-building cluster for the data plane: profile datasets, draft entity/relation declarations, pass deterministic validation, an
+- [Lex Marketing](https://plaza.finddatatech.cloud/generated/materials/pack-y99vun6rdws98ock0zan8a.md): Lex marketing content cluster template (content-factory variant): collector (customer scenarios and industry pain points) → synthesizer (mag
+- [Lex Zhengxin Watch](https://plaza.finddatatech.cloud/generated/materials/pack-1hbpcl4lab-cskpuqgn2ew.md): Lex Zhengxin watch cluster template: the monitor patrols the real V-Dem/MARPOR libraries by domain (fd-zhengxin-reference read face), the sy
+- [Lex Statute Update](https://plaza.finddatatech.cloud/generated/materials/pack-zcot-b6hsnjrttdkr-aunq.md): Lex statute-update cluster template: the monitor scans new/amended/repealed statutes daily (fd-legal-search-mcp authoritative statute face, 
+- [Intel Gathering](https://plaza.finddatatech.cloud/generated/materials/pack-4z4dmrtnbtn2wce-45qpfw.md): Shared fleet layer: collection discipline for intel patrol posts — fd-info references, source-list patrol, read-the-original before summariz
+- [Board Contribution](https://plaza.finddatatech.cloud/generated/materials/pack-mo3-awe7tf2efvzkqft9ma.md): Shared fleet layer: artifact-write discipline for contribution posts — wire-build references, draft-first, source_ref triplets, column pre-c
+- [Vertical Constructor](https://plaza.finddatatech.cloud/generated/materials/pack-o30la92kq1d5uunibgkszq.md): Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acc
+- [Eval Sentinel](https://plaza.finddatatech.cloud/generated/materials/pack-rl8i99cs5nwuarvbp0d5q.md): Shared fleet layer: quality-gate discipline — gold-set comparison (exact/direction/coverage), KPI reporting, drift escalation, eval reports 
+- [Data Q&A](https://plaza.finddatatech.cloud/generated/materials/pack-y2-qsukxv8dzfr-39-0zrq.md): Shared fleet layer: read-only analysis discipline — dataset read faces, every number traceable, scope stated, honest empty results, chart-co
+- [Briefing & Reporting](https://plaza.finddatatech.cloud/generated/materials/pack-f8gbhnaeg6c2rdz468mwaa.md): Shared fleet layer: reporting and briefing discipline for brief/chief posts — report_status slots aligned to the fleet KPIs, morning/weekly 
+- [FindData Product Introduction](https://plaza.finddatatech.cloud/generated/materials/pack-v8rz8f7e92mrssz92ygnxq.md): External-facing product-introduction team: one front-desk “Product Guide” plus five product-line specialists (FindData·Base / Lex / Wire / F
+- [团队架构师](https://plaza.finddatatech.cloud/generated/materials/pack-nobbxkvxznjnhlcrawwp-w.md): 壹座聊天内的团队自然语言编排面：把用户的话编译成团队结构草稿，经校验与成本预估呈 diff，用户批准后落地。管编制不管作战——不做运行时指挥。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 pack 清单校验。
+- [nano-pdf](https://plaza.finddatatech.cloud/generated/materials/pack-5y0-gislp-ogelqq4zpswa.md): Edit PDFs with natural-language instructions using the nano-pdf CLI.
+- [柏讯 · 投研三镜头](https://plaza.finddatatech.cloud/generated/materials/pack-egayyoazvtf0fwllvagaqa.md): 三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。团队任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态团队叠加。
+- [分身工坊](https://plaza.finddatatech.cloud/generated/materials/pack-vcfzzuxpgkirsj5pozigg.md): 和工坊助手聊几句，它把你的知识变成一个可发布的 AI 分身：采访你、整理语料、生成接待人设与 manifest.json，给出发布三步指引。造好的分身部署后，任何人从目录点「和这个分身聊」就能了解你——费用你出（hosted），访客免费。
+- [晨报情报站](https://plaza.finddatatech.cloud/generated/materials/pack-56opygliv9fyamhmsdijow.md): 官方团队模板：每日晨报情报站——科技与市场情报员每日清晨分头巡检，情报主编 8 点合成晨报；另含团队引用岗（existing-cluster，每周一做深度聚合，演示团队 fan-out 引用与派生报数）。演示：双情报源并行、晨报流、cluster 引用岗（公司种子只演示了 a2a
+- [内容流水线](https://plaza.finddatatech.cloud/generated/materials/pack-tkhe8ihe0budyyig5lgluw.md): 官方团队模板：周流水线内容工厂——主编周一主持选题会，选题策划立项、撰稿人周二至四成稿，审校为被动岗（受委托唤醒，演示成员间横向协作的唯一通道 delegation）。演示：周节奏流水线、被动岗受委托唤醒、文档工具面；编导段为 trigger(周一)→handoff 流水线（主编
+- [客服班组](https://plaza.finddatatech.cloud/generated/materials/pack-emgw14n8voa1b36lsutxxw.md): 官方团队模板：高频客服护航——客服组长每 4 小时带队巡检工单，一线客服处理、质检员抽检；组长对疑难工单用 escalate 合并上报（演示对抗每日防洪上限的上报纪律）与 CRM 客服工具面（凭据未配置时如实空转，不整体失败）。恰 3 岗满编无引用岗；编导段演示入站唤醒：even
+- [Investment Research Morning Meeting](https://plaza.finddatatech.cloud/generated/materials/pack-ymst-hrninwxrllyc8psia.md): 官方团队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗；编导段为 trigger+ha
+- [AI 公司](https://plaza.finddatatech.cloud/generated/materials/pack-aofnf6o2lr61lpk8ivvkjw.md): 官方团队模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星团队 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证）
+- [数据 · 自助分析](https://plaza.finddatatech.cloud/generated/materials/pack-50tp176hw0hyttwxzbarka.md): 谦面自助分析消费八件套：取数（工作流清单/AkShare）、实体与集合管理、指标查询、看板检视、PDF 语义检索、头脑风暴与一键研究——业务人自助完成数据消费全流程
+- [数据 · 指标工坊](https://plaza.finddatatech.cloud/generated/materials/pack-ogurb41bdyaotvgoebhzua.md): 谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产
+- [萬星机群助手](https://plaza.finddatatech.cloud/generated/materials/pack-indsrwpgpp2q03i0z3xofa.md): 在壹座中操作萬星机群的专用助手——浏览 agent 目录、读详情、查看部署状态。只读工具 + 提议通道，所有写操作需经动作闸确认。
+- [寻数分身](https://plaza.finddatatech.cloud/generated/materials/pack-ut-bjmuw5kxad83kimpmlg.md): 寻数（FindData）的企业 AI 分身：想了解我们的企业、在做的项目、产品具备的能力，直接和分身聊。回答出自随版本冻结的策展语料，每条带语料截至时间；答不了的如实说答不了，并建议找人对的人。
+- [谦面助手](https://plaza.finddatatech.cloud/generated/materials/pack-qceiutjzqd49jndtv4qeqw.md): 在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。
+- [CRM 客服套件](https://plaza.finddatatech.cloud/generated/materials/pack-0avynunhmsctaxu7fgs-nq.md): 商家自带 Chatwoot 的客服接待套件：连接你的 Chatwoot 账号后，读未处理会话、草拟回复、人工确认后发送，全程你自己的租户与凭据（BYOK）。含客服接待技能与使用指南。
+- [萬星 · 本地内容发布套件](https://plaza.finddatatech.cloud/generated/materials/pack-bzz9r5rmypiaits8ca33lw.md): 云端生成 + 本地发布的完整闭环：从 VAAS 托管实例拉取租户名下的生成产物（图/视频/图文），在本机完成平台适配、人工确认后经自己的浏览器登录态发布到 10 视频平台 + 11 图文平台。登录态只存本机、平台零保管（见包内 SECURITY-NOTES.md）。发布前必须人工
+- [谦面市场助手](https://plaza.finddatatech.cloud/generated/materials/pack-0rdqe184anpuamhivfwnda.md): 用 AI 直接操作谦面市场与网关：浏览/检索功集与网关条目、发布新功集与新版本、上下架、切可见性、策展分类、发布前查重。装包即得 facet_market_* 与 facet_agent_* 十二个工具（凭据走壹座既有连接：registry + 谦面市场配对），配两份手册技能讲清
+- [市场快讯 · 一页速览](https://plaza.finddatatech.cloud/generated/materials/pack-ev5e51eth7e5mcvydrl9rg.md): 把一段财经新闻、公告或行情评论收敛成一页速览：三行结论、五个要点、一处存疑。为需要在盘前/会前快速消化的读者而生。
+- [外部好货 · 简报快写](https://plaza.finddatatech.cloud/generated/materials/pack-thd65-7sfbt-z0kftvhgiw.md): M4③ 套装验收——第二件外作者绿地带货
+- [外部好货 · 数据速览](https://plaza.finddatatech.cloud/generated/materials/pack-6kdskgmb-3-86a81vzc6ua.md): M4② 绿地从目录部署验收——外作者的可部署 pack
+- [数据研究 · 生态版](https://plaza.finddatatech.cloud/generated/materials/pack-aqag8mky4ksopmwrdmcvyw.md): 官方功能集（生态首发）：FindData 数据底座（fd-open-data-mcp 宏观/金融真数据）+ 官方 time/fetch 生态 server + 数据研究 persona。装上即可做可溯源的数据问答与网页取证。
+- [文档工坊](https://plaza.finddatatech.cloud/generated/materials/pack-qnhd7b3j1-hkddkzzq-fuq.md): Office 文档生成与编辑：商务报告（docx）、数据工作簿（xlsx）、汇报演示（pptx）三场景成稿，配验证过的封面配方、中式设计系统与生成后质检 postcheck；支持编辑用户上传的原件（fetch_document_file 取原件）。回合内免费。
+
+## For humans
+
+- [The plaza site](https://plaza.finddatatech.cloud/): five-locale narrative face — what materials exist, how they are supplied, live inventory.
+- [Market actions](https://plaza.finddatatech.cloud/#/packs): browse, subscribe, install — the action layer on the same truth.
+
+
+---
+
+# Xingyan Academy / 星研·学院
+
+## What this is
+
+星研·学院首辑两课：①《壹座上手》——从零完成第一个可交付任务：文档库、功能集安装、真实工具调用、trace 自检、分享交付；②《萬星与谦面协作入门》——把技能与 MCP 组装成个人工作流，部署为可被程序调用的服务（A2A、访客页、控制台）。安装后你的助手兼任助教，按课逐步带你动手完成。
+
+Xingyan Academy's first release, two lessons: 1) 'Getting Started with Yizuo' — your first deliverable: document library, pack install, a real tool call, trace check, sharing; 2) 'Intro to Wanxing and Facet Collaboration' — assemble skills and MCP into a personal workflow, deployed as a callable service (A2A, visitor page, console). Your assistant doubles as a teaching assistant and walks you through each lesson.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Xingyan Academy", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install bQ-NlOBloZegGfkiczktDA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Strategy Lab / 柏讯 · 策略工坊
+
+## What this is
+
+柏讯策略工坊四件套：策略设计（权重语义与 universe 验证）、回测解读（五条要求与三条禁止项）、风控参数（含义/量级/局限）、模拟盘督导（运行事件/权重快照/数据缺口）。与柏讯模拟交易套件的分工：那边是操作面——开账户、下单、撤单、订单历史，由对话操作技能承接；本套件是思考面——想清楚权重怎么定、回测结果怎么读、风控参数意味着什么，一切成交仍走模拟交易服务。paper-only：无真实资金；回测与模拟盘不预示未来。
+
+Wire Strategy Lab, a four-skill set: strategy design (weight semantics and universe validation), backtest interpretation (five requirements and three prohibitions), risk-control parameters (meaning / magnitude / limitations), and paper-run supervision (run events / weight snapshots / data gaps). Division of labor with the Wire Paper Trading suite: that one is the operations plane — open accounts, place orders, cancel orders, order history, handled by conversational operation skills; this suite is the thinking plane — getting clear on how weights should be set, how to read backtest results, what risk parameters mean; every fill still goes through the paper trading service. Paper-only: no real money; backtests and paper runs do not foreshadow the future.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Strategy Lab", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install _FN7pti9TH5JMg3YnQut0w
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Sentiment-Driven / 柏讯 · 舆情驱动
+
+## What this is
+
+柏讯舆情驱动三件套：把公告文本变成带原文引用、可核验、可追踪的观察维度——公告舆情审读（sentiment-document-review，逐篇打分必带引用与字符定位、多篇给分布而非平均情绪、服务拒答如实转述、低置信显式标注）、舆情转向追踪（sentiment-trend-watch，按公告发布日排布、转向点必须附对应文档、样本门槛单期 ≥3 篇且高置信 ≥2 篇、覆盖面与置信度固定两栏）、舆情与价格持仓的描述性对照（sentiment-signal-bridge，只陈述时间先后不断言因果、相关性陈述须 ≥12 对且走计算面、严禁给买卖建议与「信号」称谓）。与投研套件的分工：研报的催化剂章引用本套件分数，不重复打分（同一服务同一幂等键，重复调用命中缓存）；与策略工坊的分工：那边做信号与回测，本套件只做描述性对照不给信号。分数不预示价格、当前版本（gold-v10 / prompt v7）两轮复测置信桶单调递增、方向一致率 99.19%，但五档精档之间仍有相邻档误判，均如实标注。
+
+Wire Sentiment, a three-skill set that turns announcement text into observable dimensions that carry verbatim quotes and can be verified and tracked — announcement sentiment review (sentiment-document-review: per-document scores must carry citations with character offsets, multiple documents yield a distribution rather than an average mood, service refusals are relayed as-is, low confidence is flagged explicitly), sentiment turn tracking (sentiment-trend-watch: scores laid out by announcement publication date, every turn point must cite its corresponding document, sample thresholds of ≥3 documents per period and ≥2 high-confidence, coverage and confidence as two fixed columns), and a descriptive comparison of sentiment against prices and holdings (sentiment-signal-bridge: states temporal order only and never asserts causality, correlation claims require ≥12 pairs and go through the compute plane, buy/sell advice and the word "signal" are strictly forbidden). Division of labor with the Equity Research suite: the report's catalysts section cites this suite's scores instead of re-scoring (same service, same idempotency key — repeat calls hit the cache); division of labor with the Strategy Lab: that side builds signals and backtests, this suite only does descriptive comparison and gives no signals. Scores do not predict prices; in the current version (gold-v10 / prompt v7) two rounds of re-testing show monotonically increasing confidence buckets and 99.19% directional agreement, yet adjacent-band confusion persists among the five fine bands — all stated as-is.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Sentiment-Driven", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install aMdkHzCbsc3fPsYiqMDUOA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Regional Economy Suite / 柏讯 · 区域经济套件
+
+## What this is
+
+区域经济比较：城市面板（209 变量 × 297 城 × 2000-2024）与统计年鉴（31 省）支撑的多维指标体系、横向排名分位、增长贡献结构分解、相似城市聚类与区域差距度量；配套统计检验方法。
+
+Regional economy comparison: a multi-indicator system backed by the city panel (209 variables × 297 cities × 2000-2024) and the statistical yearbook (31 provinces), supporting cross-sectional rankings and percentiles, growth-contribution structure decomposition, similar-city clustering and regional-gap measurement; with statistical testing methods included.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Regional Economy Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 5mqV0jhihj0AhdNPCpc1iw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Portfolio Risk / 柏讯 · 组合风险
+
+## What this is
+
+柏讯组合风险四件套：风险预算（单票与板块上限 + 超限按比例重分配 + 迭代上限显式 + 未收敛如实报告，产出合规 TargetWeights）、回撤与波动体检（最大回撤起止/年化波动/HHI/前 N 占比/行业集中度/有效标的数 + 基准超额与跟踪误差，指标走计算面，体检不预测）、止损纪律（量级起点 -5%/-10%/20 日冷却 + 按标的波动重标 + 三处明示引擎不自动执行 + 触发检查只呈现状态不新增判断）、再平衡方案（逐标的差额/方向/股数 + 佣金印花税滑点分项成本 + 可送权重模式回测 + 不含择时）。与决策复盘套件的分工：复盘看现状（集中度/回撤/偏离），本套件定纪律（预算怎么分、止损怎么设、什么时候该动手），一静一动。与策略工坊的分工：工坊讲通用参数含义，本套件把纪律应用到用户的实际持仓上。paper-only：无真实资金；所有指标是历史与当前状态描述，不构成投资建议。
+
+Wire Portfolio Risk, a four-skill set: risk budgeting (per-position and sector caps + proportional reallocation on breach + an explicit iteration cap + honest reporting when it fails to converge, producing a compliant TargetWeights instance), drawdown and volatility checkup (max drawdown start/end, annualized volatility, HHI, top-N weight, sector concentration, effective number of holdings, plus benchmark excess return and tracking error — indicators come from the compute plane and a checkup predicts nothing), stop-loss discipline (magnitude anchors -5%/-10% and a 20-day cooldown + volatility-based re-scaling per holding + three explicit statements that the engine never auto-executes + trigger checks that present status without adding judgments), and a rebalancing plan (per-holding delta / direction / share counts + itemized commission, stamp tax and slippage costs + a weight rule submittable to weight-mode backtest + no market timing). Division of labor with the Decision Review suite: review looks at the present state (concentration / drawdown / drift); this suite sets the discipline (how to split the budget, where stops go, when to act) — one static, one active. Division of labor with the Strategy Lab: the lab explains generic parameter meanings; this suite applies the discipline to the user's actual holdings. Paper-only: no real money; every indicator describes history and current state and does not constitute investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Portfolio Risk", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install mFYxWUfp5oHsPcpRDhxAhw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Macro Research Suite / 柏讯 · 宏观研究套件
+
+## What this is
+
+宏观周期与景气分析：六域指标框架（增长/通胀/货币信用/财政/外贸/地产消费）+ 周期定位（产出-通胀四象限）+ 领先-同步-滞后分层 + 传导链推演 + 拐点识别；配套统计检验方法做相关性与平稳性验证。数据经柏讯开放数据面与统计年鉴实时检索，每个数值标注来源与数据期数。
+
+Macro cycle and conditions analysis: a six-domain indicator framework (growth / inflation / money & credit / fiscal / external trade / property & consumption) + cycle positioning (output-inflation quadrants) + leading-coincident-lagging stratification + transmission-chain reasoning + turning-point identification, with statistical testing methods for correlation and stationarity checks. Data are retrieved in real time via the Wire open-data surface and statistical yearbooks, with every figure annotated by source and data period.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Macro Research Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install cjT2AW1QDGPGbvNIFmLgDg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Industry-Chain Linkage / 柏讯 · 产业链联动
+
+## What this is
+
+柏讯产业链联动四件套：链条映射（上中下游环节可多级、代表标的与归属依据、每环关键变量与来源、两档映射置信度）、传导验证（逐环相关性 + 时滞扫描 + 样本量与窗口，未验证环节明示不默认成立，不显著如实呈现，频度差处理，非因果表述）、环节受益分析（基于已验证的传导结论给候选，逐候选项回指传导依据，未验证环节不作依据，不预测价格）、链条景气跟踪（按环节分组的变量走势 + 来源与最新期数 + 缺口标注，无预测无建议）。与既有「行业链分析」技能的关系：那是分析技能，本套件是它的可安装套件化 + 可执行出口版本（从产业链关系走到可回测的权重），不是重复实现。核心纪律：产业链叙事最容易滑向讲漂亮故事——上游涨价到中游承压再下游提价听起来总是对的，但时滞、幅度与是否发生都必须有数据支撑；无数据的那一环明示未验证。传导结论是历史统计关系不是因果证明，不构成投资建议。
+
+Wire industry-chain linkage four-skill suite: chain mapping (multi-level upstream/midstream/downstream segments with representative names and attribution rationale, key variables and sources per segment, and two mapping-confidence tiers); transmission verification (per-segment correlations + lag scans + sample sizes and windows; unverified segments are stated as such and never assumed to hold, insignificant results reported honestly, frequency mismatches handled explicitly, no causal wording); segment-beneficiary analysis (candidates based on verified transmission conclusions, each candidate pointing back to its transmission evidence, unverified segments never used as a basis, no price forecasting); and chain-conditions tracking (variable trends grouped by segment + sources and latest periods + gap flags; no forecasts, no advice). Relation to the existing industry-chain-analysis skill: that is the analysis skill, this suite is its installable, executable-outlet form (from industry-chain relations to backtestable weights), not a duplicate implementation. Core discipline: industry-chain narratives slide most easily into pretty storytelling — upstream price rises squeezing midstream margins before downstream price hikes always sound right, but lags, magnitudes and whether it happened at all must be data-backed; segments without data are declared unverified. Transmission conclusions are historical statistical relations, not causal proof, and do not constitute investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Industry-Chain Linkage", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install dxT2HEZ1z8GibrjMAgFJJw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Industry & Corporate Suite / 柏讯 · 行业与企业套件
+
+## What this is
+
+行业景气与产业链传导 + 企业基本面与财务质量 + 面板计量方法：行业格局与上下游传导落到上市公司实证（GTA 面板 1,468 变量），企业端做杜邦分解与财务红旗项识别，计量侧支持固定效应、聚类稳健标准误与双重差分。
+
+Industry cyclical conditions and chain transmission + corporate fundamentals and financial quality + panel econometrics: industry structure and upstream-downstream transmission grounded in listed-company evidence (GTA panel, 1,468 variables); DuPont decomposition and financial red-flag identification on the corporate side; fixed effects, cluster-robust standard errors and difference-in-differences on the econometrics side.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Industry & Corporate Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install XozWSsRjsA8MxFPkHBJZbw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Policy Transmission / 柏讯 · 政策传导
+
+## What this is
+
+柏讯政策传导四件套：政策识别（部委条目 source_type=ministry，读正文抽发布机关/文号/政策工具/适用范围/生效时间/执行期限/量化目标七件套，每项要素附 item_id、as_of 与经 locate_evidence 核对的逐字片段）、行业映射（政策要素→受影响行业/区域→可检验变量三段映射，变量必须在年鉴/城市/公司面板真实检索到，两档置信度：政策明示/语义推断，无变量环节进未验证清单）、区域与企业传导（事件窗与政策强度序列两条路线逐环检验，相关系数、时滞扫描、样本量与窗口随行；结论三档——已验证/不显著/未验证环节，未验证环节必须显式标注，相关系数与样本量随每条结论输出；历史统计关系非因果证明）、政策跟踪（部委条目流计数与期间对比、健康度水位、已验证链路命中登记只转引不新增结论）。核心纪律：健康度前置（引用前先查 stream_health，lag 超阈值声明信息可能不完整）、区分已验证与未验证环节（无数据的一环明示未验证，绝不默认政策必然传导）、相关系数与样本量随结论输出、不因果表述不预测。不构成投资建议。
+
+Wire Policy Transmission four-skill set: policy identification (ministry items with source_type=ministry; read the body and extract the seven policy elements — issuing agency, document number, policy instrument, scope of application, effective date, enforcement horizon, quantified targets — each element with item_id, as_of and a verbatim quote verified through locate_evidence), industry mapping (three-stage mapping policy elements → affected industries/regions → testable variables; variables must be genuinely retrieved from the yearbook / city / firm panels, two confidence tiers — stated in the policy / inferred semantically — and any link without a variable enters the unverified list), regional and firm-level transmission testing (two routes — event windows and policy-intensity series — checked link by link, with correlation coefficients, lag scans, sample sizes and windows printed on each row; conclusions in three tiers — verified / not significant / unverified links, the latter explicitly labeled, correlation and sample size accompany every conclusion; historical statistical relations are not causal proof), and policy tracking (ministry stream counts and period comparison, health watermark, and a hit-register that merely cross-references verified chains without adding conclusions). Core discipline: health first (check stream_health before citing; over-threshold lag means declaring 'information may be incomplete'), separate verified from unverified links (a link with no data is explicitly unverified — never assume a policy must transmit), correlation and sample size accompany every conclusion, no causal wording, no forecasts. Not investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Policy Transmission", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install ceuUUWYFYH_HiYnJ6UYqSg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Legal Research Suite / 识律 · 法律检索套件
+
+## What this is
+
+法律检索研究五件套：法条与效力核查、类案检索报告、法律概念图解、五源语料检索与口径对照（规章/条约/纪检监察/案例库/党内法规）、法规效力生命周期追踪。数据来自识律 lex 线法规库（32,296 部）、裁判文书库（3,700 万篇）、指导案例库（278+15）与五源语料（47,261 篇），逐结果溯源。注：文书库不支持聚合统计，类案类产出为「检索式证据」口径而非统计结论。
+
+A five-tool legal research set: statute and validity checks, similar-case retrieval reports, legal concept maps, five-corpus search with caliber comparison (departmental rules / treaties / discipline-inspection / case libraries / Party regulations), and validity lifecycle tracking. Data from the Lex law library (32,296), judgment library (37M), guiding cases (278+15) and five-corpus (47,261), with per-result provenance. Note: the judgment library supports no aggregate statistics — similar-case outputs are retrieval-based evidence, not statistical conclusions.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Legal Research Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install zxuH617BsFnj1QQk81QY-A
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Paper Trading Suite / 柏讯 · 模拟交易套件
+
+## What this is
+
+柏讯模拟交易（paper trading）三件套：对话操作（账户/持仓/下单/撤单）、策略工作流（模板与沙箱自定义代码、回测解读、纸面实盘）、行情检查（搜索/历史K线/覆盖边界诚实呈现）。paper-only：模拟盘、无真实资金；调用者身份逐请求鉴别，只操作自己的账户；行情覆盖由部署的概念族决定，技能以诚实呈现覆盖边界为第一纪律。
+
+Wire paper trading three-skill suite: conversational operations (accounts/positions/orders/cancellations), strategy workflow (templates and sandboxed custom code, backtest interpretation, paper-live runs) and market-data inspection (search/historical candlesticks/coverage boundaries stated honestly). Paper-only: simulated account, no real money; the caller's identity is authenticated per request and only their own accounts are touched; market-data coverage is set by the deployed concept families, and the skills' first discipline is to present coverage limits honestly.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Paper Trading Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install DydB2cal-M9l91IMJYHshA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · IC Debate / 柏讯 · 投委会
+
+## What this is
+
+柏讯投委会三件套：把 TradingAgents/FinRobot 写好但未接线的公司层级辩论程序做成可安装的模式——多头立论（ic-bull-case，数字只能引用证据集 evidence_id、不自造不估算、不替对手立论、把己方理由说尽）、空头立论（ic-bear-case，对称规则 + 不扭曲多头已陈述证据）、裁决（ic-adjudication，入口技能：调度双方后按四纪律给出 Rating 契约实例——冲突不给 hold 须指强弱、证据不足给 review 不降级、裁决不引用任何数字、change_my_mind 必填），并落账至决策账本（结论可被 P5 结算——这是上游两家都缺失的闭环）。诚实定位：单 agent 分角色形态，三个角色由同一模型扮演，不构成独立视角；升级形态（萬星 A2A 三 persona 串行委派，深度 3 / 并发 1 / 分钟计费）已写入技能文本属产品演进。辩论不宣称提高预测准确率，是否更准由账本结算回答。裁决为研究参考，不构成投资建议。
+
+Wire IC Debate, a three-skill set: it turns the company-level debate procedure that TradingAgents/FinRobot spell out but never wire up into an installable pattern — a bull case (ic-bull-case: numbers may only cite evidence-set evidence_id, nothing self-invented or estimated, no arguing the opponent's side, your own case argued to its full extent), a bear case (ic-bear-case: symmetric rules, plus never distorting evidence the bull side has already stated), and an adjudication (ic-adjudication, the entry skill: after dispatching both sides it issues a Rating contract instance under four disciplines — a conflict never yields hold without stating which side is stronger and why, insufficient evidence yields review rather than a downgraded verdict, the verdict cites no numbers, change_my_mind is mandatory) — and then records the outcome to the decision ledger (conclusions can be settled by P5: the closed loop both upstream projects lack). Honest positioning: single-agent role-split form; the three roles are played by one model and are not independent perspectives; the upgrade path (Wanxing A2A serial delegation across three personas, depth 3 / concurrency 1 / per-minute billing) is written into the skill text as product evolution. The debate claims no gain in forecast accuracy — whether it is more accurate is answered by ledger settlement. Verdicts are research reference, not investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · IC Debate", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install I5n-sRpbXuFu6WLbh6PfvQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Factor Selection / 柏讯 · 因子选股
+
+## What this is
+
+柏讯因子选股四件套：因子库与口径（52 因子九类清单、逐因子分子分母与报表期别、三个共线因子的剔除说明、数据可得性分档）、因子暴露与分层（走计算面，层数与极端值处理显式，IC 含 Pearson/Spearman，样本不足不作依据）、选股应用（多因子打分或条件筛选，产出候选 universe/目标权重，打分非预测）、无未来函数回测协议（财报用披露日而非报告期、universe 用当期成分、价格止于决策日、断言必须开启）。与自适应轮动套件的分工：轮动用价格类行业动量选组、本套件用基本面因子选股，两者可组合不重复；与个股投研套件的分工：那边做单只公司的深度报告，本套件做横截面的排序与筛选。因子值一律由计算面算出，不手算。回测为历史模拟，不构成投资建议。
+
+Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator, denominator, source statement and period, removal notes for three collinear factors, and data-availability tiers); factor exposure and quantile grouping (computed on the calculation surface, with explicit layer counts and outlier handling, IC incl. Pearson/Spearman, insufficient samples never used as a basis); stock-selection application (multi-factor scoring or conditional screening producing a candidate universe and target weights — scoring is not forecasting); and a no-look-ahead backtest protocol (financials dated by disclosure date, not reporting period; universe from current-period constituents; prices end at the decision date; assertions mandatory). Division of labor with the adaptive-rotation suite: rotation selects industry groups on price-based momentum, this suite selects stocks on fundamental factors — the two combine without overlap. With the single-stock research suite: that one produces in-depth reports on a single company, this one does cross-sectional ranking and screening. Factor values are always computed on the calculation surface, never by hand. Backtests are historical simulations and do not constitute investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Factor Selection", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install kimcQr9qSyGmbXej3CmeDg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Event-Driven / 柏讯 · 事件驱动
+
+## What this is
+
+柏讯事件驱动四件套：事件识别（公告列表/分类/全文三路检索，六组事件类型映射，附公告标识与日期）、事件解读（读正文抽要素：金额/比例/期限/主体/生效条件，明确与需看条件二分，结论须引原文）、历史反应统计（多窗口收益分布 + 样本量 + 分位 + 必选的反例比例，明确是历史分布不是预测）、事件跟踪（按标的/类型筛选与统计，不含预测与推荐）。与柏讯舆情和投研套件的分工：舆情看文本倾向，投研做论点综合，本套件只处理结构化事件（公告/监管/业绩），不猜情绪也不给结论。核心纪律：不预测（不给涨跌预期、不说预计影响百分比）、正文支撑（标题与分类只是检索入口）、历史分布非预测（必须同时给反例比例）、预期已计入提示。公告是事实，解读是本套件的判断，两者分开呈现。不构成投资建议。
+
+Wire event-driven four-skill set: event identification (three-way retrieval over announcement list / classification / full text, mapped into six event-type groups, each item with announcement id and date), event reading (read the body and extract elements — amount, ratio, horizon, party, effectiveness condition — split into explicit vs conditional, every conclusion citing the original text), historical reaction statistics (multi-window return distributions + sample size + quantiles + a mandatory counterexample ratio, explicitly a historical distribution, not a forecast), and event tracking (filter and tally by symbol or event type, no forecasts or recommendations). Division of labor with the Wire sentiment and equity research suites: sentiment reads text leaning, equity research synthesizes theses, this suite only handles structured events (announcements / regulatory / earnings) — it reads no mood and draws no conclusions. Core discipline: no prediction (no up/down expectations, no projected percentage impact), body-text support (title and category are only retrieval entries), historical distribution is not prediction (the counterexample ratio must accompany it), and the 'already priced in' reminder. Announcements are facts; the reading is this suite's judgment; the two are presented separately. Not investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Event-Driven", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install BX0qjZe26KJU-waLQNVS-A
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Valuation Suite / 柏讯 · 估值套件
+
+## What this is
+
+股票估值与财报周期分析：DCF（五年预测 + WACC + 终值 + 敏感性表）+ 可比公司 + 三表联动三角验证；财报前瞻与复盘（科目定位与质量分析）。财务数据走柏讯服务端，股价与市值走本地数据平台通道。
+
+Equity valuation and earnings-cycle analysis: DCF (five-year forecast + WACC + terminal value + sensitivity tables) + comparable companies + three-statement triangulation; earnings previews and post-earnings reviews (line-item localization and quality analysis). Financial data goes through the Wire server side; share prices and market caps go through the local data platform channel.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Valuation Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install AlZiwYWeSfbs9hqRI4d-IA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Equity Research Suite / 柏讯 · 个股投研套件
+
+## What this is
+
+个股深度投研：从取数与口径、同行与竞争、财务建模、论点综合到 13 章报告装配的完整链条。五技能对齐 FinRobot 生产版 V2 的五个在跑角色（数据/分析/建模/综合/报告）。财务与披露走柏讯服务端通道 A，价格与市值走本地通道 B，估值与统计数字一律由 fd-quant 计算面产出（不自行计算）。与「估值套件」（单点估值）、「财务底盘」套件的分工：本套件是**全链报告**，估值套件是**单点深挖**，财务底盘是**通用财务分析**。方法分歧时点位可缺（null），评级必发。
+
+Full-chain single-stock research: data acquisition and methodology, peers and competition, financial modeling, thesis synthesis, and 13-chapter report assembly. Five skills aligned with the five running roles of FinRobot production V2 (data / analysis / modeling / synthesis / report). Financials and disclosures go through the Wire server-side channel A, prices and market caps through the local channel B, and all valuation and statistical figures are produced by the fd-quant compute plane (never computed in-house). Division of labor with the Valuation suite (single-point valuation) and the Financial Foundation suite: this suite is the full-chain report, the Valuation suite is the single-point deep dive, and the Financial Foundation suite is general-purpose financial analysis. When methods disagree, point values may be missing (null) but a rating is always issued.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Equity Research Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install azkOwU4q6mmTmbw75Ow7yQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Decision Review Suite / 柏讯 · 决策复盘套件
+
+## What this is
+
+把「当时的判定」变成可审计的历史：决策落账（追加式、幂等、修订留痕）→ 到期按基准结算真实 alpha → 提炼反思（只注入决策者，不广播）→ 持仓体检与最近判定的一致性核查。以账本为准，不美化历史；样本不足不下结论。与决策类 pack 的分工：决策 pack 产出 Rating/TargetWeights 实例，本套件负责统一落账与复盘（语义相同，不重复实现）。
+
+Turns 'the call made at the time' into an auditable history: decision logging (append-only, idempotent, revisions leave traces) → settlement at expiry against a benchmark for realized alpha → distilled reflection (injected only into the decision-maker, never broadcast) → portfolio check-up and consistency check against the most recent calls. The ledger is the source of truth and history is never embellished; no conclusions on insufficient samples. Division of labor with decision packs: decision packs produce Rating/TargetWeights instances, this suite handles unified logging and review (same semantics, no duplicate implementation).
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Decision Review Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install wqpd5rPCFl3qIHg6oLDamg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Data Governance / 柏讯 · 数据治理
+
+## What this is
+
+柏讯数据治理套件：读表单收上来的数据、改错一条记录、撤销改错、查改错历史、导出 CSV。写修正必须带来源标记（source）且不得代填；撤销只置回滚标记，原始行永不改写；导出带 truncated 字段，被行数闸截断时如实告知。失败原样转述，禁止以空列表冒充无数据。
+
+Wire data governance suite: read the data collected through forms, correct one record, undo a correction, review correction history, and export CSV. Written corrections must carry a source marker (source) and never fill values on the user's behalf; undoing only sets a rollback marker and the original row is never rewritten; exports carry a truncated field, and truncation by the row cap is reported as-is rather than passed off as complete. Failures are relayed verbatim; an empty list must never pose as 'no data'.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Data Governance", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 8edSwnv3lIXcuSAkzS9vvA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Artifact Build / 柏讯 · 产物构建
+
+## What this is
+
+柏讯产物构建套件：用对话把数据变成控制台里看得见的东西——建数据录入表单、建单记录扫码页、改产物 spec、发布与归档。草稿优先、发布独立；列名先取事实，禁止编造；失败原样转述。附带一支三岗团队模板（巡线岗主动、内容岗与源岗被动），把「持续迭代内容」编成可安装的组织形态。
+
+Wire artifact build suite: turn data into things visible in the console through conversation — build data-entry forms, build single-record scan pages, edit artifact specs, publish and archive. Drafts first, publishing separate; column names come from facts fetched first, never invented; upstream failures are relayed verbatim. Ships with a three-post team template (proactive line patrol, reactive content and source posts) that turns 'continuously iterating content' into an installable organizational form.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Artifact Build", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install SWPvacoFTftfVngMMFotwQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Adaptive Rotation Suite / 柏讯 · 自适应轮动套件
+
+## What this is
+
+自适应行业轮动：从市场状态判定（慢速趋势/回撤/波动率 Z + 快速冲击）到组强度排序（申万 L1 成分股合成的行业指数）、组内排序（残差动量 + 稳健 Z + 例外框架）、风险预算建仓（产出 TargetWeights 契约实例）与闭环运行（权重模式回测 + 模拟盘 + 快照解读）。对齐 FinRL-X 的七个策略模块，但输入已按 A 股适配：波动率用已实现波动率（QVIX/iVIX 在柏讯可及环境不可达），组用申万成分股合成（官方指数序列未采），参数按实测分位重标（原 Z≥3.0 → 采用 |Z|≥2.0，因实测 3.0 只占 0.47%）。价格走通道 B（本地 DAAS，需先播种 A 股），统计一律由 fd-quant 计算面产出。与「策略工坊」的分工：工坊给通用纪律（权重语义、回测解读、风控归属），本套件给**具体策略与参数**（选哪些组、组内选谁、预算怎么分）；督导不重复实现。终产物是可执行权重与运行记录，不是买入建议。
+
+Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength ranking (industry indices synthesized from SW Level-1 constituents), intra-group ranking (residual momentum + robust Z + an exception framework), risk-budgeted position building (emitting TargetWeights contract instances) and closed-loop operation (weight-mode backtests + paper trading + snapshot reading). Aligned with FinRL-X's seven strategy modules, but inputs are adapted to A-shares: volatility uses realized volatility (QVIX/iVIX are unreachable from Wire's reachable environment), groups are synthesized from SW constituents (official index series not sampled), and parameters are re-calibrated to measured quantiles (original Z≥3.0 → adopted |Z|≥2.0, since measured 3.0 covers only 0.47%). Prices go through channel B (local DAAS; A-shares must be seeded first); statistics are always produced by the fd-quant compute face. Division of labor with the strategy-lab suite: the lab provides general discipline (weight semantics, backtest interpretation, risk-control ownership), this suite provides the concrete strategy and parameters (which groups, which names within a group, how the budget splits); supervision does not re-implement. The end product is executable weights and run records, not buy advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Adaptive Rotation Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install noL2XKaTZP2kiERrC_gtKA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Info Shock / 柏讯 · 信息冲击
+
+## What this is
+
+柏讯信息冲击四件套：冲击识别（先查来源健康度，游标拉取+检索补漏两路，按来源三型与七组冲击类型初筛，逐条附 item_id、发布时间与正文状态）、冲击解读（读正文抽金额/比例/期限/主体/生效条件五要素，结论分明确与需看条件两栏，每条结论附证据块：item_id + as_of + 经 locate_evidence 核对的原文逐字片段；强断言缺可定位证据时只作「据标题/摘要，正文未核实」弱表述）、影响窗口统计（前窗 5 日基准 + 后窗 5/10/20 日并列，样本量、分位、离散度与必选的反例比例随表输出，样本不足整表标注「不作依据」）、信息流跟踪（来源与类型计数、期间对比、健康度水位，滞后与不可用前置「信息可能不完整」）。与事件驱动套件的分工：事件驱动走 fd-cn-report 公告面，本套件走 info-stream 统一信息条目（公告+部委+互动），以 item_id 为引用锚点、以逐字证据为结论门槛。核心纪律：健康度前置（引用前先查 stream_health，lag 超阈值声明信息可能不完整，空结果不得写成没有事件）、不预测（不给涨跌预期）、正文支撑（标题只是检索入口）、历史分布非预测（样本量与反例比例强制随表）。不构成投资建议。
+
+Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initial triage by three source types and seven shock-type groups, each item with item_id, publish time and body status), shock reading (read the body and extract five element classes — amount, ratio, horizon, party, effectiveness condition — with conclusions split into 'explicit' vs 'depends on conditions'; every conclusion carries an evidence block: item_id + as_of + a verbatim quote verified through locate_evidence; strong assertions without locatable evidence are downgraded to 'per title/abstract, body unverified'), impact-window statistics (front 5-day baseline vs back 5/10/20 trading days side by side, sample size, quantiles, dispersion and a mandatory counterexample ratio accompany every table; insufficient samples mark the whole table 'not to be relied on'), and stream tracking (source and type counts, period comparison, health watermark; lags and outages are prefixed 'information may be incomplete'). Division of labor with the event-driven suite: event-driven works the fd-cn-report announcement face, this suite works info-stream unified items (announcements + ministries + interactions), with item_id as the citation anchor and verbatim evidence as the bar for conclusions. Core discipline: health first (check stream_health before citing; if lag exceeds the threshold, declare 'information may be incomplete'; never report an empty result as 'no events'), no prediction (no up/down expectations), body-text support (a title is only a search entry), historical distribution is not forecast (sample size and counterexample ratio are mandatory). Not investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Info Shock", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install tXQaAuRY2F-Kog-rb21bCw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire · Expectation Gap / 柏讯 · 预期差
+
+## What this is
+
+柏讯预期差四件套：互动问答提取（info-stream 的 sse-interaction 条目结构化为「投资者问题 + 公司答复」，逐条带 item_id、逐字片段与正文状态分流）、预期线索解读（指引/确认/否认/回避/措辞变化五类线索，每条带可回原文的证据，措辞变化须双条并排，线索是公司口径不是事实）、与业绩预告对照（T_qa vs T_pre vs T_act 三段时间轴逐报告期对照，数值算术只走 fd-quant 计算面，预告区间三口径并列）、缺口陈述（已验证/未验证/不可评三档合成，每条带证据链与样本量，缺样本标注「不作依据」）。覆盖边界（上游实调 2026-10-23）：上证 e 互动可用、深交所互动易上游不可用（旧 API 405、新版面 SPA 化），本套件覆盖=SSE 上市公司，深市公司不在能力内，每次输出必须声明该缺口。核心纪律：引用任何问答前先查来源健康度；禁止模型记忆补问答；结论带样本量与时间窗；不评分、不排序、不推荐、不预测。与 info-shock 套件的分工：那边做信息条目的价格影响窗口，本套件只做公司口径与自身披露的对照，不涉及价格。不构成投资建议。
+
+Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + company answer' pairs, each with item_id, verbatim quotes and body-status triage), expectation-clue reading (five clue classes — guidance / confirmation / denial / evasion / wording change — each backed by evidence traceable to the original text; wording changes always shown as a side-by-side pair; a clue is company positioning, not fact), preannouncement cross-check (a three-segment timeline per report period — Q&A date vs preannouncement/express report vs actuals; all arithmetic goes through the fd-quant compute face; preannouncement ranges shown as lower/upper/mid), and gap statement (synthesis in three tiers — verified / unverified / not assessable — each statement with an evidence chain and sample size; missing samples are marked 'not to be relied on'). Coverage boundary (upstream live probe 2026-10-23): SSE e-interaction is available; the SZSE interaction platform is unreachable upstream (legacy API 405, new portal SPA-walled), so coverage = SSE-listed companies only, SZSE names are out of scope, and every output must state this gap. Core discipline: check source health before citing any Q&A; never fill Q&A from model memory; conclusions carry sample size and time window; no scoring, no ranking, no recommendations, no forecasts. Division of labor with the info-shock suite: that one handles price-impact windows of information items, this one only contrasts company positioning against the company's own disclosures and touches no prices. Not investment advice.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire · Expectation Gap", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install DNYnRrjjAWINzqR_ArmbjQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Text Engine · Screenplay Classics Suite / 文本引擎 · 剧本经典套件
+
+## What this is
+
+公版经典剧本的检索与研究：结构分析（幕场/折出骨架与情节推进）、角色检索（台词聚合与形象分析）、场景检索（按描述定位并细读整场）、相似段落（语义向量找近邻，跨用词差异找情境）。语料覆盖莎士比亚、希腊悲剧、元杂剧、明清传奇、现代话剧（老舍）、京剧，共 18 部；每个结果携带 provenance 三件套（source/stable_id/as_of）。检索走 fd-text-core 引擎的混合通道（关键词 CJK bigram + 繁简归一 ⊕ 语义向量 Qwen3-Embedding-8B）。
+
+Retrieval and research over public-domain classic plays: structure analysis (act/scene skeleton and plot progression), character search (line aggregation and character-portrait analysis), scene search (locate by description and close-read a whole scene), and similar passages (semantic-vector nearest neighbors that find matching situations across differing wording). The corpus covers 18 works — Shakespeare, Greek tragedy, Yuan zaju, Ming–Qing chuanqi, modern spoken drama (Lao She), and Peking opera; every result carries the provenance triplet (source/stable_id/as_of). Retrieval runs through the fd-text-core engine's hybrid channel (keywords CJK bigram + traditional/simplified normalization ⊕ semantic vectors via Qwen3-Embedding-8B).
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Text Engine · Screenplay Classics Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 1mAJYooWE-SajhzqTNMhBw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Text Engine · Paper Research Suite / 文本引擎 · 论文研究套件
+
+## What this is
+
+学术论文的检索与研究：文献综述（方向定位与脉络梳理）、方法追踪（提出/变体/应用谱系）、相关工作（语义相似文献与对比矩阵）。语料覆盖 arXiv q-fin 与 cs.CL 等八个类目的千级样本（元数据 + 摘要，CC0 元数据）；外部开放检索（arXiv/OpenAlex/Semantic Scholar）编排补充。**版权红线**：只返回元数据、摘要、切块引用与指回 arXiv.org 的原文链接，本服务不提供也不外发论文全文。检索走 fd-text-core 引擎的混合通道（关键词 ⊕ 语义向量 Qwen3-Embedding-8B）。
+
+Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of proposals/variants/applications), and related work (semantically similar papers and comparison matrices). The corpus covers thousand-scale samples across eight arXiv categories including q-fin and cs.CL (metadata + abstracts, CC0 metadata); external open search (arXiv/OpenAlex/Semantic Scholar) is orchestrated as a supplement. **Copyright red line**: only metadata, abstracts, chunked quotes, and links pointing back to arXiv.org are returned — this service neither provides nor sends out full paper texts. Retrieval runs through the fd-text-core engine's hybrid channel (keywords ⊕ semantic vectors via Qwen3-Embedding-8B).
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Text Engine · Paper Research Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 1OQ93FLBzzVGcn2js31ADA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Micro-Business · Retail Signal Pack / 生意体检 · 零售信号包
+
+## What this is
+
+零售行业环境信号包（需与「生意体检 · 内核套件」叠加安装）：批发价参考（昆明国际花卉拍卖中心 kifa.net 日度拍卖价与行情分析，对花店/生鲜类是进货成本直接参考，不泛化为所有零售商品）、城市基本面（中国城市面板 209 变量 × 297 城 × 2000–2024，判断社区消费力与选址）、同业密度（工商登记，支持省份+城市+区县与行业小类颗粒度，可用 company_type 筛选个体工商户）、快递大盘景气（国家邮政局快递月报，36 期连续，兼营电商/社区团购的小店参考）。**硬边界**：工商数据最新批次 2023，滞后约 3 年，一律标注「历史格局、非实时」；数据源只有新增注册口径、无注销/吊销，「关了多少家」类问题明示做不了并给存量状态分布替代，禁止编造关店数量或估算退出率。
+
+Retail industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): wholesale price reference (Kunming International Flower Auction Center, kifa.net, daily auction prices and market analysis — a direct purchase-cost reference for florists and fresh-produce shops, not generalizable to all retail goods), city fundamentals (China city panel, 209 variables × 297 cities × 2000–2024, for judging neighborhood purchasing power and site selection), peer density (business registry with province + city + county granularity down to sub-industry, and company_type filtering for individually-owned businesses), and express-delivery climate (State Post Bureau monthly reports, 36 consecutive issues, a reference for small shops that also sell online or via community group buying). **Hard boundaries**: the newest registry batch is 2023 — roughly a 3-year lag — so every output is labeled 'historical snapshot, not real-time'; the source covers only new registrations with no deregistration/revocation scope, 'how many shops closed' questions are explicitly declined with a stock status distribution offered instead, and fabricating closure counts or estimating exit rates is forbidden.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Micro-Business · Retail Signal Pack", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install UXWcHRYPeyNue1Z4qQl-Tw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Micro-Business · Catering Signal Pack / 生意体检 · 餐饮信号包
+
+## What this is
+
+餐饮行业环境信号包（需与「生意体检 · 内核套件」叠加安装）：食材成本趋势（大连商品交易所期货：生猪/豆粕/玉米/棕榈油，餐饮最大变动成本项的趋势预警，不等于菜市场现货价）、商圈活跃度代理（专资办电影票房日榜/周榜，2017 起可回溯，反映商圈消费活跃度而非本店客流）、堂食外卖切换代理（中央气象台天气，34 省 2529 站时级，结构性提示而非客流预测），并可选查同业密度（工商登记区县 + 行业小类）。每个信号均标注代理性质与局限；信号源不可用时标注「未连接」且不填模型记忆值。工商类信号带批次年份与「历史格局、非实时」标注，且明示无注销/吊销口径、不做关店量。
+
+Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity Exchange futures — live hogs/soybean meal/corn/palm oil — trend warnings for catering's largest variable-cost item, not market spot prices), a commercial-district activity proxy (national film box office daily/weekly charts, traceable back to 2017; reflects district consumption activity, not your store's footfall), and a dine-in/delivery shift proxy (Central Meteorological Observatory weather, hourly across 34 provinces and 2,529 stations; a structural hint, not a footfall forecast), plus optional peer-density lookup (business registry at county + sub-industry granularity). Every signal is labeled with its proxy nature and its limits; when a source is unavailable it is marked 'not connected' and never filled with model-memory values. Registry-based signals carry their batch year with a 'historical snapshot, not real-time' label, and explicitly state that there is no deregistration/revocation scope and no closure counts.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Micro-Business · Catering Signal Pack", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install BniA5thfDdb3oG-FT0CkJA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Micro-Business · Core Checkup Suite / 生意体检 · 内核套件
+
+## What this is
+
+面向中国传统微型企业与个体户的经营体检内核：四段式工作流（问诊建档 → 单店算账 → 行业信号对照 → 行动清单）为入口技能，配套盈亏平衡、毛利结构、现金流账期三个计算器。所有金额与比率一律经计算器产出并附计算公式 + 输入基数 + 来源（来源名/地区/年份/口径时间），外部统计基数取不到时该项中止并明示「基数数据源未连接/未定码」，禁止用模型记忆的行业数字填充。未安装行业信号包时如实标注「未安装行业信号包」且不中断分析。单店生意档案可建立在 DAAS 实体模型上（一家店=一个实体，指标持久化 + 告警规则）。内核按小老板能听懂的标准书写，专业术语附日常解释；机构与政务渠道共用同一内核，仅外壳与推送方式不同。
+
+Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting → industry-signal comparison → action list) as the entry skill, with three companion calculators for break-even, gross-margin structure, and cash flow/payment terms. Every amount and ratio is produced by a calculator and carries its formula, input base, and source (source name/region/year/as-of date); when an external statistical base cannot be fetched, that item halts with an explicit 'base data source not connected/uncoded' notice, and filling gaps from the model's memory of industry figures is forbidden. When no industry signal pack is installed, this is honestly labeled and the analysis continues. Single-store business profiles can be persisted on the DAAS entity model (one store = one entity, with persistent indicators and alert rules). The core is written so small-business owners can understand it, with plain-language explanations for technical terms; institutional and government channels share the same core and differ only in shell and delivery.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Micro-Business · Core Checkup Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install MBcXTHtyyMOxDHmSUYvDdQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Litigation Documents Suite / 识律 · 诉讼文书套件
+
+## What this is
+
+民商事诉讼文书起草与立案材料整理：起诉状/答辩状/证据目录生成，配套证据卡片与材料清单整理；v2 新增**要素式格式转换**（传统文书→最高院 67 类示范文本，逐要素来源标注，事实保真）。法条锚定、效力校验、类案与指导案例参照全部走识律法律检索数据源，案号与条文一律来自真实检索返回。
+
+Civil/commercial litigation drafting and filing prep: complaints, defenses and evidence lists, with evidence cards and checklists; v2 adds element-based format conversion (traditional documents → 67 SPC model templates, per-element source tags, facts preserved). Statute anchoring, validity checks and similar/guiding-case references run on Lex legal search; case numbers and provision text come from real search returns.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Litigation Documents Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 3uOELnBMA6WiWSTQxrV93g
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Labor Law Suite / 识律 · 劳动法套件
+
+## What this is
+
+劳动争议全流程 + 双计算器（识律×柏讯双线合流）：劳动仲裁全流程（申请书/答辩书/证据目录/一裁终局判断/时限表，含裁判者分支）为入口技能，劳动补偿金计算器与人身损害赔偿计算器为两个原子技能。法律依据走识律条级引用解析与效力核验，赔偿/补偿的统计基数走柏讯分省分年统计读取并强制 provenance（计算公式 + 基数来源 + 年份），统计源不可用或概念码未定档时中止数值计算。
+
+Full labor-dispute workflow plus two calculators (Lex × Wire convergence): labor arbitration end to end (application / defense / evidence list / finality test / deadline table, with an adjudicator branch) as the entry skill, plus the labor-compensation and personal-injury calculators as atomic skills. Legal basis via Lex article-level citation parsing and validity checks; statistical bases via Wire province-year statistics with mandatory provenance (formula + base source + year); computation halts if the statistics source is unavailable or the concept code unset.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Labor Law Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install ndVkyAg2NfIVXg7oSDAWxw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Criminal Defense Suite / 识律 · 刑事辩护套件
+
+## What this is
+
+刑事辩护套件：以总控流程技能为入口，串联认罪认罚/不起诉论证（审查起诉阶段）与庭审发问提纲（一审阶段），法条与指导案例走识律法律检索、法规效力走数据业务检索，类案与量刑参照走裁判文书检索。
+
+Criminal defense suite: a master workflow chains plea/non-prosecution argumentation (review-for-prosecution) with examination outlines (first instance). Statutes and guiding cases via Lex legal search, validity via data-business search, similar cases via judgment search.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Criminal Defense Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install UzMQPvaZqdmpluQsbY-eng
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Contract Review Suite / 识律 · 合同审查套件
+
+## What this is
+
+中国法（大陆）合同审查：五张行业审查卡（劳动用工 / 借贷融资 / 保密NDA / 买卖供货 / 服务与SaaS）× 法条核验与效力锚定 × law-bench 条款装配与三重评审，产出双轴风险问题清单、审查备忘录与**修订对比表**（原条款/修订后条款/修订理由与核验依据三列，v2 新增交付形态）。
+
+Contract review under PRC (mainland) law: five industry review cards (labor & employment / loans & financing / NDA & confidentiality / sale & supply / services & SaaS) × statute verification with validity anchoring × law-bench clause assembly and triple review, producing a two-axis risk list, a review memorandum and a revision comparison table (original clause / revised clause / rationale and verification basis — new in v2).
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Contract Review Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install mfaIAXHRVFQJaXPXyiAzKQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex · Civil Litigation Suite / 识律 · 民事诉讼套件
+
+## What this is
+
+民商事案件全流程分析：固定诉讼请求（S1）→ 请求权基础（S2）→ 抗辩分析（S3）→ 要件拆解（S4）→ 主张检索（S5）→ 争点矩阵（S6）→ 举证责任分配（S7）→ 事实认定（S8）→ 裁判预测（S9）→ 幻觉检查（S10）。法条走识律语义检索与条级解析、效力状态走数据业务检索、类案与指导案例走裁判文书与指导案例库；S10 由原自检改为**用数据工具反查**引用真实性。
+
+End-to-end analysis of civil and commercial cases: fixing the claims (S1) → basis of the claim (S2) → defense analysis (S3) → element breakdown (S4) → assertion search (S5) → issue matrix (S6) → allocation of the burden of proof (S7) → fact-finding (S8) → outcome prediction (S9) → hallucination check (S10). Statutes via Lex semantic search with article-level parsing, validity status via data-business search, similar and guiding cases via the judgment and guiding-case libraries; S10 now verifies citation authenticity by cross-checking with the data tools.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex · Civil Litigation Suite", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install rz-ebXHD5astVGcyqlhmqA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Platform Guides / 平台指南
+
+## What this is
+
+寻数平台操作与制作指南：①壹座与萬星使用手册——AI 助手工作台怎么用、功能集怎么装、Agent 服务怎么部署与调用（A2A）；②谦面功能集制作的**编排补篇**——批量套件的定义 schema、registry 侧技能注册、权限与计费四道闸全貌。（**想自己做一个功能集，请装《谦面工坊》**：它带发现与发布工具、覆盖完整创作流程；本包的制作技能只讲工坊不覆盖的平台内部细节。）平台官方维护，随平台演进更新。
+
+Operation and authoring guides for the Finddata platform: 1) the Yizuo and Wanxing manuals — using the AI assistant workbench, installing packs, deploying and calling agent services (A2A); 2) an orchestration supplement to Facet pack authoring — the batch-suite definition schema, registry-side skill registration, and the full picture of the four gates for permissions and billing. To author a pack yourself, install Facet Forge: it covers the whole creation flow; this pack's skills only cover platform internals the Forge does not. Maintained by the platform, updated as it evolves.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Platform Guides", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 3LUWFBGS3RJe5BIV9MvBFw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Facet Forge / 谦面工坊
+
+## What this is
+
+生态创作者的铸包工坊：把一个想法做成可安装的功能集（pack）。①铸包——发现平台可用的 MCP 工具与技能、查重、组装 manifest、预校验、发布；②改编——用开源或外部技能打底时的许可证判定与署名（含降级路径与防编造约束）；③验收——发布后自查：装得上吗、工具真的被调用了吗、取不到时说得诚实吗。面向生态创作者；发布需创作者身份。
+
+The pack-forging workshop for ecosystem creators: turn an idea into an installable pack. 1) Forge — discover the platform's MCP tools and skills, check for duplicates, assemble the manifest, pre-validate, publish. 2) Adapt — license review and attribution when building on open-source or external skills, with fallback paths and no-fabrication constraints. 3) Accept — post-publish self-check: does it install, are tools really called, honest when data is missing. Publishing requires creator status.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Facet Forge", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install _B99vDq0CFBNQGvmfy5iSw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex Console Companion / 识律控制台伴随助手
+
+## What this is
+
+识律控制台的副驾：五页导览、配额与账单口径解读、凭据管理指引；经问询卡确认后可提议 navigate/refresh 页面动作（由宿主页面执行）。无账户数据读取与写操作工具，绝不编造数字。
+
+A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation it can propose navigate/refresh page actions (executed by the host page). No account-data read/write tools, and never fabricates numbers.
+
+- Category: facade (plaza category enum v1)
+- Official: no
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex Console Companion", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install XfyXvzONQFelnFIgM0dJVw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 内容工厂
+
+## What this is
+
+选题→初稿→审校的流水线，只出草稿供人定稿；不自动发布
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "内容工厂", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install MnViPe6mi-FBOUL1Z0tDTw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Infra Factory Fleet / 工厂集群
+
+## What this is
+
+工厂集群：Owner 自用的三岗运行编制——巡检岗按可计数阈值观测全部在册集群与基础设施并逐条目落异常清单；优化岗把已确认异常只经既有提案面转为配置/蓝图/技能/跨面提案并附条目依据；报班岗按周汇总异常台账、提案四态计数与成本走势，拍板件走 decision_queue 正式呈报。提案与批准分离：红线动作永远人工，批准前零写动作。 含集群模板 fleet 段（三岗编排：巡检→优化→报班；装包后经壹座「团队→从模板实例化」建队）。
+
+Owner-facing three-post fleet: the sentinel audits all registered fleets and infrastructure against countable thresholds and lands a per-item anomaly ledger; the optimizer routes confirmed anomalies through existing proposal surfaces only, each citing its ledger entry; the shift lead delivers a weekly digest and puts decisions in the decision queue. Proposals and approvals stay separate; red-line actions are always human.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Infra Factory Fleet", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install bKipx4urGfO5TE6GjJ9Ihg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Cross-border E-commerce Policy Watch / 跨境电商政策盯梢团队
+
+## What this is
+
+跨境电商政策面值守团队：监视位（海关/商务部/税务/口岸四路 fd-info 公告流）→合成位（政策日报+三判据 escalate）→产出位（看板草稿，发布走提案）。纪律来自共用层智能体（同 cell 装）；由蓝图构造间按自然语言需求建成，可溯源。
+
+A policy-watch cluster over customs/commerce/tax/port announcement lanes, daily brief with three escalation criteria, board draft contribution. Built from a natural-language brief by the vertical constructor.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Cross-border E-commerce Policy Watch", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install C8wx14-4h7zJ0N19-J4NwQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wanxing Fleet Ops / 萬星机群运营团队
+
+## What this is
+
+萬星团队运行面运营团队：监视位（fleets.db 只读直查，连续失败点名到 member）+归账位（wanxing 只读盘点，凭据缺位如实降级）+合成位（每日简报+治理提案）。治理写操作一律提案+拍板（allowTools 工具面级排除）。
+
+Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing members), agent steward over the wanxing read face (degrades honestly without credentials), and an ops chief that composes the daily brief and escalates governance proposals.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wanxing Fleet Ops", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 8wJVZZnk369wm0oFScdecA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Facet Platform Ops / 谦面运营团队
+
+## What this is
+
+谦面市场生态运营团队：监视位（周一深度盘点）+闸位（每日完整性日检，integrity 不可得如实降级）+合成位（每日简报+策写提案）。只读面巡检，策写一律提案+拍板（allowTools 工具面级排除）。
+
+Facet platform-ops cluster: inventory patrol (read-only), daily integrity sentinel that degrades honestly when integrity is not exposed, and an ops chief that composes the brief and escalates curation proposals. Read-only tools only — curation is proposal-gated.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Facet Platform Ops", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install ujUI1A2caCUW7TG1Z1mlEg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Marketing Site Content / 官网内容团队
+
+## What this is
+
+营销线团队模板：选题→撰稿→审读→发布草稿四岗 handoff 链（错峰 cron ≥30min）+闸位岗独立对拍（gold 命中/覆盖，评测报告落草稿）。量级话术红线（禁精确数字）、审读放行唯一门、发布走提案不直发。装包后经壹座「从模板实例化」建队；纪律来自共用层四包（同 cell 装）。
+
+Marketing content fleet template: topics → draft → review → publish-draft chain (staggered crons) plus an eval sentinel post. Magnitude-only wording, review is the single gate, publishing goes through the proposal channel. Post discipline comes from the shared fleet packs.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Marketing Site Content", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install LjTJZWqSr2AOX7WEFTVlpg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire Intel & Sentiment / 情报舆情团队
+
+## What this is
+
+柏讯情报舆情团队模板：监视位→闸位双路并行→合成位交叉核对→产出位落看板草稿（trigger×3+handoff×3 编导）。装包后经壹座「团队→从模板实例化」建队；岗位纪律来自共用层四包（需同 cell 安装）：fleet-intel-gather/fleet-data-qa/fleet-brief-report/fleet-board-contribution。
+
+Wire intel/sentiment fleet template: intel patrol + sentiment sentinel run in parallel, the chief cross-checks both and composes the morning brief, the contribution post lands a board draft. Install, then instantiate from the template; post discipline comes from the shared fleet packs (install in the same cell).
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire Intel & Sentiment", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install IVCGxpg9itGnLpHxT1khWQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Wire Ontology Builder / 柏讯本体建设团队
+
+## What this is
+
+柏讯数据本体建设团队：对靶客户数据面持续盘账、建模、校验、经动作闸提议落库，让实体关系图谱有真实内容。五岗流水线：盘账员（只读画像：行列规模、候选主键、疑似外键）→建模师（实体/关系声明草案，业务名从列名直译禁臆造）→纪律校验闸（确定性规则放行或拦截，给列名级原因）→声明提案员（经 wire_action_propose 提议内置声明动作，即时返回即合规，写操作永不直调）→台账主编（三点实调抽样对账，缺位如实标注）。全链只读+提案制：本体声明经客户动作闸确认后落库，数据行零写回，实体与关系只建不改不删。
+
+A Wire ontology-building cluster for the data plane: profile datasets, draft entity/relation declarations, pass deterministic validation, and file declarations through the customer action gate so the entity graph holds real content. Five-role pipeline (profiler → modeler → deterministic gate → proposal clerk → ledger editor) with read-only discipline, zero data-row writes, create-only v0.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Wire Ontology Builder", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install YT87-2Axuu49I123zVYyhA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex Marketing / 识律营销团队
+
+## What this is
+
+lex 营销内容团队模板（content-factory 变体）：采集位（客户场景与行业痛点）→合成位（量级话术，不用精确数字）→闸位（红线审读必设）→产出位（落官网/CMS 草稿，发布走动作闸提案不直发）。装包后经壹座「团队→从模板实例化」建队；纪律来自共用层四包（同 cell 装）：fleet-intel-gather/fleet-brief-report/fleet-data-qa/fleet-board-contribution。
+
+Lex marketing content cluster template (content-factory variant): collector (customer scenarios and industry pain points) → synthesizer (magnitude wording, no precise numbers) → gatekeeper (red-line review, mandatory) → producer (drafts to the site/CMS; publishing goes through the action-gate proposal, never direct). Install, then instantiate from the template; discipline comes from the four shared packs (install in the same cell).
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex Marketing", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install Y99VUN6RdWs98ocK0ZAN8A
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex Zhengxin Watch / 识律政心监测团队
+
+## What this is
+
+识律政心监测团队模板：监视位分域巡检 V-Dem/MARPOR 真库（fd-zhengxin-reference 读面）→合成位周报交叉核对（重大异动 escalate）→产出位落图集草稿。装包后经壹座「团队→从模板实例化」建队；岗位纪律来自共用层智能体（需同 cell 安装）：fleet-data-qa/fleet-brief-report/fleet-board-contribution。
+
+Lex Zhengxin watch cluster template: the monitor patrols the real V-Dem/MARPOR libraries by domain (fd-zhengxin-reference read face), the synthesizer cross-checks the weekly report (major shifts escalate), and the producer lands the atlas draft. Install, then instantiate from the template; discipline comes from the shared packs (same cell): fleet-data-qa / fleet-brief-report / fleet-board-contribution.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex Zhengxin Watch", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 1HbpcL4LaB-csKpUQgN2Ew
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Lex Statute Update / 法规追踪团队
+
+## What this is
+
+识律法规更新团队模板：监视位每日扫新颁/修订/废止（fd-legal-search-mcp 权威法规面，32,296 口径单一事实源）→合成位更新简报+生效影响标注（法条引用文号+条款定位可回查）→产出位落简报草稿；无更新日报空。装包后经壹座「团队→从模板实例化」建队；纪律来自共用层智能体（同 cell 装）：fleet-intel-gather/fleet-brief-report/fleet-board-contribution。
+
+Lex statute-update cluster template: the monitor scans new/amended/repealed statutes daily (fd-legal-search-mcp authoritative statute face, 32,296 as the single source of truth), the synthesizer writes the update brief with effective-date impact notes (citation number + article locator, re-checkable), and the producer lands the brief draft; no updates means an empty daily report. Install, then instantiate from the template; discipline comes from the shared packs (same cell): fleet-intel-gather / fleet-brief-report / fleet-board-contribution.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Lex Statute Update", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install ZCot-b6HsnJRTTDKr_aunQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Intel Gathering / 情报采集
+
+## What this is
+
+团队共用智能体：情报巡检岗的采集纪律——fd-info 检索面全套引用（list_since/get_item/search_info/locate_evidence/stream_health），按源清单巡检、原文先行、去重要点化、空结果带原因、未取得不编造。
+
+Shared fleet layer: collection discipline for intel patrol posts — fd-info references, source-list patrol, read-the-original before summarizing, dedupe, empty results carry a reason.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Intel Gathering", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 4z4dMrtNbTn2WcE-45QPfw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Board Contribution / 看板投稿
+
+## What this is
+
+团队共用智能体：投稿岗的产物写面纪律——wire-build 全套引用（建集/表单/记录视图/看板/文档/发布/治理），草稿优先、source_ref 三元组、列名预检、失败四分类。装配于任何板块的团队投稿岗。
+
+Shared fleet layer: artifact-write discipline for contribution posts — wire-build references, draft-first, source_ref triplets, column pre-check, four-way failure attribution.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Board Contribution", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install Mo3_aWe7tF2eFVzkqFT9mA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Vertical Constructor / 蓝图构造师
+
+## What this is
+
+蓝图构造间构造面：把自然语言垂直描述编译成蓝图草稿（板块边界/数据源/团队编制/看板骨架/监控/验收口径），复用既有校验器 dry-run，diff 呈现后停等主人批准——批准才铸造上架与实例化。只引用 fleet-architect 与 facet-market 既有工具面，蓝图格式以平台校验器为准。
+
+Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acceptance), dry-runs the existing validators, shows the diff and waits for the owner's approval — only then mints and instantiates. No new platform capability.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Vertical Constructor", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install O30LA92kq1D5uuNIBGKsZQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Eval Sentinel / 评测哨
+
+## What this is
+
+团队共用智能体：评测岗的质量对拍纪律——按 gold 清单对拍目标岗产物（exact/方向/覆盖率），KPI 报数（hit_rate/direction_rate/coverage），漂移超阈值 escalate，评测报告落草稿。可选挂载岗。
+
+Shared fleet layer: quality-gate discipline — gold-set comparison (exact/direction/coverage), KPI reporting, drift escalation, eval reports landed as drafts.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Eval Sentinel", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install _Rl8i99CS5nwuARVbp0D5Q
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Data Q&A / 数据问答
+
+## What this is
+
+团队共用智能体：数据问答/分析岗的只读纪律——数据集读面引用（列表/查询/聚合/行读），数字可溯源、口径注明、空结果如实、图表契约 v2 选型。只读，不含写面。
+
+Shared fleet layer: read-only analysis discipline — dataset read faces, every number traceable, scope stated, honest empty results, chart-contract v2 selection.
+
+- Category: official-data (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Data Q&A", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install y2_QsuKxV8dZFr-39_0zRQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Briefing & Reporting / 简报与报数
+
+## What this is
+
+团队共用智能体：合成位/主编岗的报数与简报纪律——report_status 槽位报数（与团队 KPI 槽位逐字对齐）、晨报/周报骨架、escalate 拍板规范、未取得不编造。装配于任何板块的团队合成位。
+
+Shared fleet layer: reporting and briefing discipline for brief/chief posts — report_status slots aligned to the fleet KPIs, morning/weekly brief skeletons, escalate norms, and never fabricate what you could not obtain.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Briefing & Reporting", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install F8gbhNaEG6c2rDz468MwaA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# FindData Product Introduction / 壹座产品介绍
+
+## What this is
+
+对外产品介绍团队：前台「产品向导」+ 五条产品线专家（寻数·壹座/识律/柏讯/谦面/萬星），编导为前台→各专家的 dispatch 星型（会话型团队，无 cron 节奏——装上即等访客提问）。知识来源：www.finddatatech.cloud 官网中文页 /zh/（原始抓取，抓取日期 2026-10-30）与本仓公开 README（github.com/FindDataTechnology/platform）；官网改版时人工同步本种子并重跑守恒与红线测试。结构注：六岗全部自载（maxAgents 50，2026-10-30 用户裁决放宽，75df6914）——包自带完整团队，外来安装者零预创建、无降级路径。KPI 槽位：会话型团队无运营语义，不设（kpiSlots: []）。预校验兼容性结论（2026-10-30 实证）：无 cadence/显式 cadence:null 的岗位直接通过 parseFleetTemplate——design D2 的值守 cron 回退方案无需启用。本包声明 publicFacing=true（对外团队）：其岗位运行时只挂公开工具面（fleet 桥 + 市场公开面），禁用工作区文件工具与名册枚举工具——内部车道名不得进入访客可见的回答。红线：全部 persona 只含公开信息，词表 v4（智能体团队/小组/智能体/智能体市场），禁内部运营信息——scripts/test-product-intro-seed.mjs 以文本断言钉住。五线名以官网中文页原文为准（寻数·壹座/识律/柏讯/谦面/萬星）。
+
+External-facing product-introduction team: one front-desk “Product Guide” plus five product-line specialists (FindData·Base / Lex / Wire / Facet / Constellation). Orchestration is a dispatch star from the guide to each specialist (a conversational team with no cron cadence — once installed it simply waits for visitor questions). Knowledge source: the official Chinese site www.finddatatech.cloud /zh/ (fetched verbatim on 2026-10-30) and the public README (github.com/FindDataTechnology/platform); when the site changes, sync this seed by hand and re-run the conservation and red-line tests. Structure note: all six posts are self-carried (maxAgents 50) — the pack ships the complete team, so an outside installer needs zero pre-creation and has no degraded path. KPI slots: a conversational team carries no operations semantics, so none are declared (kpiSlots: []). This pack declares publicFacing=true: at runtime its posts mount only the public tool surface (fleet bridge + public market), with workspace file tools and roster-enumeration tools disabled — internal lane names must never reach a visitor-visible answer. Red line: every persona contains public information only, uses vocabulary v4 (agent team / squad / agent / agent market), and never internal operations detail — pinned by text assertions in scripts/test-product-intro-seed.mjs. Product-line names follow the official Chinese site verbatim.
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "FindData Product Introduction", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install v8rZ8F7E92MrssZ92ygnXQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 团队架构师
+
+## What this is
+
+壹座聊天内的团队自然语言编排面：把用户的话编译成团队结构草稿，经校验与成本预估呈 diff，用户批准后落地。管编制不管作战——不做运行时指挥。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 pack 清单校验。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "团队架构师", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install NoBBXkvxZnJNHlCrAwWp-w
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# nano-pdf
+
+## What this is
+
+Edit PDFs with natural-language instructions using the nano-pdf CLI.
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "nano-pdf", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 5y0_Gislp_OgElqq4zPswA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 柏讯 · 投研三镜头
+
+## What this is
+
+三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。团队任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态团队叠加。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "柏讯 · 投研三镜头", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install egaYyOaZVTf0FWlLvaGAQA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 分身工坊
+
+## What this is
+
+和工坊助手聊几句，它把你的知识变成一个可发布的 AI 分身：采访你、整理语料、生成接待人设与 manifest.json，给出发布三步指引。造好的分身部署后，任何人从目录点「和这个分身聊」就能了解你——费用你出（hosted），访客免费。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "分身工坊", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install _vcfZzuxPgkiRsj5poZIgg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 晨报情报站
+
+## What this is
+
+官方团队模板：每日晨报情报站——科技与市场情报员每日清晨分头巡检，情报主编 8 点合成晨报；另含团队引用岗（existing-cluster，每周一做深度聚合，演示团队 fan-out 引用与派生报数）。演示：双情报源并行、晨报流、cluster 引用岗（公司种子只演示了 a2a）；编导段为 trigger+handoff 链（两情报员巡检完成接棒主编合成）与团队 report 上行。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "晨报情报站", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 56opYgliV9FYAmhmsDIJOw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 内容流水线
+
+## What this is
+
+官方团队模板：周流水线内容工厂——主编周一主持选题会，选题策划立项、撰稿人周二至四成稿，审校为被动岗（受委托唤醒，演示成员间横向协作的唯一通道 delegation）。演示：周节奏流水线、被动岗受委托唤醒、文档工具面；编导段为 trigger(周一)→handoff 流水线（主编→策划→撰稿）+ 撰稿 dispatch 委托审校、审校 report 上行主编。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "内容流水线", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install tkHe8IHE0BuDYYIg5LglUw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 客服班组
+
+## What this is
+
+官方团队模板：高频客服护航——客服组长每 4 小时带队巡检工单，一线客服处理、质检员抽检；组长对疑难工单用 escalate 合并上报（演示对抗每日防洪上限的上报纪律）与 CRM 客服工具面（凭据未配置时如实空转，不整体失败）。恰 3 岗满编无引用岗；编导段演示入站唤醒：event 边 bot:{{SERVICE_BOT}} 入站唤醒一线客服（客服 bot 为运营期配置的通道实例，缺位由运行期如实判定），一线 report 上行组长、组长可 dispatch 直接派单一线。铸造上架时 packId/agents/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "客服班组", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install EMGW14N8voa1b36LSuTxxw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# Investment Research Morning Meeting / 投研晨会
+
+## What this is
+
+官方团队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗；编导段为 trigger+handoff 级联（两研究员晨检完成接棒首席）与首席 dispatch 委托风控官。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "Investment Research Morning Meeting", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install YMSt-hRNiNWXrlLYC8PSiA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# AI 公司
+
+## What this is
+
+官方团队模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星团队 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证），故助理为 existing-persona 引用岗；编导段为 supervisor 式 dispatch——CEO 可向各部门派活（显式 dispatch 边，非全舰 implicit）。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "AI 公司", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install aofNf6o2LR61lPK8IVVkJw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 数据 · 自助分析
+
+## What this is
+
+谦面自助分析消费八件套：取数（工作流清单/AkShare）、实体与集合管理、指标查询、看板检视、PDF 语义检索、头脑风暴与一键研究——业务人自助完成数据消费全流程
+
+- Category: official-data (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "数据 · 自助分析", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 50Tp176hW0HYTTWXZbarKA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 数据 · 指标工坊
+
+## What this is
+
+谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产
+
+- Category: official-data (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "数据 · 指标工坊", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install oGURb41bdyAotVGOeBHZUA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 萬星机群助手
+
+## What this is
+
+在壹座中操作萬星机群的专用助手——浏览 agent 目录、读详情、查看部署状态。只读工具 + 提议通道，所有写操作需经动作闸确认。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "萬星机群助手", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install INdsRWpgpp2Q03I0z3XoFA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 寻数分身
+
+## What this is
+
+寻数（FindData）的企业 AI 分身：想了解我们的企业、在做的项目、产品具备的能力，直接和分身聊。回答出自随版本冻结的策展语料，每条带语料截至时间；答不了的如实说答不了，并建议找人对的人。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "寻数分身", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install Ut_bJMuW5KxAD83KImPmlg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 谦面助手
+
+## What this is
+
+在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "谦面助手", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install qCEIutJzQd49jnDtV4qeqw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# CRM 客服套件
+
+## What this is
+
+商家自带 Chatwoot 的客服接待套件：连接你的 Chatwoot 账号后，读未处理会话、草拟回复、人工确认后发送，全程你自己的租户与凭据（BYOK）。含客服接待技能与使用指南。
+
+- Category: pack (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: no
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "CRM 客服套件", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 0aVynUNHmscTAxu7fGs-NQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 萬星 · 本地内容发布套件
+
+## What this is
+
+云端生成 + 本地发布的完整闭环：从 VAAS 托管实例拉取租户名下的生成产物（图/视频/图文），在本机完成平台适配、人工确认后经自己的浏览器登录态发布到 10 视频平台 + 11 图文平台。登录态只存本机、平台零保管（见包内 SECURITY-NOTES.md）。发布前必须人工确认。
+
+- Category: facade (plaza category enum v1)
+- Official: no
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "萬星 · 本地内容发布套件", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install Bzz9r5rmYPIAitS8Ca33Lw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 谦面市场助手
+
+## What this is
+
+用 AI 直接操作谦面市场与网关：浏览/检索功集与网关条目、发布新功集与新版本、上下架、切可见性、策展分类、发布前查重。装包即得 facet_market_* 与 facet_agent_* 十二个工具（凭据走壹座既有连接：registry + 谦面市场配对），配两份手册技能讲清『怎么写 manifest、怎么过发布门、怎么安全写操作』。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "谦面市场助手", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 0RdQE184anPUaMhIvFwndA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 市场快讯 · 一页速览
+
+## What this is
+
+把一段财经新闻、公告或行情评论收敛成一页速览：三行结论、五个要点、一处存疑。为需要在盘前/会前快速消化的读者而生。
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "市场快讯 · 一页速览", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install ev5E51eth7e5McvyDrl9Rg
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 外部好货 · 简报快写
+
+## What this is
+
+M4③ 套装验收——第二件外作者绿地带货
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "外部好货 · 简报快写", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install tHd65-7SfBT_z0KfTvHGIw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 外部好货 · 数据速览
+
+## What this is
+
+M4② 绿地从目录部署验收——外作者的可部署 pack
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "外部好货 · 数据速览", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install 6kDsKgmb-3_86A81VZC6UA
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 数据研究 · 生态版
+
+## What this is
+
+官方功能集（生态首发）：FindData 数据底座（fd-open-data-mcp 宏观/金融真数据）+ 官方 time/fetch 生态 server + 数据研究 persona。装上即可做可溯源的数据问答与网页取证。
+
+- Category: facade (plaza category enum v1)
+- Official: no
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "数据研究 · 生态版", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install Aqag8Mky4ksoPmwRDMCVYw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+
+---
+
+# 文档工坊
+
+## What this is
+
+Office 文档生成与编辑：商务报告（docx）、数据工作簿（xlsx）、汇报演示（pptx）三场景成稿，配验证过的封面配方、中式设计系统与生成后质检 postcheck；支持编辑用户上传的原件（fetch_document_file 取原件）。回合内免费。
+
+- Category: facade (plaza category enum v1)
+- Official: no
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "文档工坊", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install qnhd7B3J1-HKDDKzZQ_fUQ
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02

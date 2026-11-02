@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-11-02",
+  "packs": 75,
+  "byCategory": [
+    {
+      "category": "pack",
+      "count": 26
+    },
+    {
+      "category": "skill",
+      "count": 0
+    },
+    {
+      "category": "mcp",
+      "count": 0
+    },
+    {
+      "category": "facade",
+      "count": 46
+    },
+    {
+      "category": "official-data",
+      "count": 3
+    }
+  ]
+}

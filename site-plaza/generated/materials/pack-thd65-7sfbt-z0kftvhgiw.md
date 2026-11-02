@@ -1,0 +1,24 @@
+# 外部好货 · 简报快写
+
+## What this is
+
+M4③ 套装验收——第二件外作者绿地带货
+
+- Category: facade (plaza category enum v1)
+- Official: yes — curated by FindData
+- AI facade: yes — deployable as a conversational service
+
+## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "外部好货 · 简报快写", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       npx @finddatatechnology/facet install tHd65-7SfBT_z0KfTvHGIw
+
+3. From the market page: https://plaza.finddatatech.cloud/#/packs
+
+## As of
+
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02

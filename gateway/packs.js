@@ -35,7 +35,7 @@ import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
 import { lineOf, slugsForLine, isLineWord } from "../lib/pack-category-lines.js";
-import { lineLabelOf } from "../lib/pack-taxonomy.js";
+import { lineLabelOf, lineSlugs, lineWordOf, isDomainSlug, domainLabelOf, domainVocabulary } from "../lib/pack-taxonomy.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { installVendorTables, createVendorStore } from "./vendors.js";
@@ -244,6 +244,15 @@ export function createPackRegistry({ file }) {
   try {
     db.exec(`ALTER TABLE packs ADD COLUMN featured INTEGER NOT NULL DEFAULT 0`);
   } catch { /* column already present */ }
+  // Domain axis storage (overhaul-market-catalog-presentation P1 2.3): the
+  // declared domain set is a JSON slug array on the pack row — the ONE stored
+  // truth. Publish stamps it from the manifest, curation retargets it; the
+  // read face never derives domains from `category` at runtime (the backfill
+  // migration is the only place that derivation runs). `category` itself is
+  // zero-migrated.
+  try {
+    db.exec(`ALTER TABLE packs ADD COLUMN domains TEXT`);
+  } catch { /* column already present */ }
   db.exec(`CREATE TABLE IF NOT EXISTS pack_versions (
     pack_id TEXT NOT NULL,
     version INTEGER NOT NULL,
@@ -433,6 +442,38 @@ export function createPackRegistry({ file }) {
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
 
+  // Domain declarations (overhaul-market-catalog-presentation P1 2.3): at most
+  // three vocabulary slugs, deduped. Out-of-vocabulary entries are dropped here
+  // — pre-P3 publish has no authoring surface for `domain`, and the curation
+  // endpoint rejects them at the route. P3's manifest validator turns a
+  // declared-but-unknown slug into a hard publish error instead.
+  const DOMAIN_MAX = 3;
+  function sanitizeDomains(value) {
+    if (!Array.isArray(value)) return [];
+    const out = [];
+    for (const v of value) {
+      if (typeof v !== "string") continue;
+      const slug = v.trim();
+      if (!slug || out.includes(slug) || !isDomainSlug(slug)) continue;
+      out.push(slug);
+      if (out.length >= DOMAIN_MAX) break;
+    }
+    return out;
+  }
+
+  // Stored domain set of a pack row (NULL = none declared → 未归类档). The read
+  // face never derives domains from `category`; the backfill migration is the
+  // only place that derivation runs.
+  function storedDomains(pack) {
+    if (!pack.domains) return [];
+    try {
+      const parsed = JSON.parse(pack.domains);
+      return Array.isArray(parsed) ? parsed.filter((d) => typeof d === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
   const versionRow = (packId, version) =>
     db.prepare(`SELECT * FROM pack_versions WHERE pack_id = ? AND version = ?`).get(packId, version) ?? null;
 
@@ -504,6 +545,9 @@ export function createPackRegistry({ file }) {
       category: pack.category ?? "",
       line: lineOf(pack.category),
       lineLabel: lineLabelOf(lineOf(pack.category), "zh"),
+      // Domain axis (P1): the stored set, present only when declared — an
+      // undeclared pack omits the key (byte-identical to the pre-change row).
+      ...(pack.domains ? { domains: storedDomains(pack) } : {}),
       featured: Boolean(pack.featured),
       // Agent count of the latest version's manifest (agent-cluster-platform
       // marketplace views): computed in SQL by the list query via
@@ -590,7 +634,11 @@ export function createPackRegistry({ file }) {
       // Author-declared category (add-facet-content-management) rides the
       // pack row; admins retarget it later via setCuration.
       const category = typeof manifest.category === "string" ? manifest.category : "";
-      db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility, category) VALUES (?, ?, ?, ?, ?)`).run(id, email, now(), visibility, category);
+      // Domain axis (P1 2.3): an author-declared domain set is stamped on the
+      // pack row at mint; a manifest without it leaves the column NULL
+      // (未归类 until curation or the backfill migration fills it).
+      const domains = sanitizeDomains(manifest.domain);
+      db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility, category, domains) VALUES (?, ?, ?, ?, ?, ?)`).run(id, email, now(), visibility, category, domains.length > 0 ? JSON.stringify(domains) : null);
       db.prepare(
         `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor, price_usd, price_kind, period_days)
          VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -642,28 +690,58 @@ export function createPackRegistry({ file }) {
         pricing?.kind === "period" ? pricing?.periodDays ?? null : null,
       );
       // A redeclared category updates the pack row; absence keeps the
-      // curated value (admin retargets survive version bumps).
+      // curated value (admin retargets survive version bumps). The domain set
+      // follows the same discipline (P1 2.3): a non-empty declaration updates,
+      // absence keeps whatever curation/backfill stored.
       if (typeof manifest.category === "string" && manifest.category) {
         db.prepare(`UPDATE packs SET category = ? WHERE id = ?`).run(manifest.category, id);
+      }
+      const nextDomains = sanitizeDomains(manifest.domain);
+      if (nextDomains.length > 0) {
+        db.prepare(`UPDATE packs SET domains = ? WHERE id = ?`).run(JSON.stringify(nextDomains), id);
       }
       return { id, version };
     },
 
     // Curation write (add-facet-content-management): featured is admin-only;
-    // category is author-or-admin. Returns the fresh curation state or an
-    // error the route maps. Presentation-level only — visibility, versions,
-    // and installability are never touched.
-    setCuration({ id, actor, category, featured }) {
+    // category and the domain set are author-or-admin. Returns the fresh
+    // curation state or an error the route maps. Presentation-level only —
+    // visibility, versions, and installability are never touched.
+    setCuration({ id, actor, category, featured, domains }) {
       const pack = packRow(id);
       if (!pack) return { error: "not_found" };
       const isAuthor = pack.author_email === actor.email;
       const isAdmin = actor.admin === true;
       if (featured !== undefined && !isAdmin) return { error: "forbidden" };
       if (category !== undefined && !isAuthor && !isAdmin) return { error: "forbidden" };
+      if (domains !== undefined && !isAuthor && !isAdmin) return { error: "forbidden" };
       const nextCategory = category !== undefined ? String(category) : pack.category;
       const nextFeatured = featured !== undefined ? (featured ? 1 : 0) : pack.featured;
-      db.prepare(`UPDATE packs SET category = ?, featured = ? WHERE id = ?`).run(nextCategory, nextFeatured, id);
-      return { id, category: nextCategory, featured: Boolean(nextFeatured) };
+      let nextDomains = pack.domains;
+      if (domains !== undefined) {
+        // The domain write is vocabulary-only (spec: curation picks from the
+        // term list). An out-of-vocabulary slug or an over-long set is
+        // REJECTED — never coerced, never silently dropped. An empty array is
+        // an explicit clear (the pack returns to 未归类).
+        const valid =
+          Array.isArray(domains) &&
+          domains.length <= DOMAIN_MAX &&
+          domains.every((d) => typeof d === "string" && isDomainSlug(d));
+        if (!valid) return { error: "invalid_domains" };
+        nextDomains = domains.length > 0 ? JSON.stringify([...new Set(domains)]) : null;
+      }
+      db.prepare(`UPDATE packs SET category = ?, featured = ?, domains = ? WHERE id = ?`).run(
+        nextCategory,
+        nextFeatured,
+        nextDomains,
+        id,
+      );
+      return {
+        id,
+        category: nextCategory,
+        featured: Boolean(nextFeatured),
+        ...(nextDomains ? { domains: storedDomains({ domains: nextDomains }) } : {}),
+      };
     },
 
     // Author-or-admin visibility flip (add-facet-content-management): the
@@ -745,7 +823,7 @@ export function createPackRegistry({ file }) {
     // `category` filters the curation column; `author` (the viewer's own
     // email, enforced by the route) widens the unlisted clause so the creator
     // console sees their unpublished packs too.
-    list({ search = "", tag = "", category = "", author = "", page = 1, pageSize = 50, viewer = null, locale = "zh" } = {}) {
+    list({ search = "", tag = "", category = "", domain = "", author = "", page = 1, pageSize = 50, viewer = null, locale = "zh" } = {}) {
       const size = Math.min(Math.max(1, Number(pageSize) || 50), 100);
       const pageNum = Math.max(1, Number(page) || 1);
       // Locale track (add-pack-locale-tracks D2/D3): a non-zh request overlays
@@ -824,6 +902,14 @@ export function createPackRegistry({ file }) {
         where.push("p.author_email = ?");
         params.push(String(author));
       }
+      if (domain) {
+        // Domain filter (overhaul-market-catalog-presentation P1 2.4): the
+        // stored set is a JSON array on the pack row; a pack matches when any
+        // declared slug equals the selection. No derivation from `category`
+        // happens here — an undeclared pack simply never matches.
+        where.push("EXISTS (SELECT 1 FROM json_each(p.domains) je WHERE je.value = ?)");
+        params.push(String(domain));
+      }
       const whereSql = where.join(" AND ");
       const total = db.prepare(
         `SELECT COUNT(*) AS n FROM packs p JOIN pack_versions v
@@ -850,6 +936,53 @@ export function createPackRegistry({ file }) {
         page: pageNum,
         pageSize: size,
         packs: rows.map((r) => (wantLocale ? localizedSummary(r, r, displayLocale) : summaryOf(r, r))),
+      };
+    },
+
+    // Browse facets (overhaul-market-catalog-presentation P1 2.4): the DECLARED
+    // taxonomy plus per-value counts — never the set of strings that happened to
+    // appear in the current page of rows. Lines are always the full declared set
+    // in declared order (a zero-count line still renders: "this line has nothing
+    // listed yet" is information); domains list only the values with a non-zero
+    // count, in declared order (the vocabulary may be long — empty values are
+    // noise). Counts follow the anonymous browse face (public, listed packs).
+    facets({ locale = "zh" } = {}) {
+      const lines = lineSlugs().map((slug) => ({
+        slug,
+        word: lineWordOf(slug),
+        label: lineLabelOf(lineWordOf(slug), locale),
+        count: 0,
+      }));
+      const lineByWord = new Map(lines.map((l) => [l.word, l]));
+      const domains = domainVocabulary().map((d) => ({
+        slug: d.slug,
+        label: domainLabelOf(d.slug, locale),
+        count: 0,
+      }));
+      const domainBySlug = new Map(domains.map((d) => [d.slug, d]));
+      const rows = db
+        .prepare(
+          `SELECT p.category, p.domains, COUNT(*) AS n FROM packs p
+             JOIN pack_versions v ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
+            WHERE p.unlisted = 0 AND (p.visibility IS NULL OR p.visibility != 'private')
+            GROUP BY p.category, p.domains`,
+        )
+        .all();
+      for (const r of rows) {
+        const line = lineByWord.get(lineOf(r.category));
+        if (line) line.count += r.n;
+        for (const slug of storedDomains(r)) {
+          const d = domainBySlug.get(slug);
+          if (d) d.count += r.n;
+        }
+      }
+      return {
+        lines,
+        domains: domains.filter((d) => d.count > 0),
+        // The FULL vocabulary (browse renders only `domains`; the curation
+        // surface needs every selectable value — including zero-count ones —
+        // and must never fall back to free-text slugs).
+        vocabulary: domains.map((d) => ({ slug: d.slug, label: d.label })),
       };
     },
 
@@ -1470,11 +1603,14 @@ export function registerPackRoutes(app, {
   app.get("/api/packs", (req, res) => {
     const user = authRead(req);
     if (!user) return rejectUnauthenticated(req, res);
-    const { search = "", tag = "", category = "", author = "", page, pageSize } = req.query;
+    const { search = "", tag = "", category = "", domain = "", author = "", page, pageSize } = req.query;
     const payload = registry.list({
       search: String(search),
       tag: String(tag),
       category: String(category),
+      // Domain axis (P1): a vocabulary slug; an unknown value simply matches
+      // nothing (same honest-empty posture as any other filter).
+      domain: String(domain),
       // `author=me` is the creator console's own-packs listing; any other
       // value is coerced to the viewer's email — you can only ever list
       // your own authorship, and the route's identity is the only source.
@@ -1488,6 +1624,14 @@ export function registerPackRoutes(app, {
     });
     payload.packs = withOfficial(payload.packs);
     res.json(payload);
+  });
+
+  // Browse facets (overhaul-market-catalog-presentation P1 2.4): the declared
+  // taxonomy + per-value counts, anonymous-readable like the listing itself.
+  // Registered BEFORE /:id so the literal path wins over the id route.
+  app.get("/api/packs/facets", (req, res) => {
+    const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+    res.json(registry.facets({ locale }));
   });
 
   // Official showcase (add-official-pack-showcase): three segments aggregated
@@ -1519,22 +1663,40 @@ export function registerPackRoutes(app, {
   app.put("/api/packs/:id/curation", express.json({ limit: "4kb" }), (req, res) => {
     const user = auth(req, res);
     if (!user) return;
-    const { category, featured } = req.body ?? {};
+    const { category, featured, domains } = req.body ?? {};
     if (category !== undefined && (typeof category !== "string" || !/^[a-z0-9-]{0,32}$/.test(category))) {
       return res.status(400).json({ error: "category must be a slug of 0-32 chars [a-z0-9-]" });
     }
     if (featured !== undefined && typeof featured !== "boolean") {
       return res.status(400).json({ error: "featured must be a boolean" });
     }
+    // Domain set (overhaul-market-catalog-presentation P1 2.7): vocabulary
+    // slugs only — the curation surface offers a picker, never free text.
+    if (domains !== undefined) {
+      if (!Array.isArray(domains) || domains.some((d) => typeof d !== "string")) {
+        return res.status(400).json({ error: "domains must be an array of vocabulary slugs" });
+      }
+      const unknown = domains.filter((d) => !isDomainSlug(d));
+      if (unknown.length > 0) {
+        return res.status(400).json({ error: `unknown domain slug(s): ${unknown.join(", ")}` });
+      }
+      if (domains.length > 3) {
+        return res.status(400).json({ error: "at most 3 domains per pack" });
+      }
+    }
     const result = registry.setCuration({
       id: req.params.id,
       actor: { email: user.email, admin: isAdmin(user) },
       category,
       featured,
+      domains,
     });
     if (result.error === "not_found") return res.status(404).json({ error: "Pack not found" });
     if (result.error === "forbidden") {
-      return res.status(403).json({ error: "Only the pack author may set the category; only admins set featured" });
+      return res.status(403).json({ error: "Only the pack author may set the category or domains; only admins set featured" });
+    }
+    if (result.error === "invalid_domains") {
+      return res.status(400).json({ error: "domains must be at most 3 vocabulary slugs" });
     }
     res.json(result);
   });

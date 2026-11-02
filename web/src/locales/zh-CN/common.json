@@ -1775,6 +1775,8 @@
       "search": "搜索",
       "empty": "市场暂无智能体。",
       "staleLocale": "切换界面语言后内容更新失败，当前显示的仍是上一种语言；请重试或刷新页面。",
+      "domains": "领域",
+      "lineEmpty": "该线暂无上架内容。",
       "allCategories": "全部垂类",
       "featured": "精选",
       "facade": "分身",
@@ -3216,7 +3218,15 @@
     "categoryPlaceholder": "垂类 slug（如 legal）",
     "setCategory": "改垂类",
     "feature": "精选",
-    "unfeature": "取消精选"
+    "unfeature": "取消精选",
+      "allPacks": "全部",
+      "onlyUnclassified": "仅未归类",
+      "unclassified": "未归类",
+      "unclassifiedCount": "未归类 {{count}} / {{total}}",
+      "lineResolved": "归位：{{line}}",
+      "domainsLabel": "领域",
+      "saveDomains": "保存领域",
+      "vocabUnavailable": "词表不可用，暂不可选"
   },
   "facetMine": {
     "title": "我的智能体",

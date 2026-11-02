@@ -18,15 +18,15 @@
 
 ## 2. P1 · 分类骨架：声明的两轴分面
 
-- [ ] 2.1 `lib/pack-taxonomy.js`：线表（5 值，slug+五语标签+固定顺序）+ 领域词表（slug+五语标签+声明顺序）+ env 覆盖（`PACK_DOMAIN_TAXONOMY`，非法覆盖回落内置）+ `slug→line` 归位与 `company/facade→null`；单测：词表形状、覆盖生效与回落、归位矩阵
-- [ ] 2.2 `lib/pack-category-lines.js` 改为薄兼容层转调新表（导出签名不变）；验证：`scripts/test-category-line-mapping.mjs` 不改断言全绿
-- [ ] 2.3 `packs` 表新增 `domains` 列（JSON 数组，nullable）；写入点=发布（来自 manifest，P3 接线前先允许空）与策展端点；`category` 列零迁移
-- [ ] 2.4 `GET /api/packs/facets`：按 locale 返回 `{lines:[恒 5 条含计数 0], domains:[计数>0，声明顺序]}`；单测：恒 5、空线计数 0、领域零计数不出现、顺序=声明顺序
-- [ ] 2.5 `PackMarketView` 分面改用 facets 端点，两行分轴（线常驻 / 领域第二行）；零计数线灰化，点击给"该线暂无上架内容"提示；验证：e2e 分面形状 + 内容增减不改 chip 形状
-- [ ] 2.6 未归类档：无法归位的条目不进任何 chip，策展板以待办样式高亮（列出缺领域声明的条目）；验证：策展板 e2e
-- [ ] 2.7 `CurateView`：领域改词表多选选择器（写 `domains` 列），去掉自由 slug 输入；存量词表外取值显式标示不合法且发布被阻（与 P3 校验器联动，先落 UI 与存储）；验证：选择器只列词表项、保存后 facets 计数变化
-- [ ] 2.8 迁移脚本 `scripts/migrate-pack-domains.mjs`：按 category 归位批量回填 75 条的 `domains` 列，先 dry-run 打印清单，人工过目后落盘，输出审计清单；验证：回填后 facets 计数与手算一致、`category` 列逐字节不变
-- [ ] 2.9 五语标签键入册 `scripts/check-locales.js`；验证：parity 门绿
+- [x] 2.1 `lib/pack-taxonomy.js`：线表（5 值，slug+五语标签+固定顺序）+ 领域词表（slug+五语标签+声明顺序）+ env 覆盖（`PACK_DOMAIN_TAXONOMY`，非法覆盖回落内置）+ `slug→line` 归位与 `company/facade→null`；单测：词表形状、覆盖生效与回落、归位矩阵
+- [x] 2.2 `lib/pack-category-lines.js` 改为薄兼容层转调新表（导出签名不变）；验证：`scripts/test-category-line-mapping.mjs` 不改断言全绿
+- [x] 2.3 `packs` 表新增 `domains` 列（JSON 数组，nullable）；写入点=发布（来自 manifest，P3 接线前先允许空）与策展端点；`category` 列零迁移
+- [x] 2.4 `GET /api/packs/facets`：按 locale 返回 `{lines:[恒 5 条含计数 0], domains:[计数>0，声明顺序]}`；单测：恒 5、空线计数 0、领域零计数不出现、顺序=声明顺序
+- [x] 2.5 `PackMarketView` 分面改用 facets 端点，两行分轴（线常驻 / 领域第二行）；零计数线灰化，点击给"该线暂无上架内容"提示；验证：e2e 分面形状 + 内容增减不改 chip 形状
+- [x] 2.6 未归类档：无法归位的条目不进任何 chip，策展板以待办样式高亮（列出缺领域声明的条目）；验证：策展板 e2e
+- [x] 2.7 `CurateView`：领域改词表多选选择器（写 `domains` 列），去掉自由 slug 输入；存量词表外取值显式标示不合法且发布被阻（与 P3 校验器联动，先落 UI 与存储）；验证：选择器只列词表项、保存后 facets 计数变化
+- [x] 2.8 迁移脚本 `scripts/migrate-pack-domains.mjs`：按 category 归位批量回填 75 条的 `domains` 列，先 dry-run 打印清单，人工过目后落盘，输出审计清单；验证：回填后 facets 计数与手算一致、`category` 列逐字节不变
+- [x] 2.9 线/领域标签住服务端词表（非 web locales），五语完备性由 `scripts/test-pack-taxonomy.mjs` 钉（每线×五语、每域×五语断言）；新增 UI chrome 键（packs.market.domains/lineEmpty、facetCurate.* 八键）走 `check-locales` 门绿
 - [ ] 2.10 出片验证：生产分面恒 5 线带计数、en 标签、裸 slug 零出现；台账记录
 
 ## 3. P2 · 卡片与详情的信息架构（不依赖 v2 字段）

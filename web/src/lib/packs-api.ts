@@ -47,6 +47,9 @@ export interface PackSummary {
    *  stays the filter identity the server expands back to slugs. Absent on
    *  pre-upgrade servers → the view falls back to `line` verbatim. */
   lineLabel?: string;
+  /** Declared domain-axis slugs (overhaul-market-catalog-presentation P1). Present
+   *  only when the pack declares a set; an undeclared pack omits the key. */
+  domains?: string[];
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;
@@ -361,12 +364,22 @@ async function json(res: Response) {
 // ── Gateway (marketplace) ────────────────────────────────────────────────────
 
 export function listPacks(
-  params: { search?: string; tag?: string; category?: string; author?: "me"; page?: number; pageSize?: number } = {},
+  params: {
+    search?: string;
+    tag?: string;
+    category?: string;
+    /** Domain-axis slug (overhaul-market-catalog-presentation P1). */
+    domain?: string;
+    author?: "me";
+    page?: number;
+    pageSize?: number;
+  } = {},
 ) {
   const q = new URLSearchParams();
   if (params.search) q.set("search", params.search);
   if (params.tag) q.set("tag", params.tag);
   if (params.category) q.set("category", params.category);
+  if (params.domain) q.set("domain", params.domain);
   if (params.author) q.set("author", params.author);
   if (params.page) q.set("page", String(params.page));
   if (params.pageSize) q.set("pageSize", String(params.pageSize));
@@ -376,6 +389,22 @@ export function listPacks(
     pageSize: number;
     packs: PackSummary[];
   }>;
+}
+
+/** Browse facets (P1 2.4): the DECLARED taxonomy with per-value counts — the
+ *  facet chip set is never derived from whatever strings a page of rows carried.
+ *  Lines are always the full declared set in declared order (zero-count lines
+ *  included); domains list only non-zero values. */
+export interface PackFacets {
+  lines: { slug: string; word: string; label: string; count: number }[];
+  domains: { slug: string; label: string; count: number }[];
+  /** The full selectable vocabulary (including zero-count values) — the
+   *  curation surface's picker source. Browse renders `domains` only. */
+  vocabulary?: { slug: string; label: string }[];
+}
+
+export function getPackFacets() {
+  return fetch(`/api/packs/facets${localeQuery()}`).then(json) as Promise<PackFacets>;
 }
 
 export function getPack(id: string) {
@@ -561,7 +590,7 @@ export function setPackVisibility(id: string, visibility: "public" | "private") 
   }).then(json);
 }
 
-export function setPackCuration(id: string, body: { category?: string; featured?: boolean }) {
+export function setPackCuration(id: string, body: { category?: string; featured?: boolean; domains?: string[] }) {
   return fetch(`/api/packs/${encodeURIComponent(id)}/curation`, {
     method: "PUT",
     headers: { "content-type": "application/json" },

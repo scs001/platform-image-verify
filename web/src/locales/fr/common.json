@@ -1775,6 +1775,8 @@
       "search": "Rechercher",
       "empty": "Aucun agent sur le marché pour l'instant.",
       "staleLocale": "Impossible d'actualiser cette vue dans la nouvelle langue — le contenu est encore dans la langue précédente. Réessayez ou rechargez.",
+      "domains": "Domaines",
+      "lineEmpty": "Rien de publié sur cette ligne pour l'instant.",
       "allCategories": "Toutes",
       "featured": "En vedette",
       "facade": "Avatar IA",
@@ -3216,7 +3218,15 @@
     "categoryPlaceholder": "slug de catégorie (ex. legal)",
     "setCategory": "Définir la catégorie",
     "feature": "Mettre en avant",
-    "unfeature": "Retirer la mise en avant"
+    "unfeature": "Retirer la mise en avant",
+      "allPacks": "Tous",
+      "onlyUnclassified": "Uniquement non classés",
+      "unclassified": "Non classé",
+      "unclassifiedCount": "Non classés {{count}} / {{total}}",
+      "lineResolved": "Ligne : {{line}}",
+      "domainsLabel": "Domaines",
+      "saveDomains": "Enregistrer les domaines",
+      "vocabUnavailable": "Vocabulaire indisponible"
   },
   "facetMine": {
     "title": "Mes agents",

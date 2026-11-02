@@ -21,6 +21,14 @@ export function CurateView() {
   const [usageError, setUsageError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Domain axis (overhaul-market-catalog-presentation P1 2.7): the picker's
+  // source is the DECLARED vocabulary from the facets endpoint (zero-count
+  // values included) — never free text. Per-row drafts hold a slug set.
+  const [vocabulary, setVocabulary] = useState<{ slug: string; label: string }[]>([]);
+  const [domainDrafts, setDomainDrafts] = useState<Record<string, string[]>>({});
+  // Unclassified to-do (P1 2.6): packs with no domain declaration are the
+  // curation backlog; the board can be narrowed to just those.
+  const [onlyUnclassified, setOnlyUnclassified] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -39,9 +47,13 @@ export function CurateView() {
       .getPackUsageBoard()
       .then((r) => setUsage(r.rows))
       .catch((e: Error) => setUsageError(e.message));
+    api
+      .getPackFacets()
+      .then((f) => setVocabulary(f.vocabulary ?? []))
+      .catch(() => setVocabulary([])); // picker degrades to unavailable, never to free text
   }, [refresh]);
 
-  const save = async (pack: PackSummary, body: { category?: string; featured?: boolean }) => {
+  const save = async (pack: PackSummary, body: { category?: string; featured?: boolean; domains?: string[] }) => {
     try {
       await api.setPackCuration(pack.id, body);
       setNotice(t("facetCurate.saved", { name: pack.name }));
@@ -52,6 +64,21 @@ export function CurateView() {
   };
 
   const usageOf = (id: string) => usage?.find((r) => r.packId === id) ?? null;
+
+  const domainsOf = (p: PackSummary) => domainDrafts[p.id] ?? p.domains ?? [];
+  const toggleDomain = (p: PackSummary, slug: string) => {
+    const current = domainsOf(p);
+    // Cap at the contract's 3 (mirrors the server's DOMAIN_MAX); picking an
+    // active chip removes it.
+    const next = current.includes(slug)
+      ? current.filter((d) => d !== slug)
+      : current.length >= 3
+        ? current
+        : [...current, slug];
+    setDomainDrafts((d) => ({ ...d, [p.id]: next }));
+  };
+  const unclassified = (p: PackSummary) => (p.domains ?? []).length === 0;
+  const visible = onlyUnclassified && packs ? packs.filter(unclassified) : packs;
 
   if (!packs) return <BoardSkeleton />;
   if (loadError)
@@ -89,13 +116,48 @@ export function CurateView() {
         </p>
       )}
 
+      {packs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="facet-curate-filters">
+          <button
+            onClick={() => setOnlyUnclassified(false)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+              !onlyUnclassified ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("facetCurate.allPacks")}
+          </button>
+          <button
+            onClick={() => setOnlyUnclassified(true)}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+              onlyUnclassified ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid="facet-curate-only-unclassified"
+          >
+            {t("facetCurate.onlyUnclassified")}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {t("facetCurate.unclassifiedCount", { count: packs.filter(unclassified).length, total: packs.length })}
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-3">
-        {packs.map((p) => {
+        {(visible ?? []).map((p) => {
           const u = usageOf(p.id);
           return (
             <div key={p.id} data-testid={`facet-curate-row-${p.id}`} className="border border-border rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="font-medium text-foreground">{p.name}</span>
+                <span className="font-medium text-foreground flex items-center gap-1.5">
+                  {p.name}
+                  {unclassified(p) && (
+                    <span
+                      className="rounded-full border border-amber-600/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400"
+                      data-testid={`facet-curate-unclassified-${p.id}`}
+                    >
+                      {t("facetCurate.unclassified")}
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs text-muted-foreground">
                   v{p.version} · {p.authorEmail}
                   {p.unlisted ? ` · ${t("facetCurate.unlisted")}` : ""}
@@ -114,6 +176,13 @@ export function CurateView() {
                 <Button variant="outline" size="sm" onClick={() => void save(p, { category: (drafts[p.id] ?? p.category ?? "").trim() })}>
                   {t("facetCurate.setCategory")}
                 </Button>
+                {/* The resolved line (read-only): what the browse strip will
+                    actually group this slug under. */}
+                {p.line ? (
+                  <span className="text-xs text-muted-foreground" data-testid={`facet-curate-line-${p.id}`}>
+                    {t("facetCurate.lineResolved", { line: p.lineLabel ?? p.line })}
+                  </span>
+                ) : null}
                 <Button
                   variant={p.featured ? "default" : "outline"}
                   size="sm"
@@ -121,6 +190,40 @@ export function CurateView() {
                   data-testid={`facet-curate-featured-${p.id}`}
                 >
                   {p.featured ? t("facetCurate.unfeature") : t("facetCurate.feature")}
+                </Button>
+              </div>
+              {/* Domain picker (P1 2.7): vocabulary only — no free-text slug
+                  input exists on this board. */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">{t("facetCurate.domainsLabel")}</span>
+                {vocabulary.length === 0 && (
+                  <span className="text-xs text-amber-600" data-testid={`facet-curate-vocab-missing-${p.id}`}>
+                    {t("facetCurate.vocabUnavailable")}
+                  </span>
+                )}
+                {vocabulary.map((v) => {
+                  const active = domainsOf(p).includes(v.slug);
+                  return (
+                    <button
+                      key={v.slug}
+                      onClick={() => toggleDomain(p, v.slug)}
+                      data-testid={`facet-curate-domain-${p.id}-${v.slug}`}
+                      className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                        active ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={vocabulary.length === 0 || (domainDrafts[p.id] === undefined)}
+                  onClick={() => void save(p, { domains: domainsOf(p) })}
+                  data-testid={`facet-curate-save-domains-${p.id}`}
+                >
+                  {t("facetCurate.saveDomains")}
                 </Button>
               </div>
             </div>

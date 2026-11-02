@@ -406,3 +406,97 @@ test("market refetches when the locale switches, list and open dialog alike", as
 
   expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
 });
+
+// Declared facets (overhaul-market-catalog-presentation P1): the chip strip is
+// the server's DECLARED taxonomy with counts — five line chips always, zero
+// counts included, and a second row for the non-zero domain values. The strip
+// never reshapes as content moves; a zero-count line stays and says so.
+test("facet strip is the declared taxonomy: five lines with counts plus a domain row", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/packs`);
+  const strip = page.getByTestId("pack-facets");
+  await expect(strip).toBeVisible();
+
+  // Axis 1: exactly the five declared lines, each carrying its count.
+  const lineChips = strip.locator("[data-line-count]");
+  await expect(lineChips).toHaveCount(5);
+  await expect(strip).toContainText("柏讯 · 数据与情报");
+  // The seeded pack sits on the wire line; every other line is zero-count but
+  // still rendered (spatial memory, not a live projection of the rows).
+  const zeroChips = strip.locator('[data-line-count="0"]');
+  await expect(zeroChips).toHaveCount(4);
+
+  // Clicking an empty line says so in its own words.
+  await zeroChips.first().click();
+  await expect(page.getByTestId("pack-market-empty")).toContainText("该线暂无上架内容");
+
+  // Back to all; axis 2 shows the declared domain with its count.
+  await page.getByRole("button", { name: "全部垂类" }).click();
+  const domains = page.getByTestId("pack-domain-chips");
+  await expect(domains).toBeVisible();
+  await expect(domains).toContainText("投研");
+
+  // Filtering by domain keeps the pack (it declares investing).
+  await domains.getByRole("button", { name: /投研/ }).click();
+  await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(1);
+
+  // Labels follow the request locale; the strip's SHAPE does not move.
+  await page.getByTestId("facet-locale-switcher").selectOption("en");
+  await expect(page.getByTestId("pack-facets").locator("[data-line-count]")).toHaveCount(5);
+  await expect(page.getByTestId("pack-domain-chips")).toContainText("Investing");
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});
+
+// Curation board's domain picker (P1 2.7): vocabulary chips only, and an
+// unclassified pack is the visible backlog until a domain is picked.
+test("curation board picks domains from the vocabulary and clears the unclassified flag", async ({ page, request }) => {
+  const creator = forwarded("creator-domains@e2e.local", ["creators"]);
+  const manifest = {
+    name: "领域策展冒烟",
+    description: "domain picker sentinel",
+    tags: ["shell-smoke"],
+    category: "legal",
+    // A pack must carry at least one capability to be publishable.
+    skills: [{ name: "domain-smoke", description: "d", content: "# x" }],
+    mcpServers: [],
+    agents: [],
+  };
+  const pub = await request.post(`${base}/api/packs`, { headers: creator, data: { manifest } });
+  expect(pub.ok()).toBeTruthy();
+  const { id } = await pub.json();
+
+  await page.route("**/api/whoami", (route) =>
+    route.fulfill({ json: { email: "creator-domains@e2e.local", groups: ["creators", "admin"], creator: true, admin: true } }),
+  );
+  // The board's list is admin-scoped; publish was forwarded identity, so the
+  // admin view reaches it through the same internal token.
+  await page.route(/\/api\/packs\?/, (route) =>
+    route.continue({ headers: { ...route.request().headers(), ...creator } }),
+  );
+  // The board's WRITE goes to the same identity-gated route: without the
+  // forwarded creator headers the browser (anonymous) would 403 and the badge
+  // would stay — the harness must carry the identity on the PUT too.
+  await page.route(/\/api\/packs\/[^/]+\/curation$/, (route) =>
+    route.continue({ headers: { ...route.request().headers(), ...creator } }),
+  );
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/curate`);
+  const row = page.getByTestId(`facet-curate-row-${id}`);
+  await expect(row).toBeVisible();
+  await expect(page.getByTestId(`facet-curate-unclassified-${id}`)).toBeVisible();
+
+  // No free-text domain input exists: the picker renders vocabulary chips.
+  await expect(row.locator("input")).toHaveCount(1); // only the legacy category input
+  await row.getByTestId(`facet-curate-domain-${id}-legal`).click();
+  await page.getByTestId(`facet-curate-save-domains-${id}`).click();
+  await expect(page.getByTestId(`facet-curate-unclassified-${id}`)).toHaveCount(0);
+  // The write is visible on the read face's facet counts.
+  const facets = await request.get(`${base}/api/packs/facets?locale=zh`, { headers: creator });
+  const body = await facets.json();
+  expect(body.domains.some((d) => d.slug === "legal" && d.count >= 1)).toBeTruthy();
+});

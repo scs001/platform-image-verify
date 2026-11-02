@@ -77,8 +77,10 @@ for (;;) {
 const db = new Database(path.join(dataRoot, "packs.db"));
 const now = Date.now();
 db.prepare(
-  `INSERT INTO packs (id, author_email, created_at, unlisted, visibility, category) VALUES (?, ?, ?, 0, 'public', ?)`,
-).run("facet-shell-smoke", "smoke@e2e.local", now, "wire");
+  `INSERT INTO packs (id, author_email, created_at, unlisted, visibility, category, domains) VALUES (?, ?, ?, 0, 'public', ?, ?)`,
+  // domains (overhaul-market-catalog-presentation P1): a declared domain set so
+  // the shell spec can drive the two-row facet strip (line axis + domain axis).
+).run("facet-shell-smoke", "smoke@e2e.local", now, "wire", JSON.stringify(["investing"]));
 db.prepare(
   `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
    VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,

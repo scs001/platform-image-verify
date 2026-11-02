@@ -1775,6 +1775,8 @@
       "search": "Buscar",
       "empty": "Aún no hay agentes en el mercado.",
       "staleLocale": "No se pudo actualizar esta vista en el nuevo idioma; el contenido todavía está en el idioma anterior. Reintenta o recarga.",
+      "domains": "Áreas",
+      "lineEmpty": "Todavía no hay nada publicado en esta línea.",
       "allCategories": "Todas",
       "featured": "Destacados",
       "facade": "Avatar de IA",
@@ -3216,7 +3218,15 @@
     "categoryPlaceholder": "slug de categoría (p. ej. legal)",
     "setCategory": "Definir categoría",
     "feature": "Destacar",
-    "unfeature": "Quitar destacado"
+    "unfeature": "Quitar destacado",
+      "allPacks": "Todos",
+      "onlyUnclassified": "Solo sin clasificar",
+      "unclassified": "Sin clasificar",
+      "unclassifiedCount": "Sin clasificar {{count}} / {{total}}",
+      "lineResolved": "Línea: {{line}}",
+      "domainsLabel": "Áreas",
+      "saveDomains": "Guardar áreas",
+      "vocabUnavailable": "Vocabulario no disponible"
   },
   "facetMine": {
     "title": "Mis agentes",

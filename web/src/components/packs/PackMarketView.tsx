@@ -87,11 +87,14 @@ export function PackMarketView({
   // only when curation data exists — an uncatalogued market looks exactly
   // as before.
   const [category, setCategory] = useState("");
-  const [categories, setCategories] = useState<string[]>([]);
-  // Chip labels ride the server's locale projection (P0 1.5): the chip SET is
-  // the canonical line word (the filter identity the server expands back to
-  // slugs); the LABEL is whatever the read face projected for the request.
-  const [lineLabels, setLineLabels] = useState<Record<string, string>>({});
+  // Facets (overhaul-market-catalog-presentation P1 2.5): the chip set is the
+  // server's DECLARED taxonomy + counts, never the set of strings a page of
+  // rows happened to carry. Two orthogonal rows: lines (always the full
+  // declared set, zero-count included → the tab strip never reshapes as
+  // content moves) and domains (non-zero values only, declared order).
+  const [facets, setFacets] = useState<api.PackFacets | null>(null);
+  // Domain-axis selection (a vocabulary slug, not a label).
+  const [domain, setDomain] = useState("");
   // Non-blocking stale-locale hint (P0 1.4): a failed silent refetch keeps
   // the old rows and says so, instead of swallowing the error.
   const [localeStale, setLocaleStale] = useState(false);
@@ -150,7 +153,7 @@ export function PackMarketView({
   );
 
   const refresh = useCallback(
-    async (q: string, cat = category, opts: { silent?: boolean } = {}) => {
+    async (q: string, cat = category, dom = domain, opts: { silent?: boolean } = {}) => {
       // Silent mode (overhaul-market-catalog-presentation P0): a locale-change
       // refetch keeps the already-rendered cards visible until the new data
       // lands — no skeleton flash — and a failure keeps the old rows with a
@@ -160,7 +163,11 @@ export function PackMarketView({
         setError(null);
       }
       try {
-        const r = await api.listPacks({ ...(q ? { search: q } : {}), ...(cat ? { category: cat } : {}) });
+        const r = await api.listPacks({
+          ...(q ? { search: q } : {}),
+          ...(cat ? { category: cat } : {}),
+          ...(dom ? { domain: dom } : {}),
+        });
         setPacks(r.packs);
         setLocaleStale(false);
       } catch (err) {
@@ -170,7 +177,7 @@ export function PackMarketView({
         if (!opts.silent) setLoading(false);
       }
     },
-    [category],
+    [category, domain],
   );
 
   useEffect(() => {
@@ -195,36 +202,24 @@ export function PackMarketView({
   useEffect(() => {
     if (prevLanguage.current === language) return;
     prevLanguage.current = language;
-    void refreshRef.current(searchRef.current, undefined, { silent: true });
+    void refreshRef.current(searchRef.current, undefined, undefined, { silent: true });
   }, [language]);
 
-  // Chip set from the live catalog (v1 volumes: one page is the catalog).
-  // add-legacy-pack-rebrand 2.x: the facet shows归位 LINE words (server's `line`),
-  // never the raw category slugs — clicking a line sends it as the category filter
-  // and the server expands it back to the slugs it stands for. company→no line
-  // (the facade badge carries those); unmapped slugs pass through as themselves.
-  // Re-runs on language change (P0): the set is the canonical word (stable
-  // filter identity), the labels follow the request's locale projection.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `language` is the TRIGGER, not an input — withLocale() reads i18n.language inside listPacks, so the refetch cannot be expressed through the body
+  // Facets from the declared taxonomy (P1 2.5). Re-runs on language change so
+  // the labels follow the request; the SET and its order never move.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `language` is the TRIGGER, not an input — getPackFacets stamps the current i18n.language itself
   useEffect(() => {
     let live = true;
-    // withLocale() stamps the CURRENT i18n.language onto the request; this
-    // effect re-runs after languageChanged, so the refetch carries the new
-    // locale without the caller passing it explicitly.
     api
-      .listPacks({ pageSize: 100 })
-      .then((r) => {
-        if (!live) return;
-        const seen = new Map<string, string>();
-        for (const p of r.packs) {
-          const line = (p.line === undefined ? p.category : p.line) || "";
-          if (!line || seen.has(line)) continue;
-          seen.set(line, p.lineLabel ?? line);
-        }
-        setCategories([...seen.keys()].sort());
-        setLineLabels(Object.fromEntries(seen));
+      .getPackFacets()
+      .then((f) => {
+        if (live) setFacets(f);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Facets are a browse aid: an unreachable endpoint leaves the chip
+        // rows empty rather than breaking the market itself.
+        if (live) setFacets(null);
+      });
     return () => {
       live = false;
     };
@@ -301,47 +296,84 @@ export function PackMarketView({
         </select>
       </div>
 
-      {(categories.length > 0 || hasOfficialRows) && (
-        <div className="flex flex-wrap gap-1.5 mb-3" data-testid="pack-category-chips">
-          {hasOfficialRows && (
+      {(facets || hasOfficialRows) && (
+        <div className="space-y-1.5 mb-3" data-testid="pack-facets">
+          {/* Axis 1 · lines — always the full declared set, declared order, with
+              counts. A zero-count line stays put and greys out: the strip is
+              spatial memory, not a live projection of the current rows. */}
+          <div className="flex flex-wrap gap-1.5" data-testid="pack-category-chips">
+            {hasOfficialRows && (
+              <button
+                onClick={() => setOfficialFilter(!officialOnly)}
+                className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  officialOnly ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid="pack-official-chip"
+              >
+                {t("packs.market.official")}
+              </button>
+            )}
             <button
-              onClick={() => setOfficialFilter(!officialOnly)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                officialOnly ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="pack-official-chip"
-            >
-              {t("packs.market.official")}
-            </button>
-          )}
-          <button
-            onClick={() => {
-              setCategory("");
-              void refresh(search, "");
-            }}
-            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-              category === "" ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("packs.market.allCategories")}
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c}
               onClick={() => {
-                setCategory(c);
-                void refresh(search, c);
+                setCategory("");
+                setDomain("");
+                void refresh(search, "", "");
               }}
               className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                category === c ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                category === "" && domain === "" ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {/* The server-projected label (P0 1.5): rendered verbatim, no
-                  client-side remapping — the value sent back stays the
-                  canonical line word. */}
-              {lineLabels[c] ?? c}
+              {t("packs.market.allCategories")}
             </button>
-          ))}
+            {(facets?.lines ?? []).map((line) => {
+              const empty = line.count === 0;
+              const active = category === line.word;
+              return (
+                <button
+                  key={line.slug}
+                  onClick={() => {
+                    setCategory(line.word);
+                    setDomain("");
+                    void refresh(search, line.word, "");
+                  }}
+                  data-line-count={line.count}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                    active
+                      ? "border-primary text-primary"
+                      : empty
+                        ? "border-border/60 text-muted-foreground/50 hover:text-muted-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {line.label}
+                  <span className="ml-1 font-mono text-[10px] opacity-60">{line.count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Axis 2 · domains — non-zero values only, declared order. Rendered
+              only when the vocabulary has at least one listed value. */}
+          {(facets?.domains.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" data-testid="pack-domain-chips">
+              <span className="text-xs text-muted-foreground">{t("packs.market.domains")}</span>
+              {facets?.domains.map((d) => (
+                <button
+                  key={d.slug}
+                  onClick={() => {
+                    const next = domain === d.slug ? "" : d.slug;
+                    setDomain(next);
+                    void refresh(search, category, next);
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                    domain === d.slug ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {d.label}
+                  <span className="ml-1 font-mono text-[10px] opacity-60">{d.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {localeStale && (
@@ -392,7 +424,11 @@ export function PackMarketView({
         </div>
       )}
       {!loading && !error && visiblePacks.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("packs.market.empty")}</p>
+        <p className="text-sm text-muted-foreground" data-testid="pack-market-empty">
+          {/* A selected line with nothing listed says so in its own words — the
+              generic "market is empty" would misdescribe a healthy catalog. */}
+          {category && !search ? t("packs.market.lineEmpty") : t("packs.market.empty")}
+        </p>
       )}
 
       <div className="grid gap-3">

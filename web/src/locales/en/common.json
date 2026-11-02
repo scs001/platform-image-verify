@@ -1775,6 +1775,8 @@
       "search": "Search",
       "empty": "No agents in the market yet.",
       "staleLocale": "Couldn't refresh this view in the new language — the content below is still in the previous language. Retry or reload.",
+      "domains": "Domains",
+      "lineEmpty": "Nothing listed on this line yet.",
       "allCategories": "All",
       "featured": "Featured",
       "facade": "AI Twin",
@@ -3216,7 +3218,15 @@
     "categoryPlaceholder": "category slug (e.g. legal)",
     "setCategory": "Set category",
     "feature": "Feature",
-    "unfeature": "Unfeature"
+    "unfeature": "Unfeature",
+      "allPacks": "All",
+      "onlyUnclassified": "Unclassified only",
+      "unclassified": "Unclassified",
+      "unclassifiedCount": "Unclassified {{count}} / {{total}}",
+      "lineResolved": "Line: {{line}}",
+      "domainsLabel": "Domains",
+      "saveDomains": "Save domains",
+      "vocabUnavailable": "Vocabulary unavailable"
   },
   "facetMine": {
     "title": "My agents",

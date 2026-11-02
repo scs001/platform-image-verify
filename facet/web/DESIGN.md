@@ -6,11 +6,12 @@
 
 - 正文/说明/提示一律语义阶：`text-xs`(12px) 起步——12px 是可读下限，禁止任何 prose 低于它。
 - 徽标/标题按语义阶上行：`text-sm` / `text-base` / `text-lg`。
-- **微标白名单**：非 prose 的 mono 单行标签（工具名 chip、版本号、A2A/billing 徽章、天梯数字）允许 `text-[10px] font-mono`。当前清单：
+- **微标白名单**：非 prose 的 mono 单行标签（工具名 chip、版本号、A2A/billing 徽章、天梯数字、分轴计数）允许 `text-[10px] font-mono`。当前清单：
   - `PackDetailDialog`：工具 chip（614）、文件列表（464）、A2A/keyBound 徽章（603/704）、版本 current 徽章
   - `PackDraftsView`：工具选择 chip（624）
   - `PackVersionList`：current 徽章
   - `LineLadder`：中文数字 chip
+  - `PackMarketView`：线/领域 chip 计数（overhaul-market-catalog-presentation P1）
 - 例外：`SiteMark` 的 `text-[10/12/14px]` 是印章字尺寸（facet-platform spec 明文），非正文。
 - 新增微标须登记在此清单；不新增第二个任意值。
 

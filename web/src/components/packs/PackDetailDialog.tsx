@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/states-kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
 import { AgentSpecSheet } from "./AgentSpecSheet";
@@ -379,6 +380,15 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
           ✕
         </button>
         <div className="flex-1 overflow-y-auto p-6">
+        {!pack && !error && (
+          <div className="space-y-3" data-testid="pack-detail-loading">
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        )}
         <DialogHeader>
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
@@ -388,7 +398,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               </span>
             )}
             {pack?.visibility === "private" && (
-              <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 align-middle">
+              <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-status-waiting/50 bg-status-waiting/10 px-1.5 py-0.5 text-xs text-status-waiting align-middle">
                 {t("packs.detail.private")}
               </span>
             )}
@@ -728,7 +738,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   {t("packs.detail.deploySummary")}
                 </p>
                 {billing?.linked && billing.accountState === "none" && (
-                  <div className="text-xs mb-2 rounded-md px-2 py-2 bg-amber-500/10 text-amber-700" data-testid="pack-billing-no-account">
+                  <div className="text-xs mb-2 rounded-md px-2 py-2 bg-status-waiting/10 text-status-waiting" data-testid="pack-billing-no-account">
                     <p>{t("packs.detail.noAccountHintNew")}</p>
                     <p className="mt-1 text-muted-foreground">{t("packs.detail.noAccountHintExisting")}</p>
                     <Button
@@ -745,7 +755,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 {billing?.linked && billing.accountState === "ok" && (
                   <div
                     data-testid="pack-billing-readout"
-                    className={`text-xs mb-2 rounded-md px-2 py-1 ${billing.balance != null && billing.balance <= 1 ? "bg-amber-500/10 text-amber-700" : "text-muted-foreground"}`}
+                    className={`text-xs mb-2 rounded-md px-2 py-1 ${billing.balance != null && billing.balance <= 1 ? "bg-status-waiting/10 text-status-waiting" : "text-muted-foreground"}`}
                   >
                     {billing.balance != null
                       ? t("packs.detail.balance", { balance: billing.balance.toFixed(2) })
@@ -843,7 +853,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       data-testid={`pack-deploy-budget-${a.id}`}
                     />
                     {(budgetDrafts[a.id] ?? "").trim().length > 0 && !budgetDraftValid((budgetDrafts[a.id] ?? "").trim()) && (
-                      <p className="text-xs text-amber-600" data-testid={`pack-deploy-budget-invalid-${a.id}`}>
+                      <p className="text-xs text-status-waiting" data-testid={`pack-deploy-budget-invalid-${a.id}`}>
                         {t("packs.detail.budgetInvalid")}
                       </p>
                     )}
@@ -855,7 +865,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       <li key={d.agentId} className="flex items-center gap-2 text-xs" data-testid="pack-deployment-row">
                         <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono">{d.agentId}</span>
                         <span className="text-muted-foreground">v{d.version}</span>
-                        <span className={d.paused ? "text-amber-600" : "text-primary"} data-testid={`pack-deployment-state-${d.agentId}`}>
+                        <span className={d.paused ? "text-status-waiting" : "text-primary"} data-testid={`pack-deployment-state-${d.agentId}`}>
                           {d.paused ? t("packs.detail.paused") : t("packs.detail.deployOnline")}
                         </span>
                         <Button
@@ -991,7 +1001,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   <span className="font-mono text-xs text-foreground">{b.name}</span>
                   <ul className="ml-4 list-disc">
                     {b.scriptFiles.map((f) => (
-                      <li key={f} className="text-xs text-amber-700 dark:text-amber-400">{f}</li>
+                      <li key={f} className="text-xs text-status-waiting">{f}</li>
                     ))}
                   </ul>
                 </li>

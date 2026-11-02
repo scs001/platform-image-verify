@@ -19,9 +19,10 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuthStore } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-// Focusable descendants, for the focus trap.
-const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+// Focusable descendants, for the focus trap — the SHARED contract from
+// ui/dialog (the trap itself stays bespoke: it yields to nested dialogs and
+// focuses the active section, neither of which ui/dialog does).
+import { FOCUSABLE_SELECTOR as FOCUSABLE } from "@/components/ui/dialog";
 
 export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
   const { t } = useTranslation();

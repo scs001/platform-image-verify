@@ -19,6 +19,8 @@
 // instead of surfacing an error.
 
 import { useCallback, useEffect, useState } from "react";
+import { showToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import {
   asOfMoment,
@@ -32,7 +34,6 @@ import {
   type RefreshObservation,
   type Resource,
 } from "@platform/core";
-import { showToast } from "@/components/Toast";
 
 type SeriesBinding = ChartBindingView & { seriesIndex: number };
 
@@ -111,6 +112,7 @@ export function ChartBindingBar({
 }) {
   const { t } = useTranslation();
   const age = useAgeLabel();
+  const [unbindOpen, setUnbindOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -139,20 +141,19 @@ export function ChartBindingBar({
       }
       onChanged();
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     } finally {
       setBusy(false);
     }
   };
 
   const doUnbind = async () => {
-    if (!window.confirm(t("resources.binding.unbindConfirm"))) return;
     setBusy(true);
     try {
       await detachBinding(resource.id, binding.id);
       onChanged();
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     } finally {
       setBusy(false);
     }
@@ -209,12 +210,25 @@ export function ChartBindingBar({
           <button
             type="button"
             className="rounded-md border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-50"
-            onClick={() => void doUnbind()}
+            onClick={() => setUnbindOpen(true)}
             disabled={busy}
             data-testid="binding-unbind"
           >
             {t("resources.binding.unbind")}
           </button>
+          <ConfirmDialog
+            open={unbindOpen}
+            onOpenChange={setUnbindOpen}
+            title={t("resources.binding.unbind")}
+            description={t("resources.binding.unbindConfirm")}
+            confirmLabel={t("resources.binding.unbind")}
+            cancelLabel={t("common.cancel")}
+            variant="danger"
+            onConfirm={() => {
+              void doUnbind();
+              showToast({ severity: "success", title: t("resources.binding.unbind") });
+            }}
+          />
         </span>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -291,7 +305,7 @@ export function ChartBindPicker({ resource, onChanged }: { resource: Resource; o
       setCandidates(null);
       onChanged();
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     } finally {
       setBusy(false);
     }

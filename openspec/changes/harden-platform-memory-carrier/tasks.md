@@ -1,17 +1,17 @@
 ## 1. 计量叶与读面
 
-- [ ] 1.1 `lib/proc-memory.js` 零依赖叶：/proc 扫描（statm RSS + cmdline 归属）→ cellId 归组（cmdline 携带 `/data/cells/<id>/` 前缀）→ 四角色桶（cell-server/dsh-runtime/mcp-satellite/gateway）；cgroup v2 优先（memory.current/memory.max）v1 回落；macOS/无路径环境如实返回 `{available:false}`；秒级 TTL 缓存；验证：单测——Linux 伪 /proc 夹具三桶归组各一例 + 未归组余量透出 + 缓存窗口单次扫描 + 非Linux 降级标记
-- [ ] 1.2 `/api/monitoring/memory` 读面：三层响应（container used/limit/headroomPct → cells[]（totalMB+processes[]）→ gateway 桶 + 未归组余量 + sampledAt）；闸判定取 cgroup usage（D3），RSS 仅分布展示；验证：单测响应形状 + 生产真机 curl 眼见三层同框（对照 /proc 手算一例）
+- [x] 1.1 `lib/proc-memory.js` 零依赖叶：/proc 扫描（statm RSS + cmdline 归属）→ cellId 归组（cmdline 携带 `/data/cells/<id>/` 前缀）→ 四角色桶（cell-server/dsh-runtime/mcp-satellite/gateway）；cgroup v2 优先（memory.current/memory.max）v1 回落；macOS/无路径环境如实返回 `{available:false}`；秒级 TTL 缓存；验证：单测——Linux 伪 /proc 夹具三桶归组各一例 + 未归组余量透出 + 缓存窗口单次扫描 + 非Linux 降级标记
+- [x] 1.2 `/api/monitoring/memory` 读面：三层响应（container used/limit/headroomPct → cells[]（totalMB+processes[]）→ gateway 桶 + 未归组余量 + sampledAt）；闸判定取 cgroup usage（D3），RSS 仅分布展示；验证：单测响应形状 + 生产真机 curl 眼见三层同框（对照 /proc 手算一例）
 
 ## 2. 驻留内存闸
 
-- [ ] 2.1 gateway spawn 前置闸：headroom 低于 `CELL_MEMORY_ADMISSION_FLOOR`（缺省 0.15）拒绝驻留，拒绝原因（用量/limit/余量/阈值）沿 lifecycle registry 既有决策记录通道落证据；验证：单测三态（余量足放行=行为零变化 / 低于阈值拒绝且原因四元组齐 / env=0 全放行）
-- [ ] 2.2 park-resume 前置同闸 + fail-open：计量不可用（available:false 或读值异常）时放行 + warn 告警，闸不阻断业务；验证：单测 fail-open 两例（无 /proc 环境、cgroup 值畸形）+ 已驻留 cell 不被驱逐断言
-- [ ] 2.3 headroom 恢复重试语义：被拒后恢复到阈值上的下一次请求正常驻留（无粘性拒绝）；验证：单测拒绝→恢复→放行序列
+- [x] 2.1 gateway spawn 前置闸：headroom 低于 `CELL_MEMORY_ADMISSION_FLOOR`（缺省 0.15）拒绝驻留，拒绝原因（用量/limit/余量/阈值）沿 lifecycle registry 既有决策记录通道落证据；验证：单测三态（余量足放行=行为零变化 / 低于阈值拒绝且原因四元组齐 / env=0 全放行）
+- [x] 2.2 park-resume 前置同闸 + fail-open：计量不可用（available:false 或读值异常）时放行 + warn 告警，闸不阻断业务；验证：单测 fail-open 两例（无 /proc 环境、cgroup 值畸形）+ 已驻留 cell 不被驱逐断言
+- [x] 2.3 headroom 恢复重试语义：被拒后恢复到阈值上的下一次请求正常驻留（无粘性拒绝）；验证：单测拒绝→恢复→放行序列
 
 ## 3. 运维坞渲染
 
-- [ ] 3.1 驾驶舱运维环内存水位卡：水位（cgroup usage/limit 比例）+ per-cell 分布摘要（RSS 降序）+ 低余量琥珀提示（复用既有琥珀组件与轮询）；验证：组件测试三态（正常无警示/低余量琥珀含四元组原因/计量不可用显示不可用标记）+ Playwright 一腿
+- [x] 3.1 驾驶舱运维环内存水位卡：水位（cgroup usage/limit 比例）+ per-cell 分布摘要（RSS 降序）+ 低余量琥珀提示（复用既有琥珀组件与轮询）；验证：组件测试三态（正常无警示/低余量琥珀含四元组原因/计量不可用显示不可用标记）+ Playwright 一腿（e2e/fleet-memory-card.spec.js 四态含路由缺席，4/4 过）
 
 ## 4. 出片与走查
 

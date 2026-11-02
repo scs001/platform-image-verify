@@ -48,6 +48,8 @@ import { registerFleetRoomBridge } from "./fleet-room-bridge.js";
 import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { registerOwnerCellsRoute } from "./fleet-board.js";
+import { registerMemoryFaceRoute } from "./memory-face.js";
+import { createProcMemorySampler } from "../lib/proc-memory.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
 
@@ -89,11 +91,26 @@ const cellRegistryDb = process.env.CELL_REGISTRY_DISABLE === "1"
   ? null
   : createCellRegistryDb({ file: path.join(DATA_ROOT, "cells-registry.db") });
 
+// Memory admission floor (harden-platform-memory-carrier): ONE threshold read
+// shared by the spawner's residency gate and the /api/monitoring/memory face,
+// so what the cockpit ambers against is exactly what the gate enforces. 0
+// disables the gate entirely.
+const CELL_MEMORY_FLOOR = Number(process.env.CELL_MEMORY_ADMISSION_FLOOR ?? 0.15);
+// One sampler for the whole process: the gate, the read face, and any future
+// reader share one TTL-cached /proc scan (高频请求不放大扫描开销).
+const procMemorySampler = createProcMemorySampler({
+  ttlMs: Number(process.env.CELL_MEMORY_SAMPLE_TTL_MS || 2000),
+});
+
 const registry = createCellRegistry({
   dataRoot: DATA_ROOT,
   secret: SECRET,
   startTimeoutMs: START_TIMEOUT_MS,
   idleReapSecs: IDLE_REAP_SECS,
+  // Residency memory gate (harden-platform-memory-carrier): refuse new
+  // residency below the floor; metrics failure fails open inside the spawner.
+  procMemory: procMemorySampler,
+  memoryFloor: CELL_MEMORY_FLOOR,
   // Demo-cell bounds (openspec: mp-demo-mode): how many demo cells may run at
   // once, and how idle one may sit before it is stopped AND deleted —
   // independent of the account-cell contract above.
@@ -1075,6 +1092,18 @@ if (DESK_EMBED_HOST) {
 // cells-registry 的 durable 行 × 在线判定, 必须在 cell-proxy catch-all 之前
 // 落, 否则请求会被转给单台 cell、永远看不到机位全局视角。
 registerOwnerCellsRoute(app, { registryDb: cellRegistryDb, resolveUser, rejectUnauthenticated });
+
+// 内存分布读面 (harden-platform-memory-carrier 1.2)：容器三层分布（cgroup
+// 水位 → per-cell 进程归组 → 进程行）+ 准入阈值透出。sampler 与驻留闸共享
+// 一份 TTL 缓存，读面与闸读同一份采样，数字永不打架。
+registerMemoryFaceRoute(app, {
+  sampler: procMemorySampler,
+  registryDb: cellRegistryDb,
+  resolveUser,
+  rejectUnauthenticated,
+  isAdminUser,
+  threshold: CELL_MEMORY_FLOOR,
+});
 
 app.use(async (req, res) => {
   const user = resolveUser(req);

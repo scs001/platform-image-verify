@@ -1,0 +1,259 @@
+#!/usr/bin/env node
+// ── lib/proc-memory unit tests (harden-platform-memory-carrier 1.1) ─────────
+//
+// Runs against a fake /proc fixture (statm + cmdline + cwd symlinks) and a
+// fake cgroup root, so the grouping rules, the v1 fallback, the TTL cache and
+// the admission verdicts are pinned without a Linux host:
+//
+//   node --test scripts/test-proc-memory.mjs
+
+import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { test } from "node:test";
+import {
+  createProcMemorySampler,
+  evaluateAdmission,
+  groupScan,
+  scanProcesses,
+} from "../lib/proc-memory.js";
+
+const PAGE = 4096;
+
+// Fixture: cellsRoot with two cells; a fake /proc with one process per role.
+function makeFixture() {
+  const root = mkdtempSync(path.join(tmpdir(), "proc-memory-"));
+  const cellsRoot = path.join(root, "cells");
+  const procRoot = path.join(root, "proc");
+  const cgroupRoot = path.join(root, "cgroup");
+  mkdirSync(cellsRoot, { recursive: true });
+  mkdirSync(procRoot, { recursive: true });
+  mkdirSync(cgroupRoot, { recursive: true });
+
+  let nextPid = 100;
+  // rssPages: statm field[1]. args: argv array (NUL-joined by the writer).
+  function addProc({ rssPages = 1000, args, cwd = null }) {
+    const pid = nextPid++;
+    const dir = path.join(procRoot, String(pid));
+    mkdirSync(dir);
+    writeFileSync(path.join(dir, "statm"), `1 ${rssPages} 1 1 0 0 0\n`);
+    writeFileSync(path.join(dir, "cmdline"), args.join("\0") + "\0");
+    if (cwd) symlinkSync(cwd, path.join(dir, "cwd"));
+    return pid;
+  }
+
+  return { root, cellsRoot, procRoot, cgroupRoot, addProc };
+}
+
+function addStandardFleet(f) {
+  const cellA = path.join(f.cellsRoot, "aaaaaaaaaaaaaaaa");
+  const cellB = path.join(f.cellsRoot, "bbbbbbbbbbbbbbbb");
+  mkdirSync(path.join(cellA, "runtime"), { recursive: true });
+  mkdirSync(path.join(cellB, "workspace"), { recursive: true });
+  // cell A server: cell path only in cwd (cmdline is bare server.js)
+  f.addProc({
+    rssPages: 55000,
+    args: ["node", "/app/server.js"],
+    cwd: path.join(cellA, "runtime"),
+  });
+  // cell A dsh runtime: cell path in cmdline patch args
+  f.addProc({
+    rssPages: 33000,
+    args: ["node", "/opt/dsh/cli.js", "--profile", "p", "--mcp-patch", path.join(cellA, "dsh", "mcp.patch.yml")],
+    cwd: path.join(cellA, "workspace"),
+  });
+  // cell B MCP satellite: inherited cwd under the cell root, relative script arg
+  f.addProc({
+    rssPages: 17000,
+    args: ["node", "server/delegation-mcp.js"],
+    cwd: path.join(cellB, "workspace"),
+  });
+  // gateway itself
+  f.addProc({
+    rssPages: 25000,
+    args: ["node", "/app/gateway/index.js"],
+    cwd: path.join(f.root, "gateway"),
+  });
+  // ungrouped: no cell clue, not the gateway
+  f.addProc({
+    rssPages: 5000,
+    args: ["node", "/app/one-off-job.js"],
+    cwd: path.join(f.root, "tmp"),
+  });
+}
+
+function writeCgroupV2(f, { used, limit }) {
+  writeFileSync(path.join(f.cgroupRoot, "memory.current"), `${used}\n`);
+  writeFileSync(path.join(f.cgroupRoot, "memory.max"), `${limit}\n`);
+}
+
+test("three role buckets each attribute one process to its owning cell", () => {
+  const f = makeFixture();
+  try {
+    addStandardFleet(f);
+    const snap = groupScan(scanProcesses({ procRoot: f.procRoot, cellsRoot: f.cellsRoot }));
+    assert.ok(snap.available);
+    assert.equal(snap.cells.length, 2, "two cells seen");
+
+    const a = snap.cells.find((c) => c.cellId === "aaaaaaaaaaaaaaaa");
+    assert.ok(a, "cell A grouped");
+    assert.deepEqual(
+      a.processes.map((p) => p.role).sort(),
+      ["cell-server", "dsh-runtime"],
+      "cell A carries its server (cwd attribution) and dsh runtime (cmdline attribution)",
+    );
+    // RSS order: server (55000*PAGE) sorts above dsh (33000*PAGE)
+    assert.equal(a.processes[0].role, "cell-server");
+    assert.equal(a.processes[0].rssBytes, 55000 * PAGE);
+
+    const b = snap.cells.find((c) => c.cellId === "bbbbbbbbbbbbbbbb");
+    assert.deepEqual(b.processes.map((p) => p.role), ["mcp-satellite"], "cell B satellite grouped to its host cell");
+    assert.equal(b.totalBytes, 17000 * PAGE);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("ungrouped remainder stays visible, gateway bucket separate", () => {
+  const f = makeFixture();
+  try {
+    addStandardFleet(f);
+    const snap = groupScan(scanProcesses({ procRoot: f.procRoot, cellsRoot: f.cellsRoot }));
+    assert.equal(snap.gateway.processes.length, 1);
+    assert.equal(snap.gateway.processes[0].role, "gateway");
+    assert.equal(snap.ungrouped.processes.length, 1, "clueless process surfaces as ungrouped");
+    assert.equal(snap.ungrouped.processes[0].name, "one-off-job.js");
+    assert.deepEqual(snap.buckets, {
+      "cell-server": 1,
+      "dsh-runtime": 1,
+      "mcp-satellite": 1,
+      gateway: 1,
+      ungrouped: 1,
+    });
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("cache window serves one scan for repeated reads", () => {
+  const f = makeFixture();
+  try {
+    addStandardFleet(f);
+    let t = 1000;
+    const sampler = createProcMemorySampler({
+      ttlMs: 5000,
+      procRoot: f.procRoot,
+      cellsRoot: f.cellsRoot,
+      now: () => t,
+    });
+    const first = sampler.sample();
+    assert.equal(first.cells.length, 2);
+    // A new process appears mid-window — the cached view must not see it.
+    f.addProc({ rssPages: 999, args: ["node", "/app/late.js"], cwd: f.root });
+    const second = sampler.sample();
+    assert.equal(second, first, "same object returned from cache");
+    assert.equal(second.cells.length, 2, "no re-scan inside the TTL window");
+    // Past the window the scan re-runs and sees the newcomer (ungrouped).
+    t += 5001;
+    const third = sampler.sample();
+    assert.equal(third.ungrouped.processes.length, 2, "fresh scan past the TTL");
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("non-Linux / missing /proc degrades to available:false", () => {
+  const f = makeFixture();
+  try {
+    const snap = scanProcesses({ procRoot: path.join(f.root, "no-such-proc"), cellsRoot: f.cellsRoot });
+    assert.equal(snap.available, false);
+    assert.match(snap.reason, /proc_unavailable/);
+    const grouped = groupScan(snap);
+    assert.equal(grouped.available, false, "grouping preserves the unavailable marker");
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("cgroup v2 primary read and v1 fallback both work; no limit fails soft", () => {
+  const f = makeFixture();
+  try {
+    // v2 files present → used directly.
+    writeCgroupV2(f, { used: 1_000_000, limit: 4_000_000 });
+    let c = createProcMemorySampler({ procRoot: f.procRoot, cellsRoot: f.cellsRoot, cgroupRoot: f.cgroupRoot }).sample();
+    assert.equal(c.container.available, true);
+    assert.equal(c.container.usedBytes, 1_000_000);
+    assert.equal(c.container.limitBytes, 4_000_000);
+
+    // v1 layout: v2 files gone, memory/ dir present.
+    rmSync(path.join(f.cgroupRoot, "memory.current"));
+    rmSync(path.join(f.cgroupRoot, "memory.max"));
+    mkdirSync(path.join(f.cgroupRoot, "memory"), { recursive: true });
+    writeFileSync(path.join(f.cgroupRoot, "memory", "memory.usage_in_bytes"), "700000\n");
+    writeFileSync(path.join(f.cgroupRoot, "memory", "memory.limit_in_bytes"), "-1\n");
+    c = createProcMemorySampler({ procRoot: f.procRoot, cellsRoot: f.cellsRoot, cgroupRoot: f.cgroupRoot }).sample();
+    assert.equal(c.container.usedBytes, 700_000, "v1 fallback reads usage");
+    assert.equal(c.container.limitBytes, null, "v1 -1 means no limit");
+    assert.equal(c.container.available, true);
+
+    // Neither layout → honest unavailable, not a throw.
+    rmSync(path.join(f.cgroupRoot, "memory"), { recursive: true, force: true });
+    c = createProcMemorySampler({ procRoot: f.procRoot, cellsRoot: f.cellsRoot, cgroupRoot: f.cgroupRoot }).sample();
+    assert.equal(c.container.available, false);
+    assert.match(c.container.reason, /cgroup_unavailable/);
+
+    // cgroup v2 "max" string = no limit.
+    writeCgroupV2(f, { used: 123, limit: "max" });
+    c = createProcMemorySampler({ procRoot: f.procRoot, cellsRoot: f.cellsRoot, cgroupRoot: f.cgroupRoot }).sample();
+    assert.equal(c.container.usedBytes, 123);
+    assert.equal(c.container.limitBytes, null);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("admission verdicts: allow / refuse with four-tuple / fail-open / disabled", () => {
+  const threshold = 0.15;
+  // Headroom above threshold → allow.
+  assert.equal(evaluateAdmission({ container: { available: true, usedBytes: 100, limitBytes: 1000 }, threshold }).decision, "allow");
+  // Headroom below threshold → refuse, carrying usage/limit/headroom/threshold.
+  const refused = evaluateAdmission({ container: { available: true, usedBytes: 900, limitBytes: 1000 }, threshold });
+  assert.equal(refused.decision, "refuse");
+  assert.equal(refused.usedBytes, 900);
+  assert.equal(refused.limitBytes, 1000);
+  assert.equal(refused.headroomPct, 0.1);
+  assert.equal(refused.threshold, 0.15);
+  // Metrics missing → fail-open (never blocks business).
+  const open = evaluateAdmission({ container: { available: false, reason: "cgroup_unavailable: ENOENT" }, threshold });
+  assert.equal(open.decision, "fail_open");
+  assert.match(open.reason, /cgroup_unavailable/);
+  // Malformed values → fail-open.
+  assert.equal(
+    evaluateAdmission({ container: { available: true, usedBytes: NaN, limitBytes: 1000 }, threshold }).decision,
+    "fail_open",
+  );
+  // Threshold 0 → gate disabled, always allow.
+  assert.equal(
+    evaluateAdmission({ container: { available: true, usedBytes: 999, limitBytes: 1000 }, threshold: 0 }).decision,
+    "allow",
+  );
+});
+
+test("sampler.admission threads the container read into the verdict", () => {
+  const f = makeFixture();
+  try {
+    writeCgroupV2(f, { used: 950_000, limit: 1_000_000 });
+    const sampler = createProcMemorySampler({
+      procRoot: f.procRoot,
+      cellsRoot: f.cellsRoot,
+      cgroupRoot: f.cgroupRoot,
+      now: () => 1000,
+    });
+    const v = sampler.admission(0.15);
+    assert.equal(v.decision, "refuse");
+    assert.equal(v.headroomPct, 0.05);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});

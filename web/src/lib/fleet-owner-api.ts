@@ -53,6 +53,46 @@ export function fetchOwnerCells(): Promise<{ v: number; sampledAt: number; cells
     .catch(() => null);
 }
 
+// 内存分布读面 (harden-platform-memory-carrier): gateway 侧容器三层分布。
+// 单机/桌面部署没有这条路由 → 404 = honest absence, 与机位行同一退化纪律。
+export interface MemoryFaceProcess {
+  pid: number;
+  name: string;
+  rssBytes: number;
+  role: string;
+}
+
+export interface MemoryFaceCell {
+  cellId: string;
+  ownerEmail: string | null;
+  totalBytes: number;
+  processes: MemoryFaceProcess[];
+}
+
+export interface MemoryFace {
+  available: boolean;
+  reason?: string;
+  sampledAt?: number;
+  container?: {
+    available: boolean;
+    reason?: string;
+    usedBytes?: number;
+    limitBytes?: number | null;
+    headroomPct?: number | null;
+    threshold: number;
+  };
+  cells?: MemoryFaceCell[];
+  gateway?: { totalBytes: number; processes?: MemoryFaceProcess[] };
+  ungrouped?: { totalBytes: number };
+  buckets?: Record<string, number>;
+}
+
+export function fetchMemoryFace(): Promise<MemoryFace | null> {
+  return fetch("/api/monitoring/memory")
+    .then((r) => (r.status === 404 ? null : json(r)))
+    .catch(() => null);
+}
+
 export interface BillingSnapshot {
   linked: boolean;
   balance: number | null;

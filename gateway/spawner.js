@@ -83,6 +83,13 @@ export function createCellRegistry(config) {
     // byte-for-byte legacy (unit tests keep the in-memory world).
     registryDb = null,
     initialPolicy = "on_demand",
+    // harden-platform-memory-carrier: the residency admission gate. `procMemory`
+    // is a lib/proc-memory sampler (admission(threshold) → verdict); when
+    // unwired or the floor is <= 0 the module runs byte-for-byte legacy. The
+    // SAME sampler instance the /api/monitoring/memory face reads — one scan,
+    // no gate/face disagreement.
+    procMemory = null,
+    memoryFloor = 0.15,
   } = config;
   const cells = new Map();
   // In-flight spawns, keyed by userId. Registered BEFORE spawnCell() is called
@@ -370,6 +377,65 @@ export function createCellRegistry(config) {
     })();
   }
 
+  // ── Memory admission gate (harden-platform-memory-carrier 2.x) ────────────
+  //
+  // New residency (spawn on traffic, wake from suspension — every residency
+  // passes ensure()) checks container headroom BEFORE a process is spawned
+  // into an out-of-memory window. Fail-open is the contract: metrics missing
+  // or malformed admit with a warning, never block business. Already-resident
+  // cells never see this gate — it runs on the spawn path only, so the gate
+  // cannot evict anyone.
+  function recordGateRefusal(cellId, user, verdict) {
+    console.warn(
+      `[gateway] cell residency refused (memory floor): user=${user.email} ` +
+        `used=${verdict.usedBytes} limit=${verdict.limitBytes} ` +
+        `headroom=${(verdict.headroomPct * 100).toFixed(1)}% threshold=${(verdict.threshold * 100).toFixed(1)}%`,
+    );
+    if (!registryDb) return;
+    try {
+      let row = registryDb.get(cellId);
+      if (!row) {
+        // First contact refused: materialize the row (unbound, like a never-
+        // bound cell) so the refusal has a durable place to live.
+        const demo = Boolean(user.groups?.includes?.("demo"));
+        registryDb.fire(cellId, { type: "register", ownerEmail: user.email, now: Date.now() }, { policy: demo ? "ephemeral" : initialPolicy });
+        row = registryDb.get(cellId);
+      }
+      if (row) {
+        registryDb.put({
+          ...row,
+          lastGateRefusal: {
+            usedBytes: verdict.usedBytes,
+            limitBytes: verdict.limitBytes,
+            headroomPct: verdict.headroomPct,
+            threshold: verdict.threshold,
+            at: Date.now(),
+          },
+        });
+      }
+    } catch (e) {
+      console.warn(`[gateway] gate refusal evidence write failed for ${cellId}: ${e?.message || e}`);
+    }
+  }
+
+  // null = admission granted (or the gate is inert); a refuse verdict otherwise.
+  function memoryAdmissionVerdict() {
+    if (!procMemory || !(memoryFloor > 0)) return null; // gate disabled → legacy
+    let verdict;
+    try {
+      verdict = procMemory.admission(memoryFloor);
+    } catch (e) {
+      console.warn(`[gateway] memory gate sampler failed; failing open: ${e?.message || e}`);
+      return null;
+    }
+    if (verdict.decision === "fail_open") {
+      console.warn(`[gateway] memory gate metrics unavailable (${verdict.reason}); failing open`);
+      return null;
+    }
+    if (verdict.decision === "allow") return null;
+    return verdict;
+  }
+
   // Concurrent first requests for the same user collapse onto one spawn. The
   // in-flight promise is registered BEFORE spawnCell() runs: spawnCell awaits a
   // free port and three mkdirs before it writes the cell record, so any guard
@@ -404,6 +470,19 @@ export function createCellRegistry(config) {
       const err = new Error("demo capacity reached");
       err.code = "demo_capacity";
       err.friendly = "当前体验人数较多，请稍后再试";
+      return Promise.reject(err);
+    }
+    // Memory admission gate: below the headroom floor the residency is
+    // refused with a readable four-tuple — no process spawns into the
+    // low-memory window, no lifecycle beat flips the row (spec: the refusal
+    // is evidence, not a transition).
+    const refusal = memoryAdmissionVerdict();
+    if (refusal) {
+      recordGateRefusal(userId, user, refusal);
+      const err = new Error("cell residency refused: container memory headroom below floor");
+      err.code = "memory_floor";
+      err.friendly = "服务器内存余量不足，请稍后再试";
+      err.memory = { usedBytes: refusal.usedBytes, limitBytes: refusal.limitBytes, headroomPct: refusal.headroomPct, threshold: refusal.threshold };
       return Promise.reject(err);
     }
     const started = spawnCell(user).finally(() => {

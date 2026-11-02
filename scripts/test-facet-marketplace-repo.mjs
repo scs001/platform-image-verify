@@ -427,3 +427,79 @@ test("plugin.json 显式声明 skills（与客户端自带市场同形）", asyn
     assert.equal(pj.version, entry.version);
   } finally { await cleanup(); }
 });
+
+// ── 4.10 显示 v2 的外部投影 (overhaul-market-catalog-presentation) ──────────
+test("facet.json sidecar：声明的 v2 字段逐字节随包；未声明不产文件", async () => {
+  const { registry, cleanup } = await boot();
+  try {
+    const v2 = {
+      ...manifest("V"),
+      identity: { mark: { kind: "glyph", value: "柏" }, accent: "wire" },
+      promise: "一句话承诺进 sidecar。",
+      audience: ["data-eng"],
+      outcomes: [{ title: "得到甲", detail: "说明甲" }, { title: "得到乙" }],
+      examples: [{ title: "问甲", prompt: "示例甲？" }, { title: "问乙", prompt: "示例乙？" }],
+      domain: ["data-eng"],
+    };
+    const p = registry.publish({ email: AUTHORS.email, manifest: v2 });
+    registry.setCuration({ id: p.id, actor: ACTOR, category: "data" });
+    const legacy = seedListed(registry);
+    const built = repoMod.buildMarketplaceRepo(registry, { env: {} });
+
+    const side = JSON.parse(built.plugins.get(p.id).get("facet.json"));
+    // 逐字节：值 deep-equal manifest，市场投影不再三改写。
+    assert.deepEqual(side.identity, v2.identity);
+    assert.equal(side.promise, v2.promise);
+    assert.deepEqual(side.audience, v2.audience);
+    assert.deepEqual(side.outcomes, v2.outcomes);
+    assert.deepEqual(side.examples, v2.examples);
+    assert.deepEqual(side.domain, v2.domain);
+    assert.equal(side.packId, p.id);
+    // 未声明 v2 的存量包：不产 sidecar（缺席=逐字节不变的默认）。
+    assert.equal(built.plugins.get(legacy.id).get("facet.json"), undefined);
+  } finally {
+    registry.close();
+    await cleanup();
+  }
+});
+
+test("清单结构不变：v2 包与存量包的 marketplace.json 条目/plugin.json 字段集恒等", async () => {
+  const { registry, cleanup } = await boot();
+  try {
+    const legacy = seedListed(registry);
+    const v2 = { ...manifest("V"), promise: "承诺不改机器契约。" };
+    const p = registry.publish({ email: AUTHORS.email, manifest: v2 });
+    registry.setCuration({ id: p.id, actor: ACTOR, category: "data" });
+    const built = repoMod.buildMarketplaceRepo(registry, { env: {} });
+
+    // 客户端加载器钉死的字段集——sidecar 之外的两份清单一个键不多。
+    assert.deepEqual(built.manifest.plugins.map((e) => Object.keys(e).sort()),
+      built.manifest.plugins.map(() => Object.keys(built.manifest.plugins[0]).sort()));
+    const pjLegacy = JSON.parse(built.plugins.get(legacy.id).get(".codebuddy-plugin/plugin.json"));
+    const pjV2 = JSON.parse(built.plugins.get(p.id).get(".codebuddy-plugin/plugin.json"));
+    assert.deepEqual(Object.keys(pjLegacy).sort(), Object.keys(pjV2).sort());
+    // plugin.json 的 description 仍是市场描述原值——promise 只归 README/sidecar。
+    assert.equal(pjV2.description, `V 描述`);
+  } finally {
+    registry.close();
+    await cleanup();
+  }
+});
+
+test("README 首行优先承诺；无承诺回落描述（存量逐字节不变）", async () => {
+  const { registry, cleanup } = await boot();
+  try {
+    const legacy = seedListed(registry);
+    const v2 = { ...manifest("V"), promise: "README 的第一句话是承诺。" };
+    const p = registry.publish({ email: AUTHORS.email, manifest: v2 });
+    registry.setCuration({ id: p.id, actor: ACTOR, category: "data" });
+    const built = repoMod.buildMarketplaceRepo(registry, { env: {} });
+
+    const firstProse = (md) => md.split("\n").slice(1).find((l) => l.trim() !== "");
+    assert.equal(firstProse(built.plugins.get(p.id).get("README.md")), "README 的第一句话是承诺。");
+    assert.equal(firstProse(built.plugins.get(legacy.id).get("README.md")), "A 描述");
+  } finally {
+    registry.close();
+    await cleanup();
+  }
+});

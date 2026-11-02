@@ -54,7 +54,7 @@
 - [ ] 4.7 作者端翻译工作台（`PackDraftsView` 抽屉）：zh/目标语并排、组织面覆盖率、缺项定位跳转、经 `entries.i18n` 保存；不写翻译不产生空 `i18n` 键；验证：e2e 编辑器补 en→发布→市场英文读面呈现
 - [ ] 4.8 领域/适用人群选择器接词表；词表外存量取值标示不合法并阻发布、保存零静默改写；验证：e2e 三态（合法/不合法/保存保留）
 - [ ] 4.9 发布前分级提示：官方阻断（列出缺项+跳转工作台）、社区非阻断；服务端错误如实透出（服务端是真值）；验证：两身份各一条 e2e
-- [ ] 4.10 外部投影：`facet/marketplace-repo.js` 增加 `facet.json` sidecar 纯透传 + README 首行优先 promise；`marketplace.json`/`plugin.json` 结构零变化；验证：`scripts/test-facet-marketplace-repo.mjs` 增三用例（sidecar 逐字节、清单结构不变、README 首行）
+- [x] 4.10 外部投影：`facet/marketplace-repo.js` 增加 `facet.json` sidecar 纯透传 + README 首行优先 promise；`marketplace.json`/`plugin.json` 结构零变化；验证：`scripts/test-facet-marketplace-repo.mjs` 增三用例（sidecar 逐字节、清单结构不变、README 首行）
 - [x] 4.11 覆盖度仪表组件（分母=组织面，缺项精确到字段路径）；详情"边界与诚实声明"段接入；验证：社区条目 0/m 与 m/m 两态 e2e
 - [ ] 4.12 `npm run check:locales` + `design-lint` + `npm run test:unit` 全绿；出片走查（老包渲染逐字节回归 + 新字段包眼见）
 

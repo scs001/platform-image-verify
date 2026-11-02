@@ -220,10 +220,15 @@ function connectFiles(pack, { registry, manifest }) {
 }
 
 function renderReadme(pack, { registry, manifest }) {
+  // First prose line (overhaul-market-catalog-presentation 4.10): the declared
+  // v2 promise wins — it IS the one-sentence contract external readers (humans
+  // and AI scrapers alike) scan first; without one the description stands, so
+  // every legacy README renders byte-identically.
+  const declaredPromise = typeof manifest?.promise === "string" ? manifest.promise.trim() : "";
   const lines = [
     `# ${pack.name}`,
     "",
-    pack.description || "",
+    declaredPromise || pack.description || "",
     "",
   ];
   const skills = manifest.skills ?? [];
@@ -286,6 +291,22 @@ function pluginFiles(pack, row, { registry }) {
     ...(hasSkills ? { skills: ["./skills"] } : {}),
   };
   files.set(`${MANIFEST_DIR}/plugin.json`, JSON.stringify(pluginJson, null, 2) + "\n");
+
+  // Display v2 sidecar (overhaul-market-catalog-presentation 4.10): the
+  // structured display fields ride a DEDICATED file because marketplace.json
+  // and plugin.json field sets are pinned by the external clients' loaders —
+  // a client that does not know facet.json parses and installs exactly as
+  // before. Values are verbatim from the manifest (no rewrite, no locale
+  // projection — the market face already owns that). Undeclared pack emits NO
+  // sidecar: absence is the byte-identical default.
+  const FACET_V2_KEYS = ["identity", "promise", "audience", "outcomes", "examples", "domain"];
+  const sidecar = {};
+  for (const key of FACET_V2_KEYS) {
+    if (manifest[key] !== undefined && manifest[key] !== null) sidecar[key] = manifest[key];
+  }
+  if (Object.keys(sidecar).length > 0) {
+    files.set("facet.json", JSON.stringify({ packId: pack.id, version: String(row.version ?? pack.version ?? "0.0.0"), ...sidecar }, null, 2) + "\n");
+  }
 
   for (const skill of manifest.skills ?? []) {
     const name = safeSegment(skill.name, "skill name");

@@ -67,7 +67,7 @@ export function ValidationPanel({ verdict, verifying }: { verdict: ValidationVer
         {verifying ? (
           <span className="text-muted-foreground">{t("studio.validate.running")}</span>
         ) : verdict?.ok ? (
-          <span className="text-emerald-600" data-testid="ws-validation-ok">{t("studio.validate.ok")}</span>
+          <span className="text-success" data-testid="ws-validation-ok">{t("studio.validate.ok")}</span>
         ) : verdict && !verdict.ok ? (
           <span className="inline-flex items-center gap-1 text-destructive" data-testid="ws-validation-bad">
             <TriangleAlert className="h-3.5 w-3.5" /> {t("studio.validate.bad", { n: verdict.errors.length })}

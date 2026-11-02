@@ -62,7 +62,7 @@ export function LifecycleRibbon({
               className={cn(
                 "flex min-w-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]",
                 s.state === "current" && "bg-primary/10 font-medium text-primary",
-                s.state === "done" && "text-emerald-600",
+                s.state === "done" && "text-success",
                 s.state === "upcoming" && "text-muted-foreground",
               )}
             >

@@ -27,11 +27,17 @@ const ALL_NAV = NAV_SURFACES.map((s) => s.slug);
 const ALL_SETTINGS = SETTINGS_SURFACES.map((s) => s.slug);
 const ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
 
+// add-agent-builder-workspace 3.1: the factory nav retires `blueprints` (the
+// workspace owns the authoring surface; /blueprints redirects). The registry
+// slug STAYS (stored presets + deep links keep validating) — so the factory
+// baseline is the registry list minus that one entry, not the raw registry.
+const FACTORY_NAV = ALL_NAV.filter((slug) => slug !== "blueprints");
+
 // ── Factory baseline ────────────────────────────────────────────────────────
 
 test("factory preset baseline: nav/settings full; agentsTabs are the hub four areas", () => {
   const p = FACTORY_PRESETS[FACTORY_PRESET_SLUG];
-  assert.deepEqual(p.nav, ALL_NAV);
+  assert.deepEqual(p.nav, FACTORY_NAV);
   assert.deepEqual(p.settings, ALL_SETTINGS);
   // add-agent-builder-hub: the hub's four areas replace the retired
   // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES);
@@ -159,7 +165,7 @@ test("an admin with a business role resolves to the deployment default", () => {
     role: { preset: factoryPreset("simple") },
   };
   const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
-  assert.deepEqual(admin.nav, ALL_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
+  assert.deepEqual(admin.nav, FACTORY_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
   assert.deepEqual(admin.settings, ALL_SETTINGS);
   assert.deepEqual(admin.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas
   // The same input for a non-admin still narrows to the simple skeleton.

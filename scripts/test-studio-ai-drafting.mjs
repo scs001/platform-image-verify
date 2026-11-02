@@ -45,18 +45,25 @@ test("2. zero persistence, zero emit mouths in the drafting path", () => {
   assert.match(route, /只产草稿：响应即终点，零持久化、零发射/, "the no-write contract is stated at the return site");
 });
 
-test("3. the canvas keeps draft state out of the emit mouths; adopt is the single gate", () => {
+test("3. the drafting lane is isolated from the emit mouths; per-field adoption is the single write gate (workspace 2.4)", () => {
   // The request path posts to the drafting endpoint only.
-  const req = page.slice(page.indexOf("const requestAiDraft"), page.indexOf("};", page.indexOf("const requestAiDraft")));
+  const reqStart = page.indexOf("const runAiDraft");
+  const req = page.slice(reqStart, page.indexOf("const adoptAi"));
+  assert.ok(reqStart > 0, "runAiDraft exists on the workspace page");
   assert.match(req, /\/api\/studio\/draft/, "the draft request hits the drafting bridge");
   assert.ok(!/emitPreset|emitDraft|createCustomPreset|createPackDraft/.test(req), "drafting never calls an emit path");
-  // Adopt is a separate explicit gesture that writes the doc; discard touches nothing.
-  const adopt = page.slice(page.indexOf("const adoptAiDraft"), page.indexOf("};", page.indexOf("const adoptAiDraft")));
-  assert.match(adopt, /setDoc\(/, "adopt is the write gate");
-  const discard = page.slice(page.indexOf("const discardAiDraft"), page.indexOf("\n  const selected ="));
-  assert.ok(!/setDoc/.test(discard), "discard never touches the working doc");
   // The draft request body carries no emit-shaped fields — it is a prompt only.
-  assert.match(req, /kind: "agent-doc", prompt: aiDraft\.text/, "the draft request is a prompt, not a document");
+  assert.match(req, /kind: "agent-doc", prompt: ai\.prompt/, "the draft request is a prompt, not a document");
+  // Adoption is a separate explicit gesture: only PICKED fields are written.
+  const adopt = page.slice(page.indexOf("const adoptAi ="), page.indexOf("// ── ribbon projection"));
+  assert.match(adopt, /patchContent\(next\)/, "adopt is the write gate");
+  assert.match(adopt, /picked\.has\("name"\)/, "the name field lands only when picked");
+  assert.match(adopt, /picked\.has\("persona"\)/, "persona lands only when picked");
+  assert.match(adopt, /picked\.has\("mcpServers"\)/, "mcp servers merge only when picked");
+  // The overlay itself never writes: its close/discard path touches nothing.
+  const overlay = read("web/src/components/studio/AiDraftOverlay.tsx");
+  assert.match(overlay, /onAdopt/, "the overlay only delegates adoption upward");
+  assert.ok(!/patchContent|updateBlueprint|createPackDraft|fetch\(/.test(overlay), "the overlay component never writes the document or the server");
 });
 
 test("4. the route is mounted on the authenticated /api namespace", () => {

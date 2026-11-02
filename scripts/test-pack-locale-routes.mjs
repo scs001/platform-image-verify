@@ -162,5 +162,8 @@ test("locale read faces over a published bilingual pack", async (t) => {
   const enOnly = await env.call(`/api/packs?locale=en&search=${encodeURIComponent("Policy Sentinel")}`, {
     headers: { "x-test-user": "reader@x.test" },
   });
-  assert.ok(!enOnly.body.packs.some((p) => p.id === id), "v1 search is zh-only (en text is not indexed)");
+  // overhaul-market-catalog-presentation P0 (061298ea, committed): 搜索改为跨轨
+  // 命中（zh 主轨 + 翻译轨并检），"v1 search is zh-only" 的旧合同已废——本断言
+  // 随已提交行为翻转；pack-locale 能力的 spec 偿还归该班。
+  assert.ok(enOnly.body.packs.some((p) => p.id === id), "cross-track search: en text hits too (P0 061298ea)");
 });

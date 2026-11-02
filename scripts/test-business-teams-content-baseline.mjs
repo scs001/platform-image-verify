@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
-const staging = path.join(root, "openspec/changes/modernize-official-business-teams/staging");
+const staging = path.join(root, "openspec/changes/archive/2026-11-01-modernize-official-business-teams/staging");
 
 const snapshot = JSON.parse(fs.readFileSync(path.join(staging, "source-snapshot.json"), "utf8"));
 const registryAllow = JSON.parse(fs.readFileSync(path.join(staging, "registry-allowtools.json"), "utf8"));

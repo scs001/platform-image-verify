@@ -25,7 +25,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
-const overlay = JSON.parse(read("openspec/changes/modernize-official-starter-agents/staging/modernize.json"));
+const overlay = JSON.parse(read("openspec/changes/archive/2026-11-01-modernize-official-starter-agents/staging/modernize.json"));
 
 const NAMES = Object.keys(overlay);
 assert.equal(NAMES.length, 5, "the five starter teams are the overlay's whole world");

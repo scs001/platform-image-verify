@@ -94,11 +94,19 @@ test("sweep proposes once with provenance; dedup skips while in flight", async (
   const raw = db.db ?? db;
   const insert = raw.prepare(`INSERT INTO member_turn_daily (fleet_id, member_id, carrier, provider, model, day, turns, ok_count, failed_count, usage_input, usage_cached_input, usage_cache_write, usage_reasoning, usage_output, queue_wait_ms_sum, queue_wait_ms_max, ttft_ms_sum, ttft_ms_max, spin_up_ms_sum, spin_up_ms_max, updated_at)
     VALUES ('fleet_s1','m_hot','cell','volces','deepseek-v4.1-flash',?,3,2,1,10,0,0,0,5,400000,360000,100,100,0,0,?)`);
-  for (const off of [0, 1, 2, 3]) insert.run(day(off), Date.now());
+  // Pin the sweep clock mid-week (runFleetCostDigests takes `now`) and seed
+  // days relative to that pinned Wednesday: seeding relative to the real
+  // clock makes this test flake at ISO-week boundaries (written on a
+  // Saturday — passed; run the following Monday — thisWeek collapses to one
+  // day and the sample floor fails).
+  const pinnedNow = (() => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() || 7) - 3)); return d; })();
+  const dayOf = (off) => { const d = new Date(pinnedNow); d.setUTCDate(d.getUTCDate() - off); return d.toISOString().slice(0, 10); };
+  for (const off of [0, 1, 2, 3]) insert.run(dayOf(off), Date.now());
 
   const proposals = [];
   const carriers = new Map([["m_hot", "cell"]]);
   const n1 = await runFleetCostDigests({
+    now: pinnedNow,
     fleetsDb: db,
     captureFact: () => {},
     listActiveFleets: () => [{ id: "fleet_s1", state: "active" }],
@@ -122,6 +130,7 @@ test("sweep proposes once with provenance; dedup skips while in flight", async (
     detail: { changes: { memberId: "m_hot", carrier: "worker" }, proposedBy: "platform:cost-anomaly" },
   });
   const n2 = await runFleetCostDigests({
+    now: pinnedNow,
     fleetsDb: db,
     captureFact: () => {},
     listActiveFleets: () => [{ id: "fleet_s1", state: "active" }],

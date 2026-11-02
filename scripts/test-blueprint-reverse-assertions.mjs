@@ -72,8 +72,10 @@ test("6.3 ③ 无第二调度器：三模块零 cron / 任务引擎 / reconcile 
 test("6.3 ④ 试跑执行器只点火不铸表：用既有 cron 作业，零建/改/删调度", () => {
   const TRIAL = "server/blueprint-trial.js";
   const src = code(TRIAL);
-  // 允许：点火既有作业（runJobNow）、既有 reconcile、既有装台/装作。
-  assert.match(src, /cron\.runJobNow\(/);
+  // 允许：点火既有作业（runJobNow，43430df8 起经 fireJobBounded 有界包裹——
+  // cronApi 是注入的 cron 面，直呼 runJobNow 的正则两者都覆盖）、
+  // 既有 reconcile、既有装台/装作。
+  assert.match(src, /cronApi?\.runJobNow\(/);
   assert.match(src, /reconcileFleet\(/);
   assert.match(src, /provisionFleetFromTemplate\(/);
   assert.match(src, /installPack\(/);

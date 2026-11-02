@@ -128,6 +128,13 @@ const EXCLUDE_PATHS = new Set([
   "docs/wire-lex-credential-ref-and-consent-asset-requirements.md",
   // this tool itself
   "scripts/make-public-snapshot.mjs",
+  // desktop in-app update lane (2026-11-02 forbidden-pattern scan hit): the
+  // RustFS tailnet URL, hkccr desktop-releases image and cheap-3 sync worker
+  // are internal distribution topology — the OSS drop ships the updater core
+  // reading DEFAULT_UPDATE_URL from env, not this lane.
+  ".github/workflows/release.yml",
+  "electron/updater-core.js",
+  "scripts/desktop-lane-sync.sh",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state
   "scripts/test-ops-console-board.mjs",
   // internal ops test: fleet-scheduler fixtures carry tailnet IPs and cluster

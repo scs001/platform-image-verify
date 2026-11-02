@@ -1,6 +1,6 @@
 // 壹座智能体构建器 hub (add-agent-builder-hub): four areas on one route.
 // Build = the visual studio's direct entry (/studio); Supply = three cabinets
-// (agent market | skills | MCP) gathered out of the legacy tabs and Settings;
+// (Agent Materials Plaza | skills | MCP) gathered out of the legacy tabs and Settings;
 // Creations = my drafts, presets, clusters and the installed-experts roster;
 // Tuning = skill-candidate review plus the persona-amendment placeholder.
 // Legacy deep links canonicalize in one place (surfaces.ts

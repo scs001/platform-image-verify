@@ -852,7 +852,7 @@
         "secondary": "Next demos",
         "advanced": "Domain deep-dives"
       },
-      "starterNote": "Installing is a per-pack explicit action — subscribe by name in the agent market, provision, then confirm in the cockpit before igniting."
+      "starterNote": "Installing is a per-pack explicit action — subscribe by name in the Agent Materials Plaza, provision, then confirm in the cockpit before igniting."
     },
     "guidesEmpty": "No scenario guides yet."
   },
@@ -1141,7 +1141,7 @@
         },
         "facet": {
           "name": "Facet",
-          "desc": "The agent market — where skills, MCP servers, and personas are published."
+          "desc": "The Agent Materials Plaza — where skills, MCP servers, and personas are published."
         },
         "connector": {
           "name": "Wanxing Connector",
@@ -1706,7 +1706,7 @@
     }
   },
   "facetIntro": {
-    "title": "A thousand facets — the agent-and-tool marketplace for AI editors",
+    "title": "A thousand facets — the Agent Materials Plaza",
     "subtitle": "An Agent bundles skills, MCP references, and personas — browse, subscribe, publish, and install into Claude Code / Cursor in one line",
     "factRow": "Anonymous browsing; sign in to publish and subscribe (same identity as Platform)",
     "ctaPacks": "Browse agents",
@@ -1744,7 +1744,7 @@
     }
   },
   "facetFooter": {
-    "tagline": "The agent-and-tool marketplace for AI editors",
+    "tagline": "The Agent Materials Plaza for AI editors",
     "contactLabel": "Contact",
     "linesLabel": "FindData product lines",
     "lines": {
@@ -1757,7 +1757,7 @@
     "current": "This site",
     "entriesLabel": "Entries",
     "entries": {
-      "packs": "Agent Market",
+      "packs": "Agent Materials Plaza",
       "mcp": "MCP service catalog",
       "line": "Facet line page"
     },
@@ -2404,7 +2404,7 @@
       },
       "facet": {
         "name": "Facet",
-        "tagline": "Agent marketplace — discover, install, and author AI agents"
+        "tagline": "Agent Materials Plaza — discover, install, and author AI agents"
       },
       "wanxing": {
         "name": "Wanxing",
@@ -2520,7 +2520,7 @@
     "tooLong": "(over 200 chars — will be skipped on save)",
     "needNamePersona": "Name and persona are required",
     "save": "Save solution",
-    "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the agents marketplace in one click.",
+    "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the Agent Materials Plaza in one click.",
     "goPublish": "Publish",
     "modeCreate": "New solution",
     "modeUpdate": "Update existing",
@@ -3591,7 +3591,7 @@
       "cta": "Open the canvas"
     },
     "supply": {
-      "packs": "Agent market",
+      "packs": "Agent Materials Plaza",
       "skills": "Skills",
       "mcp": "MCP"
     },

@@ -852,7 +852,7 @@
         "secondary": "Démos suivantes",
         "advanced": "Approfondissements"
       },
-      "starterNote": "L'installation est une action explicite par pack — abonnez-vous par nom dans le marché d'agents, provisionnez, puis confirmez dans le cockpit avant d'allumer."
+      "starterNote": "L'installation est une action explicite par pack — abonnez-vous par nom dans la Place des Matériaux d'Agents, provisionnez, puis confirmez dans le cockpit avant d'allumer."
     },
     "guidesEmpty": "Pas encore de guides par scénario."
   },
@@ -1128,7 +1128,7 @@
         },
         "facet": {
           "name": "Facet",
-          "desc": "Le marché d'agents — où skills, serveurs MCP et personas sont publiés."
+          "desc": "La Place des Matériaux d'Agents — où skills, serveurs MCP et personas sont publiés."
         },
         "connector": {
           "name": "Connecteur Wanxing",
@@ -1706,7 +1706,7 @@
     }
   },
   "facetIntro": {
-    "title": "Mille facettes — le marché d'agents et d'outils pour les éditeurs d'IA",
+    "title": "Mille facettes — la Place des Matériaux d'Agents",
     "subtitle": "Un agent réunit compétences, références MCP et personas — parcourir, s'abonner, publier, et installer dans Claude Code / Cursor en une ligne",
     "factRow": "Navigation anonyme ; connectez-vous pour publier et vous abonner (même identité que Platform)",
     "ctaPacks": "Parcourir les agents",
@@ -1744,7 +1744,7 @@
     }
   },
   "facetFooter": {
-    "tagline": "Le marché d'agents et d'outils pour les éditeurs d'IA",
+    "tagline": "La Place des Matériaux d'Agents pour les éditeurs d'IA",
     "contactLabel": "Contact",
     "linesLabel": "Lignes de produits FindData",
     "lines": {
@@ -1757,7 +1757,7 @@
     "current": "Site actuel",
     "entriesLabel": "Accès",
     "entries": {
-      "packs": "Marché des agents",
+      "packs": "Place des Matériaux d'Agents",
       "mcp": "Catalogue des services MCP",
       "line": "Page de la ligne Facet"
     },
@@ -2403,7 +2403,7 @@
       },
       "facet": {
         "name": "Facet",
-        "tagline": "Marché d'agents : découvrir, installer et créer des agents IA"
+        "tagline": "Place des Matériaux d'Agents : découvrir, installer et créer des agents IA"
       },
       "wanxing": {
         "name": "Wanxing",
@@ -2435,7 +2435,7 @@
     "tooLong": "(plus de 200 caractères — sera ignoré à l'enregistrement)",
     "needNamePersona": "Le nom et le persona sont requis",
     "save": "Enregistrer la solution",
-    "savedAs": "« {{name}} » enregistré. Modifiez-le dans Mes experts ou publiez-le sur le marché en un clic.",
+    "savedAs": "« {{name}} » enregistré. Modifiez-le dans Mes experts ou publiez-le sur la Place des Matériaux d'Agents en un clic.",
     "goPublish": "Publier",
     "modeCreate": "Nouvelle solution",
     "modeUpdate": "Mettre à jour",
@@ -3591,7 +3591,7 @@
       "cta": "Ouvrir le canevas"
     },
     "supply": {
-      "packs": "Marché d'agents",
+      "packs": "Place des Matériaux d'Agents",
       "skills": "Compétences",
       "mcp": "MCP"
     },

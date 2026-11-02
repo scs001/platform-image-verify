@@ -90,6 +90,7 @@ test("卡片子元素锚不得以 pack-card- 开头（e2e 前缀计数纪律）"
   const cardSrc = fs.readFileSync(path.join(root, "web/src/components/packs/PackCard.tsx"), "utf8");
   const anchors = [...cardSrc.matchAll(/data-testid=\{`([^`]+)`\}/g)].map((m) => m[1]);
   // 允许：卡片本体锚（宿主传入）、三枚徽章锚（历史 e2e 锚点，不以 pack-card- 开头）
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: 断言对象就是模板占位符的源文本（检查 data-testid 模板锚的形状），不是插值
   const ownBad = anchors.filter((a) => !a.includes("${testId}") && a.startsWith("pack-card-"));
   assert.deepEqual(ownBad, [], `pack-card- 前缀被子锚占用: ${ownBad}`);
   // ${testId} 插值锚是卡片自身/信号——信号锚必须用 pack-signals- 前缀

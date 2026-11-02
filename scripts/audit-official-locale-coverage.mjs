@@ -18,11 +18,8 @@
 // <file> or every *.json under <dir> shaped { packs: [{ manifest, official }] }.
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { localeCoverage } from "../lib/pack-locale-coverage.js";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (name, dflt) => {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
   return hit ? hit.slice(name.length + 3) : dflt;

@@ -3,7 +3,7 @@
 // shows every skill's full body, MCP references with required groups, and
 // agent personas (spec: pack-marketplace, browse-and-inspect).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import * as api from "@/lib/packs-api";
@@ -55,6 +55,7 @@ export function PackMarketView({
   onRequireLogin,
   onGotoMine,
   studioOrigin,
+  installSurface = true,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -72,8 +73,13 @@ export function PackMarketView({
   // guidance when the host also wired onRequireLogin and the viewer is
   // signed out.
   onGotoMine?: () => void;
+  // Whether this host can install/deploy packs into a cell (overhaul-market-
+  // catalog-presentation P0). The facet shell cannot — the dialog skips its
+  // deployments/billing probes there instead of firing requests that can
+  // never carry data on that host. Defaults to true (壹座 mounts unchanged).
+  installSurface?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [search, setSearch] = useState("");
   // Curation (add-facet-content-management): a category filter chips row
@@ -82,6 +88,13 @@ export function PackMarketView({
   // as before.
   const [category, setCategory] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
+  // Chip labels ride the server's locale projection (P0 1.5): the chip SET is
+  // the canonical line word (the filter identity the server expands back to
+  // slugs); the LABEL is whatever the read face projected for the request.
+  const [lineLabels, setLineLabels] = useState<Record<string, string>>({});
+  // Non-blocking stale-locale hint (P0 1.4): a failed silent refetch keeps
+  // the old rows and says so, instead of swallowing the error.
+  const [localeStale, setLocaleStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -137,16 +150,24 @@ export function PackMarketView({
   );
 
   const refresh = useCallback(
-    async (q: string, cat = category) => {
-      setLoading(true);
-      setError(null);
+    async (q: string, cat = category, opts: { silent?: boolean } = {}) => {
+      // Silent mode (overhaul-market-catalog-presentation P0): a locale-change
+      // refetch keeps the already-rendered cards visible until the new data
+      // lands — no skeleton flash — and a failure keeps the old rows with a
+      // non-blocking hint instead of the destructive error box.
+      if (!opts.silent) {
+        setLoading(true);
+        setError(null);
+      }
       try {
         const r = await api.listPacks({ ...(q ? { search: q } : {}), ...(cat ? { category: cat } : {}) });
         setPacks(r.packs);
+        setLocaleStale(false);
       } catch (err) {
-        setError((err as Error).message);
+        if (opts.silent) setLocaleStale(true);
+        else setError((err as Error).message);
       } finally {
-        setLoading(false);
+        if (!opts.silent) setLoading(false);
       }
     },
     [category],
@@ -156,22 +177,58 @@ export function PackMarketView({
     void refresh("");
   }, [refresh]);
 
+  // Locale-change refetch (P0 1.1): the server owns locale resolution and the
+  // zh fallback; the client only re-states its UI language. The list keeps its
+  // filters (search/category) and refreshes silently. Refs carry the latest
+  // refresh/search so the listener never fires a stale closure (refresh's own
+  // identity changes with `category`; this effect deliberately does not).
+  const language = i18n.language;
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
+  const searchRef = useRef(search);
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+  const prevLanguage = useRef(language);
+  useEffect(() => {
+    if (prevLanguage.current === language) return;
+    prevLanguage.current = language;
+    void refreshRef.current(searchRef.current, undefined, { silent: true });
+  }, [language]);
+
   // Chip set from the live catalog (v1 volumes: one page is the catalog).
   // add-legacy-pack-rebrand 2.x: the facet shows归位 LINE words (server's `line`),
   // never the raw category slugs — clicking a line sends it as the category filter
   // and the server expands it back to the slugs it stands for. company→no line
   // (the facade badge carries those); unmapped slugs pass through as themselves.
+  // Re-runs on language change (P0): the set is the canonical word (stable
+  // filter identity), the labels follow the request's locale projection.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `language` is the TRIGGER, not an input — withLocale() reads i18n.language inside listPacks, so the refetch cannot be expressed through the body
   useEffect(() => {
+    let live = true;
+    // withLocale() stamps the CURRENT i18n.language onto the request; this
+    // effect re-runs after languageChanged, so the refetch carries the new
+    // locale without the caller passing it explicitly.
     api
       .listPacks({ pageSize: 100 })
-      .then((r) =>
-        setCategories(
-          [...new Set(r.packs.map((p) => (p.line === undefined ? p.category : p.line) || "").filter(Boolean))]
-            .sort(),
-        ),
-      )
+      .then((r) => {
+        if (!live) return;
+        const seen = new Map<string, string>();
+        for (const p of r.packs) {
+          const line = (p.line === undefined ? p.category : p.line) || "";
+          if (!line || seen.has(line)) continue;
+          seen.set(line, p.lineLabel ?? line);
+        }
+        setCategories([...seen.keys()].sort());
+        setLineLabels(Object.fromEntries(seen));
+      })
       .catch(() => {});
-  }, []);
+    return () => {
+      live = false;
+    };
+  }, [language]);
 
   const [report, setReport] = useState<PackReport | null>(null);
   const [reportPack, setReportPack] = useState<string>("");
@@ -279,10 +336,21 @@ export function PackMarketView({
                 category === c ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
               }`}
             >
-              {c}
+              {/* The server-projected label (P0 1.5): rendered verbatim, no
+                  client-side remapping — the value sent back stays the
+                  canonical line word. */}
+              {lineLabels[c] ?? c}
             </button>
           ))}
         </div>
+      )}
+      {localeStale && (
+        <p
+          data-testid="pack-market-locale-stale"
+          className="mb-3 rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+        >
+          {t("packs.market.staleLocale")}
+        </p>
       )}
       {!category && !search &&
         visiblePacks.filter((p) => p.featured).length > 0 && (
@@ -446,6 +514,7 @@ export function PackMarketView({
       <PackDetailDialog
         studioOrigin={studioOrigin}
         packId={detailId}
+        installSurface={installSurface}
         onOpenChange={(open) => !open && setDetailId(null)}
         onSubscribed={(r, name, packId) => {
           setReport(r);

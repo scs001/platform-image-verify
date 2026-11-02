@@ -1774,6 +1774,7 @@
       "searchPlaceholder": "搜索智能体名称…",
       "search": "搜索",
       "empty": "市场暂无智能体。",
+      "staleLocale": "切换界面语言后内容更新失败，当前显示的仍是上一种语言；请重试或刷新页面。",
       "allCategories": "全部垂类",
       "featured": "精选",
       "facade": "分身",

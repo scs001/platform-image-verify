@@ -5,7 +5,7 @@
 // this cell; the cell fetches the manifest server-side from the pack id +
 // version (pack-install-server-side-manifest).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
 import type { PackDetail, PackDeployment, PackReport } from "@/lib/packs-api";
@@ -47,6 +47,11 @@ interface Props {
   // link CROSSES domains — the fork write itself happens only in the
   // user's 壹座 cell (facet stays write-free for authoring).
   studioOrigin?: string;
+  // Whether this host can install/deploy packs into a cell (overhaul-market-
+  // catalog-presentation P0). False (the facet shell) skips the deployments/
+  // billing probes — requests that can never carry data on that host. The
+  // market read itself (locale-aware detail) still loads.
+  installSurface?: boolean;
 }
 
 // The 万星 console deep link (agent-service-config): the deployment's slug and
@@ -77,8 +82,16 @@ function budgetDraftValid(text: string): boolean {
   return n > 0 && n <= BUDGET_MAX_MINUTES;
 }
 
-export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin, studioOrigin }: Props) {
-  const { t } = useTranslation();
+export function PackDetailDialog({
+  packId,
+  onOpenChange,
+  onSubscribed,
+  onGotoMine,
+  onRequireLogin,
+  studioOrigin,
+  installSurface = true,
+}: Props) {
+  const { t, i18n } = useTranslation();
   // Tool-face disclosure (pack-tool-declaration-gate D4): the declared count
   // rides the version manifest; the per-server total comes from the catalog's
   // tool_list snapshot (the same source the draft editor's picker uses) — no
@@ -126,23 +139,49 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   // Optional agents toggle for cluster view (agent-cluster-platform)
   const [showOptionalAgents, setShowOptionalAgents] = useState(false);
 
+  // Data loading (overhaul-market-catalog-presentation P0 1.3): two triggers,
+  // two behaviors —
+  //   packId change → full reset (skeleton, fresh state), the pre-change act;
+  //   language change → SILENT refetch of the locale-dependent read only: the
+  //   open dialog keeps showing the previous language until the new payload
+  //   lands, and a failed refetch keeps the old content with a non-blocking
+  //   hint instead of the destructive error box.
+  // The install-plane probes (deployments/billing) are locale-independent, so
+  // they run on packId change only, and never on hosts without an install
+  // surface (the facet shell — 1.7).
+  const language = i18n.language;
+  const [localeStale, setLocaleStale] = useState(false);
+  const prevPackIdRef = useRef<string | null>(packId);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `language` is the TRIGGER, not an input — getPack appends the locale itself (localeQuery reads i18n.language), so the refetch cannot be expressed through the body
   useEffect(() => {
-    setPack(null);
-    setError(null);
-    setDeployments([]);
-    setDeployNote(null);
-    setBindings(null);
-    setKeyDrafts({});
-    setModelDrafts({});
-    setBudgetDrafts({});
-    setLoginHint(false);
-    setScriptGate(null);
-    setShowOptionalAgents(false);
+    const packChanged = prevPackIdRef.current !== packId;
+    prevPackIdRef.current = packId;
+    if (packChanged) {
+      setPack(null);
+      setError(null);
+      setDeployments([]);
+      setDeployNote(null);
+      setBindings(null);
+      setKeyDrafts({});
+      setModelDrafts({});
+      setBudgetDrafts({});
+      setLoginHint(false);
+      setScriptGate(null);
+      setShowOptionalAgents(false);
+    }
+    setLocaleStale(false);
     if (!packId) return;
     api
       .getPack(packId)
-      .then(setPack)
-      .catch((err) => setError((err as Error).message));
+      .then((p) => {
+        setPack(p);
+        setLocaleStale(false);
+      })
+      .catch((err) => {
+        if (packChanged) setError((err as Error).message);
+        else setLocaleStale(true);
+      });
+    if (!installSurface) return;
     api
       .getPackDeployments(packId)
       .then((d) => setDeployments(d.deployments ?? []))
@@ -155,7 +194,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       .getBillingBindings(packId)
       .then(setBindings)
       .catch(() => setBindings(null)); // bindings route absent = pre-revise gateway
-  }, [packId]);
+  }, [packId, language, installSurface]);
 
   const subscribe = async (confirmScripts = false) => {
     if (!packId || !pack) return;
@@ -438,6 +477,16 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
         {error && (
           <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>
+        )}
+        {/* Silent-refetch failure (P0 1.3): the previously loaded content stays
+            visible; this hint says the language didn't switch. Non-blocking. */}
+        {localeStale && !error && (
+          <p
+            data-testid="pack-detail-locale-stale"
+            className="rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+          >
+            {t("packs.market.staleLocale")}
+          </p>
         )}
 
         {pack && m && (

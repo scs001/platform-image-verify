@@ -1774,6 +1774,7 @@
       "searchPlaceholder": "エージェントを検索…",
       "search": "検索",
       "empty": "市場にエージェントがまだありません。",
+      "staleLocale": "新しい言語での更新に失敗しました。表示は前の言語のままです。再試行するか再読み込みしてください。",
       "allCategories": "すべて",
       "featured": "注目",
       "facade": "AI分身",

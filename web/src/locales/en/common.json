@@ -1774,6 +1774,7 @@
       "searchPlaceholder": "Search agents…",
       "search": "Search",
       "empty": "No agents in the market yet.",
+      "staleLocale": "Couldn't refresh this view in the new language — the content below is still in the previous language. Retry or reload.",
       "allCategories": "All",
       "featured": "Featured",
       "facade": "AI Twin",

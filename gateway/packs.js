@@ -35,6 +35,7 @@ import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
 import { lineOf, slugsForLine, isLineWord } from "../lib/pack-category-lines.js";
+import { lineLabelOf } from "../lib/pack-taxonomy.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { installVendorTables, createVendorStore } from "./vendors.js";
@@ -493,10 +494,16 @@ export function createPackRegistry({ file }) {
       // Curation state (add-facet-content-management): presentation-level.
       // `category` is the STORED slug (zero-migrated — write/install read it);
       // `line` is its归位 display word for the browse facet (add-legacy-pack-
-      // rebrand 2.x). Unmapped slugs show as themselves; company → "" (the
-      // facade badge carries the 分身 entries, not a category chip).
+      // rebrand 2.x) and stays the zh canonical word — it doubles as the
+      // facet-selection identity the server expands back to slugs. `lineLabel`
+      // is the locale-projected chip label (overhaul-market-catalog-presentation
+      // P0): zh requests project it identical to `line`; a localized row carries
+      // both so the client renders the label and sends the canonical word back.
+      // Unmapped slugs show as themselves; company → "" (the facade badge
+      // carries the 分身 entries, not a category chip).
       category: pack.category ?? "",
       line: lineOf(pack.category),
+      lineLabel: lineLabelOf(lineOf(pack.category), "zh"),
       featured: Boolean(pack.featured),
       // Agent count of the latest version's manifest (agent-cluster-platform
       // marketplace views): computed in SQL by the list query via
@@ -533,8 +540,11 @@ export function createPackRegistry({ file }) {
   // columns stay the zh main track (search semantics unchanged), so a non-zh
   // request overlays the version's i18n block onto name/description here, at
   // read time. A row whose manifest is unreadable falls back to the columns.
+  // The line chip label rides the same resolution (P0): `line` stays the zh
+  // canonical word (the filter identity), `lineLabel` follows the request.
   function localizedSummary(pack, version, locale) {
     const summary = summaryOf(pack, version);
+    summary.lineLabel = lineLabelOf(summary.line, locale);
     if (typeof version.manifest !== "string") return summary;
     let manifest;
     try {
@@ -761,9 +771,32 @@ export function createPackRegistry({ file }) {
         params.push(String(viewer?.email ?? ""));
       }
       if (search) {
-        where.push(`(v.name LIKE ? ESCAPE '\\' OR v.description LIKE ? ESCAPE '\\')`);
         const pat = `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-        params.push(pat, pat);
+        if (wantLocale) {
+          // Cross-track search (overhaul-market-catalog-presentation P0): a
+          // non-zh request matches the zh main track AND the request locale's
+          // overlay block, so an English keyword finds a pack whose zh columns
+          // never contain it. The resolved tag is path-safe by construction
+          // (resolveLocale output is lower-case BCP-47, no quotes); a suffixed
+          // tag also tries its primary subtag (an `en-US` request finds the
+          // `en` block). A zh request keeps the pre-change clause verbatim —
+          // zh overlays are not a legal manifest shape, so there is nothing
+          // to search there.
+          const tag = displayLocale.replace(/"/g, "");
+          const overlayPaths = [...new Set([tag, tag.split("-")[0]])].map((t) => `$.i18n."${t}"`);
+          where.push(
+            `(v.name LIKE ? ESCAPE '\\' OR v.description LIKE ? ESCAPE '\\' ${overlayPaths
+              .map(
+                (p) =>
+                  `OR json_extract(v.manifest, '${p}.name') LIKE ? ESCAPE '\\' OR json_extract(v.manifest, '${p}.description') LIKE ? ESCAPE '\\'`,
+              )
+              .join(" ")})`,
+          );
+          params.push(pat, pat, ...overlayPaths.flatMap(() => [pat, pat]));
+        } else {
+          where.push(`(v.name LIKE ? ESCAPE '\\' OR v.description LIKE ? ESCAPE '\\')`);
+          params.push(pat, pat);
+        }
       }
       if (tag) {
         where.push(`v.tags LIKE ? ESCAPE '\\'`);

@@ -42,6 +42,11 @@ export interface PackSummary {
    *  NOT by `category` (the stored slug stays the write/install identity, zero-migrated).
    *  Absent on pre-upgrade servers → the view falls back to category (pass-through). */
   line?: string;
+  /** Locale-projected chip label for `line` (overhaul-market-catalog-presentation
+   *  P0): zh requests project it identical to `line`; the canonical word above
+   *  stays the filter identity the server expands back to slugs. Absent on
+   *  pre-upgrade servers → the view falls back to `line` verbatim. */
+  lineLabel?: string;
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;

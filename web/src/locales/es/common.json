@@ -1774,6 +1774,7 @@
       "searchPlaceholder": "Buscar agentes…",
       "search": "Buscar",
       "empty": "Aún no hay agentes en el mercado.",
+      "staleLocale": "No se pudo actualizar esta vista en el nuevo idioma; el contenido todavía está en el idioma anterior. Reintenta o recarga.",
       "allCategories": "Todas",
       "featured": "Destacados",
       "facade": "Avatar de IA",

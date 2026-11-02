@@ -112,7 +112,7 @@ test("conditional tabs and views follow identity", async ({ page }) => {
   await page.goto(`${base}/#/`);
   // anonymous regression already covered above; here the creator+admin sees
   // all five tabs.
-  await expect(page.getByRole("button", { name: "My packs" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "My agents" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Curation" })).toBeVisible();
 
   // #/mine renders the creator console.
@@ -176,7 +176,7 @@ test("unauthorized deep links fall back to the intro landing", async ({ page }) 
   await page.route("**/api/whoami", (route) => route.fulfill({ json: { email: null, groups: [] } }));
   await page.goto(`${base}/#/curate`);
   await expect(page.getByTestId("intro-cta-packs")).toBeVisible();
-  await expect(page.getByRole("button", { name: "My packs" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "My agents" })).toHaveCount(0);
 });
 
 // ── Sign-in honesty (polish-fusion-details follow-up) ────────────────────────
@@ -354,6 +354,55 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   await expect(page.getByTestId("pack-action-bar")).toBeVisible();
   await page.getByRole("button", { name: /查看我的智能体|View my agents|Ver mis agentes|Voir mes agents|マイエージェントを見る/ }).click();
   await expect(page.getByTestId("pack-login-guidance")).toBeVisible();
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});
+
+// Locale-switch refetch (overhaul-market-catalog-presentation P0): switching
+// the shell's locale re-fetches the market in the new language — cards, chip
+// labels, cross-track search, and the open detail dialog — with no manual
+// reload. This is the browser half of the contract; the server halves
+// (lineLabel projection, cross-track search) are pinned by
+// scripts/test-market-locale-refetch.mjs.
+test("market refetches when the locale switches, list and open dialog alike", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/packs`);
+  const card = page.locator('[data-testid^="pack-card-"]').first();
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("谦面壳冒烟包");
+  // The canonical zh line word is the chip label under zh (label == word).
+  await expect(page.getByTestId("pack-category-chips")).toContainText("柏讯 · 数据与情报");
+
+  // Switch via the shell's header switcher: the list silently refetches —
+  // the overlay-projected card text and the localized chip label arrive
+  // without any manual reload, and the canonical filter keeps working.
+  await page.getByTestId("facet-locale-switcher").selectOption("en");
+  await expect(card).toContainText("Facet Shell Smoke Pack");
+  await expect(page.getByTestId("pack-category-chips")).toContainText("Wire · Data & Intelligence");
+
+  // Cross-track search: a keyword that exists ONLY in the en overlay block.
+  await page.getByTestId("pack-search-input").fill("English sentinel");
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(1);
+  await expect(card).toContainText("Facet Shell Smoke Pack");
+
+  // Clearing the search restores the full list (same locale, zh-track hit).
+  await page.getByTestId("pack-search-input").fill("");
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(1);
+
+  // The open detail dialog refetches on locale change without closing: back
+  // to zh-CN while the dialog is open, the title returns to the zh name.
+  await card.click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText("Facet Shell Smoke Pack");
+  await page.getByTestId("facet-locale-switcher").selectOption("zh-CN");
+  await expect(detail).toContainText("谦面壳冒烟包");
+  await page.getByTestId("pack-detail-close").click();
 
   expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
 });

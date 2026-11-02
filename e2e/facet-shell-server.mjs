@@ -77,17 +77,34 @@ for (;;) {
 const db = new Database(path.join(dataRoot, "packs.db"));
 const now = Date.now();
 db.prepare(
-  `INSERT INTO packs (id, author_email, created_at, unlisted, visibility) VALUES (?, ?, ?, 0, 'public')`,
-).run("facet-shell-smoke", "smoke@e2e.local", now);
+  `INSERT INTO packs (id, author_email, created_at, unlisted, visibility, category) VALUES (?, ?, ?, 0, 'public', ?)`,
+).run("facet-shell-smoke", "smoke@e2e.local", now, "wire");
 db.prepare(
   `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
    VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
 ).run(
   "facet-shell-smoke",
   "谦面壳冒烟包",
-  "facet shell smoke sentinel pack",
+  "壳冒烟哨兵包。",
   JSON.stringify(["shell-smoke"]),
-  JSON.stringify({ name: "谦面壳冒烟包", description: "sentinel", skills: [], mcpServers: [], agents: [] }),
+  // The seed carries a line-mappable category and an en overlay (overhaul-
+  // market-catalog-presentation P0): the shell spec's locale-switch test
+  // drives the real server path — canonical zh line word + projected chip
+  // label, cross-track search, and the dialog's language refetch.
+  JSON.stringify({
+    name: "谦面壳冒烟包",
+    description: "壳冒烟哨兵包。",
+    category: "wire",
+    skills: [],
+    mcpServers: [],
+    agents: [],
+    i18n: {
+      en: {
+        name: "Facet Shell Smoke Pack",
+        description: "English sentinel description for the shell smoke pack.",
+      },
+    },
+  }),
   "smoke@e2e.local",
   now,
 );

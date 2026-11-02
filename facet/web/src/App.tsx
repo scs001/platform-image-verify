@@ -215,6 +215,10 @@ export function App() {
                 studioOrigin="https://platform.finddatatech.cloud"
                 onSubscribed={() => {}}
                 onOpenChat={null}
+                // No install plane on this host (overhaul-market-catalog-
+                // presentation P0 1.7): the detail dialog skips its deployments/
+                // billing probes — requests that can never carry data here.
+                installSurface={false}
                 // Only a signed-out viewer gets the gated path: after login
                 // these must be undefined so the buttons fire for real (the
                 // earlier unconditional wiring sent signed-in users to login).

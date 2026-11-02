@@ -125,3 +125,29 @@ test("the store is bounded, evicting the least-recently-written entry", () => {
   assert.equal(listCacheHas("k10"), true);
   listCacheClear();
 });
+
+// app-center-load-recovery D2: coldRetry is opt-in, deduped, and the error
+// state is reserved for the exhausted attempt. No browser unit runner exists
+// for the hook, so — same house style as the blank-out pin above — the
+// contract is pinned at the source and exercised end-to-end in e2e.
+test("coldRetry: opt-in budget keeps the loading frame until it is spent", () => {
+  const src = readFileSync(new URL("../web/src/hooks/useListCache.ts", import.meta.url), "utf8");
+  // default 0: callers that pass nothing keep the pre-change behavior exactly
+  assert.match(src, /optionsRef\.current\.coldRetry \?\? 0/, "coldRetry must default to 0");
+  // a cold failure WITH budget left returns early — no setStatus("error") on
+  // that path; the skeleton owns the frame until the backoff attempt lands
+  assert.match(src, /listCacheGet\(key\) === undefined && coldUsed\.current < budget/, "cold retry gate");
+  // one fetch in flight per key: focus revalidation and the cold backoff must
+  // not double-fetch
+  assert.match(src, /if \(inFlight\.current\) return inFlight\.current/, "in-flight dedupe");
+  // the terminal path (budget spent) still goes through the cached-or-error line
+  assert.match(src, /setStatus\(listCacheGet\(key\) !== undefined \? "loaded" : "error"\)/);
+});
+
+test("coldRetry: only the app-center catalog read opts in", () => {
+  const src = readFileSync(new URL("../web/src/pages/AppCenterPage.tsx", import.meta.url), "utf8");
+  assert.match(src, /useListCache\("catalog", fetchCatalog, \{ coldRetry: 1 \}\)/, "catalog opts in once");
+  // connections stays silent-by-design (app-center spec: badge failure hides
+  // badges, never an error frame)
+  assert.match(src, /useListCache\("connections", fetchConnectionStates\)/, "connections keeps default posture");
+});

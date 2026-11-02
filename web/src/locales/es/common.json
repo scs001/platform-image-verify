@@ -2381,6 +2381,7 @@
     }
   },
   "appCenter": {
+    "loadError": "No se pudo cargar el catálogo de productos. Las tarjetas de marca de arriba siguen disponibles.",
     "title": "Centro de Apps",
     "subtitle": "Productos del ecosistema que funcionan sobre Yizuo: una tarjeta por producto, ábrelo o conecta tu cuenta",
     "open": "Abrir",

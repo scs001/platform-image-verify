@@ -27,7 +27,7 @@ import { useListCache } from "@/hooks/useListCache";
 import { Card } from "@/components/ui/card";
 import { PageShell } from "@/components/ui/page-shell";
 import { StatusPill } from "@/components/ui/status-pill";
-import { Skeleton } from "@/components/ui/states-kit";
+import { ErrorState, Skeleton } from "@/components/ui/states-kit";
 import type { StatusKind } from "@/lib/statusTokens";
 import {
   APP_LINES,
@@ -263,7 +263,11 @@ export function AppCenterPage() {
   // /api/connections keeps the cards — neither blocks the other. Both are
   // seeded from cache, so a revisit paints the full grid instead of flashing
   // the five static brand cards and then growing into the products.
-  const catalog = useListCache("catalog", fetchCatalog);
+  // The catalog read opts into one automatic backoff retry (openspec:
+  // app-center-load-recovery D2): a transient first-pull failure heals
+  // without user intervention; only the exhausted attempt shows the error
+  // state. connections keeps the silent posture by design.
+  const catalog = useListCache("catalog", fetchCatalog, { coldRetry: 1 });
   const connections = useListCache("connections", fetchConnectionStates);
   const apps = catalog.data?.apps ?? null;
   const states = connections.data;
@@ -271,6 +275,11 @@ export function AppCenterPage() {
   // Cold load (no cache yet): the product slots are unknown, so placeholder
   // tiles stand in — the grid never reads as "complete at five" and then grows.
   const showProductSkeleton = catalog.status === "loading" && apps === null;
+  // Cold failure (nothing cached, automatic retry spent): the brand cards
+  // stay — the never-a-broken-page doctrine holds — but the product area
+  // names the failure and offers the way out instead of a silent half-grid
+  // (openspec: app-center-load-recovery).
+  const coldFailure = catalog.status === "error" && catalog.data === null;
 
   return (
     <PageShell data-testid="app-center-page" title={t("appCenter.title")} subtitle={t("appCenter.subtitle")}>
@@ -284,6 +293,15 @@ export function AppCenterPage() {
               <Skeleton key={`app-card-skeleton-${i}`} data-testid="app-card-skeleton" className="h-[152px]" />
             ))}
         </div>
+        {coldFailure && (
+          <div data-testid="app-center-load-error" className="mt-4">
+            <ErrorState
+              message={t("appCenter.loadError")}
+              onRetry={() => void catalog.refresh()}
+              retryLabel={t("common.retry")}
+            />
+          </div>
+        )}
       </div>
     </PageShell>
   );

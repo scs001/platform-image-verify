@@ -2381,6 +2381,7 @@
     }
   },
   "appCenter": {
+    "loadError": "The product catalog could not be loaded. The brand cards above stay available.",
     "title": "App Center",
     "subtitle": "Ecosystem products running on Yizuo — one card per product: open it, or connect your account",
     "open": "Open",

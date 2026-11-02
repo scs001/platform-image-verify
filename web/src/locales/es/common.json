@@ -2,6 +2,7 @@
   "common": {
     "loading": "Cargando…",
     "cancel": "Cancelar",
+    "confirm": "Confirmar",
     "save": "Guardar",
     "saving": "Guardando…",
     "add": "Agregar",

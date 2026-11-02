@@ -2,6 +2,7 @@
   "common": {
     "loading": "加载中…",
     "cancel": "取消",
+    "confirm": "确认",
     "save": "保存",
     "saving": "保存中…",
     "add": "添加",

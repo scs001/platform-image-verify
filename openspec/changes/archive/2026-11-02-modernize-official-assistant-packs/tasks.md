@@ -23,5 +23,5 @@
 
 - [x] 3.1 官方作者名册补两邮箱（fd-infra-deploy 83052dd + kubectl set env 同值先行；画廊 46→50 卡）
 - [x] 3.2 真机走查 13/13：货架 12 卡全在（50 卡墙）、详情逐支版本/内容标记/无转义
-- [ ] 3.3 台账 + 双推
-- [ ] 3.4 archive（ADDED 并入主 spec + validate --specs）
+- [x] 3.3 台账 §15.121 续十二 + 双推（origin+gitee）
+- [x] 3.4 archive（ADDED×3 并入主 spec；validate --specs 通过）

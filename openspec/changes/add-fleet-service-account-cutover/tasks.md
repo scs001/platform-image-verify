@@ -19,4 +19,4 @@
 ## 4. 收尾
 
 - [x] 4.1 `docs/registry-maintenance.md` 台账更新：切换记录（时刻+两行对照）、两层身份措辞、红线入册（svc 双号禁人工交互登录/改密/禁用，只有周期重铸碰它们）、自动化新策略（每轮无条件）——完成判据=§15.85+ 成文（**2026-11-01 §15.123 成文**，台账号跳至 15.123 避让 agent-builder 线在用的 §15.122，循跨 worktree 同号异题去重律）
-- [ ] 4.2 切换后一轮巡线回合自然落观察：巡线 ok、`wire_artifact_get` 200、无 stale——完成判据=巡线回合证据一两条（含 billing 归 svc/fleet-core-1 的用量行抽样）
+- [x] 4.2 切换后一轮巡线回合自然落观察：巡线 ok、`wire_artifact_get` 200、无 stale——完成判据=巡线回合证据一两条（含 billing 归 svc/fleet-core-1 的用量行抽样）（**2026-11-02 过门**：巡线岗真回合 **status=ok**（fleet jchvsd/m_8vv79l，10:04:16-10:05:27 CST，usage 917/607=真实 LLM 回合）；09:00 miss 系 cell 闲置 cron 缺席，唤醒后 boot 补跑+repair-queue 重入队+手动 run（POST cron/:id/run 未改配置）落地。行侧双证：10:04 boot sweep `[line-renewal] wire-customer renewed`（+wire-ops 入 profile+mcp-delivery attempt 1 重启）与 11:28 周期续期 stale=0/sub=ohvn98ztddjj/RT 在。billing 归因=wire 侧台账承载（其已核 svc 三客户零行，待自然消费转行））

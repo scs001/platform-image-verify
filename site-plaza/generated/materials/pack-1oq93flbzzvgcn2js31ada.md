@@ -6,9 +6,8 @@
 
 Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of proposals/variants/applications), and related work (semantically similar papers and comparison matrices). The corpus covers thousand-scale samples across eight arXiv categories including q-fin and cs.CL (metadata + abstracts, CC0 metadata); external open search (arXiv/OpenAlex/Semantic Scholar) is orchestrated as a supplement. **Copyright red line**: only metadata, abstracts, chunked quotes, and links pointing back to arXiv.org are returned — this service neither provides nor sends out full paper texts. Retrieval runs through the fd-text-core engine's hybrid channel (keywords ⊕ semantic vectors via Qwen3-Embedding-8B).
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

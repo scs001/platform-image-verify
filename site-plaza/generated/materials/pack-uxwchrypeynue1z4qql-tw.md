@@ -6,9 +6,8 @@
 
 Retail industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): wholesale price reference (Kunming International Flower Auction Center, kifa.net, daily auction prices and market analysis — a direct purchase-cost reference for florists and fresh-produce shops, not generalizable to all retail goods), city fundamentals (China city panel, 209 variables × 297 cities × 2000–2024, for judging neighborhood purchasing power and site selection), peer density (business registry with province + city + county granularity down to sub-industry, and company_type filtering for individually-owned businesses), and express-delivery climate (State Post Bureau monthly reports, 36 consecutive issues, a reference for small shops that also sell online or via community group buying). **Hard boundaries**: the newest registry batch is 2023 — roughly a 3-year lag — so every output is labeled 'historical snapshot, not real-time'; the source covers only new registrations with no deregistration/revocation scope, 'how many shops closed' questions are explicitly declined with a stock status distribution offered instead, and fabricating closure counts or estimating exit rates is forbidden.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

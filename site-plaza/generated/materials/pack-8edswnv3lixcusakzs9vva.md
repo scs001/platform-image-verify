@@ -6,9 +6,8 @@
 
 Wire data governance suite: read the data collected through forms, correct one record, undo a correction, review correction history, and export CSV. Written corrections must carry a source marker (source) and never fill values on the user's behalf; undoing only sets a rollback marker and the original row is never rewritten; exports carry a truncated field, and truncation by the row cap is reported as-is rather than passed off as complete. Failures are relayed verbatim; an empty list must never pose as 'no data'.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

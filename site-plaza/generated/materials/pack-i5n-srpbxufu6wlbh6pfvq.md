@@ -6,9 +6,8 @@
 
 Wire IC Debate, a three-skill set: it turns the company-level debate procedure that TradingAgents/FinRobot spell out but never wire up into an installable pattern — a bull case (ic-bull-case: numbers may only cite evidence-set evidence_id, nothing self-invented or estimated, no arguing the opponent's side, your own case argued to its full extent), a bear case (ic-bear-case: symmetric rules, plus never distorting evidence the bull side has already stated), and an adjudication (ic-adjudication, the entry skill: after dispatching both sides it issues a Rating contract instance under four disciplines — a conflict never yields hold without stating which side is stronger and why, insufficient evidence yields review rather than a downgraded verdict, the verdict cites no numbers, change_my_mind is mandatory) — and then records the outcome to the decision ledger (conclusions can be settled by P5: the closed loop both upstream projects lack). Honest positioning: single-agent role-split form; the three roles are played by one model and are not independent perspectives; the upgrade path (Wanxing A2A serial delegation across three personas, depth 3 / concurrency 1 / per-minute billing) is written into the skill text as product evolution. The debate claims no gain in forecast accuracy — whether it is more accurate is answered by ledger settlement. Verdicts are research reference, not investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

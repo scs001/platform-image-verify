@@ -6,9 +6,8 @@
 
 Industry cyclical conditions and chain transmission + corporate fundamentals and financial quality + panel econometrics: industry structure and upstream-downstream transmission grounded in listed-company evidence (GTA panel, 1,468 variables); DuPont decomposition and financial red-flag identification on the corporate side; fixed effects, cluster-robust standard errors and difference-in-differences on the econometrics side.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

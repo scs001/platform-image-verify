@@ -4,9 +4,8 @@
 
 谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产
 
-- Category: official-data (plaza category enum v1)
+- Species: official-data (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 

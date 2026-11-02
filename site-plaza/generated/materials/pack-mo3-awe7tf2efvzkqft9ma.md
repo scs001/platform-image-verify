@@ -6,9 +6,8 @@
 
 Shared fleet layer: artifact-write discipline for contribution posts — wire-build references, draft-first, source_ref triplets, column pre-check, four-way failure attribution.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,13 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install Mo3_aWe7tF2eFVzkqFT9mA
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (1):
+- fleet-board-contribution — 看板投稿纪律：草稿优先、source_ref 三元组、列名预检、失败四分类、零半写处理。
+
+MCP server references (1): wire-build-mcp
 
 ## As of
 

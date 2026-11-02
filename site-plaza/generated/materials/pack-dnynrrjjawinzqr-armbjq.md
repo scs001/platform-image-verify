@@ -6,9 +6,8 @@
 
 Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + company answer' pairs, each with item_id, verbatim quotes and body-status triage), expectation-clue reading (five clue classes — guidance / confirmation / denial / evasion / wording change — each backed by evidence traceable to the original text; wording changes always shown as a side-by-side pair; a clue is company positioning, not fact), preannouncement cross-check (a three-segment timeline per report period — Q&A date vs preannouncement/express report vs actuals; all arithmetic goes through the fd-quant compute face; preannouncement ranges shown as lower/upper/mid), and gap statement (synthesis in three tiers — verified / unverified / not assessable — each statement with an evidence chain and sample size; missing samples are marked 'not to be relied on'). Coverage boundary (upstream live probe 2026-10-23): SSE e-interaction is available; the SZSE interaction platform is unreachable upstream (legacy API 405, new portal SPA-walled), so coverage = SSE-listed companies only, SZSE names are out of scope, and every output must state this gap. Core discipline: check source health before citing any Q&A; never fill Q&A from model memory; conclusions carry sample size and time window; no scoring, no ranking, no recommendations, no forecasts. Division of labor with the info-shock suite: that one handles price-impact windows of information items, this one only contrasts company positioning against the company's own disclosures and touches no prices. Not investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

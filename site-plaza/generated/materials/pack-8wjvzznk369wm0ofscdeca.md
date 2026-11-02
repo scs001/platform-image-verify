@@ -6,9 +6,8 @@
 
 Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing members), agent steward over the wanxing read face (degrades honestly without credentials), and an ops chief that composes the daily brief and escalates governance proposals.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,14 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install 8wJVZZnk369wm0oFScdecA
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (2):
+- fleet-readonly-db-patrol — fleets.db 只读巡检配方：表清单、成员态枚举、连续失败计数口径与 vacant 时长算法。
+- fleet-governance-proposal-card — 治理提案卡：现象/证据/选项/影响面四栏，写面动作一律提案不自决。
+
+MCP server references (1): wanxing-ops
 
 ## As of
 

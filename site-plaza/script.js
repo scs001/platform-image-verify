@@ -14,6 +14,7 @@
     catalog: null, // snapshot (same-origin generated/catalog.json)
     live: null, // live-refreshed listing (or null)
     liveState: "pending", // pending | live | snapshot
+    speciesTab: "all", // all | agents | skills | mcp
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -112,7 +113,11 @@
     }
     const q = ($("#invSearch").value || "").trim().toLowerCase();
     const cat = $("#invCategory").value;
+    const tab = store.speciesTab;
+    const inTab = (c) =>
+      tab === "all" ? true : tab === "agents" ? ["pack", "facade", "official-data"].includes(c) : tab === "skills" ? c === "skill" : c === "mcp";
     const mats = currentMaterials().filter((m) => {
+      if (!inTab(m.category)) return false;
       if (cat && m.category !== cat) return false;
       if (!q) return true;
       const hay = [m.human?.[store.locale]?.name, m.human?.en?.name, m.human?.["zh-CN"]?.name, m.canonical?.brief, ...(m.tags ?? [])]
@@ -189,8 +194,18 @@
     renderInventory();
   }
 
+  // v2 three-domain doors: the hostname preselects the species tab.
+  // agent.finddatatech.cloud = canonical (all); skills. = skills; mcp. = mcp.
+  function speciesFromHost() {
+    const h = location.hostname;
+    if (h.startsWith("skills.")) return "skills";
+    if (h.startsWith("mcp.")) return "mcp";
+    return "all";
+  }
+
   async function boot() {
     store.locale = localeFromUrl();
+    store.speciesTab = new URLSearchParams(location.search).get("species") || speciesFromHost();
     $("#localeSwitcher").value = store.locale;
     $("#localeSwitcher").addEventListener("change", (e) => {
       localStorage.setItem("plaza.locale", e.target.value);
@@ -198,15 +213,27 @@
     });
     $("#invSearch").addEventListener("input", () => renderInventory());
     $("#invCategory").addEventListener("change", () => renderInventory());
+    document.querySelectorAll(".inv-tab").forEach((b) =>
+      b.addEventListener("click", () => {
+        store.speciesTab = b.dataset.tab;
+        document.querySelectorAll(".inv-tab").forEach((x) => x.classList.toggle("active", x === b));
+        renderInventory();
+      }));
 
     store.dict = await loadDict(store.locale).catch(() => loadDict(DEFAULT_LOCALE));
     const catRes = await fetch("generated/catalog.json").catch(() => null);
     if (catRes && catRes.ok) store.catalog = await catRes.json();
     if (store.catalog) {
-      $("#countPacks").textContent = store.catalog.count ?? "—";
+      const c = store.catalog.counts ?? {};
+      $("#countPacks").textContent = c.packs ?? "—";
+      $("#countSkills").textContent = c.skills ?? "—";
+      $("#countMcp").textContent = c.mcpServers ?? "—";
+      $("#countTools").textContent = c.tools ?? "—";
       $("#asOfDate").textContent = store.catalog.generatedAt ?? "—";
     }
     applyStatic();
+    // reflect the preselected tab in the UI
+    document.querySelectorAll(".inv-tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === store.speciesTab));
     void refreshLive();
   }
 

@@ -6,9 +6,8 @@
 
 Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength ranking (industry indices synthesized from SW Level-1 constituents), intra-group ranking (residual momentum + robust Z + an exception framework), risk-budgeted position building (emitting TargetWeights contract instances) and closed-loop operation (weight-mode backtests + paper trading + snapshot reading). Aligned with FinRL-X's seven strategy modules, but inputs are adapted to A-shares: volatility uses realized volatility (QVIX/iVIX are unreachable from Wire's reachable environment), groups are synthesized from SW constituents (official index series not sampled), and parameters are re-calibrated to measured quantiles (original Z≥3.0 → adopted |Z|≥2.0, since measured 3.0 covers only 0.47%). Prices go through channel B (local DAAS; A-shares must be seeded first); statistics are always produced by the fd-quant compute face. Division of labor with the strategy-lab suite: the lab provides general discipline (weight semantics, backtest interpretation, risk-control ownership), this suite provides the concrete strategy and parameters (which groups, which names within a group, how the budget splits); supervision does not re-implement. The end product is executable weights and run records, not buy advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

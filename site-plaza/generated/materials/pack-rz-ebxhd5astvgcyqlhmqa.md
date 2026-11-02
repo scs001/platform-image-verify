@@ -6,9 +6,8 @@
 
 End-to-end analysis of civil and commercial cases: fixing the claims (S1) → basis of the claim (S2) → defense analysis (S3) → element breakdown (S4) → assertion search (S5) → issue matrix (S6) → allocation of the burden of proof (S7) → fact-finding (S8) → outcome prediction (S9) → hallucination check (S10). Statutes via Lex semantic search with article-level parsing, validity status via data-business search, similar and guiding cases via the judgment and guiding-case libraries; S10 now verifies citation authenticity by cross-checking with the data tools.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

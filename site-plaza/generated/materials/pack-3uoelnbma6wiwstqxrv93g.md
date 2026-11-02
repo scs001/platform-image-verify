@@ -6,9 +6,8 @@
 
 Civil/commercial litigation drafting and filing prep: complaints, defenses and evidence lists, with evidence cards and checklists; v2 adds element-based format conversion (traditional documents → 67 SPC model templates, per-element source tags, facts preserved). Statute anchoring, validity checks and similar/guiding-case references run on Lex legal search; case numbers and provision text come from real search returns.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

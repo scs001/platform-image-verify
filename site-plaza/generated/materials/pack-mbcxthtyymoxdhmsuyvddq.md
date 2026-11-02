@@ -6,9 +6,8 @@
 
 Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting → industry-signal comparison → action list) as the entry skill, with three companion calculators for break-even, gross-margin structure, and cash flow/payment terms. Every amount and ratio is produced by a calculator and carries its formula, input base, and source (source name/region/year/as-of date); when an external statistical base cannot be fetched, that item halts with an explicit 'base data source not connected/uncoded' notice, and filling gaps from the model's memory of industry figures is forbidden. When no industry signal pack is installed, this is honestly labeled and the analysis continues. Single-store business profiles can be persisted on the DAAS entity model (one store = one entity, with persistent indicators and alert rules). The core is written so small-business owners can understand it, with plain-language explanations for technical terms; institutional and government channels share the same core and differ only in shell and delivery.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

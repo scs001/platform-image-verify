@@ -6,9 +6,8 @@
 
 Lex Zhengxin watch cluster template: the monitor patrols the real V-Dem/MARPOR libraries by domain (fd-zhengxin-reference read face), the synthesizer cross-checks the weekly report (major shifts escalate), and the producer lands the atlas draft. Install, then instantiate from the template; discipline comes from the shared packs (same cell): fleet-data-qa / fleet-brief-report / fleet-board-contribution.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,14 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install 1HbpcL4LaB-csKpUQgN2Ew
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (2):
+- zx-source-readiness-gate — 六源就绪门：source_status 判就绪/延迟/未就绪三档，未就绪整源跳过并如实记录。
+- zx-timeseries-anomaly-card — 异动卡五栏：国家/指标/年份对/差值/快照版本，阈值来源必须可复核。
+
+MCP server references (2): fd-zhengxin-reference, wire-build-mcp
 
 ## As of
 

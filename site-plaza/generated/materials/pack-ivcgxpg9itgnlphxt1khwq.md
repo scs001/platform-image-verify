@@ -6,9 +6,8 @@
 
 Wire intel/sentiment fleet template: intel patrol + sentiment sentinel run in parallel, the chief cross-checks both and composes the morning brief, the contribution post lands a board draft. Install, then instantiate from the template; post discipline comes from the shared fleet packs (install in the same cell).
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,15 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install IVCGxpg9itGnLpHxT1khWQ
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (3):
+- intel-item-five-elements — 情报条目五要素：原文标题、时间、来源、实体、可回溯 ID，缺一不立条。
+- intel-source-health-triage — 源健康先行：stream_health 判红黄绿三档，坏源不硬取，失败按四分类上报。
+- intel-sentiment-threshold-card — 情绪阈值卡：基线算法、窗宽、阈值来源与连续同向判据的可复核口径。
+
+MCP server references (4): fd-info, wire-ops, wire-build-mcp, fd-sentiment
 
 ## As of
 

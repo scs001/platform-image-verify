@@ -6,9 +6,8 @@
 
 External-facing product-introduction team: one front-desk “Product Guide” plus five product-line specialists (FindData·Base / Lex / Wire / Facet / Constellation). Orchestration is a dispatch star from the guide to each specialist (a conversational team with no cron cadence — once installed it simply waits for visitor questions). Knowledge source: the official Chinese site www.finddatatech.cloud /zh/ (fetched verbatim on 2026-10-30) and the public README (github.com/FindDataTechnology/platform); when the site changes, sync this seed by hand and re-run the conservation and red-line tests. Structure note: all six posts are self-carried (maxAgents 50) — the pack ships the complete team, so an outside installer needs zero pre-creation and has no degraded path. KPI slots: a conversational team carries no operations semantics, so none are declared (kpiSlots: []). This pack declares publicFacing=true: at runtime its posts mount only the public tool surface (fleet bridge + public market), with workspace file tools and roster-enumeration tools disabled — internal lane names must never reach a visitor-visible answer. Red line: every persona contains public information only, uses vocabulary v4 (agent team / squad / agent / agent market), and never internal operations detail — pinned by text assertions in scripts/test-product-intro-seed.mjs. Product-line names follow the official Chinese site verbatim.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,12 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install v8rZ8F7E92MrssZ92ygnXQ
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (2):
+- public-info-discipline — 对外介绍公开信息纪律：只官网与公开仓库口径，内部名零出现，不确定如实说。
+- intro-triage-routing — 前台分诊路由卡：话题到专家的映射与转介话术。
 
 ## As of
 

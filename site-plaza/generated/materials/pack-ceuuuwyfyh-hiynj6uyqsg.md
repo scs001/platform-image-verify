@@ -6,9 +6,8 @@
 
 Wire Policy Transmission four-skill set: policy identification (ministry items with source_type=ministry; read the body and extract the seven policy elements — issuing agency, document number, policy instrument, scope of application, effective date, enforcement horizon, quantified targets — each element with item_id, as_of and a verbatim quote verified through locate_evidence), industry mapping (three-stage mapping policy elements → affected industries/regions → testable variables; variables must be genuinely retrieved from the yearbook / city / firm panels, two confidence tiers — stated in the policy / inferred semantically — and any link without a variable enters the unverified list), regional and firm-level transmission testing (two routes — event windows and policy-intensity series — checked link by link, with correlation coefficients, lag scans, sample sizes and windows printed on each row; conclusions in three tiers — verified / not significant / unverified links, the latter explicitly labeled, correlation and sample size accompany every conclusion; historical statistical relations are not causal proof), and policy tracking (ministry stream counts and period comparison, health watermark, and a hit-register that merely cross-references verified chains without adding conclusions). Core discipline: health first (check stream_health before citing; over-threshold lag means declaring 'information may be incomplete'), separate verified from unverified links (a link with no data is explicitly unverified — never assume a policy must transmit), correlation and sample size accompany every conclusion, no causal wording, no forecasts. Not investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

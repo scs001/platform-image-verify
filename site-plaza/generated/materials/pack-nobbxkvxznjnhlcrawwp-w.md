@@ -4,9 +4,8 @@
 
 壹座聊天内的团队自然语言编排面：把用户的话编译成团队结构草稿，经校验与成本预估呈 diff，用户批准后落地。管编制不管作战——不做运行时指挥。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 pack 清单校验。
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

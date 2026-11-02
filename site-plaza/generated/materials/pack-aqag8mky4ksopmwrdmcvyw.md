@@ -4,9 +4,8 @@
 
 官方功能集（生态首发）：FindData 数据底座（fd-open-data-mcp 宏观/金融真数据）+ 官方 time/fetch 生态 server + 数据研究 persona。装上即可做可溯源的数据问答与网页取证。
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: no
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

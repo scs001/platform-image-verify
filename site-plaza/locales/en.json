@@ -17,7 +17,10 @@
     "packs": "Packs",
     "categories": "Material categories",
     "locales": "Languages",
-    "asOf": "Snapshot as of"
+    "asOf": "Snapshot as of",
+    "skills": "Skills",
+    "mcp": "MCP services",
+    "tools": "Callable tools"
   },
   "materials": {
     "title": "What materials exist",
@@ -89,7 +92,12 @@
         "promise": "Residency survives idle periods; calls settle per use."
       }
     ],
-    "tableHead": { "verb": "Action", "input": "Input", "output": "Output", "promise": "Guarantee" }
+    "tableHead": {
+      "verb": "Action",
+      "input": "Input",
+      "output": "Output",
+      "promise": "Guarantee"
+    }
   },
   "inventory": {
     "title": "Inventory",
@@ -109,6 +117,12 @@
       "mcp": "MCP server",
       "facade": "AI facade",
       "official-data": "Official data anchor"
+    },
+    "tabs": {
+      "all": "All",
+      "agents": "Agents",
+      "skills": "Skills",
+      "mcp": "MCP servers"
     }
   },
   "audience": {

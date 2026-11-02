@@ -6,9 +6,8 @@
 
 Owner-facing three-post fleet: the sentinel audits all registered fleets and infrastructure against countable thresholds and lands a per-item anomaly ledger; the optimizer routes confirmed anomalies through existing proposal surfaces only, each citing its ledger entry; the shift lead delivers a weekly digest and puts decisions in the decision queue. Proposals and approvals stay separate; red-line actions are always human.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,15 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install bKipx4urGfO5TE6GjJ9Ihg
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (3):
+- sentinel-discipline — 工厂集群巡检岗纪律：五类可计数阈值判据、逐条目异常清单格式、单回合口径收窄与收尾报数落 board。装配于工厂集群巡检岗。
+- optimizer-discipline — 工厂集群优化岗纪律：异常→提案四通道映射、提案必附异常条目依据、幻觉源名防御、自动化政策线分级标注、批准前零写边界。装配于工厂集群优化岗。
+- shiftlead-discipline — 工厂集群报班岗纪律：周报 digest 三段（异常台账/提案四态计数/成本走势）、拍板件走 decision_queue 正式呈报、禁私信替代。装配于工厂集群报班岗。
+
+MCP server references (5): infra-telemetry, fleet-architect, blueprint-author, facet-market, actions-mcp
 
 ## As of
 

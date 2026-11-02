@@ -1,34 +1,30 @@
-// ── 壹座·智能体素材广场 export pipeline (add-agent-materials-plaza) ──
+// ── 壹座·智能体素材广场 export pipeline (add-agent-materials-plaza, v2) ──
 //
-// One truth, three machine surfaces + the human-face data injection:
-//   facet market listing  ──►  snapshot.json (fallback + audit face)
-//                         ──►  catalog.json   (annotation-layer shape, zero new vocabulary)
-//                         ──►  llms.txt / llms-full.txt (AI site index, en primary + zh mirror)
-//                         ──►  materials/<slug>.md (per-material self-contained pages, en+zh)
-//                         ──►  infrastructure.md (input–action–output table)
-//                         ──►  counts.json (hero counters for the static pages)
+// v2 (2026-11-03): the inventory spans the THREE material species, each
+// ingested from its own registry public face — packs from the market listing,
+// skills from /api/skills-catalog, MCP servers from /api/mcp-catalog (with the
+// per-server depth carrying the full public tool surface). Per-source count
+// reconciliation: packs against the production single-rule endpoint
+// /api/marketplace/marketplace.json, skills/mcp against their own source
+// arrays (set equality catches mapping drops).
 //
-// Admission: the market's ONE listing rule, mirrored exactly from
-// facet/marketplace-json.js loadListedPacks (public + non-unlisted + curated
-// [category ∨ featured]; an operator whitelist replaces curation outright).
-// The count authority is the PRODUCTION endpoint /api/marketplace/marketplace.json
-// — already the single-rule output — so the reconciliation gate compares two
-// independent derivations, not the export against itself.
+// Surfaces written: snapshot.json (packs fallback face), catalog.json
+// (annotation-layer shape), llms.txt / llms-full.txt, materials/*.md
+// (species-aware self-contained pages), infrastructure.md, counts.json
+// (hero: three species counts + tools).
 //
 // Gates (fail = non-zero exit, zero artifacts written):
-//   G1 count reconciliation  — filtered listing count == marketplace.json plugin count
-//   G2 annotation shape      — every catalog entry carries canonical.brief,
-//                              human.{zh,en,es,fr,ja}, whenToUse, provenance{source,updatedAt}
-//   G3 ai_readable six lint  — self-contained sections / full entity names / one term per
-//                              concept / input–action–output tables / cold-read three questions /
-//                              provenance present
+//   G1 count reconciliation  — per source, as above
+//   G2 annotation shape      — canonical.brief, human.{5 slots}, whenToUse,
+//                              provenance{source,updatedAt} on EVERY entry
+//   G3 ai_readable six lint  — self-contained / entity named / one term per
+//                              concept / input–action–output table / cold-read
+//                              three questions / provenance present
 //
 // Run:  node scripts/plaza-export.mjs [--base <facet-url>] [--out <dir>] [--fixture <file>]
 //       [--allow-stale]   # on total fetch failure, continue from the last snapshot
 //
-// Offline/test: --fixture <file> replaces the network (the fixture carries the
-// same shape the network fetches produce). scripts/test-plaza-export.mjs drives
-// the module functions directly.
+// Offline/test: --fixture <file> (see scripts/test-plaza-export.mjs for shape).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -43,6 +39,7 @@ const CATEGORY_ENUM_VERSION = 1;
 // The closed category enumeration (agent-materials-plaza spec: new species
 // extend this with a version bump, never overload an existing value).
 const CATEGORY_ENUM = ["pack", "skill", "mcp", "facade", "official-data"];
+const SKILLS_PAGE_SIZE = 500;
 
 // ── admission predicate — mirror of facet/marketplace-json.js loadListedPacks ──
 export function admissionPredicate(pack, whitelist = []) {
@@ -83,16 +80,19 @@ export async function fetchListedForLocale(base, locale, { fetchImpl = fetchJson
   return out;
 }
 
-// ── slug: stable address = packId-derived (spec: content updates never move it) ──
+// ── slug: species-namespaced stable addresses (v2: three registries never collide) ──
 export function materialSlug(packId) {
-  const s = String(packId)
+  return speciesSlug("pack", packId);
+}
+export function speciesSlug(species, id) {
+  const s = String(id)
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `pack-${s}`;
+  return `${species}-${s}`;
 }
 
-// ── merge per-locale listings into one annotated material set ──
+// ── merge per-locale pack listings into annotated materials ──
 export function annotatePack(listingsByLocale, generatedAt, source) {
   const ids = new Set();
   for (const packs of Object.values(listingsByLocale)) {
@@ -104,7 +104,7 @@ export function annotatePack(listingsByLocale, generatedAt, source) {
     let anchor = null;
     for (const locale of LOCALES) {
       const p = (listingsByLocale[locale] ?? []).find((x) => x.id === id && admissionPredicate(x));
-      if (!p) continue; // locale track missing for this pack — the human face falls back below
+      if (!p) continue;
       byLocale[locale] = {
         name: p.name ?? id,
         summary: p.description ?? "",
@@ -114,19 +114,30 @@ export function annotatePack(listingsByLocale, generatedAt, source) {
     }
     if (!anchor) continue;
     // zh/en are the AI-surface canon pair; a missing es/fr/ja track falls back
-    // to en (never to silence) — recorded in the catalog, not hidden.
+    // to en (never to silence).
     if (!byLocale.en && byLocale["zh-CN"]) byLocale.en = { ...byLocale["zh-CN"] };
     if (!byLocale["zh-CN"] && byLocale.en) byLocale["zh-CN"] = { ...byLocale.en };
     for (const l of ["es", "fr", "ja"]) {
       if (!byLocale[l] && byLocale.en) byLocale[l] = { ...byLocale.en };
     }
     const zh = byLocale["zh-CN"] ?? byLocale.en;
+    // pack-internal contents (v2): the manifest's own skills + MCP references.
+    // Network path: fetchPackContents stamps anchor.contents from the detail
+    // face. Fixture path: the raw listing may carry manifest directly — same
+    // derivation, one code path.
+    const contents = anchor.contents ?? (anchor.manifest
+      ? {
+          skills: (anchor.manifest.skills ?? []).map((x) => ({ name: x.name, description: x.description ?? "" })),
+          mcpServers: (anchor.manifest.mcpServers ?? []).map((x) => ({ registryName: x.registryName ?? x.name ?? String(x) })),
+        }
+      : null);
     materials.push({
       id,
-      slug: materialSlug(id),
+      slug: speciesSlug("pack", id),
       category: mapCategory(anchor),
       marketCategory: anchor.category ?? null,
       tags: Array.isArray(anchor.tags) ? anchor.tags.slice(0, 8) : [],
+      contents,
       canonical: { brief: (byLocale.en?.summary || zh.summary || "").slice(0, 300) },
       human: {
         "zh-CN": { name: zh.name, summary: zh.summary },
@@ -149,11 +160,77 @@ export function annotatePack(listingsByLocale, generatedAt, source) {
 function mapCategory(pack) {
   if (pack.badge === "facade" || pack.badge === "assistant") return "facade";
   if (pack.official && /data|daas|数据/i.test(`${pack.category ?? ""} ${pack.name ?? ""}`)) return "official-data";
-  if (pack.category) return "pack";
   return "pack";
 }
 
-// ── G2: annotation shape gate ──
+// ── v2: skills species — registry visibility rule already applied upstream
+// (no-required-groups = public on the anonymous face); zh source text is
+// carried verbatim in all five locale slots (provenance stays honest; the
+// translation pass is a recorded follow-up, never fabricated here). ──
+export function annotateSkill(skill, generatedAt, source) {
+  if (!skill?.name) return null; // malformed registry entry — the G1 count gate must see the drop
+  const name = skill.displayName || skill.name;
+  const summary = skill.description ?? "";
+  const tags = Array.isArray(skill.tags) ? skill.tags : [];
+  return {
+    id: `skill:${skill.name}`,
+    slug: speciesSlug("skill", skill.name),
+    category: "skill",
+    marketCategory: null,
+    tags: tags.slice(0, 8),
+    repositoryUrl: skill.repositoryUrl ?? null,
+    canonical: { brief: summary.slice(0, 300) },
+    human: Object.fromEntries(
+      LOCALES.map((l) => [l, { name, summary }]),
+    ),
+    whenToUse: tags.length ? `Relevant when working on: ${tags.join(", ")}.` : summary.slice(0, 120),
+    badges: { official: false, facade: false },
+    provenance: { source, updatedAt: generatedAt },
+  };
+}
+
+// ── v2: MCP species — the annotation layer projects per locale natively;
+// the depth route supplies the full public tool surface. ──
+export function annotateMcp(listByLocale, depth, generatedAt, source) {
+  // Identity = the registry's STABLE `name` field (displayName is cosmetic and
+  // may be absent or localized — three production servers carry no displayName,
+  // which the G1 gate caught as a mapping drop). Localized names live only in
+  // the human slots.
+  const name = listByLocale["zh-CN"]?.name ?? listByLocale.en?.name ?? depth?.name ?? listByLocale["zh-CN"]?.displayName ?? "unknown";
+  if (!name || name === "unknown") return null; // malformed entry — G1 must see the drop
+  const tools = depth?.tools ?? [];
+  const zh = listByLocale["zh-CN"] ?? {};
+  const canonSrc = zh.description ?? listByLocale.en?.description ?? "";
+  return {
+    id: `mcp:${name}`,
+    slug: speciesSlug("mcp", name),
+    category: "mcp",
+    marketCategory: null,
+    tags: Array.isArray(depth?.tags) ? depth.tags.slice(0, 8) : [],
+    endpoint: listByLocale["zh-CN"]?.endpoint ?? listByLocale.en?.endpoint ?? depth?.endpoint ?? null,
+    toolCount: depth?.toolCount ?? tools.length,
+    license: depth?.license ?? null,
+    provider: depth?.providerOrganization ?? null,
+    canonical: { brief: canonSrc.slice(0, 300) },
+    human: Object.fromEntries(
+      LOCALES.map((l) => {
+        const e = listByLocale[l] ?? {};
+        const a = e.annotation;
+        return [l, {
+          name: a?.name ?? e.displayName ?? name,
+          summary: a?.summary ?? e.description ?? canonSrc,
+          whenToUse: a?.whenToUse,
+        }];
+      }),
+    ),
+    whenToUse: listByLocale["zh-CN"]?.annotation?.whenToUse ?? listByLocale.en?.annotation?.whenToUse ?? canonSrc.slice(0, 120),
+    badges: { official: false, facade: false },
+    tools: tools.map((t) => ({ name: t.name, description: t.description ?? "" })),
+    provenance: { source, updatedAt: generatedAt },
+  };
+}
+
+// ── G2: annotation shape gate (every species, every slot) ──
 export function lintAnnotationShape(materials) {
   const violations = [];
   for (const m of materials) {
@@ -178,13 +255,10 @@ const LINT_RULES = {
   table: [], // structural: infrastructure.md must contain the input–action–output table
 };
 export function lintAiReadable(pages) {
-  // pages: [{ name, content }]
   const violations = [];
   for (const page of pages) {
     for (const [rule, patterns] of Object.entries(LINT_RULES)) {
       if (rule === "coldRead") {
-        // Every material page must answer the three cold-read questions structurally:
-        // a "What this is" heading, an "Obtain" section, and an "As of" provenance date.
         if (page.name.startsWith("materials/")) {
           const ok =
             /## What this is/.test(page.content) &&
@@ -194,7 +268,7 @@ export function lintAiReadable(pages) {
         }
         continue;
       }
-      if (rule === "provenance") continue; // G2 covers it
+      if (rule === "provenance") continue;
       if (rule === "table") {
         if (page.name === "infrastructure.md" && !/\| Action \|/.test(page.content)) {
           violations.push(`${page.name}: missing the input–action–output table`);
@@ -213,31 +287,90 @@ export function lintAiReadable(pages) {
 // ── generators ──
 export function buildCatalog(materials) {
   return {
-    schema: "yizuo-agent-materials-plaza/catalog@1",
+    schema: "yizuo-agent-materials-plaza/catalog@2",
     categoryEnumVersion: CATEGORY_ENUM_VERSION,
     categories: CATEGORY_ENUM,
     generatedAt: materials[0]?.provenance.updatedAt ?? null,
     count: materials.length,
-    materials: materials.map(({ id, slug, category, marketCategory, tags, canonical, human, whenToUse, badges, provenance }) => ({
-      id,
-      slug,
-      category,
-      marketCategory,
-      tags,
-      canonical,
-      human,
-      whenToUse,
-      badges,
-      provenance,
-    })),
+    counts: {
+      packs: materials.filter((m) => m.category === "pack" || m.category === "facade" || m.category === "official-data").length,
+      skills: materials.filter((m) => m.category === "skill").length,
+      mcpServers: materials.filter((m) => m.category === "mcp").length,
+      tools: materials.reduce((n, m) => n + (m.toolCount ?? 0), 0),
+    },
+    materials: materials.map(({ id, slug, category, marketCategory, tags, contents, canonical, human, whenToUse, badges, tools, toolCount, license, provider, endpoint, repositoryUrl, provenance }) => {
+      const entry = { id, slug, category, marketCategory, tags, canonical, human, whenToUse, badges, provenance };
+      if (contents) entry.contents = contents;
+      if (category === "mcp") Object.assign(entry, { tools, toolCount, license, provider, endpoint });
+      if (category === "skill" && repositoryUrl) entry.repositoryUrl = repositoryUrl;
+      return entry;
+    }),
   };
+}
+
+// species-aware obtain paths (honest, no invention):
+//   pack  → market subscribe / CLI / 壹座 in-product market
+//   skill → 壹座 extensions skills face + bundled-by packs (+ repositoryUrl when present)
+//   mcp   → connect the endpoint (壹座 MCP config / editors) — servers are
+//           connected, not installed
+function obtainSection(m, base) {
+  if (m.category === "mcp") {
+    return `## How to obtain
+
+MCP servers are connected, not installed. The public endpoint:
+
+    ${m.endpoint ?? `${base}/mcp (see the catalog)`}
+
+Connect it where your agent runs: in 壹座 (Extensions → MCP), or in any MCP-capable editor's config. The endpoint speaks the Model Context Protocol over streamable HTTP.
+`;
+  }
+  if (m.category === "skill") {
+    const repo = m.repositoryUrl ? `\nSource repository: ${m.repositoryUrl}\n` : "";
+    return `## How to obtain
+
+1. In 壹座 (Yizuo): Extensions → Skills — subscribe from the skills face.
+2. Inside editors: skills reach your editor bundled with a pack that references them — install that pack with:
+
+       npx @finddatatechnology/facet install <packId>
+
+3. Deployed agent services receive registry skills through the registry supply channel.${repo}
+`;
+  }
+  const obtainCli = `npx @finddatatechnology/facet install ${m.id.replace("pack:", "")}`;
+  const marketUrl = `${base}/#/packs`;
+  return `## How to obtain
+
+Three paths, all landing the same frozen version snapshot:
+
+1. In 壹座 (Yizuo): open the market tab, search "${m.human.en.name}", subscribe and install.
+2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
+
+       ${obtainCli}
+
+3. From the market page: ${marketUrl}
+`;
+}
+
+function contentsSection(m) {
+  if (m.category !== "pack" || !m.contents) return "";
+  const skills = m.contents.skills ?? [];
+  const mcps = m.contents.mcpServers ?? [];
+  if (skills.length === 0 && mcps.length === 0) return "";
+  const lines = ["", "## What it contains", ""];
+  if (skills.length) {
+    lines.push(`Skills (${skills.length}):`);
+    for (const s of skills) lines.push(`- ${s.name}${s.description ? ` — ${String(s.description).slice(0, 120)}` : ""}`);
+  }
+  if (mcps.length) {
+    lines.push("", `MCP server references (${mcps.length}): ${mcps.map((x) => x.registryName ?? x).join(", ")}`);
+  }
+  lines.push("");
+  return lines.join("\n");
 }
 
 export function buildMaterialPages(materials, base, generatedAt) {
   const pages = [];
   for (const m of materials) {
-    const obtainCli = `npx @finddatatechnology/facet install ${m.id}`;
-    const marketUrl = `${base}/#/packs`;
     const title = m.human.en.name && m.human.en.name !== m.human["zh-CN"].name
       ? `# ${m.human.en.name} / ${m.human["zh-CN"].name}`
       : `# ${m.human["zh-CN"].name}`;
@@ -248,21 +381,10 @@ export function buildMaterialPages(materials, base, generatedAt) {
 
 ${m.human["zh-CN"].summary || m.canonical.brief}
 ${enSummary ? `\n${enSummary}\n` : ""}
-- Category: ${m.category} (plaza category enum v${CATEGORY_ENUM_VERSION})
+- Species: ${m.category} (plaza category enum v${CATEGORY_ENUM_VERSION})
 - Official: ${m.badges.official ? "yes — curated by FindData" : "no"}
-- AI facade: ${m.badges.facade ? "yes — deployable as a conversational service" : "no"}
-
-## How to obtain
-
-Three paths, all landing the same frozen version snapshot:
-
-1. In 壹座 (Yizuo): open the market tab, search "${m.human.en.name}", subscribe and install.
-2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
-
-       ${obtainCli}
-
-3. From the market page: ${marketUrl}
-
+${m.category === "mcp" ? `- Public tools: ${m.toolCount}${m.license ? ` · License: ${m.license}` : ""}${m.provider ? ` · Provider: ${m.provider}` : ""}` : ""}
+${obtainSection(m, base)}${contentsSection(m)}
 ## As of
 
 Provenance: ${m.provenance.source} · As of: ${m.provenance.updatedAt}
@@ -298,21 +420,33 @@ zh 镜像：上表即全文；本页自足，不依赖站点其他章节。Prove
 }
 
 export function buildLlmsTxt(catalog, base, generatedAt) {
+  const by = (c) => catalog.materials.filter((m) => m.category === c);
+  const agents = [...by("pack"), ...by("facade"), ...by("official-data")];
+  const skills = by("skill");
+  const mcps = by("mcp");
   const lines = [
     `# ${PLAZA_NAME.en}（壹座·智能体素材广场）`,
     "",
-    `> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Canonical data: ${base}/generated/catalog.json. As of: ${generatedAt}.`,
+    `> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Three species: ${agents.length} agents (versioned bundles), ${skills.length} skills, ${mcps.length} MCP servers (${catalog.counts.tools} public tools). Canonical data: ${base}/generated/catalog.json. As of: ${generatedAt}.`,
     "",
     "## Machine surfaces",
     "",
     `- [catalog.json](${base}/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.`,
     `- [infrastructure.md](${base}/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.`,
     "",
-    "## Materials (one self-contained page each, stable addresses)",
+    `## Agents (${agents.length} — one self-contained page each, stable addresses)`,
     "",
   ];
-  for (const m of catalog.materials) {
+  for (const m of agents) {
     lines.push(`- [${m.human.en.name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}`);
+  }
+  lines.push("", `## Skills (${skills.length})`, "");
+  for (const m of skills) {
+    lines.push(`- [${m.human["zh-CN"].name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}`);
+  }
+  lines.push("", `## MCP servers (${mcps.length} — ${catalog.counts.tools} public tools embedded per page)`, "");
+  for (const m of mcps) {
+    lines.push(`- [${m.human["zh-CN"].name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}${m.endpoint ? ` · endpoint: ${m.endpoint}` : ""}`);
   }
   lines.push("", "## For humans", "");
   lines.push(`- [The plaza site](${base}/): five-locale narrative face — what materials exist, how they are supplied, live inventory.`);
@@ -320,87 +454,151 @@ export function buildLlmsTxt(catalog, base, generatedAt) {
   return `${lines.join("\n")}\n`;
 }
 
+// ── pack detail fetch (v2: pack pages enumerate their own contents) ──
+export async function fetchPackContents(base, packs, { fetchImpl = fetchJson } = {}) {
+  const out = {};
+  for (const p of packs) {
+    try {
+      const det = await fetchImpl(`${base}/api/packs/${encodeURIComponent(p.id)}`);
+      const pack = det?.pack ?? det ?? {};
+      const manifest = pack.manifest ?? {};
+      out[p.id] = {
+        skills: (manifest.skills ?? []).map((s) => ({ name: s.name, description: s.description ?? "" })),
+        mcpServers: (manifest.mcpServers ?? []).map((x) => ({ registryName: x.registryName ?? x.name ?? String(x) })),
+      };
+    } catch {
+      // contents are an enrichment, not the material itself — a failed detail
+      // fetch omits the section and is recorded in the snapshot, never invented
+      out[p.id] = null;
+    }
+  }
+  return out;
+}
+
 // ── main ──
 export async function runExport({ base = DEFAULT_BASE, siteBase = process.env.PLAZA_SITE_BASE || "https://agent.finddatatech.cloud", outDir = "site-plaza/generated", fixture = null, allowStale = false, whitelist = [] } = {}) {
   const generatedAt = new Date().toISOString().slice(0, 10);
-  let listingsByLocale;
-  let marketplaceCount = null;
+  if (fixture) return runFixture({ fixture, siteBase, outDir, whitelist, generatedAt });
+  try {
+    return await runFresh({ base, siteBase, outDir, whitelist, generatedAt });
+  } catch (err) {
+    // Gate reds (err.gateViolations) are real failures — never papered over
+    // with a stale snapshot. Any other error (network/HTTP) may fall back.
+    if (!allowStale || err.gateViolations) throw err;
+    // --allow-stale: the registries are unreachable; continue from the last
+    // snapshot. Provenance keeps the OLD generatedAt (honest face); gates
+    // G2/G3 still run against the replayed catalog.
+    const prevPath = path.join(outDir, "catalog.json");
+    if (!fs.existsSync(prevPath)) throw new Error(`--allow-stale: no previous snapshot at ${prevPath} and the registries are unreachable (${err.message})`);
+    const prev = JSON.parse(fs.readFileSync(prevPath, "utf8"));
+    const materials = prev.materials ?? [];
+    const gateViolations = [];
+    gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
+    const catalog = buildCatalog(materials);
+    const materialPages = buildMaterialPages(materials, siteBase, prev.generatedAt);
+    const infra = buildInfrastructurePage(prev.generatedAt, siteBase);
+    const llms = buildLlmsTxt(catalog, siteBase, prev.generatedAt);
+    const pages = [...materialPages, infra];
+    gateViolations.push(...lintAiReadable(pages).map((v) => `G3 ${v}`));
+    if (gateViolations.length > 0) {
+      const e = new Error(`plaza-export gates red (stale):\n${gateViolations.join("\n")}`);
+      e.gateViolations = gateViolations;
+      throw e;
+    }
+    writeArtifacts(outDir, { catalog, materialPages, infra, llms, generatedAt: prev.generatedAt, stale: true, packsListing: null });
+    return { generatedAt: prev.generatedAt, counts: catalog.counts, stale: true, materials: materials.length };
+  }
+}
 
-  if (fixture) {
-    const fx = JSON.parse(fs.readFileSync(fixture, "utf8"));
-    // The fixture simulates the raw network listing — the same admission
-    // predicate applies on both paths (one rule, two transports).
-    listingsByLocale = Object.fromEntries(
-      Object.entries(fx.listingsByLocale).map(([l, packs]) => [l, packs.filter((p) => admissionPredicate(p, whitelist))]),
-    );
-    marketplaceCount = fx.marketplaceCount ?? null;
-  } else {
+async function runFresh({ base, siteBase, outDir, whitelist, generatedAt }) {
+  // three species, three public faces
+  const listingsByLocale = {};
+  for (const locale of LOCALES) {
+    listingsByLocale[locale] = (await fetchListedForLocale(base, locale)).filter((p) => admissionPredicate(p, whitelist));
+  }
+  let marketplaceCount = null;
+  try {
+    const mp = await fetchJson(`${base}/api/marketplace/marketplace.json`);
+    marketplaceCount = Array.isArray(mp?.plugins) ? mp.plugins.length : null;
+  } catch {
+    marketplaceCount = null;
+  }
+
+  // skills: single anonymous face (zh source text; no locale tracks by design)
+  let skills = [];
+  try {
+    const sk = await fetchJson(`${base}/api/skills-catalog?page=1&pageSize=${SKILLS_PAGE_SIZE}`);
+    skills = sk?.skills ?? [];
+  } catch (err) {
+    const e = new Error(`skills-catalog fetch failed: ${err.message}`);
+    e.__plazaFetch = true;
+    throw e;
+  }
+
+  // mcp: per-locale lists (annotation projection) + one depth fetch per server
+  const mcpByLocale = {};
+  for (const locale of LOCALES) {
     try {
-      listingsByLocale = {};
-      for (const locale of LOCALES) {
-        listingsByLocale[locale] = (await fetchListedForLocale(base, locale)).filter((p) => admissionPredicate(p, whitelist));
-      }
-      try {
-        const mp = await fetchJson(`${base}/api/marketplace/marketplace.json`);
-        marketplaceCount = Array.isArray(mp?.plugins) ? mp.plugins.length : null;
-      } catch {
-        marketplaceCount = null; // G1 becomes self-consistency-only when the authority is down
-      }
-    } catch (fetchErr) {
-      if (!allowStale) throw fetchErr;
-      // --allow-stale: the market is unreachable; continue from the last
-      // snapshot. Provenance keeps the OLD generatedAt (honest face); G1 is
-      // skipped (the authority is down), G2/G3 still run.
-      const prevPath = path.join(outDir, "catalog.json");
-      if (!fs.existsSync(prevPath)) throw new Error(`--allow-stale: no previous snapshot at ${prevPath} and the market is unreachable (${fetchErr.message})`);
-      const prev = JSON.parse(fs.readFileSync(prevPath, "utf8"));
-      const materials = prev.materials ?? [];
-      const gateViolations = [];
-      gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
-      const catalog = buildCatalog(materials);
-      const materialPages = buildMaterialPages(materials, siteBase, prev.generatedAt);
-      const infra = buildInfrastructurePage(prev.generatedAt, siteBase);
-      const llms = buildLlmsTxt(catalog, siteBase, prev.generatedAt);
-      const pages = [...materialPages, infra];
-      gateViolations.push(...lintAiReadable(pages).map((v) => `G3 ${v}`));
-      if (gateViolations.length > 0) {
-        const err = new Error(`plaza-export gates red (stale):\n${gateViolations.join("\n")}`);
-        err.gateViolations = gateViolations;
-        throw err;
-      }
-      fs.mkdirSync(path.join(outDir, "materials"), { recursive: true });
-      fs.writeFileSync(path.join(outDir, "catalog.json"), `${JSON.stringify(catalog, null, 2)}\n`);
-      fs.writeFileSync(path.join(outDir, "llms.txt"), llms);
-      fs.writeFileSync(path.join(outDir, "llms-full.txt"), `${llms}\n${materialPages.map((p) => `\n---\n\n${p.content}`).join("")}`);
-      fs.writeFileSync(path.join(outDir, "infrastructure.md"), infra.content);
-      for (const p of materialPages) fs.writeFileSync(path.join(outDir, p.name), p.content);
-      fs.writeFileSync(
-        path.join(outDir, "counts.json"),
-        JSON.stringify({ generatedAt: prev.generatedAt, stale: true, packs: materials.length, byCategory: CATEGORY_ENUM.map((c) => ({ category: c, count: materials.filter((m) => m.category === c).length })) }, null, 2),
-      );
-      return { generatedAt: prev.generatedAt, count: materials.length, marketplaceCount: null, stale: true, materials: materials.length };
+      const mc = await fetchJson(`${base}/api/mcp-catalog?page=1&pageSize=500&locale=${locale}`);
+      mcpByLocale[locale] = mc?.servers ?? [];
+    } catch (err) {
+      const e = new Error(`mcp-catalog fetch failed (${locale}): ${err.message}`);
+      e.__plazaFetch = true;
+      throw e;
+    }
+  }
+  const mcpNames = mcpByLocale[LOCALES[0]].map((s) => s.name);
+  const mcpDepths = {};
+  for (const name of mcpNames) {
+    try {
+      mcpDepths[name] = await fetchJson(`${base}/api/mcp-catalog/${encodeURIComponent(name)}`);
+    } catch {
+      mcpDepths[name] = null; // depth is an enrichment; page falls back to list fields
     }
   }
 
   const allListed = listingsByLocale[LOCALES[0]] ?? [];
-  const filteredCount = allListed.length;
   const gateViolations = [];
 
-  // G1 — count reconciliation against the production single-rule endpoint
-  if (marketplaceCount != null && marketplaceCount !== filteredCount) {
-    gateViolations.push(
-      `G1 count reconciliation failed: filtered listing=${filteredCount}, /api/marketplace/marketplace.json plugins=${marketplaceCount}`,
-    );
+  // G1 packs — count authority stays the production single-rule endpoint
+  if (marketplaceCount != null && marketplaceCount !== allListed.length) {
+    gateViolations.push(`G1 packs: filtered listing=${allListed.length}, /api/marketplace/marketplace.json plugins=${marketplaceCount}`);
   }
 
-  const materials = annotatePack(listingsByLocale, generatedAt, base);
+  // pack contents enrichment (detail face; failures recorded, never invented)
+  const contents = await fetchPackContents(base, allListed);
+  for (const p of allListed) p.contents = contents[p.id] ?? undefined;
+
+  const packMaterials = annotatePack(listingsByLocale, generatedAt, base);
+  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, `${base}/api/skills-catalog`)).filter(Boolean);
+  const mcpMaterials = mcpNames.map((name) => {
+    const listByLocale = Object.fromEntries(LOCALES.map((l) => [l, (mcpByLocale[l] ?? []).find((s) => s.name === name)].filter(Boolean)));
+    return annotateMcp(listByLocale, mcpDepths[name], generatedAt, `${base}/api/mcp-catalog`);
+  }).filter(Boolean);
+  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials];
+
+  // G1 species set-equality: every ingested id must land in the catalog —
+  // catches mapping drops. Count equality catches duplicates.
+  const catalogIds = new Set(materials.map((m) => m.id));
+  for (const s of skills) {
+    if (!catalogIds.has(`skill:${s.name}`)) gateViolations.push(`G1 skills: "${s.name}" ingested but missing from catalog`);
+  }
+  if (skillMaterials.length !== skills.length) {
+    gateViolations.push(`G1 skills: exported=${skillMaterials.length}, source=${skills.length}`);
+  }
+  for (const name of mcpNames) {
+    if (!catalogIds.has(`mcp:${name}`)) gateViolations.push(`G1 mcp: "${name}" ingested but missing from catalog`);
+  }
+  if (mcpMaterials.length !== mcpNames.length) {
+    gateViolations.push(`G1 mcp: exported=${mcpMaterials.length}, source=${mcpNames.length}`);
+  }
+
   gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
 
   const catalog = buildCatalog(materials);
   const materialPages = buildMaterialPages(materials, siteBase, generatedAt);
   const infra = buildInfrastructurePage(generatedAt, siteBase);
   const llms = buildLlmsTxt(catalog, siteBase, generatedAt);
-
   const pages = [...materialPages, infra];
   gateViolations.push(...lintAiReadable(pages).map((v) => `G3 ${v}`));
 
@@ -410,11 +608,68 @@ export async function runExport({ base = DEFAULT_BASE, siteBase = process.env.PL
     throw err;
   }
 
-  // Gates green — write artifacts (zero artifacts on red is the contract)
+  writeArtifacts(outDir, { catalog, materialPages, infra, llms, generatedAt, stale: false, packsListing: allListed, skillsListing: skills, base });
+  return { generatedAt, counts: catalog.counts, materials: materials.length, packs: allListed.length, marketplaceCount };
+}
+
+function runFixture({ fixture, siteBase, outDir, whitelist, generatedAt }) {
+  const fx = JSON.parse(fs.readFileSync(fixture, "utf8"));
+  // The fixture simulates the raw network listing — the same admission
+  // predicate applies on both paths (one rule, two transports).
+  const listingsByLocale = Object.fromEntries(
+    Object.entries(fx.listingsByLocale).map(([l, packs]) => [l, packs.filter((p) => admissionPredicate(p, whitelist))]),
+  );
+  const skills = fx.skills ?? [];
+  const mcpServers = fx.mcpServers ?? [];
+  const mcpByLocale = fx.mcpByLocale ?? { "zh-CN": mcpServers };
+  const mcpDepths = fx.mcpDepths ?? {};
+  const allListed = listingsByLocale[LOCALES[0]] ?? [];
+  const gateViolations = [];
+
+  if (fx.marketplaceCount != null && fx.marketplaceCount !== allListed.length) {
+    gateViolations.push(`G1 packs: filtered listing=${allListed.length}, marketplace.json plugins=${fx.marketplaceCount}`);
+  }
+
+  const packMaterials = annotatePack(listingsByLocale, generatedAt, "fixture://facet");
+  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, "fixture://skills-catalog")).filter(Boolean);
+  const mcpMaterials = mcpServers.map((s) => {
+    const listByLocale = Object.fromEntries(
+      LOCALES.map((l) => [l, (mcpByLocale[l] ?? mcpServers).find((x) => x.name === s.name)].filter(Boolean)),
+    );
+    return annotateMcp(listByLocale, mcpDepths[s.name] ?? null, generatedAt, "fixture://mcp-catalog");
+  }).filter(Boolean);
+  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials];
+
+  const catalogIds = new Set(materials.map((m) => m.id));
+  for (const s of skills) if (!catalogIds.has(`skill:${s.name}`)) gateViolations.push(`G1 skills: "${s.name}" ingested but missing from catalog`);
+  if (skillMaterials.length !== skills.length) gateViolations.push(`G1 skills: exported=${skillMaterials.length}, source=${skills.length}`);
+  for (const s of mcpServers) if (!catalogIds.has(`mcp:${s.name}`)) gateViolations.push(`G1 mcp: "${s.name}" ingested but missing from catalog`);
+  if (mcpMaterials.length !== mcpServers.length) gateViolations.push(`G1 mcp: exported=${mcpMaterials.length}, source=${mcpServers.length}`);
+
+  gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
+
+  const catalog = buildCatalog(materials);
+  const materialPages = buildMaterialPages(materials, siteBase, generatedAt);
+  const infra = buildInfrastructurePage(generatedAt, siteBase);
+  const llms = buildLlmsTxt(catalog, siteBase, generatedAt);
+  const pages = [...materialPages, infra];
+  gateViolations.push(...lintAiReadable(pages).map((v) => `G3 ${v}`));
+
+  if (gateViolations.length > 0) {
+    const err = new Error(`plaza-export gates red:\n${gateViolations.join("\n")}`);
+    err.gateViolations = gateViolations;
+    throw err;
+  }
+
+  writeArtifacts(outDir, { catalog, materialPages, infra, llms, generatedAt, stale: false, packsListing: allListed, skillsListing: skills });
+  return { generatedAt, counts: catalog.counts, materials: materials.length };
+}
+
+function writeArtifacts(outDir, { catalog, materialPages, infra, llms, generatedAt, stale, packsListing, skillsListing = null, base = "" }) {
   fs.mkdirSync(path.join(outDir, "materials"), { recursive: true });
   fs.writeFileSync(
     path.join(outDir, "snapshot.json"),
-    JSON.stringify({ generatedAt, source: base, admission: "public+non-unlisted+curated (loadListedPacks mirror)", count: filteredCount, packs: allListed }, null, 2),
+    JSON.stringify({ generatedAt, source: base, admission: "public+non-unlisted+curated (loadListedPacks mirror)", count: packsListing?.length ?? catalog.counts.packs, stale, packs: packsListing ?? [] }, null, 2),
   );
   fs.writeFileSync(path.join(outDir, "catalog.json"), `${JSON.stringify(catalog, null, 2)}\n`);
   fs.writeFileSync(path.join(outDir, "llms.txt"), llms);
@@ -423,9 +678,10 @@ export async function runExport({ base = DEFAULT_BASE, siteBase = process.env.PL
   for (const p of materialPages) fs.writeFileSync(path.join(outDir, p.name), p.content);
   fs.writeFileSync(
     path.join(outDir, "counts.json"),
-    JSON.stringify({ generatedAt, packs: filteredCount, byCategory: CATEGORY_ENUM.map((c) => ({ category: c, count: materials.filter((m) => m.category === c).length })) }, null, 2),
+    JSON.stringify({ generatedAt, stale, packs: catalog.counts.packs, skills: catalog.counts.skills, mcpServers: catalog.counts.mcpServers, tools: catalog.counts.tools, byCategory: CATEGORY_ENUM.map((c) => ({ category: c, count: catalog.materials.filter((m) => m.category === c).length })) }, null, 2),
   );
-  return { generatedAt, count: filteredCount, marketplaceCount, materials: catalog.materials.length };
+  // skills listing rides the snapshot dir for audit (fallback + audit face)
+  if (skillsListing) fs.writeFileSync(path.join(outDir, "skills-snapshot.json"), JSON.stringify({ generatedAt, count: skillsListing.length, skills: skillsListing }, null, 2));
 }
 
 // CLI entry
@@ -442,7 +698,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const base = opt("--base") ?? DEFAULT_BASE;
   try {
     const r = await runExport({ base, outDir, fixture, allowStale });
-    console.log(`plaza-export OK: ${r.count} materials (marketplace.json authority: ${r.marketplaceCount ?? "n/a"}), as of ${r.generatedAt}`);
+    const c = r.counts ?? {};
+    console.log(`plaza-export OK: ${r.materials} materials (packs ${c.packs} / skills ${c.skills} / mcp ${c.mcpServers} / tools ${c.tools}), stale=${Boolean(r.stale)}, as of ${r.generatedAt}`);
   } catch (err) {
     console.error(err.message);
     process.exit(1);

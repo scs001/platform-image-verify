@@ -6,9 +6,8 @@
 
 Equity valuation and earnings-cycle analysis: DCF (five-year forecast + WACC + terminal value + sensitivity tables) + comparable companies + three-statement triangulation; earnings previews and post-earnings reviews (line-item localization and quality analysis). Financial data goes through the Wire server side; share prices and market caps go through the local data platform channel.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

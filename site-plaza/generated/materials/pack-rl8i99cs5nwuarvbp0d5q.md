@@ -6,9 +6,8 @@
 
 Shared fleet layer: quality-gate discipline — gold-set comparison (exact/direction/coverage), KPI reporting, drift escalation, eval reports landed as drafts.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,13 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install _Rl8i99CS5nwuARVbp0D5Q
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (1):
+- fleet-eval-sentinel — 评测哨纪律：gold 对拍、KPI 报数、漂移预警 escalate、评测报告落草稿。
+
+MCP server references (2): wire-ops, wire-build-mcp
 
 ## As of
 

@@ -6,9 +6,8 @@
 
 Wire Portfolio Risk, a four-skill set: risk budgeting (per-position and sector caps + proportional reallocation on breach + an explicit iteration cap + honest reporting when it fails to converge, producing a compliant TargetWeights instance), drawdown and volatility checkup (max drawdown start/end, annualized volatility, HHI, top-N weight, sector concentration, effective number of holdings, plus benchmark excess return and tracking error — indicators come from the compute plane and a checkup predicts nothing), stop-loss discipline (magnitude anchors -5%/-10% and a 20-day cooldown + volatility-based re-scaling per holding + three explicit statements that the engine never auto-executes + trigger checks that present status without adding judgments), and a rebalancing plan (per-holding delta / direction / share counts + itemized commission, stamp tax and slippage costs + a weight rule submittable to weight-mode backtest + no market timing). Division of labor with the Decision Review suite: review looks at the present state (concentration / drawdown / drift); this suite sets the discipline (how to split the budget, where stops go, when to act) — one static, one active. Division of labor with the Strategy Lab: the lab explains generic parameter meanings; this suite applies the discipline to the user's actual holdings. Paper-only: no real money; every indicator describes history and current state and does not constitute investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

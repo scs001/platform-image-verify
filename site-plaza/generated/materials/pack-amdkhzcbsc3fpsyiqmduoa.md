@@ -6,9 +6,8 @@
 
 Wire Sentiment, a three-skill set that turns announcement text into observable dimensions that carry verbatim quotes and can be verified and tracked — announcement sentiment review (sentiment-document-review: per-document scores must carry citations with character offsets, multiple documents yield a distribution rather than an average mood, service refusals are relayed as-is, low confidence is flagged explicitly), sentiment turn tracking (sentiment-trend-watch: scores laid out by announcement publication date, every turn point must cite its corresponding document, sample thresholds of ≥3 documents per period and ≥2 high-confidence, coverage and confidence as two fixed columns), and a descriptive comparison of sentiment against prices and holdings (sentiment-signal-bridge: states temporal order only and never asserts causality, correlation claims require ≥12 pairs and go through the compute plane, buy/sell advice and the word "signal" are strictly forbidden). Division of labor with the Equity Research suite: the report's catalysts section cites this suite's scores instead of re-scoring (same service, same idempotency key — repeat calls hit the cache); division of labor with the Strategy Lab: that side builds signals and backtests, this suite only does descriptive comparison and gives no signals. Scores do not predict prices; in the current version (gold-v10 / prompt v7) two rounds of re-testing show monotonically increasing confidence buckets and 99.19% directional agreement, yet adjacent-band confusion persists among the five fine bands — all stated as-is.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

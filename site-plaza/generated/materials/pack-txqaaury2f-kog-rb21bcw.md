@@ -6,9 +6,8 @@
 
 Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initial triage by three source types and seven shock-type groups, each item with item_id, publish time and body status), shock reading (read the body and extract five element classes — amount, ratio, horizon, party, effectiveness condition — with conclusions split into 'explicit' vs 'depends on conditions'; every conclusion carries an evidence block: item_id + as_of + a verbatim quote verified through locate_evidence; strong assertions without locatable evidence are downgraded to 'per title/abstract, body unverified'), impact-window statistics (front 5-day baseline vs back 5/10/20 trading days side by side, sample size, quantiles, dispersion and a mandatory counterexample ratio accompany every table; insufficient samples mark the whole table 'not to be relied on'), and stream tracking (source and type counts, period comparison, health watermark; lags and outages are prefixed 'information may be incomplete'). Division of labor with the event-driven suite: event-driven works the fd-cn-report announcement face, this suite works info-stream unified items (announcements + ministries + interactions), with item_id as the citation anchor and verbatim evidence as the bar for conclusions. Core discipline: health first (check stream_health before citing; if lag exceeds the threshold, declare 'information may be incomplete'; never report an empty result as 'no events'), no prediction (no up/down expectations), body-text support (a title is only a search entry), historical distribution is not forecast (sample size and counterexample ratio are mandatory). Not investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

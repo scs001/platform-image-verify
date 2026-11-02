@@ -6,9 +6,8 @@
 
 A Wire ontology-building cluster for the data plane: profile datasets, draft entity/relation declarations, pass deterministic validation, and file declarations through the customer action gate so the entity graph holds real content. Five-role pipeline (profiler → modeler → deterministic gate → proposal clerk → ledger editor) with read-only discipline, zero data-row writes, create-only v0.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,15 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install YT87-2Axuu49I123zVYyhA
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (3):
+- ontology-readonly-profiling — 只读取证流程：数据集清单→表结构→逐列四证据（唯一性/空值率/值域样本/外键候选）。
+- ontology-draft-deterministic-rules — 草案自洽五判据：主键⊆列快照、关系目标∈主键集合、四元组唯一、1:n 与 n:1 互斥、中间集值域。
+- ontology-action-proposal-protocol — 声明提案协议：一件一单、全文件正文、不重试刷屏、未在册动作走 escalate。
+
+MCP server references (1): wire-ops
 
 ## As of
 

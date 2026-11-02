@@ -6,9 +6,8 @@
 
 Regional economy comparison: a multi-indicator system backed by the city panel (209 variables × 297 cities × 2000-2024) and the statistical yearbook (31 provinces), supporting cross-sectional rankings and percentiles, growth-contribution structure decomposition, similar-city clustering and regional-gap measurement; with statistical testing methods included.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

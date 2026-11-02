@@ -6,9 +6,8 @@
 
 Shared fleet layer: reporting and briefing discipline for brief/chief posts — report_status slots aligned to the fleet KPIs, morning/weekly brief skeletons, escalate norms, and never fabricate what you could not obtain.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,11 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install F8gbhNaEG6c2rDz468MwaA
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (1):
+- fleet-brief-report — 舰队简报与报数纪律：槽位报数、晨报/周报骨架、escalate 规范、未取得不编造。
 
 ## As of
 

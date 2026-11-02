@@ -49,8 +49,11 @@ cat <<EOF
    证书:  按 zhiyu 同法签发（Safeline 证书管理）
    （DNS A 记录已生效：agent → 103.236.89.212）
 
-⑥ 验证（DNS 生效后）：
-   curl -sI https://agent.finddatatech.cloud/ | head -3
-   curl -s  https://agent.finddatatech.cloud/generated/counts.json
+⑥ 验证三域验单（v2，DNS 生效后）：
+   curl -s  https://agent.finddatatech.cloud/generated/counts.json   # packs/skills/mcpServers/tools 四计数
+   curl -s  https://skills.finddatatech.cloud/generated/counts.json  # 同上（skills 门同源）
+   curl -sI https://mcp.finddatatech.cloud/ | head -1                # 匿名根 302 -> agent/?species=mcp
+   curl -sI -H "Cookie: mcp_gateway_session=probe" https://mcp.finddatatech.cloud/ | head -1   # 带会话 200（控制台）
+   curl -s  -o /dev/null -w "%{http_code}\n" https://mcp.finddatatech.cloud/<server>/mcp       # 协议端点非 302（401/200）
    curl -s  https://agent.finddatatech.cloud/generated/llms.txt | head -5
 EOF

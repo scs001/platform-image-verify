@@ -6,9 +6,8 @@
 
 A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation it can propose navigate/refresh page actions (executed by the host page). No account-data read/write tools, and never fabricates numbers.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: no
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

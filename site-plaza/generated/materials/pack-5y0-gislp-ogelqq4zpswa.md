@@ -4,9 +4,8 @@
 
 Edit PDFs with natural-language instructions using the nano-pdf CLI.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

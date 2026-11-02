@@ -6,9 +6,8 @@
 
 Wire event-driven four-skill set: event identification (three-way retrieval over announcement list / classification / full text, mapped into six event-type groups, each item with announcement id and date), event reading (read the body and extract elements — amount, ratio, horizon, party, effectiveness condition — split into explicit vs conditional, every conclusion citing the original text), historical reaction statistics (multi-window return distributions + sample size + quantiles + a mandatory counterexample ratio, explicitly a historical distribution, not a forecast), and event tracking (filter and tally by symbol or event type, no forecasts or recommendations). Division of labor with the Wire sentiment and equity research suites: sentiment reads text leaning, equity research synthesizes theses, this suite only handles structured events (announcements / regulatory / earnings) — it reads no mood and draws no conclusions. Core discipline: no prediction (no up/down expectations, no projected percentage impact), body-text support (title and category are only retrieval entries), historical distribution is not prediction (the counterexample ratio must accompany it), and the 'already priced in' reminder. Announcements are facts; the reading is this suite's judgment; the two are presented separately. Not investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

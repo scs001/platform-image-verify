@@ -6,9 +6,8 @@
 
 Wire paper trading three-skill suite: conversational operations (accounts/positions/orders/cancellations), strategy workflow (templates and sandboxed custom code, backtest interpretation, paper-live runs) and market-data inspection (search/historical candlesticks/coverage boundaries stated honestly). Paper-only: simulated account, no real money; the caller's identity is authenticated per request and only their own accounts are touched; market-data coverage is set by the deployed concept families, and the skills' first discipline is to present coverage limits honestly.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

@@ -6,9 +6,8 @@
 
 Marketing content fleet template: topics → draft → review → publish-draft chain (staggered crons) plus an eval sentinel post. Magnitude-only wording, review is the single gate, publishing goes through the proposal channel. Post discipline comes from the shared fleet packs.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,15 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install LjTJZWqSr2AOX7WEFTVlpg
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (3):
+- web-assertion-source-ledger — 断言溯源台账：数字/因果/承诺三类断言逐条落来源，写不出来源就降级或标待验证。
+- web-machine-readable-sections — 机器可读五条自查：小节自足、术语唯一、结论先行、表格优先、标题即断言锚点。
+- web-cadence-brief-contract — 四岗 handoff 契约：选题→成稿→放行→落稿的交接物清单与错峰门槛。
+
+MCP server references (2): fd-info, wire-build-mcp
 
 ## As of
 

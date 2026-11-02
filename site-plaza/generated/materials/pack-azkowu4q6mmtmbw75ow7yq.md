@@ -6,9 +6,8 @@
 
 Full-chain single-stock research: data acquisition and methodology, peers and competition, financial modeling, thesis synthesis, and 13-chapter report assembly. Five skills aligned with the five running roles of FinRobot production V2 (data / analysis / modeling / synthesis / report). Financials and disclosures go through the Wire server-side channel A, prices and market caps through the local channel B, and all valuation and statistical figures are produced by the fd-quant compute plane (never computed in-house). Division of labor with the Valuation suite (single-point valuation) and the Financial Foundation suite: this suite is the full-chain report, the Valuation suite is the single-point deep dive, and the Financial Foundation suite is general-purpose financial analysis. When methods disagree, point values may be missing (null) but a rating is always issued.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

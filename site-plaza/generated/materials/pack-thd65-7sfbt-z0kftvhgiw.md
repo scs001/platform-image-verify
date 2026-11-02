@@ -4,9 +4,8 @@
 
 M4③ 套装验收——第二件外作者绿地带货
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

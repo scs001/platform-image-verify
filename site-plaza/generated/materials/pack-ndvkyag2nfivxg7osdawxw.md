@@ -6,9 +6,8 @@
 
 Full labor-dispute workflow plus two calculators (Lex × Wire convergence): labor arbitration end to end (application / defense / evidence list / finality test / deadline table, with an adjudicator branch) as the entry skill, plus the labor-compensation and personal-injury calculators as atomic skills. Legal basis via Lex article-level citation parsing and validity checks; statistical bases via Wire province-year statistics with mandatory provenance (formula + base source + year); computation halts if the statistics source is unavailable or the concept code unset.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

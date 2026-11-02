@@ -6,9 +6,8 @@
 
 Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acceptance), dry-runs the existing validators, shows the diff and waits for the owner's approval — only then mints and instantiates. No new platform capability.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

@@ -4,9 +4,8 @@
 
 把一段财经新闻、公告或行情评论收敛成一页速览：三行结论、五个要点、一处存疑。为需要在盘前/会前快速消化的读者而生。
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

@@ -6,9 +6,8 @@
 
 Contract review under PRC (mainland) law: five industry review cards (labor & employment / loans & financing / NDA & confidentiality / sale & supply / services & SaaS) × statute verification with validity anchoring × law-bench clause assembly and triple review, producing a two-axis risk list, a review memorandum and a revision comparison table (original clause / revised clause / rationale and verification basis — new in v2).
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

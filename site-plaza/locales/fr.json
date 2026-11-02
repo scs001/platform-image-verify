@@ -17,7 +17,10 @@
     "packs": "Packs",
     "categories": "Catégories",
     "locales": "Langues",
-    "asOf": "Instantané au"
+    "asOf": "Instantané au",
+    "skills": "Compétences",
+    "mcp": "Serveurs MCP",
+    "tools": "Outils appelables"
   },
   "materials": {
     "title": "Quels matériaux existent",
@@ -89,7 +92,12 @@
         "promise": "La résidence survit à l'inactivité ; les appels se règlent à l'usage."
       }
     ],
-    "tableHead": { "verb": "Action", "input": "Entrée", "output": "Sortie", "promise": "Garantie" }
+    "tableHead": {
+      "verb": "Action",
+      "input": "Entrée",
+      "output": "Sortie",
+      "promise": "Garantie"
+    }
   },
   "inventory": {
     "title": "Catalogue",
@@ -109,6 +117,12 @@
       "mcp": "Serveur MCP",
       "facade": "Façade IA",
       "official-data": "Ancre de données officielle"
+    },
+    "tabs": {
+      "all": "Tout",
+      "agents": "Agents",
+      "skills": "Compétences",
+      "mcp": "Serveurs MCP"
     }
   },
   "audience": {

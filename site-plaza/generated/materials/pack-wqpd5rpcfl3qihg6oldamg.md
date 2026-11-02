@@ -6,9 +6,8 @@
 
 Turns 'the call made at the time' into an auditable history: decision logging (append-only, idempotent, revisions leave traces) → settlement at expiry against a benchmark for realized alpha → distilled reflection (injected only into the decision-maker, never broadcast) → portfolio check-up and consistency check against the most recent calls. The ledger is the source of truth and history is never embellished; no conclusions on insufficient samples. Division of labor with decision packs: decision packs produce Rating/TargetWeights instances, this suite handles unified logging and review (same semantics, no duplicate implementation).
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

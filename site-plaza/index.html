@@ -67,9 +67,10 @@
     <h1 class="hero-title" data-i18n="hero.title">智能体要用的每一种素材，<br>都摆在这个广场上。</h1>
     <p class="hero-lead" data-i18n="hero.lead">功能集、生态技能、MCP 服务、AI 分身、官方数据锚——每一件都可被人与 AI 理解、获取、运行。这里呈现素材有什么、怎么供给、此刻有什么在场。</p>
     <div class="counters mono" id="counters" aria-live="polite">
-      <span class="counter"><b id="countPacks">—</b><i data-i18n="counters.packs">功能集</i></span>
-      <span class="counter"><b id="countCategories">5</b><i data-i18n="counters.categories">素材类别</i></span>
-      <span class="counter"><b id="countLocales">5</b><i data-i18n="counters.locales">语言</i></span>
+      <span class="counter"><b id="countPacks">—</b><i data-i18n="counters.packs">智能体</i></span>
+      <span class="counter"><b id="countSkills">—</b><i data-i18n="counters.skills">技能</i></span>
+      <span class="counter"><b id="countMcp">—</b><i data-i18n="counters.mcp">MCP 服务</i></span>
+      <span class="counter"><b id="countTools">—</b><i data-i18n="counters.tools">可调工具</i></span>
       <span class="counter asof"><b id="asOfDate">—</b><i data-i18n="counters.asOf">快照截至</i></span>
     </div>
     <p class="hero-paths mono">
@@ -95,6 +96,12 @@
     <h2 class="sec-title" data-i18n="inventory.title">素材目录</h2>
     <p class="sec-lead" data-i18n="inventory.lead">实时画廊：页面加载后向市场实时刷新；不通时以构建期快照为准，截至日期永远可见。</p>
     <p class="inv-status mono" id="invStatus"></p>
+    <div class="inv-tabs mono" id="invTabs" role="tablist">
+      <button class="inv-tab active" data-tab="all" data-i18n="inventory.tabs.all">全部</button>
+      <button class="inv-tab" data-tab="agents" data-i18n="inventory.tabs.agents">智能体</button>
+      <button class="inv-tab" data-tab="skills" data-i18n="inventory.tabs.skills">技能</button>
+      <button class="inv-tab" data-tab="mcp" data-i18n="inventory.tabs.mcp">MCP 服务</button>
+    </div>
     <div class="inv-controls">
       <input id="invSearch" class="inv-search" type="search" data-i18n-attr="placeholder:inventory.search" placeholder="搜索素材…" aria-label="search">
       <select id="invCategory" aria-label="category">

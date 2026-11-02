@@ -6,9 +6,8 @@
 
 Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator, denominator, source statement and period, removal notes for three collinear factors, and data-availability tiers); factor exposure and quantile grouping (computed on the calculation surface, with explicit layer counts and outlier handling, IC incl. Pearson/Spearman, insufficient samples never used as a basis); stock-selection application (multi-factor scoring or conditional screening producing a candidate universe and target weights — scoring is not forecasting); and a no-look-ahead backtest protocol (financials dated by disclosure date, not reporting period; universe from current-period constituents; prices end at the decision date; assertions mandatory). Division of labor with the adaptive-rotation suite: rotation selects industry groups on price-based momentum, this suite selects stocks on fundamental factors — the two combine without overlap. With the single-stock research suite: that one produces in-depth reports on a single company, this one does cross-sectional ranking and screening. Factor values are always computed on the calculation surface, never by hand. Backtests are historical simulations and do not constitute investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

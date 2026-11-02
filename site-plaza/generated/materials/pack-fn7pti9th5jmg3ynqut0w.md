@@ -6,9 +6,8 @@
 
 Wire Strategy Lab, a four-skill set: strategy design (weight semantics and universe validation), backtest interpretation (five requirements and three prohibitions), risk-control parameters (meaning / magnitude / limitations), and paper-run supervision (run events / weight snapshots / data gaps). Division of labor with the Wire Paper Trading suite: that one is the operations plane — open accounts, place orders, cancel orders, order history, handled by conversational operation skills; this suite is the thinking plane — getting clear on how weights should be set, how to read backtest results, what risk parameters mean; every fill still goes through the paper trading service. Paper-only: no real money; backtests and paper runs do not foreshadow the future.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

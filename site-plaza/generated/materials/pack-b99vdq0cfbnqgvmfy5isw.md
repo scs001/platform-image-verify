@@ -6,9 +6,8 @@
 
 The pack-forging workshop for ecosystem creators: turn an idea into an installable pack. 1) Forge — discover the platform's MCP tools and skills, check for duplicates, assemble the manifest, pre-validate, publish. 2) Adapt — license review and attribution when building on open-source or external skills, with fallback paths and no-fabrication constraints. 3) Accept — post-publish self-check: does it install, are tools really called, honest when data is missing. Publishing requires creator status.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

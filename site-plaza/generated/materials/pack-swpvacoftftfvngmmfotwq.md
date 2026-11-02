@@ -6,9 +6,8 @@
 
 Wire artifact build suite: turn data into things visible in the console through conversation — build data-entry forms, build single-record scan pages, edit artifact specs, publish and archive. Drafts first, publishing separate; column names come from facts fetched first, never invented; upstream failures are relayed verbatim. Ships with a three-post team template (proactive line patrol, reactive content and source posts) that turns 'continuously iterating content' into an installable organizational form.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,15 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install SWPvacoFTftfVngMMFotwQ
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (3):
+- wire-artifact-build — 柏讯产物构建。当用户要用对话把数据变成柏讯里看得见的东西——建看板（dashboard）、建正文文档（doc）、建数据录入表单（form）、建单记录扫码页（record-view）、给已有产物改 spec、发布或归档产物——时使用。所有写入
+- fleet-signal-triage — 巡线信号五类归并与委派三要素：无信号是合法结论，写入工具零调用。
+- fleet-artifact-draft-discipline — 产物草稿纪律：schema 预检、数值来源标注、草稿与发布分离、source_ref 身份三元组。
+
+MCP server references (1): wire-build-mcp
 
 ## As of
 

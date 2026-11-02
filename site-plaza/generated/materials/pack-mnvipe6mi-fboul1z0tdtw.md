@@ -4,9 +4,8 @@
 
 选题→初稿→审校的流水线，只出草稿供人定稿；不自动发布
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 

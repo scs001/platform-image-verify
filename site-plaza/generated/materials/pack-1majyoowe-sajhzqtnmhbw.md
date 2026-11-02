@@ -6,9 +6,8 @@
 
 Retrieval and research over public-domain classic plays: structure analysis (act/scene skeleton and plot progression), character search (line aggregation and character-portrait analysis), scene search (locate by description and close-read a whole scene), and similar passages (semantic-vector nearest neighbors that find matching situations across differing wording). The corpus covers 18 works — Shakespeare, Greek tragedy, Yuan zaju, Ming–Qing chuanqi, modern spoken drama (Lao She), and Peking opera; every result carries the provenance triplet (source/stable_id/as_of). Retrieval runs through the fd-text-core engine's hybrid channel (keywords CJK bigram + traditional/simplified normalization ⊕ semantic vectors via Qwen3-Embedding-8B).
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

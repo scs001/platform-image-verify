@@ -6,9 +6,8 @@
 
 Wire industry-chain linkage four-skill suite: chain mapping (multi-level upstream/midstream/downstream segments with representative names and attribution rationale, key variables and sources per segment, and two mapping-confidence tiers); transmission verification (per-segment correlations + lag scans + sample sizes and windows; unverified segments are stated as such and never assumed to hold, insignificant results reported honestly, frequency mismatches handled explicitly, no causal wording); segment-beneficiary analysis (candidates based on verified transmission conclusions, each candidate pointing back to its transmission evidence, unverified segments never used as a basis, no price forecasting); and chain-conditions tracking (variable trends grouped by segment + sources and latest periods + gap flags; no forecasts, no advice). Relation to the existing industry-chain-analysis skill: that is the analysis skill, this suite is its installable, executable-outlet form (from industry-chain relations to backtestable weights), not a duplicate implementation. Core discipline: industry-chain narratives slide most easily into pretty storytelling — upstream price rises squeezing midstream margins before downstream price hikes always sound right, but lags, magnitudes and whether it happened at all must be data-backed; segments without data are declared unverified. Transmission conclusions are historical statistical relations, not causal proof, and do not constitute investment advice.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

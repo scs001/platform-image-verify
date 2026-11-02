@@ -17,7 +17,10 @@
     "packs": "パック",
     "categories": "素材カテゴリ",
     "locales": "言語",
-    "asOf": "スナップショット時点"
+    "asOf": "スナップショット時点",
+    "skills": "スキル",
+    "mcp": "MCP サーバー",
+    "tools": "呼び出し可能ツール"
   },
   "materials": {
     "title": "素材の種類",
@@ -89,7 +92,12 @@
         "promise": "駐留はアイドルでは回収されません。呼び出しは従量精算。"
       }
     ],
-    "tableHead": { "verb": "動作", "input": "入力", "output": "出力", "promise": "保証" }
+    "tableHead": {
+      "verb": "動作",
+      "input": "入力",
+      "output": "出力",
+      "promise": "保証"
+    }
   },
   "inventory": {
     "title": "素材カタログ",
@@ -109,6 +117,12 @@
       "mcp": "MCP サーバー",
       "facade": "AI ファサード",
       "official-data": "公式データアンカー"
+    },
+    "tabs": {
+      "all": "すべて",
+      "agents": "エージェント",
+      "skills": "スキル",
+      "mcp": "MCP サーバー"
     }
   },
   "audience": {

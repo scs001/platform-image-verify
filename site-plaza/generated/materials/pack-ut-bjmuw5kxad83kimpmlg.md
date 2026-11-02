@@ -4,9 +4,8 @@
 
 寻数（FindData）的企业 AI 分身：想了解我们的企业、在做的项目、产品具备的能力，直接和分身聊。回答出自随版本冻结的策展语料，每条带语料截至时间；答不了的如实说答不了，并建议找人对的人。
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

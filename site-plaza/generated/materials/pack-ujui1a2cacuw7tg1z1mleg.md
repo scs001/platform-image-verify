@@ -6,9 +6,8 @@
 
 Facet platform-ops cluster: inventory patrol (read-only), daily integrity sentinel that degrades honestly when integrity is not exposed, and an ops chief that composes the brief and escalates curation proposals. Read-only tools only — curation is proposal-gated.
 
-- Category: pack (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 
@@ -20,6 +19,14 @@ Three paths, all landing the same frozen version snapshot:
        npx @finddatatechnology/facet install ujUI1A2caCUW7TG1Z1mlEg
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
+
+## What it contains
+
+Skills (2):
+- facet-visibility-inventory — 可见性盘点口径：按档位分计、同条重复标注、口径字段固定，保证跨轮可比。
+- facet-integrity-evidence-ladder — 完整性证据阶梯：字段存在→字段可比→字段不一致三级，未暴露只报未取得。
+
+MCP server references (1): facet-market
 
 ## As of
 

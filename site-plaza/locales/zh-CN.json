@@ -17,7 +17,10 @@
     "packs": "功能集",
     "categories": "素材类别",
     "locales": "语言",
-    "asOf": "快照截至"
+    "asOf": "快照截至",
+    "skills": "技能",
+    "mcp": "MCP 服务",
+    "tools": "可调工具"
   },
   "materials": {
     "title": "素材有什么",
@@ -89,7 +92,12 @@
         "promise": "驻留不因闲置回收；调用按量结算。"
       }
     ],
-    "tableHead": { "verb": "动作", "input": "输入", "output": "产出", "promise": "承诺" }
+    "tableHead": {
+      "verb": "动作",
+      "input": "输入",
+      "output": "产出",
+      "promise": "承诺"
+    }
   },
   "inventory": {
     "title": "素材目录",
@@ -109,6 +117,12 @@
       "mcp": "MCP 服务",
       "facade": "AI 分身",
       "official-data": "官方数据锚"
+    },
+    "tabs": {
+      "all": "全部",
+      "agents": "智能体",
+      "skills": "技能",
+      "mcp": "MCP 服务"
     }
   },
   "audience": {

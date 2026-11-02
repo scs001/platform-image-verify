@@ -6,9 +6,8 @@
 
 Macro cycle and conditions analysis: a six-domain indicator framework (growth / inflation / money & credit / fiscal / external trade / property & consumption) + cycle positioning (output-inflation quadrants) + leading-coincident-lagging stratification + transmission-chain reasoning + turning-point identification, with statistical testing methods for correlation and stationarity checks. Data are retrieved in real time via the Wire open-data surface and statistical yearbooks, with every figure annotated by source and data period.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

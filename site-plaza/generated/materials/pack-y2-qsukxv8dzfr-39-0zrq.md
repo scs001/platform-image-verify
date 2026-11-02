@@ -6,9 +6,8 @@
 
 Shared fleet layer: read-only analysis discipline — dataset read faces, every number traceable, scope stated, honest empty results, chart-contract v2 selection.
 
-- Category: official-data (plaza category enum v1)
+- Species: official-data (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: no
 
 ## How to obtain
 

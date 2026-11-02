@@ -6,9 +6,8 @@
 
 A five-tool legal research set: statute and validity checks, similar-case retrieval reports, legal concept maps, five-corpus search with caliber comparison (departmental rules / treaties / discipline-inspection / case libraries / Party regulations), and validity lifecycle tracking. Data from the Lex law library (32,296), judgment library (37M), guiding cases (278+15) and five-corpus (47,261), with per-result provenance. Note: the judgment library supports no aggregate statistics — similar-case outputs are retrieval-based evidence, not statistical conclusions.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

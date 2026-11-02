@@ -6,9 +6,8 @@
 
 Criminal defense suite: a master workflow chains plea/non-prosecution argumentation (review-for-prosecution) with examination outlines (first instance). Statutes and guiding cases via Lex legal search, validity via data-business search, similar cases via judgment search.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

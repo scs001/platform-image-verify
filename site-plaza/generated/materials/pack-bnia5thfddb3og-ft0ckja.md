@@ -6,9 +6,8 @@
 
 Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity Exchange futures — live hogs/soybean meal/corn/palm oil — trend warnings for catering's largest variable-cost item, not market spot prices), a commercial-district activity proxy (national film box office daily/weekly charts, traceable back to 2017; reflects district consumption activity, not your store's footfall), and a dine-in/delivery shift proxy (Central Meteorological Observatory weather, hourly across 34 provinces and 2,529 stations; a structural hint, not a footfall forecast), plus optional peer-density lookup (business registry at county + sub-industry granularity). Every signal is labeled with its proxy nature and its limits; when a source is unavailable it is marked 'not connected' and never filled with model-memory values. Registry-based signals carry their batch year with a 'historical snapshot, not real-time' label, and explicitly state that there is no deregistration/revocation scope and no closure counts.
 
-- Category: facade (plaza category enum v1)
+- Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
-- AI facade: yes — deployable as a conversational service
 
 ## How to obtain
 

@@ -29,6 +29,12 @@ export function CurateView() {
   // Unclassified to-do (P1 2.6): packs with no domain declaration are the
   // curation backlog; the board can be narrowed to just those.
   const [onlyUnclassified, setOnlyUnclassified] = useState(false);
+  // 覆盖度看板 (overhaul-market-catalog-presentation 5.4): the operations patrol
+  // face — per-pack en coverage of the org surface from the server's one
+  // denominator. Non-blocking: a failed read hides the badges, curation itself
+  // never depends on it (same posture as the usage aggregate).
+  const [coverage, setCoverage] = useState<Record<string, api.PackCoverageRow> | null>(null);
+  const [onlyGaps, setOnlyGaps] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -51,6 +57,10 @@ export function CurateView() {
       .getPackFacets()
       .then((f) => setVocabulary(f.vocabulary ?? []))
       .catch(() => setVocabulary([])); // picker degrades to unavailable, never to free text
+    api
+      .getPackCoverageBoard()
+      .then((r) => setCoverage(Object.fromEntries(r.packs.map((row) => [row.id, row]))))
+      .catch(() => setCoverage(null)); // patrol face degrades silently; never blocks curation
   }, [refresh]);
 
   const save = async (pack: PackSummary, body: { category?: string; featured?: boolean; domains?: string[] }) => {
@@ -78,7 +88,12 @@ export function CurateView() {
     setDomainDrafts((d) => ({ ...d, [p.id]: next }));
   };
   const unclassified = (p: PackSummary) => (p.domains ?? []).length === 0;
-  const visible = onlyUnclassified && packs ? packs.filter(unclassified) : packs;
+  const hasGap = (p: PackSummary) => (coverage?.[p.id]?.missing.length ?? 0) > 0;
+  // Two independent narrowing axes (unclassified backlog / en-coverage gaps).
+  // The gap axis is a no-op when coverage failed to load (degrades silent).
+  let visible = packs;
+  if (visible && onlyUnclassified) visible = visible.filter(unclassified);
+  if (visible && onlyGaps && coverage) visible = visible.filter(hasGap);
 
   if (!packs) return <BoardSkeleton />;
   if (loadError)
@@ -135,6 +150,16 @@ export function CurateView() {
           >
             {t("facetCurate.onlyUnclassified")}
           </button>
+          <button
+            onClick={() => setOnlyGaps((v) => !v)}
+            aria-pressed={onlyGaps}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+              onlyGaps ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid="facet-curate-only-gaps"
+          >
+            {t("facetCurate.onlyGaps")}
+          </button>
           <span className="text-xs text-muted-foreground">
             {t("facetCurate.unclassifiedCount", { count: packs.filter(unclassified).length, total: packs.length })}
           </span>
@@ -157,6 +182,18 @@ export function CurateView() {
                       {t("facetCurate.unclassified")}
                     </span>
                   )}
+                  {coverage?.[p.id] && (
+                    <span
+                      className={
+                        coverage[p.id].missing.length > 0
+                          ? "rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 font-mono text-[10px] text-warning"
+                          : "rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
+                      }
+                      data-testid={`facet-curate-coverage-${p.id}`}
+                    >
+                      {t("facetCurate.coverageBadge", { covered: coverage[p.id].covered, total: coverage[p.id].total })}
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   v{p.version} · {p.authorEmail}
@@ -165,6 +202,20 @@ export function CurateView() {
                   {u ? ` · ${t("facetCurate.usage", { users: u.activeUsers, turns: u.turns })}` : ""}
                 </span>
               </div>
+              {/* 缺项清单 (5.4): field paths, precise to the entry the workbench
+                  would jump to — the patrol face names what to fix, not a bar. */}
+              {coverage?.[p.id] && coverage[p.id].missing.length > 0 && (
+                <div className="flex flex-wrap gap-1.5" data-testid={`facet-curate-gaps-${p.id}`}>
+                  {coverage[p.id].missing.slice(0, 8).map((fpath) => (
+                    <span key={fpath} className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {fpath}
+                    </span>
+                  ))}
+                  {coverage[p.id].missing.length > 8 && (
+                    <span className="text-[10px] text-muted-foreground">+{coverage[p.id].missing.length - 8}</span>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   value={drafts[p.id] ?? p.category ?? ""}

@@ -860,6 +860,29 @@ export function createPackRegistry({ file }) {
 
     // Latest-version detail. `includeUnlisted` is the route's call: an
     // unlisted pack stays visible to its author and active subscribers.
+    // 覆盖度看板 (overhaul-market-catalog-presentation 5.4): per-LATEST-version
+    // en coverage over the org surface for EVERY stored pack — the operations
+    // patrol face. Reads storage truth through the same localeCoverage module
+    // the publish gate and the workbench use (one denominator); a manifest
+    // that fails to parse reports an honest empty surface, never a crash.
+    coverageBoard({ locale = "en" } = {}) {
+      const rows = db.prepare(
+        `SELECT p.id, v.name, v.manifest
+         FROM packs p JOIN pack_versions v
+           ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)`,
+      ).all();
+      return rows.map((r) => {
+        let manifest = {};
+        try {
+          manifest = JSON.parse(r.manifest);
+        } catch {
+          /* unreadable stored manifest — honest zero surface */
+        }
+        const cov = localeCoverage(manifest, locale);
+        return { id: r.id, name: r.name, total: cov.total, covered: cov.covered, missing: cov.missing };
+      });
+    },
+
     get(id, { includeUnlisted = false } = {}) {
       const pack = packRow(id);
       if (!pack) return null;
@@ -1720,6 +1743,17 @@ export function registerPackRoutes(app, {
     });
     payload.packs = withOfficial(payload.packs);
     res.json(payload);
+  });
+
+  // Curation coverage board (5.4): authenticated read — it exposes every
+  // stored pack's name incl. private/unlisted, the curation face's posture.
+  // Registration BEFORE /:id like facets. locale defaults to en (the gate's
+  // language); ?locale= overrides.
+  app.get("/api/packs/curation/coverage", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const locale = resolveLocale({ locale: String(req.query.locale ?? "") });
+    res.json({ packs: registry.coverageBoard({ locale }) });
   });
 
   // Browse facets (overhaul-market-catalog-presentation P1 2.4): the declared

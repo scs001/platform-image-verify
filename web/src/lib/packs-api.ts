@@ -458,6 +458,20 @@ export function getPackCoverage(manifest: unknown, locale = "en"): Promise<{ cov
   }).then(json) as Promise<{ coverage: PackLocaleCoverage }>;
 }
 
+// 5.4 覆盖度看板：运营巡检面（鉴权读——含私有/下架条目的名字，策展板同姿势）。
+export interface PackCoverageRow {
+  id: string;
+  name: string;
+  total: number;
+  covered: number;
+  missing: string[];
+}
+export function getPackCoverageBoard(locale = "en"): Promise<{ packs: PackCoverageRow[] }> {
+  return fetch(`/api/packs/curation/coverage?locale=${encodeURIComponent(locale)}`).then(json) as Promise<{
+    packs: PackCoverageRow[];
+  }>;
+}
+
 export function getPackFacets() {
   return fetch(`/api/packs/facets${localeQuery()}`).then(json) as Promise<PackFacets>;
 }

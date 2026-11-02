@@ -3245,7 +3245,9 @@
     "lineResolved": "Line: {{line}}",
     "domainsLabel": "Domains",
     "saveDomains": "Save domains",
-    "vocabUnavailable": "Vocabulary unavailable"
+    "vocabUnavailable": "Vocabulary unavailable",
+    "onlyGaps": "Only en gaps",
+    "coverageBadge": "en {{covered}}/{{total}}"
   },
   "facetMine": {
     "title": "My agents",

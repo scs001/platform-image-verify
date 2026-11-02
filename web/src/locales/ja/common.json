@@ -3245,7 +3245,9 @@
     "lineResolved": "ライン：{{line}}",
     "domainsLabel": "領域",
     "saveDomains": "領域を保存",
-    "vocabUnavailable": "ボキャブラリを利用できません"
+    "vocabUnavailable": "ボキャブラリを利用できません",
+    "onlyGaps": "英語欠项のみ",
+    "coverageBadge": "en {{covered}}/{{total}}"
   },
   "facetMine": {
     "title": "マイエージェント",

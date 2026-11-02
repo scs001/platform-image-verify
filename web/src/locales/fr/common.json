@@ -3245,7 +3245,9 @@
     "lineResolved": "Ligne : {{line}}",
     "domainsLabel": "Domaines",
     "saveDomains": "Enregistrer les domaines",
-    "vocabUnavailable": "Vocabulaire indisponible"
+    "vocabUnavailable": "Vocabulaire indisponible",
+    "onlyGaps": "Lacunes anglais seules",
+    "coverageBadge": "en {{covered}}/{{total}}"
   },
   "facetMine": {
     "title": "Mes agents",

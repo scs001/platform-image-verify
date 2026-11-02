@@ -589,3 +589,35 @@ test("coverage meter on the boundary face: 0/m declared gaps and full cover (P3 
   await expect(detail.getByTestId("pack-detail-coverage")).toContainText("covered in en");
   await expect(detail.getByTestId("pack-detail-coverage-missing")).toHaveCount(0);
 });
+
+test("coverage board on the curation face: per-pack n/m badges, gap paths, gap-only filter (P4 5.4)", async ({ page }) => {
+  const creator = forwarded("board@e2e.local", ["creators", "admin"]);
+  await page.route("**/api/whoami", (route) =>
+    route.fulfill({ json: { email: "board@e2e.local", groups: ["creators", "admin"], creator: true, admin: true } }),
+  );
+  await page.route(/\/api\/packs\?/, (route) => route.continue({ headers: { ...route.request().headers(), ...creator } }));
+  // The coverage board read is auth-gated (it lists private/unlisted names too).
+  await page.route("**/api/packs/curation/coverage**", (route) =>
+    route.continue({ headers: { ...route.request().headers(), ...creator } }),
+  );
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/curate`);
+
+  // v2 pack: declared org surface, no en overlay → 0-covered badge + gap paths.
+  const v2Row = page.getByTestId("facet-curate-row-facet-shell-v2");
+  await expect(v2Row).toBeVisible();
+  await expect(page.getByTestId("facet-curate-coverage-facet-shell-v2")).toContainText("en 0/");
+  await expect(page.getByTestId("facet-curate-gaps-facet-shell-v2")).toContainText("promise");
+
+  // smoke pack: full en overlay → all-covered badge, NO gap list rendered.
+  // 9 = name+description+notes+guide 3×2 (the base manifest declares no
+  // top-level tags — the seed's tags live only in the en overlay).
+  await expect(page.getByTestId("facet-curate-coverage-facet-shell-smoke")).toContainText("en 9/9");
+  await expect(page.getByTestId("facet-curate-gaps-facet-shell-smoke")).toHaveCount(0);
+
+  // Patrol filter: gaps only hides the covered row, keeps the gapped one.
+  await page.getByTestId("facet-curate-only-gaps").click();
+  await expect(page.getByTestId("facet-curate-row-facet-shell-v2")).toBeVisible();
+  await expect(page.getByTestId("facet-curate-row-facet-shell-smoke")).toHaveCount(0);
+});

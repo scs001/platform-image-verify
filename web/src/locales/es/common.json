@@ -3245,7 +3245,9 @@
     "lineResolved": "Línea: {{line}}",
     "domainsLabel": "Áreas",
     "saveDomains": "Guardar áreas",
-    "vocabUnavailable": "Vocabulario no disponible"
+    "vocabUnavailable": "Vocabulario no disponible",
+    "onlyGaps": "Solo huecos en inglés",
+    "coverageBadge": "en {{covered}}/{{total}}"
   },
   "facetMine": {
     "title": "Mis agentes",

@@ -3245,7 +3245,9 @@
     "lineResolved": "归位：{{line}}",
     "domainsLabel": "领域",
     "saveDomains": "保存领域",
-    "vocabUnavailable": "词表不可用，暂不可选"
+    "vocabUnavailable": "词表不可用，暂不可选",
+    "onlyGaps": "仅看 en 缺项",
+    "coverageBadge": "en {{covered}}/{{total}}"
   },
   "facetMine": {
     "title": "我的智能体",

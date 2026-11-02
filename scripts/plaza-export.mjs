@@ -167,11 +167,16 @@ function mapCategory(pack) {
 // (no-required-groups = public on the anonymous face); zh source text is
 // carried verbatim in all five locale slots (provenance stays honest; the
 // translation pass is a recorded follow-up, never fabricated here). ──
-export function annotateSkill(skill, generatedAt, source) {
+export function annotateSkill(skill, generatedAt, source, tr = null) {
   if (!skill?.name) return null; // malformed registry entry — the G1 count gate must see the drop
   const name = skill.displayName || skill.name;
   const summary = skill.description ?? "";
   const tags = Array.isArray(skill.tags) ? skill.tags : [];
+  // tr = curated translations of the summary ({en,es,fr,ja} — name/tags never
+  // translated). zh keeps the registry source verbatim; untranslated slots fall
+  // back to it rather than going silent. canonical rides the en translation
+  // when present (the AI-surface canon language, matching the pack entries).
+  const localized = (l) => (l === "zh-CN" ? summary : (tr?.[l] ?? summary));
   return {
     id: `skill:${skill.name}`,
     slug: speciesSlug("skill", skill.name),
@@ -179,9 +184,9 @@ export function annotateSkill(skill, generatedAt, source) {
     marketCategory: null,
     tags: tags.slice(0, 8),
     repositoryUrl: skill.repositoryUrl ?? null,
-    canonical: { brief: summary.slice(0, 300) },
+    canonical: { brief: (tr?.en ?? summary).slice(0, 300) },
     human: Object.fromEntries(
-      LOCALES.map((l) => [l, { name, summary }]),
+      LOCALES.map((l) => [l, { name, summary: localized(l) }]),
     ),
     whenToUse: tags.length ? `Relevant when working on: ${tags.join(", ")}.` : summary.slice(0, 120),
     badges: { official: false, facade: false },
@@ -368,7 +373,7 @@ function contentsSection(m) {
   return lines.join("\n");
 }
 
-export function buildMaterialPages(materials, base, generatedAt) {
+export function buildMaterialPages(materials, base, _generatedAt) {
   const pages = [];
   for (const m of materials) {
     const title = m.human.en.name && m.human.en.name !== m.human["zh-CN"].name
@@ -452,6 +457,17 @@ export function buildLlmsTxt(catalog, base, generatedAt) {
   lines.push(`- [The plaza site](${base}/): five-locale narrative face — what materials exist, how they are supplied, live inventory.`);
   lines.push(`- [Market actions](${base}/#/packs): browse, subscribe, install — the action layer on the same truth.`);
   return `${lines.join("\n")}\n`;
+}
+
+// Curated skill-summary translations (site-plaza/translations/skills.json —
+// name-keyed {en,es,fr,ja}; zh source text stays in the registry). Missing file
+// or missing entry = zh fallback, never a gate failure.
+function loadSkillTranslations() {
+  try {
+    return JSON.parse(fs.readFileSync(new URL("../site-plaza/translations/skills.json", import.meta.url), "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 // ── pack detail fetch (v2: pack pages enumerate their own contents) ──
@@ -570,7 +586,8 @@ async function runFresh({ base, siteBase, outDir, whitelist, generatedAt }) {
   for (const p of allListed) p.contents = contents[p.id] ?? undefined;
 
   const packMaterials = annotatePack(listingsByLocale, generatedAt, base);
-  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, `${base}/api/skills-catalog`)).filter(Boolean);
+  const skillsTr = loadSkillTranslations();
+  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, `${base}/api/skills-catalog`, skillsTr[s.name] ?? null)).filter(Boolean);
   const mcpMaterials = mcpNames.map((name) => {
     const listByLocale = Object.fromEntries(LOCALES.map((l) => [l, (mcpByLocale[l] ?? []).find((s) => s.name === name)].filter(Boolean)));
     return annotateMcp(listByLocale, mcpDepths[name], generatedAt, `${base}/api/mcp-catalog`);
@@ -631,7 +648,8 @@ function runFixture({ fixture, siteBase, outDir, whitelist, generatedAt }) {
   }
 
   const packMaterials = annotatePack(listingsByLocale, generatedAt, "fixture://facet");
-  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, "fixture://skills-catalog")).filter(Boolean);
+  const skillsTr = loadSkillTranslations();
+  const skillMaterials = skills.map((s) => annotateSkill(s, generatedAt, "fixture://skills-catalog", skillsTr[s.name] ?? null)).filter(Boolean);
   const mcpMaterials = mcpServers.map((s) => {
     const listByLocale = Object.fromEntries(
       LOCALES.map((l) => [l, (mcpByLocale[l] ?? mcpServers).find((x) => x.name === s.name)].filter(Boolean)),

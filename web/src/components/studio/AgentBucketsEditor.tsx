@@ -4,7 +4,7 @@
 // fork the bucket UX. Persona editing is per selected agent; skills and MCP
 // are document-level buckets. MCP references come from the catalog picker
 // only (no free-form registryName entry anywhere).
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,10 +70,13 @@ export function AgentBucketsEditor({
   const [innerId, setInnerId] = useState<string | null>(agents[0]?.id ?? null);
   const controlled = selectedAgentId !== undefined;
   const selectedId = controlled ? selectedAgentId : innerId;
-  const select = (id: string | null) => {
-    if (controlled) onSelectAgent?.(id);
-    else setInnerId(id);
-  };
+  const select = useCallback(
+    (id: string | null) => {
+      if (controlled) onSelectAgent?.(id);
+      else setInnerId(id);
+    },
+    [controlled, onSelectAgent],
+  );
   const seq = { current: 0 };
 
   useEffect(() => {

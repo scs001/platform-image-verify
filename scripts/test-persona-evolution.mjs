@@ -98,7 +98,7 @@ test("propose gates: same-target debounce fires within the window", () => {
 
 // ── the double key + promotion split ─────────────────────────────────────────
 
-function fakeCtx({ withPack = false } = {}) {
+function fakeCtx() {
   const broadcasts = [];
   const drafts = [];
   const ctx = {

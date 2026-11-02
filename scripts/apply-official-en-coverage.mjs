@@ -25,7 +25,7 @@
 // manifest (known ledger hazard), re-run with --via-facet to use the internal
 // x-facet-token/x-facet-user forwarding channel instead.
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { localeCoverage } from "../lib/pack-locale-coverage.js";
 import { validatePackManifest } from "../lib/pack-manifest.js";
@@ -114,7 +114,7 @@ async function main() {
     if (!asEmail) { console.error("--apply 需要 --as=<发布账号邮箱> 用于归属核对"); process.exit(2); }
   }
 
-  let checked = 0; let ready = 0; let skippedCovered = 0; let skippedForeign = 0; let published = 0; let failed = 0;
+  let ready = 0; let skippedCovered = 0; let skippedForeign = 0; let published = 0; let failed = 0;
   const foreignOwners = new Map();
   for (const f of files) {
     const draft = JSON.parse(readFileSync(path.join(draftsDir, f), "utf8"));
@@ -139,7 +139,6 @@ async function main() {
     const next = mergeOverlay(zhManifest, draft.gaps);
     const cov = localeCoverage(next, locale);
     const errs = validatePackManifest(next);
-    checked += 1;
     if (cov.missing.length > 0 || errs.length > 0) {
       console.log(`  [校验红] ${id}: 缺项=${JSON.stringify(cov.missing)} 错误=${JSON.stringify(errs.slice(0, 3))}`);
       failed += 1;

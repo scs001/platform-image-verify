@@ -49,7 +49,7 @@
 - [x] 4.2 `LOCALE_OVERLAY_KEYS` 扩容（promise/audience/outcomes/examples/domain/tags/identity.mark.value）+ 叠加校验（数组等长对齐、结构字段禁入）；验证：overlay 校验用例 + `pack-locale-tracks` 场景逐条对上
 - [x] 4.3 `lib/pack-locale.js` 投影扩展：v2 字段按 locale 覆盖与 zh 回落；验证：en/ja 请求投影单测
 - [x] 4.4 发布面把 manifest `domain[]` 写入 `packs.domains` 列；策展端点接受 `domains[]`（词表内）；验证：发布→facets 计数联动单测
-- [ ] 4.5 读面透传：summary/detail 携带 v2 字段；`PackCard`/详情消费（无 v2 字段时降级链不变）；验证：**存量 manifest 变更前后投影 diff=0** 快照测试（逐字节）
+- [x] 4.5 读面透传：summary/detail 携带 v2 字段；`PackCard`/详情消费（无 v2 字段时降级链不变）；验证：**存量 manifest 变更前后投影 diff=0** 快照测试（逐字节）
 - [x] 4.6 官方发布门：名册作者 + en 组织面未满覆盖 → 422 结构化缺项清单；非名册不受限；验证：`scripts/test-pack-registry.mjs` 增两侧用例
 - [ ] 4.7 作者端翻译工作台（`PackDraftsView` 抽屉）：zh/目标语并排、组织面覆盖率、缺项定位跳转、经 `entries.i18n` 保存；不写翻译不产生空 `i18n` 键；验证：e2e 编辑器补 en→发布→市场英文读面呈现
 - [ ] 4.8 领域/适用人群选择器接词表；词表外存量取值标示不合法并阻发布、保存零静默改写；验证：e2e 三态（合法/不合法/保存保留）

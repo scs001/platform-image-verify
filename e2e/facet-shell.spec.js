@@ -25,7 +25,10 @@ test("all four shell views render without a routing provider", async ({ page }) 
   // packs: the borrowed 壹座 view must mount cleanly with no Router
   // ancestor — cards render, search is interactive.
   await page.goto(`${base}/#/packs`);
-  await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(1);
+  // Two seeds: the smoke pack (no v2 display — the degradation chain stays
+  // pinned on it) and the v2 passthrough pack (older publishedAt → sorts last,
+  // .first() stays the smoke pack).
+  await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(2);
   await expect(page.getByTestId("pack-search-input")).toBeVisible();
 
   // Version history on the borrowed detail (add-facet-version-history): the
@@ -534,4 +537,29 @@ test("example prompts copy to the clipboard on the router-less shell (P2 3.5)", 
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("示例指令哨兵全文");
   // No navigation happened — the shell has no /chat to land on.
   expect(page.url()).toContain("#/packs");
+});
+
+test("v2 display block rides the card and the detail (P3 4.5)", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+  await page.goto(`${base}/#/packs`);
+  const card = page.getByTestId("pack-card-facet-shell-v2");
+  await expect(card).toBeVisible();
+
+  // Slot 2: the DECLARED promise wins — the description (and its first
+  // sentence) never competes for the slot when display.promise exists.
+  await expect(card).toContainText("声明承诺：一屏可见的风险清单。");
+  await expect(card).not.toContainText("普通描述");
+  // Slot 4: declared audience renders through the facets vocabulary label.
+  await expect(card.getByTestId("pack-audience-facet-shell-v2")).toContainText("法务");
+
+  await card.click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail.getByTestId("pack-detail-outcomes")).toContainText("风险清单");
+  await expect(detail.getByTestId("pack-detail-outcomes")).toContainText("逐条定位到条款");
+  // ④ examples ride the v2 channel even WITHOUT a guide — and stay actionable
+  // (facet host: clipboard fallback, the prompt BODY not the title).
+  await detail.getByTestId("pack-guide-example-0").click();
+  await expect(detail.getByTestId("pack-guide-example-copied")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("声明示例提示词全文");
 });

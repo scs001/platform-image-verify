@@ -1911,7 +1911,8 @@
       "purchased": "購入済み",
       "vendorBy": "{{name}} 提供",
       "fleetWizardBtn": "チームとして一括構築",
-      "boundary": "境界と誠実さ"
+      "boundary": "境界と誠実さ",
+      "outcomes": "何が得られるか"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

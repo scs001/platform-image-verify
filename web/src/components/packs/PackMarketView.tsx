@@ -150,6 +150,9 @@ export function PackMarketView({
     setOfficialOnly(on);
   }, []);
   const hasOfficialRows = packs.some((p) => p.official === true);
+  // Slug→label view of the domain vocabulary (locale-projected by the server,
+  // P1 facets): the audience slot resolves declared slugs through this map.
+  const domainLabels: Record<string, string> = Object.fromEntries((facets?.domains ?? []).map((d) => [d.slug, d.label]));
   // Countless summaries (a pre-upgrade server) pass through unfiltered
   // rather than vanishing.
   const visiblePacks = packs.filter(
@@ -399,7 +402,7 @@ export function PackMarketView({
               {visiblePacks
                 .filter((p) => p.featured)
                 .map((p, i) => (
-                  <PackCard key={p.id} pack={p} index={i} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
+                  <PackCard key={p.id} pack={p} index={i} audienceLabels={domainLabels} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
                 ))}
             </div>
           </div>
@@ -438,6 +441,7 @@ export function PackMarketView({
               key={pack.id}
               pack={pack}
               index={i}
+              audienceLabels={domainLabels}
               tone="gallery"
               testId={`pack-gallery-card-${pack.id}`}
               onOpen={() => setDetailId(pack.id)}
@@ -474,7 +478,7 @@ export function PackMarketView({
               }
             </PackCard>
           ) : (
-            <PackCard key={pack.id} pack={pack} index={i} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
+            <PackCard key={pack.id} pack={pack} index={i} audienceLabels={domainLabels} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
           )
         )}
       </div>

@@ -408,13 +408,25 @@ export function PackDetailDialog({
   const guide: PackGuide | null = manifestGuide
     ? { name: pack?.name ?? "", steps: manifestGuide.steps as PackGuide["steps"] }
     : null;
-  // Example questions: the creator's manifest.guide.examples is the primary
-  // source (P2 3.5 — they become actionable); the retired client module stays
-  // as a fallback until move-pack-guides-to-manifest's channel is deleted.
+  // ② 你会得到 (specs/pack-display-format 缺省降级链): the v2 outcomes win;
+  // otherwise three step TITLES from the guide compose the promise list; no
+  // source at all → the section is omitted (never an empty shell).
+  const outcomes: { title: string; detail?: string }[] =
+    Array.isArray((m as { outcomes?: { title: string; detail?: string }[] } | undefined)?.outcomes) && (m as { outcomes?: { title: string; detail?: string }[] } | undefined)!.outcomes!.length > 0
+      ? ((m as { outcomes?: { title: string; detail?: string }[] } | undefined)!.outcomes ?? [])
+      : (manifestGuide?.steps ?? []).slice(0, 3).map((st) => ({ title: st.title }));
+  // Example questions (P3 4.5): the v2 `manifest.examples` (title+prompt) is
+  // the primary source; then guide.examples (P2 3.5 channel); then the retired
+  // client module. All normalize to { title, text } for the actionable row.
+  const v2Examples = Array.isArray((m as { examples?: { title: string; prompt: string }[] } | undefined)?.examples)
+    ? ((m as { examples?: { title: string; prompt: string }[] } | undefined)!.examples ?? []).map((e) => ({ title: e.title, text: e.prompt }))
+    : [];
   const examples =
-    manifestGuide?.examples && manifestGuide.examples.length > 0
-      ? manifestGuide.examples
-      : promptsFor(packId) ?? [];
+    v2Examples.length > 0
+      ? v2Examples
+      : manifestGuide?.examples && manifestGuide.examples.length > 0
+        ? manifestGuide.examples
+        : promptsFor(packId) ?? [];
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
@@ -565,6 +577,20 @@ export function PackDetailDialog({
               </div>
             )}
 
+            {outcomes.length > 0 && (
+              <section className="rounded-md border border-border p-3" data-testid="pack-detail-outcomes">
+                <h4 className="mb-2 font-medium">{t("packs.detail.outcomes")}</h4>
+                <ul className="space-y-1">
+                  {outcomes.slice(0, 5).map((o) => (
+                    <li key={o.title} className="text-xs leading-5">
+                      <span className="font-medium text-foreground">{o.title}</span>
+                      {o.detail ? <span className="text-muted-foreground"> — {o.detail}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {/* Usage guide (add-onboarding-tutorial): three steps from the
                 client content module — informational only, purely absent when
                 the module has no entry for this pack id. Guide bodies render
@@ -587,46 +613,47 @@ export function PackDetailDialog({
                     </li>
                   ))}
                 </ol>
-                {examples.length > 0 && (
-                  <div className="mt-2 border-t border-primary/20 pt-2" data-testid="pack-guide-examples">
-                    <p className="text-xs font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
-                    <ul className="mt-1 space-y-0.5">
-                      {examples.slice(0, 4).map((ex, i) => (
-                        <li key={ex.title}>
-                          <button
-                            type="button"
-                            data-testid={`pack-guide-example-${i}`}
-                            className="text-left text-xs leading-5 text-primary hover:underline"
-                            title={ex.text}
-                            onClick={() => {
-                              if (onUsePrompt) {
-                                onUsePrompt(ex.text);
-                                return;
-                              }
-                              // Facet shell (no chat session): copy the prompt —
-                              // the confirmation appears only on a real write,
-                              // a failed clipboard never claims success.
-                              navigator.clipboard
-                                ?.writeText(ex.text)
-                                .then(() => setCopiedExample(i))
-                                .catch(() => {});
-                            }}
-                          >
-                            · {ex.title}
-                          </button>
-                          {copiedExample === i && (
-                            <span className="ml-1.5 text-[10px] text-warning" data-testid="pack-guide-example-copied">
-                              {t("packs.guide.copied")}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
                 <p className="mt-2 text-xs text-muted-foreground">{t("packs.guide.hint")}</p>
               </section>
             )}
+            {examples.length > 0 && (
+              <div className="rounded-md border border-border p-3" data-testid="pack-guide-examples">
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
+                <ul className="mt-1 space-y-0.5">
+                  {examples.slice(0, 4).map((ex, i) => (
+                    <li key={ex.title}>
+                      <button
+                        type="button"
+                        data-testid={`pack-guide-example-${i}`}
+                        className="text-left text-xs leading-5 text-primary hover:underline"
+                        title={ex.text}
+                        onClick={() => {
+                          if (onUsePrompt) {
+                            onUsePrompt(ex.text);
+                            return;
+                          }
+                          // Facet shell (no chat session): copy the prompt —
+                          // the confirmation appears only on a real write,
+                          // a failed clipboard never claims success.
+                          navigator.clipboard
+                            ?.writeText(ex.text)
+                            .then(() => setCopiedExample(i))
+                            .catch(() => {});
+                        }}
+                      >
+                        · {ex.title}
+                      </button>
+                      {copiedExample === i && (
+                        <span className="ml-1.5 text-[10px] text-warning" data-testid="pack-guide-example-copied">
+                          {t("packs.guide.copied")}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
 
             {/* Three-bucket spec sheet (add-agent-spec-sheet): 角色/技能/工具
                 render as ONE shared component — the bucket layout lives there,

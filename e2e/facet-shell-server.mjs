@@ -119,8 +119,45 @@ db.prepare(
   "smoke@e2e.local",
   now,
 );
+// 第二支种子（overhaul-market-catalog-presentation P3 4.5）：带 v2 display 块，
+// publishedAt 更早 → 排序在后，.first() 仍是无 display 的哨兵包（降级链用例
+// 不被扰动）；它自己钉「声明的 display 进卡片与详情」的透传用例。
+db.prepare(
+  `INSERT INTO packs (id, author_email, created_at, unlisted, visibility, category, domains) VALUES (?, ?, ?, 0, 'public', ?, ?)`,
+).run("facet-shell-v2", "smoke@e2e.local", now - 5000, "wire", JSON.stringify(["legal"]));
+db.prepare(
+  `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
+   VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
+).run(
+  "facet-shell-v2",
+  "显示 v2 包",
+  "普通描述。第二句不该顶替声明承诺。",
+  JSON.stringify(["v2"]),
+  JSON.stringify({
+    name: "显示 v2 包",
+    description: "普通描述。第二句不该顶替声明承诺。",
+    category: "wire",
+    domain: ["legal"],
+    identity: { mark: { kind: "glyph", value: "律" }, accent: "wire" },
+    promise: "声明承诺：一屏可见的风险清单。",
+    audience: ["legal"],
+    outcomes: [
+      { title: "风险清单", detail: "逐条定位到条款" },
+      { title: "修订建议" },
+    ],
+    examples: [
+      { title: "问风险", prompt: "声明示例提示词全文" },
+      { title: "要建议", prompt: "给出修订建议" },
+    ],
+    skills: [{ name: "s", description: "d", content: "# s" }],
+    mcpServers: [],
+    agents: [],
+  }),
+  "smoke@e2e.local",
+  now - 5000,
+);
 db.close();
-console.log(`[facet-shell] ready on http://127.0.0.1:${PORT} (seeded 1 public pack)`);
+console.log(`[facet-shell] ready on http://127.0.0.1:${PORT} (seeded 2 public packs)`);
 
 // Stay resident: Playwright tears the whole process group down.
 setInterval(() => {}, 1 << 30);

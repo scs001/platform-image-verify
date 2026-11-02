@@ -31,6 +31,7 @@ export function PackCard({
   testId,
   tone = "plain",
   index,
+  audienceLabels,
   children,
   extra,
 }: {
@@ -40,6 +41,11 @@ export function PackCard({
   // Gallery tiles ride the primary tint; the featured rail keeps the plain
   // border but is reachable through the same component.
   tone?: "plain" | "gallery";
+  // Slug→label map for the audience slot (the facets vocabulary, already
+  // locale-projected by the server): a declared v2 `display.audience` renders
+  // as chips ONLY when its slugs resolve here — an unresolved slug would leak
+  // a raw identifier, so the slot falls back to the tag row instead.
+  audienceLabels?: Record<string, string>;
   // Position in the grid — the entrance stagger lives HERE so the three host
   // branches (featured / gallery / plain) can never drift on the timing
   // (facet/web/DESIGN.md 入场: rise-in ≤200ms, list stagger allowed). The
@@ -55,7 +61,20 @@ export function PackCard({
   extra?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const promise = firstSentence(pack.description);
+  // Slot 2 promise (P3 4.5): the author's declared v2 promise rides the card
+  // verbatim (the validator capped it at the slot's own display width, so no
+  // clipping is needed); without one, the degradation chain is exactly the
+  // pre-P3 behavior — first sentence of the description.
+  const declaredPromise = (pack.display?.promise ?? "").trim();
+  const promise = declaredPromise || firstSentence(pack.description);
+  // Slot 1 seal: identity.mark overrides the server-generated line seal for
+  // glyph/emoji marks only — an image reference has no client asset face yet,
+  // and inventing one would render the raw reference string.
+  const mark = pack.display?.identity?.mark;
+  const sealChar =
+    mark && (mark.kind === "glyph" || mark.kind === "emoji") && mark.value.trim()
+      ? mark.value.trim()
+      : markCharOf(pack.line, pack.name);
   // Signal anchors must NOT start with "pack-card-" — the e2e suite counts
   // cards by the prefix selector [data-testid^="pack-card-"]; a child anchor
   // on that prefix inflates the count (caught by facet-shell, 2026-11-03).
@@ -107,7 +126,7 @@ export function PackCard({
       <div className="flex gap-3">
         {/* Slot 1 · identity — the line seal gives 70 same-shaped cards a
             one-glance fingerprint (the brand asset, no upload/audit surface). */}
-        <SiteMark chars={markCharOf(pack.line, pack.name)} size="sm" />
+        <SiteMark chars={sealChar} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium text-foreground flex items-center gap-1.5 min-w-0">
@@ -139,15 +158,30 @@ export function PackCard({
             <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">{signals}</div>
           )}
 
-          {/* Slot 4 · audience — pre-P3 this shows the tag row (capped at 3:
-              the vocabulary is free-form until authors declare audiences). */}
-          {pack.tags.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              {pack.tags.slice(0, 3).map((tag) => (
-                <Badge key={tag}>{tag}</Badge>
-              ))}
-            </div>
-          )}
+          {/* Slot 4 · audience — the declared v2 audience renders when every
+              slug resolves through the facets vocabulary (an unresolved slug
+              would leak a raw identifier into a display slot); otherwise the
+              tag row stands in (capped at 3: the vocabulary is free-form). */}
+          {(() => {
+            const audience = pack.display?.audience ?? [];
+            const labels = audience.map((slug) => audienceLabels?.[slug]).filter((l): l is string => !!l);
+            if (audience.length > 0 && labels.length === audience.length) {
+              return (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap" data-testid={`pack-audience-${pack.id}`}>
+                  {labels.slice(0, 3).map((label) => (
+                    <Badge key={label}>{label}</Badge>
+                  ))}
+                </div>
+              );
+            }
+            return pack.tags.length > 0 ? (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {pack.tags.slice(0, 3).map((tag) => (
+                  <Badge key={tag}>{tag}</Badge>
+                ))}
+              </div>
+            ) : null;
+          })()}
 
           {children}
         </div>

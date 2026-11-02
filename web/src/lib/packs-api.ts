@@ -25,6 +25,17 @@ function withLocale(q: URLSearchParams): URLSearchParams {
   return q;
 }
 
+/** The optional structured display surface (specs/pack-display-format):
+ *  identity seal override, one-line promise, audience/domain slugs, outcomes
+ *  and actionable examples — all independently optional. */
+export interface PackDisplayV2 {
+  promise?: string;
+  identity?: { mark?: { kind: string; value: string }; accent?: string };
+  audience?: string[];
+  outcomes?: { title: string; detail?: string }[];
+  examples?: { title: string; prompt: string }[];
+}
+
 export interface PackSummary {
   id: string;
   authorEmail: string;
@@ -50,6 +61,12 @@ export interface PackSummary {
   /** Declared domain-axis slugs (overhaul-market-catalog-presentation P1). Present
    *  only when the pack declares a set; an undeclared pack omits the key. */
   domains?: string[];
+  /** Structured display fields v2 (overhaul-market-catalog-presentation P3):
+   *  the market projection carries them VERBATIM (locale-projected on the
+   *  secondary track, 4.3) and only when the manifest declares them — a
+   *  legacy pack omits the key entirely and the card's degradation chain
+   *  behaves exactly as pre-P3. */
+  display?: PackDisplayV2;
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;

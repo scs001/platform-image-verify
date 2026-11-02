@@ -1911,7 +1911,8 @@
       "purchased": "acheté",
       "vendorBy": "par {{name}}",
       "fleetWizardBtn": "Instancier en équipe",
-      "boundary": "Limites et honnêteté"
+      "boundary": "Limites et honnêteté",
+      "outcomes": "Ce que vous obtenez"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

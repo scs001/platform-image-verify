@@ -524,7 +524,45 @@ export function createPackRegistry({ file }) {
     return { slug, name: vendors.attributionName(slug) ?? slug };
   };
 
+  // Display format v2 passthrough (overhaul-market-catalog-presentation 4.5):
+  // the summary carries the structured display fields VERBATIM — the market
+  // projection never rewrites them. Every key rides the SQL json_extract
+  // convention (absent in the manifest → NULL → key omitted → a legacy row is
+  // byte-identical to the pre-change projection, specs/pack-display-format
+  // 兼容不变量); rows read without the list projection (get/versions callers)
+  // simply carry no display block — the detail face has the manifest itself.
+  const DISPLAY_KEYS = ["identity", "promise", "audience", "outcomes", "examples"];
+  function displayFromObject(source) {
+    if (!source || typeof source !== "object") return null;
+    const d = {};
+    let any = false;
+    for (const key of DISPLAY_KEYS) {
+      if (source[key] !== undefined && source[key] !== null) {
+        d[key] = source[key];
+        any = true;
+      }
+    }
+    return any ? d : null;
+  }
+  function displayFromRow(version) {
+    const raw = {};
+    for (const key of DISPLAY_KEYS) {
+      const alias = version[`display_${key}`];
+      if (alias === undefined || alias === null) continue;
+      if (key === "promise") raw.promise = alias;
+      else {
+        try {
+          raw[key] = JSON.parse(alias);
+        } catch {
+          /* malformed stored JSON — omit the segment (read face never invents) */
+        }
+      }
+    }
+    return displayFromObject(raw);
+  }
+
   function summaryOf(pack, version) {
+    const display = displayFromRow(version);
     return {
       id: pack.id,
       authorEmail: pack.author_email,
@@ -564,6 +602,7 @@ export function createPackRegistry({ file }) {
       // Domain axis (P1): the stored set, present only when declared — an
       // undeclared pack omits the key (byte-identical to the pre-change row).
       ...(pack.domains ? { domains: storedDomains(pack) } : {}),
+      ...(display ? { display } : {}),
       featured: Boolean(pack.featured),
       // Agent count of the latest version's manifest (agent-cluster-platform
       // marketplace views): computed in SQL by the list query via
@@ -622,7 +661,14 @@ export function createPackRegistry({ file }) {
     } catch {
       return summary;
     }
-    return applyLocaleToSummary(summary, manifest, locale);
+    const out = applyLocaleToSummary(summary, manifest, locale);
+    // v2 display follows the locale too: the SAME projection that localizes
+    // name/description (4.3) yields the localized display block — a declared
+    // promise/outcomes/examples/identity/audience never rewrites the zh base
+    // fields; it is its own surface (specs/pack-display-format 透传规则).
+    const localizedDisplay = displayFromObject(projectManifestForLocale(manifest, locale));
+    if (localizedDisplay) out.display = localizedDisplay;
+    return out;
   }
 
   // Private packs are owner-scoped (openspec: pack-visibility): invisible to
@@ -948,6 +994,11 @@ export function createPackRegistry({ file }) {
                 json_array_length(v.manifest, '$.agents') AS agent_count,
                 json_array_length(v.manifest, '$.skills') AS skill_count,
                 json_array_length(v.manifest, '$.mcpServers') AS mcp_count,
+                json_extract(v.manifest, '$.identity') AS display_identity,
+                json_extract(v.manifest, '$.promise') AS display_promise,
+                json_extract(v.manifest, '$.audience') AS display_audience,
+                json_extract(v.manifest, '$.outcomes') AS display_outcomes,
+                json_extract(v.manifest, '$.examples') AS display_examples,
                 CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade,
                 CAST(json_extract(v.manifest, '$.fleet') IS NOT NULL AS INTEGER) AS has_fleet,
                 CAST(json_extract(v.manifest, '$.cluster') IS NOT NULL AS INTEGER) AS has_cluster,

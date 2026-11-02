@@ -1911,7 +1911,8 @@
         "required": "Buy this agent before installing it."
       },
       "fleetWizardBtn": "Instantiate as a team",
-      "boundary": "Boundaries & honesty"
+      "boundary": "Boundaries & honesty",
+      "outcomes": "What you get"
     },
     "report": {
       "title": "Install result for “{{name}}”",

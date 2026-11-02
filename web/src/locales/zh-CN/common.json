@@ -1911,7 +1911,8 @@
         "required": "该条目需要先购买再安装。"
       },
       "fleetWizardBtn": "一键装作成团队",
-      "boundary": "边界与诚实声明"
+      "boundary": "边界与诚实声明",
+      "outcomes": "你会得到"
     },
     "report": {
       "title": "「{{name}}」安装结果",

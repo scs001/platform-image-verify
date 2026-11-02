@@ -184,7 +184,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleAllGroups, navigate, location, toggleNavCollapsed]);
+  }, [toggleAllGroups, navigate, location, toggleNavCollapsed, gMap]);
 
   if (!authReady) {
     return (

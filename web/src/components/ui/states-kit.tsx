@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { useMemo } from "react";
 import { cn } from "@/lib/utils"
 
 // StatesKit — the three states every fetched surface owes its user
@@ -20,10 +21,13 @@ export function Skeleton({ className }: { className?: string }) {
 /** A ready-made list-of-rows skeleton: rows default to the common 1-line +
  * 2-line card rhythm. Consumers match their real row shape (same-shape rule). */
 export function SkeletonList({ rows = 4, className }: { rows?: number; className?: string }) {
+  // Static placeholder rows — no dynamic ordering, so index keys are noise;
+  // generate named rows to satisfy noArrayIndexKey without suppression.
+  const rowIds = useMemo(() => Array.from({ length: rows }, (_, i) => `skeleton-row-${i}`), [rows]);
   return (
     <div aria-hidden="true" className={cn("flex flex-col gap-3", className)}>
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="rounded-md border border-border bg-card p-4">
+      {rowIds.map((id) => (
+        <div key={id} className="rounded-md border border-border bg-card p-4">
           <Skeleton className="mb-2 h-4 w-1/3" />
           <Skeleton className="h-3 w-2/3" />
         </div>

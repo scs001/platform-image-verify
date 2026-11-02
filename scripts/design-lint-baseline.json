@@ -83,9 +83,6 @@
   "web/src/components/fleet/MiniSpan.tsx": {
     "named-color": 1
   },
-  "web/src/components/fleet/OwnerBoardStrip.tsx": {
-    "named-color": 2
-  },
   "web/src/components/fleet/RunTimeline.tsx": {
     "hex-color": 2,
     "named-color": 13

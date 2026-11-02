@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as owner from "@/lib/fleet-owner-api";
-import type { OwnerBoardFleet, BillingSnapshot, OwnerCellRow, SubUpdate, DigestSub, IterationRow } from "@/lib/fleet-owner-api";
+import type { OwnerBoardFleet, BillingSnapshot, OwnerCellRow, SubUpdate, DigestSub, IterationRow, MemoryFace } from "@/lib/fleet-owner-api";
 import * as api from "@/lib/packs-api";
 import type { MarketPurchase } from "@/lib/packs-api";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
   const [board, setBoard] = useState<OwnerBoardFleet[] | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
   const [cells, setCells] = useState<OwnerCellRow[] | null>(null);
+  const [memory, setMemory] = useState<MemoryFace | null>(null);
   const [billing, setBilling] = useState<BillingSnapshot | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [purchases, setPurchases] = useState<MarketPurchase[]>([]);
@@ -44,6 +45,19 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
       .then((r) => setDigestSubs(r.subscriptions ?? []))
       .catch(() => {});
   }, []);
+
+  // 内存水位卡 (harden-platform-memory-carrier 3.1): 只读, 随坞面加载 +
+  // 60s 轮询 (与 add-cockpit-ops-loop 同拍)。路由缺席 (404, 桌面单机) 或
+  // 读取失败 → 卡不渲染, honest absence; 网关答了但计量不可用 → 卡渲染
+  // 不可用标记 (spec: 非 Linux 如实降级)。
+  const reloadMemory = useCallback(() => {
+    owner.fetchMemoryFace().then(setMemory);
+  }, []);
+  useEffect(() => {
+    reloadMemory();
+    const timer = setInterval(reloadMemory, 60_000);
+    return () => clearInterval(timer);
+  }, [reloadMemory]);
 
   useEffect(() => {
     reloadBoard();
@@ -158,6 +172,67 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
         </div>
       )}
 
+      {memory && (
+        <div className="rounded-lg border border-border p-3" data-testid="fleet-board-memory">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-medium">{t("fleets.board.memoryTitle")}</h4>
+            {memory.available && memory.container?.available && memory.container.headroomPct != null && memory.container.limitBytes != null ? (
+              memory.container.headroomPct < memory.container.threshold ? (
+                <span
+                  className="rounded-full bg-status-waiting/15 px-2 py-0.5 text-xs text-status-waiting"
+                  title={`${t("fleets.board.memoryLow", {
+                    pct: Math.round((1 - memory.container.headroomPct) * 100),
+                    thresholdPct: Math.round(memory.container.threshold * 100),
+                  })} · used ${Math.round((memory.container.usedBytes ?? 0) / 1048576)}MB / limit ${Math.round(memory.container.limitBytes / 1048576)}MB`}
+                  data-testid="fleet-board-memory-low"
+                >
+                  {t("fleets.board.memoryLow", {
+                    pct: Math.round((1 - memory.container.headroomPct) * 100),
+                    thresholdPct: Math.round(memory.container.threshold * 100),
+                  })}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground" data-testid="fleet-board-memory-ok">
+                  {t("fleets.board.memoryHeadroom", { pct: Math.round(memory.container.headroomPct * 100) })}
+                </span>
+              )
+            ) : (
+              <span className="text-xs text-muted-foreground" data-testid="fleet-board-memory-unavailable">
+                {t("fleets.board.memoryUnavailable")}
+              </span>
+            )}
+          </div>
+          {memory.available && memory.container?.available && memory.container.usedBytes != null && memory.container.limitBytes != null && (
+            <div className="mt-1.5" data-testid="fleet-board-memory-bar">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full ${memory.container.headroomPct != null && memory.container.headroomPct < memory.container.threshold ? "bg-status-waiting" : "bg-primary"}`}
+                  style={{ width: `${Math.min(100, Math.round((memory.container.usedBytes / memory.container.limitBytes) * 100))}%` }}
+                />
+              </div>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {t("fleets.board.memoryUsageLine", {
+                  pct: Math.round((memory.container.usedBytes / memory.container.limitBytes) * 100),
+                  limitMb: Math.round(memory.container.limitBytes / 1048576),
+                })}
+              </p>
+            </div>
+          )}
+          {(memory.cells ?? []).map((c) => (
+            <div key={c.cellId} className="mt-1 flex items-center gap-2 text-xs text-muted-foreground" data-testid={`fleet-board-memory-cell-${c.cellId}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+              <span className="font-mono">{c.cellId}</span>
+              <span>{t("fleets.board.memoryCellLine", { mb: Math.round(c.totalBytes / 1048576), count: c.processes.length })}</span>
+            </div>
+          ))}
+          {memory.available && (memory.ungrouped?.totalBytes ?? 0) > 0 && (
+            <p className="mt-1 text-[10px] text-muted-foreground" data-testid="fleet-board-memory-ungrouped">
+              {t("fleets.board.memoryUngrouped", { mb: Math.round((memory.ungrouped?.totalBytes ?? 0) / 1048576) })}
+            </p>
+          )}
+        </div>
+      )}
+
       {board && board.length === 0 && (
         <p className="text-sm text-muted-foreground" data-testid="fleet-board-empty">
           {t("fleets.empty")}
@@ -192,7 +267,7 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
                     </span>
                   )}
                   {upd && (
-                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700" title={upd.notes ?? undefined} data-testid={`fleet-board-update-${f.id}`}>
+                    <span className="rounded-full bg-status-waiting/15 px-2 py-0.5 text-xs text-status-waiting" title={upd.notes ?? undefined} data-testid={`fleet-board-update-${f.id}`}>
                       {t("fleets.board.newVersion", { version: upd.latestVersion })}
                     </span>
                   )}

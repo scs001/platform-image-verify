@@ -84,12 +84,6 @@ db.createFleet({
 });
 db.createMember({ id: "m_hot", fleetId: "fleet_s1", title: "热岗", parentId: null, targetKind: "persona", targetId: "pack-a", kpiSlots: [], cadence: null, sortKey: 0, createdAt: Date.now(), updatedAt: Date.now() });
 
-const day = (offset) => {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - offset);
-  return d.toISOString().slice(0, 10);
-};
-
 test("sweep proposes once with provenance; dedup skips while in flight", async () => {
   const raw = db.db ?? db;
   const insert = raw.prepare(`INSERT INTO member_turn_daily (fleet_id, member_id, carrier, provider, model, day, turns, ok_count, failed_count, usage_input, usage_cached_input, usage_cache_write, usage_reasoning, usage_output, queue_wait_ms_sum, queue_wait_ms_max, ttft_ms_sum, ttft_ms_max, spin_up_ms_sum, spin_up_ms_max, updated_at)

@@ -14,7 +14,7 @@
     "actions": "Human: read on, or jump to the inventory"
   },
   "counters": {
-    "packs": "Packs",
+    "packs": "Agents",
     "categories": "Material categories",
     "locales": "Languages",
     "asOf": "Snapshot as of",

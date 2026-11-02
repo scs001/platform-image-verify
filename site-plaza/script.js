@@ -94,10 +94,20 @@
     $("#audAi").innerHTML = d.audience.ai.items.map((x) => `<li>${esc(x)}</li>`).join("");
   }
 
-  // The listing shown: live data when the refresh succeeded, else the snapshot.
+  // The listing shown: the snapshot is the BASE (all three species); a
+  // successful live refresh UPDATES the pack-species entries in place (by id —
+  // replace or append) and NEVER removes the skills/MCP species — the live
+  // listing only covers packs, so returning it alone would empty two of the
+  // three tabs whenever the market is reachable.
   function currentMaterials() {
-    if (store.liveState === "live" && store.live) return store.live;
-    return (store.catalog?.materials ?? []).map((m) => ({ ...m, _snapshot: true }));
+    const snap = store.catalog?.materials ?? [];
+    if (store.liveState !== "live" || !store.live) return snap;
+    const byId = new Map(snap.map((m) => [m.id, { ...m }]));
+    for (const liveItem of store.live) {
+      const prev = byId.get(liveItem.id);
+      byId.set(liveItem.id, { ...prev, ...liveItem, human: { ...prev?.human, ...liveItem.human } });
+    }
+    return [...byId.values()];
   }
 
   function renderInventory() {

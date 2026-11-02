@@ -14,7 +14,7 @@
     "actions": "人へ：このまま読み進めるか、カタログへ"
   },
   "counters": {
-    "packs": "パック",
+    "packs": "エージェント",
     "categories": "素材カテゴリ",
     "locales": "言語",
     "asOf": "スナップショット時点",

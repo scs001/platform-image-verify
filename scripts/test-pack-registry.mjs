@@ -17,6 +17,7 @@ import { test } from "node:test";
 import {
   createPackRegistry,
   createPublishRateLimiter,
+  registerPackRoutes,
   validateManifest,
 } from "../gateway/packs.js";
 import { PACK_LIMITS } from "../lib/pack-manifest.js";
@@ -318,4 +319,166 @@ test("manifest validator shapes the optional category slug", () => {
   assert.ok(validateManifest(validManifest({ category: "x".repeat(33) })).length > 0);
   assert.ok(validateManifest(validManifest({ category: 42 })).length > 0);
   assert.equal(validateManifest(validManifest()).length, 0); // absent = fine
+});
+
+// ── P3 4.4 发布→facets 计数联动 (overhaul-market-catalog-presentation) ───────
+// The domain axis is stamped at mint from manifest.domain (vocabulary-filtered,
+// capped), reaches the facets counts immediately, and curation edits move the
+// counts — the column is the single storage truth (specs/pack-domain-taxonomy).
+test("publish 的 manifest.domain 落列并即时进 facets；越词值被投影层过滤", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pack-domain-link-"));
+  const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+  try {
+    const author = "domain-author@example.com";
+    const a = reg.publish({ email: author, manifest: { ...validManifest(), name: "A", domain: ["legal"] } });
+    const b = reg.publish({
+      email: author,
+      manifest: { ...validManifest(), name: "B", domain: ["investing", "not-a-domain", "risk"] },
+    });
+
+    // 列即真源：facets 只数词表内的。
+    const f = reg.facets({ locale: "en" });
+    const legal = f.domains.find((d) => d.slug === "legal");
+    const investing = f.domains.find((d) => d.slug === "investing");
+    assert.equal(legal.count, 1, "A 进 legal 计数");
+    assert.equal(investing.count, 1, "B 进 investing 计数");
+    assert.ok(!f.domains.some((d) => d.slug === "not-a-domain"), "越词值不进分面");
+    assert.ok(legal.label, "facets 标签随 locale 投影");
+
+    // 读面联动：list({domain}) 命中声明包；summary 带 domains 真源列。
+    const hit = reg.list({ domain: "legal", viewer: null });
+    assert.equal(hit.packs.filter((p) => p.id === a.id).length, 1);
+    const summaryB = reg.list({ domain: "risk" }).packs.find((p) => p.id === b.id);
+    assert.deepEqual(summaryB.domains.slice().sort(), ["investing", "risk"]);
+
+    // 策展改写立即反映到计数（同列真源）。
+    reg.setCuration({ id: a.id, actor: { email: author }, domains: ["knowledge"] });
+    assert.equal(reg.facets().domains.find((d) => d.slug === "legal")?.count ?? 0, 0, "legal 让位（>0 计数才进 domains 分面）");
+    assert.equal(reg.facets().domains.find((d) => d.slug === "knowledge").count, 1);
+  } finally {
+    reg.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("无 domain 的 manifest 落 NULL（未归类档），发布零成本兼容", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pack-domain-null-"));
+  const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+  try {
+    const p = reg.publish({ email: "plain@example.com", manifest: validManifest() });
+    const summary = reg.get(p.id);
+    // 未声明=列 NULL=键缺席——存量 payload 逐字节不变（兼容不变量的写面一侧）。
+    assert.equal(summary.domains, undefined, "无 domain 的 summary 不带该键");
+  } finally {
+    reg.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── P3 4.6 官方发布门 (overhaul-market-catalog-presentation) ─────────────────
+// The door closes ONLY for roster-official authors, ONLY with full en coverage
+// of the org surface, and ONLY when the deployment opens it (design risk row:
+// P4 fills coverage first — PACK_OFFICIAL_EN_GATE defaults off). A rejection
+// must itemize missing field paths AND write nothing.
+import express from "express";
+import http from "node:http";
+
+const OFFICIAL = "official-author@e.test";
+const COMMUNITY = "community@e.test";
+
+function gateMount() {
+  const dir = mkdtempSync(path.join(tmpdir(), "pack-enge-"));
+  const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+  const app = express();
+  registerPackRoutes(app, {
+    registry: reg,
+    // 身份注入的最小面：门只看名册判定，测试用请求头携带身份。
+    resolveUser: (req) =>
+      req.headers["x-test-email"]
+        ? { email: String(req.headers["x-test-email"]), groups: ["creators"] }
+        : null,
+    rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "Authentication required" }),
+    creatorGroups: ["creators"],
+    anonymousRead: true,
+    officialAuthors: [OFFICIAL],
+  });
+  const server = http.createServer(app);
+  server.listen(0);
+  return { server, reg, dir };
+}
+
+const gatePublish = (server, email, manifest) =>
+  fetch(`http://127.0.0.1:${server.address().port}/api/packs`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-test-email": email },
+    body: JSON.stringify({ manifest }),
+  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+
+function enGapManifest() {
+  // Two declared skills, en overlay covers only ONE — the classic gap shape.
+  const m = validManifest({ name: "双技能包" });
+  m.skills = [
+    { name: "skill-a", description: "甲技能", content: "# a" },
+    { name: "skill-b", description: "乙技能", content: "# b" },
+  ];
+  m.i18n = {
+    en: {
+      name: "Two Skill Pack",
+      description: "A two-skill workflow",
+      skills: { "skill-a": { description: "Skill A" } },
+      agents: { "pack-contract-reviewer": { name: "Reviewer" } },
+    },
+  };
+  return m;
+}
+
+test("发布门关闭时（默认）名册作者照常发布——在途发布不被突然卡住", async () => {
+  delete process.env.PACK_OFFICIAL_EN_GATE; // collector reads process.env per call
+  const { server, reg, dir } = gateMount();
+  try {
+    const r = await gatePublish(server, OFFICIAL, enGapManifest());
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+  } finally {
+    server.close();
+    reg.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("门开·名册作者覆盖不全：422 逐项指名缺项路径且不写版本", async () => {
+  process.env.PACK_OFFICIAL_EN_GATE = "1";
+  const { server, reg, dir } = gateMount();
+  try {
+    const r = await gatePublish(server, OFFICIAL, enGapManifest());
+    assert.equal(r.status, 422, JSON.stringify(r.body));
+    assert.equal(r.body.code, "official_en_coverage_incomplete");
+    const missing = r.body.coverage.missing;
+    assert.ok(missing.includes("skills['skill-b'].description"), `缺项必须指名漏掉的那条技能，实际: ${JSON.stringify(missing)}`);
+    // 什么都没写：名册作者一条版本都没有。
+    assert.equal(reg.list({ viewer: { email: OFFICIAL, admin: true } }).total, 0);
+  } finally {
+    server.close();
+    reg.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("门开·补齐覆盖后同名册作者发布通过；社区作者永不受此门", async () => {
+  process.env.PACK_OFFICIAL_EN_GATE = "1";
+  const { server, reg, dir } = gateMount();
+  try {
+    const fixed = enGapManifest();
+    fixed.i18n.en.skills["skill-b"] = { description: "Skill B" };
+    fixed.i18n.en.tags = ["Law", "Contract"]; // validManifest 基轨带 2 个标签
+    const ok = await gatePublish(server, OFFICIAL, fixed);
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+
+    const bare = validManifest({ name: "社区裸包" }); // 无 i18n 块
+    const community = await gatePublish(server, COMMUNITY, bare);
+    assert.equal(community.status, 200, `社区作者不受门，实际 ${community.status}: ${JSON.stringify(community.body)}`);
+  } finally {
+    server.close();
+    reg.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

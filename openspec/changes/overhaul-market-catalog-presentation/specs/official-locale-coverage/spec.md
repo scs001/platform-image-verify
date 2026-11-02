@@ -2,7 +2,7 @@
 
 ### Requirement: 在架官方条目的 en 副轨覆盖审计门
 
-平台 SHALL 提供一个对**在架目录**（生产市场读面或其导出快照）的覆盖审计：对每一条被来源判定为官方的条目，按组织面分母（name、description、声明了的 promise/outcomes/examples、每条声明技能的 description、每个声明角色的名、每个声明 bot 的名、声明了的 guide 整组）核算其 en 副轨覆盖；任一官方条目存在未覆盖的组织面时审计 SHALL 以非零退出结束，并输出指名 pack id 与字段路径的缺项清单。审计 SHALL NOT 改变任何运行时读面行为。
+平台 SHALL 提供一个对**在架目录**（生产市场读面或其导出快照）的覆盖审计：对每一条被来源判定为官方的条目，按组织面分母（name、description、声明了的 notes、声明了的 promise/outcomes/tags/examples、每条声明技能的 description、每个声明角色的名、每个声明 bot 的名、声明了的 guide 整组）核算其 en 副轨覆盖；任一官方条目存在未覆盖的组织面时审计 SHALL 以非零退出结束，并输出指名 pack id 与字段路径的缺项清单。审计 SHALL NOT 改变任何运行时读面行为。
 
 #### Scenario: 全覆盖时审计绿
 

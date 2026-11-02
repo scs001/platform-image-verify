@@ -34,6 +34,7 @@ import { sellabilityGate } from "./pack-sellability-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
+import { officialEnGateBody, officialEnGateEnabled } from "../lib/pack-locale-coverage.js";
 import { lineOf, slugsForLine, isLineWord } from "../lib/pack-category-lines.js";
 import { lineLabelOf, lineSlugs, lineWordOf, isDomainSlug, domainLabelOf, domainVocabulary } from "../lib/pack-taxonomy.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
@@ -113,7 +114,7 @@ async function runPublishToolGate(manifest) {
 // shortCircuit=false (validate) collects every gate's verdict in one pass.
 const CREATOR_GROUP_REQUIRED = "Creator group required";
 
-async function collectPublishVerdict(manifest, { shortCircuit = false, pricing = null } = {}) {
+async function collectPublishVerdict(manifest, { shortCircuit = false, pricing = null, officialAuthor = false, env = process.env } = {}) {
   const items = [];
   const push = (stage, status, body) => items.push({ stage, status, body });
   if (!manifest) {
@@ -124,6 +125,21 @@ async function collectPublishVerdict(manifest, { shortCircuit = false, pricing =
   if (structural.length > 0) {
     push("structural", 400, { error: "Invalid manifest", errors: structural });
     if (shortCircuit) return items;
+  }
+  // Official en-coverage publish gate (overhaul-market-catalog-presentation
+  // 4.6): a roster-official author's publish is held to full en coverage of
+  // the ORG SURFACE (every declared display field carries its i18n.en
+  // counterpart — design D11, specs/official-locale-coverage). Community
+  // authors are never constrained; the door itself opens by deployment flag
+  // (PACK_OFFICIAL_EN_GATE=1) AFTER P4 fills the catalog's coverage, so
+  // in-flight publishes are not cut off mid-flight. The body itemizes the
+  // missing field paths — the workbench (4.7) jumps to each gap.
+  if (officialAuthor && officialEnGateEnabled(env)) {
+    const gate = officialEnGateBody(manifest);
+    if (gate) {
+      push("officialEnCoverage", 422, gate);
+      if (shortCircuit) return items;
+    }
   }
   // Attribution discipline (pack-marketplace delta): vendor署名 is stamped
   // server-side from the verified binding, NEVER written into the manifest —
@@ -1561,7 +1577,7 @@ export function registerPackRoutes(app, {
     // byte-identical to the pre-extraction early returns — while the validate
     // route reports every item from the same collector. shortCircuit keeps
     // the pre-existing property that a rejection costs no registry round-trip.
-    const verdict = await collectPublishVerdict(manifest, { shortCircuit: true, pricing });
+    const verdict = await collectPublishVerdict(manifest, { shortCircuit: true, pricing, officialAuthor: isOfficial(user.email) });
     if (verdict.length > 0) return res.status(verdict[0].status).json(verdict[0].body);
     // Only publishes that pass validation count against the author's budget —
     // iterating on a manifest must not exhaust it. Invalid attempts store
@@ -1590,7 +1606,7 @@ export function registerPackRoutes(app, {
     if (!validateAllowed(user.email)) return res.status(429).json({ error: "Too many validation requests, try again later" });
     const manifest = req.body?.manifest;
     const packId = typeof req.body?.packId === "string" ? req.body.packId : null;
-    const verdict = await collectPublishVerdict(manifest);
+    const verdict = await collectPublishVerdict(manifest, { officialAuthor: isOfficial(user.email) });
     // Each item is exactly the reject body publishing would return at that
     // gate (wording, code, toolGate markers) — no translation layer.
     const errors = verdict.map((item) => item.body);

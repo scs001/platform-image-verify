@@ -513,3 +513,25 @@ test("curation board picks domains from the vocabulary and clears the unclassifi
   const body = await facets.json();
   expect(body.domains.some((d) => d.slug === "legal" && d.count >= 1)).toBeTruthy();
 });
+
+test("example prompts copy to the clipboard on the router-less shell (P2 3.5)", async ({ page, context }) => {
+  // The facet shell wires NO chat session, so an example click falls back to
+  // copy-to-clipboard — the confirmation appears only on a real write.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: base });
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+  await page.goto(`${base}/#/packs`);
+  // Explicit id, not .first(): by this point in the file the curation test has
+  // published a second, guide-less pack into the shared registry.
+  await page.locator('[data-testid="pack-card-facet-shell-smoke"]').click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail.getByTestId("pack-guide-card")).toBeVisible();
+  await expect(detail.getByTestId("pack-guide-example-0")).toBeVisible();
+
+  await detail.getByTestId("pack-guide-example-0").click();
+  await expect(detail.getByTestId("pack-guide-example-copied")).toBeVisible();
+  await expect(detail.getByTestId("pack-guide-example-copied")).toContainText("已复制");
+  // The copied text is the prompt BODY, not the card title.
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("示例指令哨兵全文");
+  // No navigation happened — the shell has no /chat to land on.
+  expect(page.url()).toContain("#/packs");
+});

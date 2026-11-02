@@ -2045,7 +2045,8 @@
       "title": "Cómo usar este agente",
       "step": "Paso {{n}}",
       "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector.",
-      "examples": "Prueba a preguntar"
+      "examples": "Prueba a preguntar",
+      "copied": "Copiado"
     },
     "versions": {
       "title": "Historial de versiones",

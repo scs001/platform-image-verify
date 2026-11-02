@@ -2045,7 +2045,8 @@
       "title": "How to use this agent",
       "step": "Step {{n}}",
       "hint": "Once installed, go back to Chat and pick this expert in the picker above.",
-      "examples": "Try asking"
+      "examples": "Try asking",
+      "copied": "Copied"
     },
     "versions": {
       "title": "Version history",

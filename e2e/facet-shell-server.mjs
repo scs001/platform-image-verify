@@ -97,6 +97,14 @@ db.prepare(
     name: "谦面壳冒烟包",
     description: "壳冒烟哨兵包。这是第二句，用来钉卡片承诺位只取首句。",
     notes: "壳冒烟哨兵包的版本说明。",
+    guide: {
+      steps: [
+        { title: "第一步", body: "说明一" },
+        { title: "第二步", body: "说明二" },
+        { title: "第三步", body: "说明三" },
+      ],
+      examples: [{ title: "示例问法", text: "示例指令哨兵全文" }],
+    },
     category: "wire",
     skills: [],
     mcpServers: [],

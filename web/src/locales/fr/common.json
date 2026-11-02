@@ -2045,7 +2045,8 @@
       "title": "Comment utiliser ce agent",
       "step": "Étape {{n}}",
       "hint": "Une fois installé, revenez dans Discussion et choisissez cet expert dans le sélecteur.",
-      "examples": "Essayez de demander"
+      "examples": "Essayez de demander",
+      "copied": "Copié"
     },
     "versions": {
       "title": "Historique des versions",

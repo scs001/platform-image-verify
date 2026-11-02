@@ -56,6 +56,7 @@ export function PackMarketView({
   onRequireLogin,
   onGotoMine,
   studioOrigin,
+  onUsePrompt,
   installSurface = true,
 }: {
   onSubscribed?: () => void;
@@ -74,6 +75,11 @@ export function PackMarketView({
   // guidance when the host also wired onRequireLogin and the viewer is
   // signed out.
   onGotoMine?: () => void;
+  // Example prompts are actionable (overhaul-market-catalog-presentation P2
+  // 3.5): the 壹座 host parks the prompt in the chat store's composer-draft
+  // channel and navigates to /chat (DocumentsPage "start conversation"
+  // precedent); the facet shell omits it and the dialog copies to clipboard.
+  onUsePrompt?: (prompt: string) => void;
   // Whether this host can install/deploy packs into a cell (overhaul-market-
   // catalog-presentation P0). The facet shell cannot — the dialog skips its
   // deployments/billing probes there instead of firing requests that can
@@ -485,6 +491,7 @@ export function PackMarketView({
         }}
         onGotoMine={onGotoMine}
         onRequireLogin={onRequireLogin}
+        onUsePrompt={onUsePrompt}
       />
 
       {/* Post-subscribe per-part report (spec: pack-installation). */}

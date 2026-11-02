@@ -52,6 +52,12 @@ interface Props {
   // billing probes — requests that can never carry data on that host. The
   // market read itself (locale-aware detail) still loads.
   installSurface?: boolean;
+  // Example prompts are actionable (overhaul-market-catalog-presentation P2
+  // 3.5). 壹座 wires the parked-draft channel (setComposerDraft + navigate to
+  // /chat — the DocumentsPage "start conversation" precedent); the facet shell
+  // wires nothing (it holds no chat session) and the dialog falls back to
+  // copy-to-clipboard with a visible "copied" confirmation.
+  onUsePrompt?: (prompt: string) => void;
 }
 
 // The 万星 console deep link (agent-service-config): the deployment's slug and
@@ -90,6 +96,7 @@ export function PackDetailDialog({
   onRequireLogin,
   studioOrigin,
   installSurface = true,
+  onUsePrompt,
 }: Props) {
   const { t, i18n } = useTranslation();
   // Tool-face disclosure (pack-tool-declaration-gate D4): the declared count
@@ -104,6 +111,9 @@ export function PackDetailDialog({
   // when a signed-out viewer activates a gated action and the host wired
   // onRequireLogin; cleared when the dialog reopens for another pack.
   const [loginHint, setLoginHint] = useState(false);
+  // Which example prompt's clipboard copy just landed (facet fallback, P2 3.5):
+  // index into the examples list; null hides the confirmation. Reset per pack.
+  const [copiedExample, setCopiedExample] = useState<number | null>(null);
   // Script confirm gate (add-packaged-skills 5.1): set when the install
   // answered 400 code=script-confirm-required — the names + script files it
   // carries render the one-time acknowledgment; confirming retries with
@@ -168,6 +178,7 @@ export function PackDetailDialog({
       setLoginHint(false);
       setScriptGate(null);
       setShowOptionalAgents(false);
+      setCopiedExample(null);
     }
     setLocaleStale(false);
     if (!packId) return;
@@ -393,13 +404,17 @@ export function PackDetailDialog({
   // Guide resolution (move-pack-guides-to-manifest 3.3 终态): the creator's
   // own manifest.guide is the ONLY source — the client content module retired
   // (empty record); no content renders no card at all.
-  const manifestGuide = (m as { guide?: { steps: { title: string; body: string }[] } } | undefined)?.guide;
+  const manifestGuide = (m as { guide?: { steps: { title: string; body: string }[]; examples?: { title: string; text: string }[] } } | undefined)?.guide;
   const guide: PackGuide | null = manifestGuide
     ? { name: pack?.name ?? "", steps: manifestGuide.steps as PackGuide["steps"] }
     : null;
-  // Example questions are platform-curated (client module), never creator
-  // content — shown beneath the steps as read-only decision help.
-  const examples = promptsFor(packId) ?? [];
+  // Example questions: the creator's manifest.guide.examples is the primary
+  // source (P2 3.5 — they become actionable); the retired client module stays
+  // as a fallback until move-pack-guides-to-manifest's channel is deleted.
+  const examples =
+    manifestGuide?.examples && manifestGuide.examples.length > 0
+      ? manifestGuide.examples
+      : promptsFor(packId) ?? [];
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
@@ -576,9 +591,34 @@ export function PackDetailDialog({
                   <div className="mt-2 border-t border-primary/20 pt-2" data-testid="pack-guide-examples">
                     <p className="text-xs font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
                     <ul className="mt-1 space-y-0.5">
-                      {examples.slice(0, 4).map((ex) => (
-                        <li key={ex.title} className="text-xs leading-5 text-muted-foreground">
-                          · {ex.title}
+                      {examples.slice(0, 4).map((ex, i) => (
+                        <li key={ex.title}>
+                          <button
+                            type="button"
+                            data-testid={`pack-guide-example-${i}`}
+                            className="text-left text-xs leading-5 text-primary hover:underline"
+                            title={ex.text}
+                            onClick={() => {
+                              if (onUsePrompt) {
+                                onUsePrompt(ex.text);
+                                return;
+                              }
+                              // Facet shell (no chat session): copy the prompt —
+                              // the confirmation appears only on a real write,
+                              // a failed clipboard never claims success.
+                              navigator.clipboard
+                                ?.writeText(ex.text)
+                                .then(() => setCopiedExample(i))
+                                .catch(() => {});
+                            }}
+                          >
+                            · {ex.title}
+                          </button>
+                          {copiedExample === i && (
+                            <span className="ml-1.5 text-[10px] text-warning" data-testid="pack-guide-example-copied">
+                              {t("packs.guide.copied")}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>

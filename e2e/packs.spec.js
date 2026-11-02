@@ -871,9 +871,11 @@ test("tool allowlists round-trip through save/reload, clear to full, and publish
 
 // ── R4 (add-pack-tutorials-and-wizard): manifest guides, examples, wizard ────
 
-test("detail renders the manifest guide over client content, with examples", async ({ page }) => {
+test("detail renders the manifest guide; example prompts are actionable", async ({ page }) => {
   const gw = seedableGateway(page);
-  // A creator-authored guide on a covered id: manifest wins over the module.
+  // Creator-authored guide (move-pack-guides-to-manifest 终态: the manifest is
+  // the ONLY source — the client module serves nothing). Steps + the P2 3.5
+  // examples ride the same object.
   const manifestWithGuide = packManifest({ name: "自带指南包", skillName: "guide-skill", agentId: "pack-guide-reviewer" });
   manifestWithGuide.guide = {
     steps: [
@@ -881,23 +883,32 @@ test("detail renders the manifest guide over client content, with examples", asy
       { title: "创作者第二步", body: "创作者说明二" },
       { title: "创作者第三步", body: "创作者说明三" },
     ],
+    examples: [
+      { title: "问合同风险", text: "帮我审查这份合同的主要风险点" },
+      { title: "拟修改建议", text: "针对第三条给出修改建议" },
+    ],
   };
   await seedPack(gw.state, manifestWithGuide, "pack-with-guide");
-  // A covered id WITHOUT a manifest guide: the client module serves content.
-  await seedPack(gw.state, packManifest({ name: "模块指南包", skillName: "module-skill", agentId: "pack-module-reviewer" }), "J9sO_wRCgUVjbYVEqD4Pog");
+  // A pack WITHOUT a guide renders no guide card at all.
+  await seedPack(gw.state, packManifest({ name: "无指南包", skillName: "plain-skill", agentId: "pack-plain-reviewer" }), "pack-no-guide");
   gw.install();
   await gotoPacksTab(page, "market");
 
   await page.getByTestId("pack-card-pack-with-guide").click();
   const detail = page.getByTestId("pack-detail");
   await expect(detail.getByTestId("pack-guide-card")).toContainText("创作者第一步");
-  await page.keyboard.press("Escape");
-
-  await page.getByTestId("pack-card-J9sO_wRCgUVjbYVEqD4Pog").click();
-  await expect(detail.getByTestId("pack-guide-card")).toContainText("准备合同文本");
-  // Example questions from the client module, read-only beneath the steps.
   await expect(detail.getByTestId("pack-guide-examples")).toBeVisible();
-  await expect(detail.getByTestId("pack-guide-examples").getByRole("listitem")).toHaveCount(4);
+
+  // 壹座 host (P2 3.5): clicking an example parks the prompt in the composer
+  // (the same chat-store channel DocumentsPage uses) and lands in the chat.
+  await detail.getByTestId("pack-guide-example-0").click();
+  await expect(page).toHaveURL(/\/chat/);
+  await expect(page.getByTestId("composer-input")).toHaveValue("帮我审查这份合同的主要风险点");
+
+  await gotoPacksTab(page, "market");
+  await page.getByTestId("pack-card-pack-no-guide").click();
+  await expect(detail.getByTestId("pack-guide-card")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("subscribe report ends with the next-steps wizard", async ({ page }) => {

@@ -1912,7 +1912,10 @@
       },
       "fleetWizardBtn": "Instantiate as a team",
       "boundary": "Boundaries & honesty",
-      "outcomes": "What you get"
+      "outcomes": "What you get",
+      "coverage": "This entry covers {{covered}}/{{total}} org-surface fields in {{locale}}",
+      "coverageFull": "All org-surface fields are covered in {{locale}}",
+      "coverageMissing": "Missing fields"
     },
     "report": {
       "title": "Install result for “{{name}}”",

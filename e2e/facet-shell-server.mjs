@@ -113,6 +113,17 @@ db.prepare(
       en: {
         name: "Facet Shell Smoke Pack",
         description: "English sentinel description for the shell smoke pack.",
+        notes: "English version note of the shell smoke pack.",
+        tags: ["shell-smoke"],
+        guide: {
+          steps: [
+            { title: "Step one", body: "English note one" },
+            { title: "Step two", body: "English note two" },
+            { title: "Step three", body: "English note three" },
+          ],
+        },
+        skills: {},
+        agents: {},
       },
     },
   }),

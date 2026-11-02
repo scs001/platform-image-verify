@@ -306,8 +306,20 @@ export interface PackManifestBot {
   skill?: string;
 }
 
+/** Server-side honest coverage of the ORG SURFACE for a secondary-track
+ *  request (overhaul-market-catalog-presentation 4.11): same denominator as
+ *  the publish gate (lib/pack-locale-coverage). Absent on zh requests — the
+ *  main track IS the zh text. */
+export interface PackLocaleCoverage {
+  locale: string;
+  total: number;
+  covered: number;
+  missing: string[];
+}
+
 export interface PackDetail extends PackSummary {
   manifest: PackManifest;
+  coverage?: PackLocaleCoverage;
   /** Market revenue share: 登录调用者对当前版本的购买权益(付费条目才有键)。 */
   purchased?: boolean;
 }

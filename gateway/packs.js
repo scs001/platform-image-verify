@@ -34,7 +34,7 @@ import { sellabilityGate } from "./pack-sellability-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
-import { officialEnGateBody, officialEnGateEnabled } from "../lib/pack-locale-coverage.js";
+import { officialEnGateBody, officialEnGateEnabled, localeCoverage } from "../lib/pack-locale-coverage.js";
 import { lineOf, slugsForLine, isLineWord } from "../lib/pack-category-lines.js";
 import { lineLabelOf, lineSlugs, lineWordOf, isDomainSlug, domainLabelOf, domainVocabulary } from "../lib/pack-taxonomy.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
@@ -1872,6 +1872,14 @@ export function registerPackRoutes(app, {
         source: provenance.source,
         ...(provenance.adopted ? { adopted: provenance.adopted } : {}),
       };
+    }
+    // 覆盖度仪表 (overhaul-market-catalog-presentation 4.11): a secondary-track
+    // request sees the honest en/…-coverage of the ORG SURFACE (server-side
+    // truth — one module, same denominator as the publish gate and the audit;
+    // it informs, it never gates: community entries keep every action usable).
+    // zh requests need none — the main track IS the zh text.
+    if (displayLocale !== "zh") {
+      pack.coverage = localeCoverage(pack.manifest, displayLocale);
     }
     res.json(pack);
   });

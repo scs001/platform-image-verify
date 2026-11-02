@@ -413,7 +413,9 @@ test("market refetches when the locale switches, list and open dialog alike", as
   await expect(detail).toBeVisible();
   await expect(detail).toContainText("Facet Shell Smoke Pack");
   // ⑥ 边界与诚实声明 sits at its fixed position (the version's note)
-  await expect(detail.getByTestId("pack-detail-boundary-notes")).toContainText("壳冒烟哨兵包的版本说明。");
+  // The seed's en overlay now covers notes too (P3 4.11 full-coverage seed):
+  // the boundary statement must localize like every other org-surface field.
+  await expect(detail.getByTestId("pack-detail-boundary-notes")).toContainText("English version note of the shell smoke pack.");
   // ⑦ version history stays at the content tail
   await expect(detail.getByTestId("pack-version-list")).toBeVisible();
   await page.getByTestId("facet-locale-switcher").selectOption("zh-CN");
@@ -562,4 +564,28 @@ test("v2 display block rides the card and the detail (P3 4.5)", async ({ page, c
   await detail.getByTestId("pack-guide-example-0").click();
   await expect(detail.getByTestId("pack-guide-example-copied")).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("声明示例提示词全文");
+});
+
+test("coverage meter on the boundary face: 0/m declared gaps and full cover (P3 4.11)", async ({ page }) => {
+  // Coverage is a secondary-track read (the zh main track needs none): switch
+  // to en FIRST, then read both states off the SAME section.
+  await page.goto(`${base}/#/packs`);
+  await page.getByTestId("facet-locale-switcher").selectOption("en");
+
+  // v2 pack: declared org surface, NO en overlay → 0 covered + field paths.
+  await page.getByTestId("pack-card-facet-shell-v2").click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail.getByTestId("pack-detail-coverage")).toContainText("0/");
+  await expect(detail.getByTestId("pack-detail-coverage-missing")).toContainText("promise");
+  await expect(detail.getByTestId("pack-detail-coverage-missing")).toContainText("outcomes[0].title");
+  // The marker informs and NEVER gates: subscribe/install stay enabled.
+  await expect(detail.getByTestId("pack-subscribe")).toBeEnabled();
+  await page.keyboard.press("Escape");
+
+  // smoke pack: full en overlay → the honest all-covered line. Explicit id —
+  // in batch the curation test has by now PUBLISHED a newer pack into the
+  // shared registry, and .first() would land on that one instead.
+  await page.getByTestId("pack-card-facet-shell-smoke").click();
+  await expect(detail.getByTestId("pack-detail-coverage")).toContainText("covered in en");
+  await expect(detail.getByTestId("pack-detail-coverage-missing")).toHaveCount(0);
 });

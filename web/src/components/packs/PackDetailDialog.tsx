@@ -1023,15 +1023,49 @@ export function PackDetailDialog({
                 today it is buried in the skill bodies, half a screen away from
                 the decision it qualifies. P4 adds the locale-coverage mark
                 to this section. */}
-            {(m.notes ?? "").trim() !== "" && (
+            {((m.notes ?? "").trim() !== "" || pack.coverage) && (
               <section
                 className="rounded-md border border-border bg-muted/30 p-3"
                 data-testid="pack-detail-boundary"
               >
                 <h4 className="mb-1 font-medium">{t("packs.detail.boundary")}</h4>
-                <p className="text-xs leading-5 text-muted-foreground" data-testid="pack-detail-boundary-notes">
-                  {m.notes}
-                </p>
+                {(m.notes ?? "").trim() !== "" && (
+                  <p className="text-xs leading-5 text-muted-foreground" data-testid="pack-detail-boundary-notes">
+                    {m.notes}
+                  </p>
+                )}
+                {/* 覆盖度仪表 (P3 4.11): informs, never gates — subscribe and
+                    install stay fully enabled whatever the number reads. The
+                    server computes it (one module, the gate's own denominator);
+                    the client never re-derives coverage from raw i18n. */}
+                {pack.coverage && (
+                  <div className={(m.notes ?? "").trim() !== "" ? "mt-2 border-t border-border/40 pt-2" : ""}>
+                    {pack.coverage.missing.length === 0 ? (
+                      <p className="text-xs text-muted-foreground" data-testid="pack-detail-coverage">
+                        {t("packs.detail.coverageFull", { locale: pack.coverage.locale })}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted-foreground" data-testid="pack-detail-coverage">
+                          {t("packs.detail.coverage", {
+                            locale: pack.coverage.locale,
+                            covered: pack.coverage.covered,
+                            total: pack.coverage.total,
+                          })}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-muted-foreground">{t("packs.detail.coverageMissing")}</p>
+                        <ul
+                          className="mt-0.5 space-y-0.5 font-mono text-[10px] leading-4 text-muted-foreground"
+                          data-testid="pack-detail-coverage-missing"
+                        >
+                          {pack.coverage.missing.map((path) => (
+                            <li key={path}>{path}</li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
               </section>
             )}
 

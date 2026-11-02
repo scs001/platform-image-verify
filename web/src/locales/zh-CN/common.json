@@ -1912,7 +1912,10 @@
       },
       "fleetWizardBtn": "一键装作成团队",
       "boundary": "边界与诚实声明",
-      "outcomes": "你会得到"
+      "outcomes": "你会得到",
+      "coverage": "本条目 {{locale}} 覆盖 {{covered}}/{{total}} 组织面",
+      "coverageFull": "本条目 {{locale}} 组织面已全覆盖",
+      "coverageMissing": "缺项"
     },
     "report": {
       "title": "「{{name}}」安装结果",

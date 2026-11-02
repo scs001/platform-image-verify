@@ -1912,7 +1912,10 @@
       "vendorBy": "{{name}} 提供",
       "fleetWizardBtn": "チームとして一括構築",
       "boundary": "境界と誠実さ",
-      "outcomes": "何が得られるか"
+      "outcomes": "何が得られるか",
+      "coverage": "本エントリの {{locale}} 組織面カバー：{{covered}}/{{total}}",
+      "coverageFull": "{{locale}} の組織面はすべてカバー済み",
+      "coverageMissing": "未カバー項目"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

@@ -10,7 +10,7 @@
   - `PackDetailDialog`：工具 chip（614）、文件列表（464）、A2A/keyBound 徽章（603/704）、版本 current 徽章
   - `PackDraftsView`：工具选择 chip（624）
   - `PackVersionList`：current 徽章
-  - `PackDetailDialog`：示例指令剪贴板「已复制」确认（P2 3.5）
+  - `PackDetailDialog`：示例指令剪贴板「已复制」确认（P2 3.5）；覆盖度「缺项」字段路径清单（P3 4.11，数据驱动 mono 标签）
   - `LineLadder`：中文数字 chip
   - `PackMarketView`：线/领域 chip 计数（overhaul-market-catalog-presentation P1）
 - 例外：`SiteMark` 的 `text-[10/12/14px]` 是印章字尺寸（facet-platform spec 明文），非正文。

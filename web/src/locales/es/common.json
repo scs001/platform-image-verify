@@ -1912,7 +1912,10 @@
       "vendorBy": "de {{name}}",
       "fleetWizardBtn": "Instanciar como equipo",
       "boundary": "Límites y honestidad",
-      "outcomes": "Qué obtienes"
+      "outcomes": "Qué obtienes",
+      "coverage": "Esta entrada cubre {{covered}}/{{total}} campos de superficie en {{locale}}",
+      "coverageFull": "Superficie completamente cubierta en {{locale}}",
+      "coverageMissing": "Campos faltantes"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

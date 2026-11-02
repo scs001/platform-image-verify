@@ -66,6 +66,16 @@ registered before the spawn begins, not after it returns), and a cell record SHA
 replaced while its process is still alive — a replacement SHALL first terminate the recorded
 process. A cell process whose record was replaced SHALL NOT be left running unreachable.
 
+Cell residency admission SHALL additionally consult a memory gate (per
+`platform-memory-observability`): before spawning or resuming a resident cell the gateway
+SHALL check container memory headroom against a configurable threshold; below the threshold
+it SHALL refuse the residency with a readable reason (current usage, limit, headroom,
+threshold) instead of spawning into an out-of-memory window. The gate SHALL fail open when
+memory metrics are unavailable or unreadable (admit with a warning), and SHALL govern new
+residency only — it MUST NOT evict or suspend already-resident cells. The refusal surfaces
+through the same residency-decision evidence channel the lifecycle registry already writes,
+so operators can see gate refusals next to spawn/wake/suspend decisions.
+
 #### Scenario: first visit cold-starts the user's cell
 
 - **WHEN** an authenticated user with no running cell (`unbound` or `suspended`) makes a
@@ -96,6 +106,27 @@ process. A cell process whose record was replaced SHALL NOT be left running unre
   recovery, destroy)
 - **THEN** no live process for that user remains without a record, and a subsequent ensure
   starts exactly one fresh cell
+
+#### Scenario: low headroom refuses residency with a readable reason
+
+- **WHEN** container memory headroom is below the configured threshold and a new residency
+  (spawn or park-resume) is requested
+- **THEN** the residency is refused and the refusal record carries current usage, limit,
+  headroom, and the threshold — no new cell process is spawned into the low-memory window
+
+#### Scenario: headroom recovery re-admits residency
+
+- **WHEN** a residency was refused for low headroom and headroom later recovers above the
+  threshold
+- **THEN** the next residency request for that user proceeds normally under the unchanged
+  lifecycle policy
+
+#### Scenario: unreadable metrics fail open
+
+- **WHEN** the memory gate cannot read cgroup or process metrics (missing paths, malformed
+  values, non-Linux environment)
+- **THEN** residency is admitted with a warning and cell lifecycle behavior is identical
+  to a deployment without the gate
 
 ### Requirement: Identity headers are trusted only from the gateway
 

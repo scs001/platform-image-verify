@@ -15,6 +15,6 @@
 
 ## 4. 出片与走查
 
-- [ ] 4.1 出片：无新 COPY（lib/ 全量已在镜像）；`fd-build-snapshot` 照纪律出片 + relay 硬门 + GitOps bump（祖先律核过）；验证：生产 sha 面上 `/api/monitoring/memory` 眼见三层分布
-- [ ] 4.2 闸投产观察：CELL_MEMORY_ADMISSION_FLOOR=0.15 上产一周，拒绝率与 OOM 频率对表（目标=OOM 清零或拒绝原因全部可解释）；验证：台账记录一周数据，Open Question（阈值调整/ B 线立项）据此定谳
-- [ ] 4.3 台账 §15 内存限挂账收口注记 + 归档（validate --specs 全绿）
+- [x] 4.1 出片：无新 COPY（lib/ 全量已在镜像）；`fd-build-snapshot` 照纪律出片 + relay 硬门 + GitOps bump（祖先律核过）；验证：生产 sha 面上 `/api/monitoring/memory` 眼见三层分布 —— **两轮出片**：sha-24cd11c（digest 114b8409）三层同框但逮出归组两缺口（gateway 相对 cmdline 漏归+dsh stdio 卫星 cwd=/app 零线索 970MB 落 ungrouped）→ 4e69a9d1 修复后 sha-8307188（digest 79dd9f3d）复验三层全归位（cell 16 进程 1598MB 全归属、gateway 110MB、ungrouped 仅余验证进程 10MB）
+- [x] 4.2 闸投产观察：CELL_MEMORY_ADMISSION_FLOOR=0.15 上产一周，拒绝率与 OOM 频率对表（目标=OOM 清零或拒绝原因全部可解释）；验证：台账记录一周数据，Open Question（阈值调整/ B 线立项）据此定谳 —— **用户 2026-11-02 裁定提前收口（跳过整周观察）**：闸已上产（阈值透出读面），拒绝路径由单测 8/8 钉住；生产首证=滚版后新 image OOMKilled×1（13:45Z，闸前残留驻留挤占，闸只管新驻留）；`lastGateRefusal` 首发拒绝证据入 cells-registry 后可回看。Open Questions 留待数据自然积累回看
+- [x] 4.3 台账 §15 内存限挂账收口注记 + 归档（validate --specs 全绿）

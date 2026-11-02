@@ -26,6 +26,6 @@
 
 ## 5. 验证与收口
 
-- [ ] 5.1 单测全家桶：store/routes 新测 + 既有 `test-fleet-machines*` 回归全绿；验证：`node --test` 相关文件 0 失败。
+- [x] 5.1 单测全家桶：store/routes 新测 + 既有 `test-fleet-machines*` 回归全绿；验证：`node --test` 相关文件 0 失败。
 - [x] 5.2 e2e 新支（`machines-lifecycle`）：空态配对向导、收敛两态、历史渲染、解绑确认四段；验证：e2e 全绿并纳入既有 e2e-fast 车道。
 - [x] 5.3 `openspec validate add-machine-lifecycle-console --strict` 绿；台账补 §15.x 立案条目；验证：命令输出 0 失败、台账可检索。

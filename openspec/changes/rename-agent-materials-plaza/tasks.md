@@ -7,6 +7,6 @@
 
 ## 2. 门与验证
 
-- [ ] 2.1 `openspec validate rename-agent-materials-plaza --strict` 零 error —— 验证：CLI 输出
-- [ ] 2.2 全仓测试无新增红（locale 值改动不触碰逻辑，跑既有 unit 冒烟即可）—— 验证：红名单与 pristine HEAD 同点
+- [x] 2.1 `openspec validate rename-agent-materials-plaza --strict` 零 error —— 验证：CLI 输出
+- [x] 2.2 全仓测试无新增红（locale 值改动不触碰逻辑，跑既有 unit 冒烟即可）—— 验证：红名单与 pristine HEAD 同点
 - [ ] 2.3 生产走查（随下次出片）：壹座市场 tab 页头、facet 页脚入口、app-center 卡片眼见「素材广场」终词 —— 验证：真机截图/台账 §9 记录

@@ -39,10 +39,9 @@ The facet service SHALL expose an internal read-only deployments API for the ser
 - **THEN** the call is refused and no deployment data is returned
 
 ### Requirement: MCP catalog cards on the facet surface
+The facet surface SHALL present the registry's MCP servers as cards — name, description, connection endpoint reference, required group when present — aggregated read-only from the registry (openspec: registry-market-deployment), honoring the same visibility gating the registry enforces for the viewing identity. When a registry entry carries a supply annotation (per `supply-annotation-overlay`), the card SHALL render the annotation's human track for the resolved locale (request `locale` parameter > `Accept-Language` > zh; missing locale falls back to zh, unannotated entries fall back to the stored raw text); the raw stored name and description SHALL remain visible in the depth view. Each card SHALL open a per-server depth view carrying: the server's tool surface (each tool's name and description, as stored on the registry entry; when a tool carries an annotation, its localized human label and summary SHALL render alongside the raw name and the raw name SHALL NOT be replaced; a server whose tool snapshot is absent renders an explicit "not captured" note rather than an empty list), its provenance (license and provider organization when the registry entry carries them; an entry without them SHALL render an explicit "not declared" mark, never an invented value), its required group and hosting tier as declared, and its endpoint with the connection essentials. The depth data SHALL load on demand — the card list payload SHALL NOT carry the tool surface. The facet surface SHALL NOT modify registry entries; the registry's software, domain, and deployment location are unchanged (ADR-0015).
 
-The facet surface SHALL present the registry's MCP servers as cards — name, description, connection endpoint reference, required group when present — aggregated read-only from the registry (openspec: registry-market-deployment), honoring the same visibility gating the registry enforces for the viewing identity. Each card SHALL open a per-server depth view carrying: the server's tool surface (each tool's name and description, as stored on the registry entry; a server whose tool snapshot is absent renders an explicit "not captured" note rather than an empty list), its provenance (license and provider organization when the registry entry carries them; an entry without them SHALL render an explicit "not declared" mark, never an invented value), its required group and hosting tier as declared, and its endpoint with the connection essentials. The depth data SHALL load on demand — the card list payload SHALL NOT carry the tool surface. The facet surface SHALL NOT modify registry entries; the registry's software, domain, and deployment location are unchanged (ADR-0015).
-
-The facet surface SHALL additionally present a skills catalog: the registry's skills as a browsable listing — name, description, upstream source repository when declared, author when declared, tags — under the same visibility gating (public entries visible anonymously; group-gated entries visible to a viewer whose identity carries a matching group). The skills listing SHALL carry the provenance marks openspec: ecosystem-curation promises (upstream repository and license visible; ecosystem vs FindData-official distinguishable), and SHALL be read-only like the MCP surface.
+The facet surface SHALL additionally present a skills catalog: the registry's skills as a browsable listing — name, description, upstream source repository when declared, author when declared, tags — under the same visibility gating (public entries visible anonymously; group-gated entries visible to a viewer whose identity carries a matching group). When a skill carries a supply annotation, its human track SHALL render for the resolved locale with the same fallback chain; unannotated skills render their stored raw text. The skills listing SHALL carry the provenance marks openspec: ecosystem-curation promises (upstream repository and license visible; ecosystem vs FindData-official distinguishable), and SHALL be read-only like the MCP surface.
 
 #### Scenario: Visible MCP servers appear as cards
 
@@ -58,6 +57,18 @@ The facet surface SHALL additionally present a skills catalog: the registry's sk
 
 - **WHEN** a visitor opens a server's depth view
 - **THEN** every captured tool renders with its name and description, and the license, provider organization, required group, and endpoint render as declared on the registry entry
+
+#### Scenario: Annotated entries render the resolved locale
+
+- **WHEN** a visitor requests the catalog with `locale=en` for a server whose annotation carries zh and en tracks
+- **THEN** the card renders the en human name and summary
+- **WHEN** the same entry is requested with `locale=ja`
+- **THEN** the card renders the zh track (no third-language fallback)
+
+#### Scenario: Unannotated entries render byte-identical
+
+- **WHEN** a visitor opens the catalog with any locale for an entry without annotations
+- **THEN** the rendered name and description equal the stored raw text, exactly as before the annotation layer existed
 
 #### Scenario: Missing metadata renders honestly
 
@@ -83,7 +94,6 @@ The facet surface SHALL additionally present a skills catalog: the registry's sk
 
 - **WHEN** the facet surface's skills catalog is used by any identity
 - **THEN** no registry skill entry is created, modified, or deleted through it
-
 ### Requirement: Marketplace data migrates without identity breaks
 
 Published packs, versions, and subscription records SHALL migrate from the 壹座-hosted marketplace store to the facet service's store with pack ids, version numbers, and identity keys unchanged. Installed snapshots in subscribers' cells SHALL keep working throughout the cutover, and skill-body URLs minted before cutover SHALL remain resolvable during a transition window (redirect or dual-serve).

@@ -129,6 +129,20 @@ The market SHALL list registry skills by metadata only. When the user installs a
 - **WHEN** the registry content fetch fails for a skill being installed
 - **THEN** the install SHALL return an error to the client and no skill SHALL be created
 
+### Requirement: 目录条目按 locale 渲染供给注释
+
+MCP 市场目录条目 SHALL 在条目携带供给注释时按请求 locale 渲染 human 通俗名与一句话说明（解析优先级与 zh 唯一回落沿 `supply-annotation-overlay`）；未注释条目 SHALL 保持现有渲染（上游原文）逐字节不变。目录读取 MUST NOT 因注释投影产生任何源写操作。
+
+#### Scenario: 双语条目按 locale 呈现
+
+- **WHEN** 以 `locale=en` 与 `locale=zh` 分别读取同一台带 zh+en 注释的市场条目
+- **THEN** 两请求分别呈现英文名与中文名，描述同规则
+
+#### Scenario: 未注释条目逐字节不变
+
+- **WHEN** 以任意 locale 读取一台无注释的市场条目
+- **THEN** 响应显示字段与未引入注释层前逐字节一致
+
 ### Requirement: Market installs enforce group admission
 Installing a market entry that carries groups SHALL require the requesting user's groups to intersect the entry's groups. This admission SHALL be enforced server-side on the install path for both MCP servers and registry skills — market visibility filtering alone SHALL NOT be the only barrier (a hidden entry could still be installed by calling the API directly with a guessed name). A successful gated MCP install SHALL persist the entry's groups on the installed record as `requiredGroups` so runtime filtering can act on it after installation. Ungated entries (no groups) install exactly as before and SHALL NOT carry `requiredGroups`.
 

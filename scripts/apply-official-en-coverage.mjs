@@ -87,6 +87,20 @@ async function getDetail(id) {
   return r.json();
 }
 
+// Publish round-trip truth: the DETAIL face strips skill file CONTENTS to a
+// path inventory (gateway/packs.js projectManifestForDetail), so republishing
+// from it would wipe the file tree. The stored-VERSION read is the install
+// channel and returns the full manifest — that is what a new version must be
+// built on.
+async function getFullVersion(id, version) {
+  const r = await fetch(`${base}/api/packs/${encodeURIComponent(id)}/versions/${version}`);
+  if (!r.ok) throw new Error(`versions/${version} ${r.status}`);
+  const v = await r.json();
+  const filesShapeBad = (v.manifest?.skills ?? []).some((s) => Array.isArray(s?.files));
+  if (filesShapeBad) throw new Error("版本读面仍是 files 清单（不应发生）——拒绝从残缺形状再发布");
+  return v;
+}
+
 async function publish(manifest) {
   const headers = { "Content-Type": "application/json" };
   if (facetToken) {
@@ -125,7 +139,7 @@ async function main() {
       failed += 1;
       continue;
     }
-    const detail = await getDetail(id);
+    const detail = await getDetail(id); // visibility-safe read for the coverage truth
     const zhManifest = detail.manifest ?? {};
     if (localeCoverage(zhManifest, locale).missing.length === 0) {
       skippedCovered += 1; // live truth already full → no version churn (resume-safe)
@@ -136,7 +150,17 @@ async function main() {
       foreignOwners.set(draft.authorEmail, (foreignOwners.get(draft.authorEmail) ?? 0) + 1);
       continue;
     }
-    const next = mergeOverlay(zhManifest, draft.gaps);
+    // The bytes we republish MUST come from the version channel (full files
+    // tree), never the stripped detail face. Detail's zhManifest above only
+    // answers "is there still a gap".
+    const ver = draft.version ?? detail.version;
+    if (ver == null) {
+      console.log(`  [跳过] ${id}: 草稿无版本号，无法走版本读面（不拿残缺形状赌）`);
+      failed += 1;
+      continue;
+    }
+    const full = await getFullVersion(id, ver);
+    const next = mergeOverlay(full.manifest ?? zhManifest, draft.gaps);
     const cov = localeCoverage(next, locale);
     const errs = validatePackManifest(next);
     if (cov.missing.length > 0 || errs.length > 0) {

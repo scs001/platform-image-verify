@@ -101,7 +101,7 @@ async function getFullVersion(id, version) {
   return v;
 }
 
-async function publish(manifest) {
+async function publish(manifest, packId) {
   const headers = { "Content-Type": "application/json" };
   if (facetToken) {
     headers["x-facet-token"] = facetToken;
@@ -112,7 +112,10 @@ async function publish(manifest) {
   } else {
     throw new Error("no credential: set MARKET_COOKIE/--cookie or FACET_INTERNAL_TOKEN/--as");
   }
-  const r = await fetch(`${base}/api/packs`, { method: "POST", headers, body: JSON.stringify({ manifest }) });
+  // packId is REQUIRED when upgrading an existing pack — without it the
+  // registry treats the publish as a new pack and rejects with
+  // DUPLICATE_PACK_NAME (409 tells you to republish with packId).
+  const r = await fetch(`${base}/api/packs`, { method: "POST", headers, body: JSON.stringify({ packId, manifest }) });
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
@@ -174,7 +177,7 @@ async function main() {
       writeFileSync(path.join(emitDir, `${id}.json`), JSON.stringify(next, null, 2) + "\n");
     }
     if (doApply) {
-      const pub = await publish(next);
+      const pub = await publish(next, id);
       if (pub.status >= 200 && pub.status < 300) {
         published += 1;
         console.log(`  [已发布] ${id} → v${pub.body.version ?? "?"}`);

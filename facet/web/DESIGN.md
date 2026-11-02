@@ -10,6 +10,7 @@
   - `PackDetailDialog`：工具 chip（614）、文件列表（464）、A2A/keyBound 徽章（603/704）、版本 current 徽章
   - `PackDraftsView`：工具选择 chip（624）
   - `PackVersionList`：current 徽章
+  - `PackDetailDialog`：示例指令剪贴板「已复制」确认（P2 3.5）
   - `LineLadder`：中文数字 chip
   - `PackMarketView`：线/领域 chip 计数（overhaul-market-catalog-presentation P1）
 - 例外：`SiteMark` 的 `text-[10/12/14px]` 是印章字尺寸（facet-platform spec 明文），非正文。
@@ -24,7 +25,7 @@
 
 三类白名单，全部 CSS：
 1. **状态反馈**：`animate-pulse`（骨架）；状态色变（非动画）恒存活。
-2. **入场**：`rise-in`（≤200ms，fade+4px 位移）——列表 stagger 可用。
+2. **入场**：`rise-in`（≤200ms，fade+4px 位移）——列表 stagger 可用。市场卡片的 stagger 公式住在 `PackCard` 的 `index` 里（每卡 +20ms、全体封顶 200ms），三形态（featured/画廊/普通）共用同一实现不得各写一份；未传 `index` 即无延迟（非列表宿主）。
 3. **供示**：`transition-colors`/`transition-opacity`（≤150ms），hover/active。
 
 `prefers-reduced-motion: reduce` 全局豁免（globals.css 一刀切：动画/过渡时长归零、滚动行为还原），状态色不受影响。禁：弹跳、视差、自定义 easing 库、JS 驱动动画。

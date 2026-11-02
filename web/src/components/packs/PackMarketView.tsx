@@ -398,8 +398,8 @@ export function PackMarketView({
             <div className="grid gap-3">
               {visiblePacks
                 .filter((p) => p.featured)
-                .map((p) => (
-                  <PackCard key={p.id} pack={p} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
+                .map((p, i) => (
+                  <PackCard key={p.id} pack={p} index={i} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
                 ))}
             </div>
           </div>
@@ -427,7 +427,7 @@ export function PackMarketView({
             {t("packs.market.galleryTitle")}
           </p>
         )}
-        {visiblePacks.map((pack) =>
+        {visiblePacks.map((pack, i) =>
           officialOnly ? (
             /* 官方 gallery (add-official-agent-gallery) 的呈现层升级在 PackCard 里
                合并（overhaul-market-catalog-presentation P2）：同一列表数据（零端点、
@@ -437,6 +437,7 @@ export function PackMarketView({
             <PackCard
               key={pack.id}
               pack={pack}
+              index={i}
               tone="gallery"
               testId={`pack-gallery-card-${pack.id}`}
               onOpen={() => setDetailId(pack.id)}
@@ -473,7 +474,7 @@ export function PackMarketView({
               }
             </PackCard>
           ) : (
-            <PackCard key={pack.id} pack={pack} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
+            <PackCard key={pack.id} pack={pack} index={i} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
           )
         )}
       </div>

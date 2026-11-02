@@ -30,6 +30,7 @@ export function PackCard({
   onOpen,
   testId,
   tone = "plain",
+  index,
   children,
   extra,
 }: {
@@ -39,6 +40,12 @@ export function PackCard({
   // Gallery tiles ride the primary tint; the featured rail keeps the plain
   // border but is reachable through the same component.
   tone?: "plain" | "gallery";
+  // Position in the grid — the entrance stagger lives HERE so the three host
+  // branches (featured / gallery / plain) can never drift on the timing
+  // (facet/web/DESIGN.md 入场: rise-in ≤200ms, list stagger allowed). The
+  // cascade caps at 200ms regardless of grid length; `prefers-reduced-motion`
+  // is honored globally by the stylesheet, so this is pure enhancement.
+  index?: number;
   // Host-chosen presentation extras (starter marker, compact spec sheet).
   children?: ReactNode;
   // The action row (official gallery's fork deep link) — rendered OUTSIDE the
@@ -75,12 +82,15 @@ export function PackCard({
     </>
   );
 
+  const stagger = index === undefined ? undefined : `${Math.min(Math.max(index, 0) * 20, 200)}ms`;
+
   return (
     <div
       data-testid={testId}
-      className={`text-left border rounded-lg p-4 transition-colors ${
+      className={`rise-in text-left border rounded-lg p-4 transition-colors ${
         tone === "gallery" ? "border-primary/40 bg-primary/5 hover:border-primary/70" : "border-border hover:border-primary/50"
       }`}
+      style={stagger ? { animationDelay: stagger } : undefined}
     >
       <div
         role="button"

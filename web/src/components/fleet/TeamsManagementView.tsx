@@ -9,6 +9,7 @@
 // on derived values.
 
 import { useMemo, useState } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,8 @@ export function TeamsManagementView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [pendingArchive, setPendingArchive] = useState<(() => void) | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [batchBusy, setBatchBusy] = useState(false);
   const [receipt, setReceipt] = useState<BatchResult | null>(null);
@@ -64,7 +67,12 @@ export function TeamsManagementView({
 
   const runBatch = async (action: string) => {
     if (selectedIds.length === 0 || batchBusy) return;
-    if (action === "archive" && !window.confirm(t("agentTeams.manage.confirmArchive"))) return;
+    if (action === "archive") {
+      // Archive freezes cadences — themed confirmation, then re-enter.
+      setPendingArchive(() => () => void runBatch(action));
+      setArchiveOpen(true);
+      return;
+    }
     setBatchBusy(true);
     setReceipt(null);
     try {
@@ -288,6 +296,20 @@ export function TeamsManagementView({
         </table>
       </div>
       <p className="text-xs text-muted-foreground">{t("agentTeams.manage.scopeNote")}</p>
+      <ConfirmDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        title={t("agentTeams.manage.batchArchive")}
+        description={t("agentTeams.manage.confirmArchive")}
+        confirmLabel={t("agentTeams.manage.batchArchive")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => {
+          const run = pendingArchive;
+          setPendingArchive(null);
+          run?.();
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // AppCenterPage.tsx — the platform's discovery surface (openspec:
-// add-app-center → app-center-unified-grid).
+// add-app-center → app-center-unified-grid; foundation kit: web-design-system,
+// batch ② modernize-lagging-surfaces).
 //
 // Project federation, not melting: each ecosystem product keeps its own
 // identity, site, and login — the center aggregates entry points only. ONE
@@ -11,6 +12,11 @@
 //     (read-only status projection, connection-center). Each fetch fails to
 //     null independently: no products without a catalog, no badges or
 //     connect actions without a status projection — never a broken page.
+//
+// Batch ② passes: the header is a PageShell (title is the first reading
+// point), every card is the foundation Card, and the connection badge is the
+// StatusPill vocabulary — the card states its own presence in words, so the
+// state never rides on hue alone.
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +24,11 @@ import { useNavigate } from "react-router-dom";
 import { ExternalLink, Layers, Scale, Store, Orbit, Database, Package, Coins, Plug, PlugZap, ShieldAlert } from "lucide-react";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useListCache } from "@/hooks/useListCache";
+import { Card } from "@/components/ui/card";
+import { PageShell } from "@/components/ui/page-shell";
+import { StatusPill } from "@/components/ui/status-pill";
+import { Skeleton } from "@/components/ui/states-kit";
+import type { StatusKind } from "@/lib/statusTokens";
 import {
   APP_LINES,
   buildAppGrid,
@@ -57,18 +68,13 @@ function iconFor(entry: AppGridEntry): typeof Layers {
   return Layers;
 }
 
-const BADGE_DOT: Record<string, string> = {
-  connected: "bg-emerald-500",
-  partial: "bg-amber-500",
-  stale: "bg-amber-500",
-  disconnected: "bg-muted-foreground/50",
-};
-
-const BADGE_TEXT: Record<string, string> = {
-  connected: "text-emerald-600 dark:text-emerald-400",
-  partial: "text-amber-600 dark:text-amber-400",
-  stale: "text-amber-600 dark:text-amber-400",
-  disconnected: "text-muted-foreground",
+// Connection state → the four-word status vocabulary. The label always rides
+// along (appCenter.connection.*), so the pill is readable without color.
+const CONNECTION_STATUS: Record<string, StatusKind> = {
+  connected: "running",
+  partial: "waiting",
+  stale: "waiting",
+  disconnected: "paused",
 };
 
 function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string, string> | null }) {
@@ -109,30 +115,26 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
   const boardPath = boardPathFor(entry.id);
 
   return (
-    <div
-      data-testid={`app-card-${entry.id}`}
-      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
-    >
+    <Card data-testid={`app-card-${entry.id}`} className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-deep text-primary-foreground">
+        {/* Brand/product icon tile: a neutral identity marker, NOT an accent —
+            the lamp stays on actions and live signals only (one-lamp rule). */}
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="flex items-center gap-1.5">
           {state && (
-            <span
+            <StatusPill
               data-testid={`app-card-${entry.id}-connection-badge`}
               data-state={state}
-              title={t(`appCenter.connection.${state}`)}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${BADGE_DOT[state]}`} aria-hidden="true" />
-              <span className={BADGE_TEXT[state]}>{t(`appCenter.connection.${state}`)}</span>
-            </span>
+              status={CONNECTION_STATUS[state] ?? "neutral"}
+              label={t(`appCenter.connection.${state}`)}
+            />
           )}
           {entry.status === "early" && (
             <span
               data-testid={`app-card-${entry.id}-early-badge`}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
             >
               <ShieldAlert className="h-3 w-3" aria-hidden="true" />
               {t("appCenter.status.early")}
@@ -162,7 +164,7 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
               <Plug className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             {nangoError && (
-              <span data-testid={`app-card-${entry.id}-nango-error`} className="text-xs text-destructive">
+              <span data-testid={`app-card-${entry.id}-nango-error`} className="text-xs text-status-failed">
                 {nangoError}
               </span>
             )}
@@ -234,7 +236,7 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
           </button>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -271,26 +273,18 @@ export function AppCenterPage() {
   const showProductSkeleton = catalog.status === "loading" && apps === null;
 
   return (
-    <main className="h-full overflow-y-auto bg-background" data-testid="app-center-page">
-      <div className="mx-auto max-w-4xl px-6 py-8">
-        <h1 className="text-xl font-semibold">{t("appCenter.title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("appCenter.subtitle")}</p>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="app-center-grid">
+    <PageShell data-testid="app-center-page" title={t("appCenter.title")} subtitle={t("appCenter.subtitle")}>
+      <div className="mx-auto max-w-4xl">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="app-center-grid">
           {grid.map((entry) => (
             <AppCard key={entry.id} entry={entry} states={states} />
           ))}
           {showProductSkeleton &&
             [0, 1, 2].map((i) => (
-              <div
-                key={`app-card-skeleton-${i}`}
-                data-testid="app-card-skeleton"
-                aria-hidden="true"
-                className="h-[152px] animate-pulse rounded-lg border border-border bg-muted/40"
-              />
+              <Skeleton key={`app-card-skeleton-${i}`} data-testid="app-card-skeleton" className="h-[152px]" />
             ))}
         </div>
       </div>
-    </main>
+    </PageShell>
   );
 }

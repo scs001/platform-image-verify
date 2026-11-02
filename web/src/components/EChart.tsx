@@ -57,6 +57,30 @@ function axisStyle() {
     splitLine: { lineStyle: { color: "#374151" } },
   };
 }
+
+// The Series Ramp Rule (web-design-system): multi-series charts draw series in
+// the order series-1..4; a single series reads as the lamp (series-1 == primary's
+// exact value). The single source of truth is `--color-series-1..4` in
+// globals.css; ECharts cannot read CSS custom properties, so the values are
+// resolved through a detached probe element (computed style resolves
+// light-dark() per the active color-scheme). An option that arrives with its
+// own `color` array (authored chart data) keeps it.
+const RAMP_SIZE = 4;
+const rampProbe = typeof document !== "undefined" ? document.createElement("span") : null;
+if (rampProbe) {
+  rampProbe.style.display = "none";
+  document.body.appendChild(rampProbe);
+}
+function seriesRamp(): string[] {
+  if (!rampProbe) return [];
+  const out: string[] = [];
+  for (let i = 1; i <= RAMP_SIZE; i++) {
+    rampProbe.style.color = `var(--color-series-${i})`;
+    out.push(getComputedStyle(rampProbe).color);
+  }
+  return out;
+}
+
 const DARK_THEME = {
   backgroundColor: "transparent",
   textStyle: { color: "#c9d1d9" },
@@ -127,6 +151,9 @@ export const EChart = memo(function EChart({ option }: { option: object }) {
     if (!chart) return;
     const safe = structuredClone(option);
     sanitize(safe);
+    // Theme series ramp applies unless the authored option carries its own
+    // palette (data wins for chart data, per the SAFETY posture above).
+    if (!("color" in safe)) (safe as Record<string, unknown>).color = seriesRamp();
     chart.setOption(safe as never, { notMerge: true });
   }, [chart, option]);
 

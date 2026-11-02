@@ -13,6 +13,7 @@
 // split from the cockpit aggregate.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,7 @@ export function MemberInspector({
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [turns, setTurns] = useState<TurnRow[]>([]);
   const [turnsBefore, setTurnsBefore] = useState<number | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -495,15 +497,19 @@ export function MemberInspector({
               <Button variant="outline" size="sm" onClick={onSwap}>
                 {t("fleets.swap")}
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (window.confirm(t("fleets.member.confirmRemove"))) void onAction(base, "DELETE");
-                }}
-              >
+              <Button variant="outline" size="sm" onClick={() => setRemoveOpen(true)}>
                 {t("fleets.member.remove")}
               </Button>
+              <ConfirmDialog
+                open={removeOpen}
+                onOpenChange={setRemoveOpen}
+                title={t("fleets.member.remove")}
+                description={t("fleets.member.confirmRemove")}
+                confirmLabel={t("fleets.member.remove")}
+                cancelLabel={t("common.cancel")}
+                variant="danger"
+                onConfirm={() => void onAction(base, "DELETE")}
+              />
             </div>
           </div>
         ) : null}

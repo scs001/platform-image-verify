@@ -9,6 +9,8 @@
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/states-kit";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useCronStore, useChatStore } from "@platform/core";
 import { useFleetStore } from "@/store/fleet-store";
@@ -224,13 +226,16 @@ const STATE_STYLES: Record<FleetRow["state"], string> = {
 
 // Orchestration edge badges (agent-fleet-orchestration): six kinds, one tone
 // each — read-only semantics, no interaction.
+// Edge categories are carried by their TEXT labels; color only marks the two
+// that map onto the discipline (dispatch = live work → lamp; handoff = waiting
+// → status-waiting). The rest stay neutral — no invented category hues.
 const EDGE_STYLES: Record<string, string> = {
   trigger: "bg-muted text-muted-foreground",
   report: "bg-success/15 text-success",
-  dispatch: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  handoff: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  fanout: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  event: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+  dispatch: "bg-primary/15 text-primary",
+  handoff: "bg-status-waiting/15 text-status-waiting",
+  fanout: "bg-muted text-muted-foreground",
+  event: "bg-muted text-muted-foreground",
 };
 
 function memberById(members: MemberView[], id?: string): MemberView | undefined {
@@ -288,6 +293,10 @@ export function FleetsPage() {
   const [error, setError] = useState<string | null>(null);
   const listError = error ?? listCache.error;
   const [createOpen, setCreateOpen] = useState(false);
+  // Themed destructive confirmation (web-design-system): dissolving a fleet is
+  // a DELETE and archiving freezes writes — both go through ConfirmDialog with
+  // focus on the safe side, replacing the two native window.confirm calls.
+  const [confirmOps, setConfirmOps] = useState<{ kind: "archive" | "dissolve"; id: string; label: string } | null>(null);
   const [composerFor, setComposerFor] = useState<string | null>(null); // fleet id
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
   const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
@@ -666,7 +675,6 @@ export function FleetsPage() {
   );
 
   const dissolveFleet = async (id: string) => {
-    if (!window.confirm(t("fleets.ops.confirmDissolve"))) return;
     const r = await fetch(`/api/fleets/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `delete ${r.status}`);
     setDetail(null);
@@ -872,13 +880,11 @@ export function FleetsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          if (window.confirm(t("fleets.ops.confirmArchive"))) void patchFleet(selected.id, { state: "archived" });
-                        }}
+                        onClick={() => setConfirmOps({ kind: "archive", id: selected.id, label: selected.name ?? selected.id })}
                       >
                         {t("fleets.ops.archive")}
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => dissolveFleet(selected.id)}>
+                      <Button variant="destructive" size="sm" onClick={() => setConfirmOps({ kind: "dissolve", id: selected.id, label: selected.name ?? selected.id })}>
                         {t("fleets.ops.dissolve")}
                       </Button>
                     </>
@@ -993,7 +999,7 @@ export function FleetsPage() {
                       <>
                       {implicitDispatch.length > 0 ? (
                         <div className="flex items-center gap-2">
-                          <span className="rounded-full px-2 py-0.5 bg-blue-500/15 text-blue-600 dark:text-blue-400">{t("fleets.orch.edge.dispatch")}</span>
+                          <span className="rounded-full px-2 py-0.5 bg-primary/15 text-primary">{t("fleets.orch.edge.dispatch")}</span>
                           <span className="min-w-0 flex-1 truncate text-muted-foreground">
                             {t("fleets.orch.implicitAll", { pairs: implicitDispatch.length })}
                           </span>
@@ -1006,7 +1012,7 @@ export function FleetsPage() {
                       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs" data-testid="design-panel">
                         {design ? (
                           <>
-                            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-blue-600 dark:text-blue-400">{t("fleets.design.on")}</span>
+                            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-primary">{t("fleets.design.on")}</span>
                             <select
                               aria-label={t("fleets.design.edgeKind")}
                               className="rounded-md border border-border bg-card px-2 py-1"
@@ -1211,7 +1217,7 @@ export function FleetsPage() {
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs ${
                               member.modelNotice
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                ? "bg-status-waiting/15 text-status-waiting"
                                 : "bg-muted text-muted-foreground"
                             }`}
                             data-testid={`member-model-${member.id}`}
@@ -1402,6 +1408,23 @@ export function FleetsPage() {
           }}
         />
       ) : null}
+      <ConfirmDialog
+        open={confirmOps != null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmOps(null);
+        }}
+        title={confirmOps?.kind === "dissolve" ? t("fleets.ops.dissolve") : t("fleets.ops.archive")}
+        description={confirmOps ? t(confirmOps.kind === "dissolve" ? "fleets.ops.confirmDissolve" : "fleets.ops.confirmArchive") : ""}
+        confirmLabel={confirmOps?.kind === "dissolve" ? t("fleets.ops.dissolve") : t("fleets.ops.archive")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => {
+          if (!confirmOps) return;
+          if (confirmOps.kind === "dissolve") void dissolveFleet(confirmOps.id);
+          else void patchFleet(confirmOps.id, { state: "archived" });
+          setConfirmOps(null);
+        }}
+      />
       {composerFor ? (
         <MemberComposerDialog
           fleetId={composerFor}
@@ -1424,7 +1447,7 @@ export function FleetsPage() {
         />
       ) : null}
       {memoryFor ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="fixed inset-y-0 right-0 z-40 w-96 max-w-[90vw] border-l border-border bg-card p-4"><Skeleton className="mb-3 h-5 w-2/5" /><Skeleton className="mb-2 h-3 w-full" /><Skeleton className="mb-2 h-3 w-5/6" /><Skeleton className="h-3 w-4/6" /></div>}>
           <FleetMemoryDrawer
             agentId={memoryFor.target?.id ?? null}
             packId={((detail?.fleet as unknown as { sourceTemplate?: { packId?: string } | null } | null)?.sourceTemplate?.packId) ?? null}
@@ -1447,7 +1470,7 @@ export function FleetsPage() {
         />
       ) : null}
       {inspectorFor && selected ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="fixed inset-y-0 right-0 z-40 w-96 max-w-[90vw] border-l border-border bg-card p-4"><Skeleton className="mb-3 h-5 w-2/5" /><Skeleton className="mb-2 h-3 w-full" /><Skeleton className="mb-2 h-3 w-5/6" /><Skeleton className="h-3 w-4/6" /></div>}>
           <MemberInspector
             member={inspectorFor}
             initialTab={inspectorTab}
@@ -1462,7 +1485,7 @@ export function FleetsPage() {
         </Suspense>
       ) : null}
       {edgeInspectorFor ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="fixed inset-y-0 right-0 z-40 w-96 max-w-[90vw] border-l border-border bg-card p-4"><Skeleton className="mb-3 h-5 w-2/5" /><Skeleton className="mb-2 h-3 w-full" /><Skeleton className="mb-2 h-3 w-5/6" /><Skeleton className="h-3 w-4/6" /></div>}>
           <EdgeInspector
             edge={edgeInspectorFor}
             memberTitles={memberTitles}

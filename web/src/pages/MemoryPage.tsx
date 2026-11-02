@@ -234,7 +234,7 @@ export function MemoryPage() {
                   </span>
                   {it.tier && it.tier !== "draft" ? (
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs border ${it.tier === "canonical" ? "border-amber-500/50 bg-amber-500/10 text-amber-500" : "border-primary/40 bg-primary/10 text-primary"}`}
+                      className={`rounded-full px-2 py-0.5 text-xs border ${it.tier === "canonical" ? "border-status-waiting/50 bg-status-waiting/10 text-status-waiting" : "border-primary/40 bg-primary/10 text-primary"}`}
                     >
                       {t(`resources.memory.tier.${it.tier}`)}
                     </span>

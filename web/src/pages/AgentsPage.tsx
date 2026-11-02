@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useListCache } from "@/hooks/useListCache";
+import { Skeleton } from "@/components/ui/states-kit";
 import { AGENTS_TAB_SURFACES, canonicalSlug } from "@platform/core";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -349,6 +350,8 @@ export function AgentsPage() {
 
             {/* Catalog experts grid */}
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {catalog.status === "loading" &&
+                [0, 1, 2].map((i) => <Skeleton key={`catalog-sk-${i}`} className="h-40" data-testid="catalog-skeleton" />)}
               {sortedCatalogExperts.map((a) => (
                 <AgentCard
                   key={a.id}
@@ -428,7 +431,7 @@ export function AgentsPage() {
                           disabled={detailBusy}
                           onClick={() => void terminateCluster(detail.id)}
                           data-testid="cluster-terminate-btn"
-                          className="rounded-md bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50"
+                          className="rounded-md bg-destructive-deep px-3 py-1 text-xs text-destructive-foreground hover:bg-destructive-deep/90 disabled:opacity-50"
                         >
                           {t("agentsPage.clusterTerminate")}
                         </button>

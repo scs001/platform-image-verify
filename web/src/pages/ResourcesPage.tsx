@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useNavigate } from "react-router-dom";
 import {
   asOfResource,
@@ -29,7 +30,7 @@ import {
   type Resource,
   type ResourceGroup,
 } from "@platform/core";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { EChart } from "@/components/EChart";
 import { ChartBindingBar, ChartBindPicker, ChartTimeline } from "@/components/resources/ChartBinding";
 import JSZip from "jszip";
@@ -105,6 +106,7 @@ function ResourceCard({
   const [editingTags, setEditingTags] = useState(false);
   const [tagsDraft, setTagsDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [periodWindow, setPeriodWindow] = useState<PeriodWindow | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [asOf, setAsOf] = useState<{ at: string; option: Record<string, unknown> } | null>(null);
@@ -181,7 +183,7 @@ function ResourceCard({
       const view = await asOfResource(resource.id, at);
       setAsOf({ at: view.at, option: view.option });
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     }
   };
 
@@ -203,19 +205,18 @@ function ResourceCard({
       await rename(resource.id, title);
       setEditing(false);
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     } finally {
       setBusy(false);
     }
   };
 
   const confirmDelete = async () => {
-    if (!window.confirm(t("resources.actions.deleteConfirm"))) return;
     setBusy(true);
     try {
       await remove(resource.id);
     } catch (err) {
-      showToast((err as Error).message);
+      showToast({ severity: "error", title: (err as Error).message });
     } finally {
       setBusy(false);
     }
@@ -281,7 +282,10 @@ function ResourceCard({
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs border ${
                     tier === "canonical"
-                      ? "border-amber-500/50 bg-amber-500/10 text-amber-500"
+                      ? // Category highlight (canonical tier) rides the warning
+                        // token — the amber is the vocabulary's, not an invented
+                        // hue; the label does the semantic work.
+                        "border-status-waiting/50 bg-status-waiting/10 text-status-waiting"
                       : tier === "stable"
                         ? "border-primary/40 bg-primary/10 text-primary"
                         : "border-border bg-muted/40 text-muted-foreground"
@@ -300,15 +304,15 @@ function ResourceCard({
       {(() => {
         const tags = parseTags(resource.tags);
         const tier = parseTier(resource.tier);
-        const onRemember = async () => { try { await remember(resource.id); } catch (e) { showToast((e as Error).message); } };
-        const onToggleCanon = async () => { try { await setTier(resource.id, tier === "canonical" ? "stable" : "canonical"); } catch (e) { showToast((e as Error).message); } };
+        const onRemember = async () => { try { await remember(resource.id); } catch (e) { showToast({ severity: "error", title: (e as Error).message }); } };
+        const onToggleCanon = async () => { try { await setTier(resource.id, tier === "canonical" ? "stable" : "canonical"); } catch (e) { showToast({ severity: "error", title: (e as Error).message }); } };
         const openTagEditor = () => {
           setTagsDraft(tags.join(", "));
           setEditingTags(true);
         };
         const onSaveTags = async () => {
           setEditingTags(false);
-          try { await setTags(resource.id, tagsDraft.split(/[,，]/).map((x) => x.trim()).filter(Boolean).slice(0, 5)); } catch (e) { showToast((e as Error).message); }
+          try { await setTags(resource.id, tagsDraft.split(/[,，]/).map((x) => x.trim()).filter(Boolean).slice(0, 5)); } catch (e) { showToast({ severity: "error", title: (e as Error).message }); }
         };
         return editingTags ? (
           <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="resource-memory-row">
@@ -500,12 +504,22 @@ function ResourceCard({
         ) : null}
         <button
           className="rounded-md border border-destructive/40 px-2 py-0.5 text-destructive hover:bg-destructive/10 disabled:opacity-50"
-          onClick={() => void confirmDelete()}
+          onClick={() => setDeleteOpen(true)}
           disabled={busy}
           data-testid="resource-delete"
         >
           {t("resources.actions.delete")}
         </button>
+        <ConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title={t("resources.actions.delete")}
+          description={t("resources.actions.deleteConfirm")}
+          confirmLabel={t("resources.actions.delete")}
+          cancelLabel={t("common.cancel")}
+          onConfirm={() => void confirmDelete()}
+          variant="danger"
+        />
       </div>
     </div>
   );
@@ -579,7 +593,7 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
       URL.revokeObjectURL(url);
       setSelectedIds(new Set());
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     } finally {
       setExporting(false);
     }

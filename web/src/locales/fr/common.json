@@ -1035,7 +1035,8 @@
       "boundAt": "Apparié {{time}}",
       "revokeConfirm": "Révoquer cet appareil ?",
       "revoke": "Révoquer",
-      "cancel": "Annuler"
+      "cancel": "Annuler",
+      "machinesPointer": "L'appairage, la liste et la dissociation des machines d'agents (intendant en arrière-plan) ont été déplacés vers la page « Machines » dans la navigation supérieure."
     },
     "websearch": {
       "subtitle": "Le service de recherche qui alimente l'outil web_search de l'agent. Laissez vide pour utiliser la configuration intégrée de ce déploiement.",
@@ -3219,14 +3220,14 @@
     "setCategory": "Définir la catégorie",
     "feature": "Mettre en avant",
     "unfeature": "Retirer la mise en avant",
-      "allPacks": "Tous",
-      "onlyUnclassified": "Uniquement non classés",
-      "unclassified": "Non classé",
-      "unclassifiedCount": "Non classés {{count}} / {{total}}",
-      "lineResolved": "Ligne : {{line}}",
-      "domainsLabel": "Domaines",
-      "saveDomains": "Enregistrer les domaines",
-      "vocabUnavailable": "Vocabulaire indisponible"
+    "allPacks": "Tous",
+    "onlyUnclassified": "Uniquement non classés",
+    "unclassified": "Non classé",
+    "unclassifiedCount": "Non classés {{count}} / {{total}}",
+    "lineResolved": "Ligne : {{line}}",
+    "domainsLabel": "Domaines",
+    "saveDomains": "Enregistrer les domaines",
+    "vocabUnavailable": "Vocabulaire indisponible"
   },
   "facetMine": {
     "title": "Mes agents",
@@ -3596,7 +3597,7 @@
   "machines": {
     "title": "Machines",
     "adminView": "Vue administrateur",
-    "empty": "Aucune machine appairée pour l'instant — appairez une application de bureau avec un code à six chiffres dans ses préférences.",
+    "empty": "Aucune machine appairée pour l'instant — générez un code d'appairage ci-dessous et terminez l'appairage dans l'application de bureau ; la machine apparaîtra ici.",
     "rosterError": "Annuaire indisponible (non connecté ou service désactivé)",
     "health": {
       "online": "En ligne",
@@ -3652,6 +3653,66 @@
       "disable": "Désactiver",
       "remove": "Retirer",
       "saveError": "Échec de l'enregistrement — réessayez"
+    },
+    "system": {
+      "unknown": "Informations système non remontées",
+      "boundAt": "Appairée {{time}}"
+    },
+    "pair": {
+      "add": "Ajouter une machine",
+      "emptyCta": "Appairer une machine",
+      "title": "Appairer une machine",
+      "hint": "Saisissez le code à 6 chiffres ci-dessous dans la page d'appairage de l'application de bureau (ou Réglages → Intendant en arrière-plan), ou scannez le QR à droite.",
+      "signedOut": "Connectez-vous d'abord à la console : les codes d'appairage exigent une session ouverte.",
+      "unavailable": "Cette version du serveur est plus ancienne et ne propose pas encore l'appairage d'appareils.",
+      "error": "Impossible de générer un code d'appairage. Réessayez.",
+      "retry": "Réessayer",
+      "minting": "Génération d'un code d'appairage…",
+      "waiting": "Code prêt — en attente du premier rapport de la machine (environ une minute). Elle apparaîtra dans la liste dès son rapport.",
+      "expired": "Code expiré",
+      "expiresIn": "Expire dans {{time}}",
+      "typeHint": "Pas de caméra ? Saisissez les mêmes 6 chiffres dans l'application de bureau.",
+      "waitStart": "Je l'ai saisi — attendre la machine",
+      "close": "Fermer",
+      "refresh": "Actualiser le code"
+    },
+    "converge": {
+      "synced": "Synchronisée",
+      "converging": "En convergence",
+      "awaiting": "En attente de récupération",
+      "diverged": "Divergente",
+      "unknown": "Inconnu",
+      "stale": "Instantané obsolète",
+      "syncedHint": "La machine a consommé le souhaité v{{version}}",
+      "convergingHint": "La machine le récupérera à son prochain battement (≤60 s)",
+      "awaitingHint": "L'attente est enregistrée ; elle s'appliquera dès le retour en ligne. Si la machine ne vient pas, vérifiez l'intendant local.",
+      "staleHint": "Aucun instantané depuis plusieurs battements — état inconnu. Vérifiez si l'intendant de cette machine tourne.",
+      "unknownHint": "La machine n'a pas signalé de version consommée",
+      "divergedHint": "La version correspond, mais une entrée attendue manque localement"
+    },
+    "history": {
+      "title": "Historique de la machine",
+      "loading": "Chargement…",
+      "empty": "Aucun événement pour l'instant. Les bascules d'état, les modifications d'attentes et les résultats de convergence seront consignés ici.",
+      "expand": "Voir les {{n}}",
+      "collapse": "Réduire",
+      "presenceFlip": "{{from}} → {{to}}",
+      "desiredChange": "{{who}} a modifié les attentes v{{version}} (+{{added}} / −{{removed}} / basculées {{toggled}})",
+      "mergeAdvance": "Souhaité consommé v{{from}} → v{{to}}",
+      "rejectsOpen": "{{count}} rejet(s) de fusion",
+      "rejectsClear": "Rejets de fusion à zéro",
+      "divergenceOpen": "Divergence commencée",
+      "divergenceClose": "Divergence terminée",
+      "unbound": "{{who}} a dissocié la machine",
+      "other": "{{kind}}"
+    },
+    "unbind": {
+      "title": "Dissocier",
+      "hint": "Après dissociation, la machine perd immédiatement le rapport et l'accès à la récupération, et l'attente côté cloud est effacée ; l'historique est conservé 30 jours. La machine continue de fonctionner localement — elle cesse seulement d'obéir.",
+      "confirmText": "Dissocier cette machine ?",
+      "confirm": "Dissocier",
+      "cancel": "Annuler",
+      "error": "Échec de la dissociation. Réessayez."
     }
   },
   "agentTeams": {

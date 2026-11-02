@@ -23,6 +23,9 @@ interface PairedDevice {
   deviceId: string;
   label: string;
   boundAt: number;
+  // add-machine-lifecycle-console: steward-kind machines moved to the machine
+  // console; absent kind (older server) reads as the universal app device.
+  kind?: string;
 }
 
 function clock(seconds: number): string {
@@ -213,6 +216,13 @@ export function DevicesSection() {
       {devices !== null && (
         <div className="mt-2 flex flex-col gap-2" data-testid="devices-list">
           <div className="text-xs font-semibold text-foreground">{t("settings.devices.listTitle")}</div>
+          {/* Steward machines live on the machine console now; this section
+              manages app-kind devices (absent kind = app, older servers). */}
+          {devices.some((d) => d.kind === "steward") && (
+            <p className="text-xs leading-5 text-muted-foreground" data-testid="devices-machines-pointer">
+              {t("settings.devices.machinesPointer")}
+            </p>
+          )}
           {devicesError ? (
             <p className="flex items-center gap-1.5 text-xs leading-5 text-muted-foreground">
               <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" />
@@ -227,12 +237,14 @@ export function DevicesSection() {
                 {t("settings.devices.retry")}
               </button>
             </p>
-          ) : devices.length === 0 ? (
+          ) : devices.filter((d) => d.kind !== "steward").length === 0 ? (
             <p className="text-xs leading-5 text-muted-foreground" data-testid="devices-empty">
               {t("settings.devices.empty")}
             </p>
           ) : (
-            devices.map((d) => (
+            devices
+              .filter((d) => d.kind !== "steward")
+              .map((d) => (
               <div
                 key={d.deviceId}
                 data-testid="device-row"

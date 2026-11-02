@@ -307,6 +307,185 @@ test("4.6 revoked pairing drops out of the roster automatically", async () => {
   assert.equal(r.json.machines.length, 0);
 });
 
+// ── 5.x history bookkeeping in the store (add-machine-lifecycle-console) ─────
+
+test("5.1 first touch records one presence_flip; steady heartbeat adds nothing and writes nothing", async () => {
+  await pairSteward("dev-h1", "owner@test");
+  store.touch("dev-h1", { ownerEmail: "owner@test", presence: { state: "running" } });
+  let row = store.get("dev-h1");
+  assert.equal(row.history.length, 1);
+  assert.equal(row.history[0].kind, "presence_flip");
+  assert.equal(row.history[0].from, "never_reported");
+  assert.equal(row.history[0].to, "online");
+  for (let i = 0; i < 10; i++) store.touch("dev-h1", { presence: { state: "running" } });
+  row = store.get("dev-h1");
+  assert.equal(row.history.length, 1, "identical beats must add no events");
+  await store.flush;
+  const before = fs.readFileSync(STORE_FILE, "utf8");
+  for (let i = 0; i < 10; i++) store.touch("dev-h1", { presence: { state: "running" } });
+  await store.flush;
+  assert.equal(fs.readFileSync(STORE_FILE, "utf8"), before, "heartbeat must not write");
+});
+
+test("5.2 detail transitions record merge_advance / rejects_flip / divergence_flip exactly once each", async () => {
+  store.recordDesired("dev-h1", [{ packId: "p1", agentId: "a1", enabled: true }], { ownerEmail: "owner@test" });
+  store.recordDetail("dev-h1", { at: now, deployments: [], merge: { desiredVersionSeen: 7 } });
+  // First observation: consumed version null→7 and divergence opens (desired entry missing).
+  let row = store.get("dev-h1");
+  assert.ok(row.history.some((e) => e.kind === "merge_advance" && e.from === null && e.to === 7));
+  assert.ok(row.history.some((e) => e.kind === "divergence_flip" && e.open === true));
+  const marks = row.history.filter((e) => ["merge_advance", "rejects_flip", "divergence_flip"].includes(e.kind)).length;
+  // Convergence: entry live, version advances, rejects appear then clear.
+  store.recordDetail("dev-h1", { at: now, deployments: [{ agentPath: "p1/a1", packId: "p1", agentId: "a1", enabled: true, source: "cloud" }], merge: { desiredVersionSeen: 8, rejects: [{ agentPath: "p3/c1", code: "capacity_exceeded" }] } });
+  store.recordDetail("dev-h1", { at: now, deployments: [{ agentPath: "p1/a1", packId: "p1", agentId: "a1", enabled: true, source: "cloud" }], merge: { desiredVersionSeen: 8, rejects: [] } });
+  row = store.get("dev-h1");
+  assert.ok(row.history.some((e) => e.kind === "merge_advance" && e.from === 7 && e.to === 8));
+  assert.ok(row.history.some((e) => e.kind === "rejects_flip" && e.open === true && e.count === 1));
+  assert.ok(row.history.some((e) => e.kind === "rejects_flip" && e.open === false));
+  assert.ok(row.history.some((e) => e.kind === "divergence_flip" && e.open === false));
+  // Replaying the identical detail snapshot: zero new signal events.
+  const total = row.history.length;
+  store.recordDetail("dev-h1", { at: now, deployments: [{ agentPath: "p1/a1", packId: "p1", agentId: "a1", enabled: true, source: "cloud" }], merge: { desiredVersionSeen: 8, rejects: [] } });
+  assert.equal(store.get("dev-h1").history.length, total);
+  assert.ok(total > marks);
+});
+
+test("5.3 desired edits record who/version/diff-count audits with no content fields", () => {
+  store.recordDesired("dev-h1", [{ packId: "p1", agentId: "a1" }, { packId: "p1", agentId: "a2", enabled: false }], { ownerEmail: "audit@test" });
+  store.recordDesired("dev-h1", [{ packId: "p1", agentId: "a1" }], { ownerEmail: "audit@test" });
+  const events = store.get("dev-h1").history.filter((e) => e.kind === "desired_change");
+  assert.equal(events[0].removed, 1, "newest first: the removal edit leads");
+  assert.equal(events[0].who, "audit@test");
+  assert.equal(events[0].version, 3);
+  assert.equal(events[1].added, 1);
+  assert.equal(events[1].toggled, 0);
+  assert.equal(JSON.stringify(events).includes("prompt"), false);
+});
+
+test("5.4 a pre-history file loads with backfilled defaults and keeps working", async () => {
+  const legacyFile = path.join(TMP, "legacy-machines.json");
+  fs.writeFileSync(legacyFile, JSON.stringify({ machines: { "dev-old": { ownerEmail: "x@test", lastSeenAt: now, presence: { state: "running" }, detail: null, divergenceStreak: 0, desired: null } } }));
+  const legacy = createFleetMachinesStore({ file: legacyFile, now: () => now });
+  await legacy.load();
+  const row = legacy.get("dev-old");
+  assert.deepEqual(row.history, []);
+  assert.equal(row.lastSignal, null);
+  assert.equal(row.revokedAt, null);
+  legacy.touch("dev-old", { presence: { state: "running" } });
+  assert.equal(legacy.get("dev-old").history.length, 1, "first arrival after upgrade books the flip");
+  await legacy.flush;
+  const raw = JSON.parse(fs.readFileSync(legacyFile, "utf8"));
+  assert.ok(Array.isArray(raw.machines["dev-old"].history));
+});
+
+test("5.5 revoke clears desired, records unbound, filters list(), sweeps the row after 30 days", async () => {
+  store.recordDesired("dev-h1", [{ packId: "p1", agentId: "a1" }], { ownerEmail: "owner@test" });
+  store.revoke("dev-h1", { who: "owner@test" });
+  const row = store.get("dev-h1");
+  assert.ok(row.revokedAt);
+  assert.equal(row.desired, null);
+  assert.equal(row.divergenceStreak, 0);
+  assert.equal(row.history[0].kind, "unbound");
+  assert.equal(row.history[0].who, "owner@test");
+  assert.ok(!store.list().some((r) => r.deviceId === "dev-h1"), "list() filters revoked rows");
+  assert.ok(store.get("dev-h1"), "row retained for the retention window");
+  await store.flush;
+  const later = createFleetMachinesStore({ file: STORE_FILE, now: () => now + 31 * 24 * 3600 * 1000 });
+  await later.load();
+  assert.equal(later.get("dev-h1"), null, "row and history swept after 30 days");
+  // A machine that reports again after revocation is live again (re-paired).
+  store.touch("dev-h1", { ownerEmail: "owner@test", presence: { state: "running" } });
+  assert.equal(store.get("dev-h1").revokedAt, null);
+  assert.equal(store.get("dev-h1").desired, null, "revival inherits no expectation");
+});
+
+// ── 6.x history + unbind console routes ──────────────────────────────────────
+
+test("6.1 history: owner reads newest-first with a bounded limit; other accounts get 404", async () => {
+  const r = await call("GET", "/api/machines/dev-h1/history", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.history[0].kind, "unbound", "newest first: the last-recorded event leads");
+  const lim = await call("GET", "/api/machines/dev-h1/history?limit=1", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(lim.status, 200);
+  assert.equal(lim.json.history.length, 1);
+  const other = await call("GET", "/api/machines/dev-h1/history", { headers: { "x-test-email": "other@test" } });
+  assert.equal(other.status, 404);
+});
+
+test("6.2 revoked machine history stays readable for its owner within retention; admin reads across", async () => {
+  // Production unbind flow (the DELETE route): binding and store row revoked
+  // together. Only the retention rule (revokedAt + ownerEmail + 30d) keeps the
+  // owner's access alive once the binding is gone.
+  const H4 = await pairSteward("dev-h4", "owner@test");
+  await call("POST", "/api/gateway/cell-report", { headers: auth(H4), body: { kind: "presence", payload: { state: "running" } } });
+  const del = await call("DELETE", "/api/machines/dev-h4", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(del.status, 200);
+  const owner = await call("GET", "/api/machines/dev-h4/history", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(owner.status, 200);
+  assert.equal(owner.json.revokedAt != null, true);
+  const admin = await call("GET", "/api/machines/dev-h4/history", { headers: { "x-test-admin": "1", "x-test-email": "admin@test" } });
+  assert.equal(admin.status, 200);
+  const other = await call("GET", "/api/machines/dev-h4/history", { headers: { "x-test-email": "other@test" } });
+  assert.equal(other.status, 404);
+});
+
+test("6.3 DELETE unbinds: doors go dark, desired never inherited on re-pair, foreign 404", async () => {
+  const H2 = await pairSteward("dev-h2", "owner@test");
+  await call("POST", "/api/gateway/cell-report", { headers: auth(H2), body: { kind: "presence", payload: { state: "running" } } });
+  store.recordDesired("dev-h2", [{ packId: "p9", agentId: "z", enabled: true }], { ownerEmail: "owner@test" });
+  const del = await call("DELETE", "/api/machines/dev-h2", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(del.status, 200);
+  const rep = await call("POST", "/api/gateway/cell-report", { headers: auth(H2), body: { kind: "presence", payload: { state: "running" } } });
+  assert.equal(rep.status, 401, "reporting door cut");
+  const pull = await call("GET", "/api/gateway/desired-fleet", { headers: auth(H2) });
+  assert.equal(pull.status, 401, "pull door cut");
+  // Same deviceId re-pairs: the desired set must NOT come back.
+  const H2b = await pairSteward("dev-h2", "owner@test");
+  const pull2 = await call("GET", "/api/gateway/desired-fleet", { headers: auth(H2b) });
+  assert.deepEqual(pull2.json, { version: 0, entries: [] });
+  assert.equal(store.get("dev-h2").history[0].kind, "unbound");
+  const foreign = await call("DELETE", "/api/machines/dev-cat", { headers: { "x-test-email": "owner@test" } });
+  assert.equal(foreign.status, 404);
+});
+
+// ── 7.x read-path silence booking ────────────────────────────────────────────
+
+test("7.1 roster read books a silence flip exactly once, and the return flip rides touch", async () => {
+  const t0 = Date.now();
+  const silentStore = createFleetMachinesStore({ file: path.join(TMP, "silent-machines.json"), now: () => t0 });
+  await silentStore.load();
+  await pairSteward("dev-h3", "owner@test");
+  silentStore.touch("dev-h3", { ownerEmail: "owner@test", presence: { state: "running" } });
+  await silentStore.flush;
+  const silenceApp = express();
+  registerFleetMachineRoutes({
+    app: silenceApp,
+    appAuth,
+    machines: silentStore,
+    callerEmail: (req) => req.headers["x-test-email"] ?? null,
+    isAdmin: () => false,
+    now: () => t0 + 61 * 60 * 1000, // past the default silence window
+  });
+  const silenceServer = await new Promise((resolve) => {
+    const srv = silenceApp.listen(0, "127.0.0.1", () => resolve(srv));
+  });
+  const silenceBase = `http://127.0.0.1:${silenceServer.address().port}`;
+  try {
+    const flips = () => silentStore.get("dev-h3").history.filter((e) => e.kind === "presence_flip");
+    await fetch(`${silenceBase}/api/machines`, { headers: { "x-test-email": "owner@test" } });
+    assert.equal(flips().length, 2, "first-report flip + observed-silent flip");
+    await fetch(`${silenceBase}/api/machines`, { headers: { "x-test-email": "owner@test" } });
+    assert.equal(flips().length, 2, "second read must not duplicate");
+    // The machine reports again: touch books the silent→online return flip.
+    silentStore.touch("dev-h3", { presence: { state: "running" } });
+    const events = flips();
+    assert.equal(events.length, 3);
+    assert.deepEqual(events[0], { at: t0, kind: "presence_flip", from: "silent", to: "online" });
+  } finally {
+    silenceServer.close();
+  }
+});
+
 test("9.9 teardown closes the http server", () => {
   httpServer.close();
   bareServer.close();

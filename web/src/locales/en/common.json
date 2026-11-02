@@ -1048,7 +1048,8 @@
       "boundAt": "Paired {{time}}",
       "revokeConfirm": "Revoke this device?",
       "revoke": "Revoke",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "machinesPointer": "Pairing, roster and unbinding for agent machines (background steward) moved to the Machines page in the top navigation."
     },
     "websearch": {
       "subtitle": "The search service that powers the agent's web_search tool. Leave unset to use this deployment's built-in configuration.",
@@ -3219,14 +3220,14 @@
     "setCategory": "Set category",
     "feature": "Feature",
     "unfeature": "Unfeature",
-      "allPacks": "All",
-      "onlyUnclassified": "Unclassified only",
-      "unclassified": "Unclassified",
-      "unclassifiedCount": "Unclassified {{count}} / {{total}}",
-      "lineResolved": "Line: {{line}}",
-      "domainsLabel": "Domains",
-      "saveDomains": "Save domains",
-      "vocabUnavailable": "Vocabulary unavailable"
+    "allPacks": "All",
+    "onlyUnclassified": "Unclassified only",
+    "unclassified": "Unclassified",
+    "unclassifiedCount": "Unclassified {{count}} / {{total}}",
+    "lineResolved": "Line: {{line}}",
+    "domainsLabel": "Domains",
+    "saveDomains": "Save domains",
+    "vocabUnavailable": "Vocabulary unavailable"
   },
   "facetMine": {
     "title": "My agents",
@@ -3596,7 +3597,7 @@
   "machines": {
     "title": "Machines",
     "adminView": "Admin view",
-    "empty": "No paired machines yet — pair a desktop app with a six-digit code in its preferences and it will appear here.",
+    "empty": "No paired machines yet — mint a pairing code below and finish pairing in the desktop app; the machine will appear here.",
     "rosterError": "Roster unavailable (not signed in, or the service is off)",
     "health": {
       "online": "Online",
@@ -3652,6 +3653,66 @@
       "disable": "Disable",
       "remove": "Remove",
       "saveError": "Save failed — try again"
+    },
+    "system": {
+      "unknown": "System info not reported",
+      "boundAt": "Paired {{time}}"
+    },
+    "pair": {
+      "add": "Add machine",
+      "emptyCta": "Pair a machine",
+      "title": "Pair a machine",
+      "hint": "Enter the 6-digit code below in the desktop app's pairing page (or Settings → Background steward), or scan the QR on the right.",
+      "signedOut": "Sign in to the console first — pairing codes require a signed-in session.",
+      "unavailable": "This server version is older and does not offer device pairing yet.",
+      "error": "Could not mint a pairing code. Try again.",
+      "retry": "Retry",
+      "minting": "Minting a pairing code…",
+      "waiting": "Code ready — waiting for the machine's first check-in (about a minute). It will appear in the roster as soon as it reports.",
+      "expired": "Code expired",
+      "expiresIn": "Expires in {{time}}",
+      "typeHint": "No camera? Type the same 6 digits in the desktop app instead.",
+      "waitStart": "I've entered it — wait for the machine",
+      "close": "Close",
+      "refresh": "Refresh code"
+    },
+    "converge": {
+      "synced": "Synced",
+      "converging": "Converging",
+      "awaiting": "Awaiting pickup",
+      "diverged": "Diverged",
+      "unknown": "Unknown",
+      "stale": "Snapshot stale",
+      "syncedHint": "The machine has consumed desired v{{version}}",
+      "convergingHint": "The machine fetches on its next beat (≤60s)",
+      "awaitingHint": "Expectation is saved; it applies when the machine comes online. If it stays away, check the local steward.",
+      "staleHint": "No snapshot for several beats — state unknown. Check whether that machine's steward is running.",
+      "unknownHint": "The machine has not reported a consumed version",
+      "divergedHint": "Version matches, but an expected entry is missing locally"
+    },
+    "history": {
+      "title": "Machine history",
+      "loading": "Loading…",
+      "empty": "No events yet. Status flips, expectation edits and convergence outcomes land here.",
+      "expand": "View all {{n}}",
+      "collapse": "Collapse",
+      "presenceFlip": "{{from}} → {{to}}",
+      "desiredChange": "{{who}} edited expectations v{{version}} (+{{added}} / −{{removed}} / toggled {{toggled}})",
+      "mergeAdvance": "Consumed desired v{{from}} → v{{to}}",
+      "rejectsOpen": "{{count}} merge reject(s)",
+      "rejectsClear": "Merge rejects cleared",
+      "divergenceOpen": "Divergence started",
+      "divergenceClose": "Divergence ended",
+      "unbound": "{{who}} unbound the machine",
+      "other": "{{kind}}"
+    },
+    "unbind": {
+      "title": "Unbind",
+      "hint": "After unbinding, the machine loses reporting and pull access immediately and the cloud expectation is cleared; history is kept for 30 days. The machine keeps working locally — it just stops taking orders.",
+      "confirmText": "Unbind this machine?",
+      "confirm": "Unbind",
+      "cancel": "Cancel",
+      "error": "Unbind failed. Try again."
     }
   },
   "agentTeams": {

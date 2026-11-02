@@ -1035,7 +1035,8 @@
       "boundAt": "配对于 {{time}}",
       "revokeConfirm": "撤销这台设备？",
       "revoke": "撤销",
-      "cancel": "取消"
+      "cancel": "取消",
+      "machinesPointer": "智能体机器（后台管家）的配对、名册与解绑已移至顶部导航「机器」页。"
     },
     "websearch": {
       "subtitle": "为智能体的网页搜索提供服务的搜索服务。不填则使用本部署的内置配置。",
@@ -3219,14 +3220,14 @@
     "setCategory": "改垂类",
     "feature": "精选",
     "unfeature": "取消精选",
-      "allPacks": "全部",
-      "onlyUnclassified": "仅未归类",
-      "unclassified": "未归类",
-      "unclassifiedCount": "未归类 {{count}} / {{total}}",
-      "lineResolved": "归位：{{line}}",
-      "domainsLabel": "领域",
-      "saveDomains": "保存领域",
-      "vocabUnavailable": "词表不可用，暂不可选"
+    "allPacks": "全部",
+    "onlyUnclassified": "仅未归类",
+    "unclassified": "未归类",
+    "unclassifiedCount": "未归类 {{count}} / {{total}}",
+    "lineResolved": "归位：{{line}}",
+    "domainsLabel": "领域",
+    "saveDomains": "保存领域",
+    "vocabUnavailable": "词表不可用，暂不可选"
   },
   "facetMine": {
     "title": "我的智能体",
@@ -3596,7 +3597,7 @@
   "machines": {
     "title": "机器",
     "adminView": "管理员视角",
-    "empty": "还没有配对的机器——在桌面应用的偏好设置里用六位配对码完成配对后，机器会出现在这里。",
+    "empty": "还没有配对的机器——点下方按钮铸造配对码，在桌面应用里完成配对后，机器会出现在这里。",
     "rosterError": "名册暂不可达（未登录或服务未开启）",
     "health": {
       "online": "在线",
@@ -3652,6 +3653,66 @@
       "disable": "改为停用",
       "remove": "移除期望",
       "saveError": "保存失败，请重试"
+    },
+    "system": {
+      "unknown": "系统信息未上报",
+      "boundAt": "配对于 {{time}}"
+    },
+    "pair": {
+      "add": "添加机器",
+      "emptyCta": "立即配对一台机器",
+      "title": "配对一台机器",
+      "hint": "在桌面应用的配对页（或 设置 → 后台管家）输入下面的 6 位数字，或直接扫右侧二维码。",
+      "signedOut": "请先登录控制台，登录后才能铸造配对码。",
+      "unavailable": "当前服务器版本较旧，尚未提供设备配对。",
+      "error": "配对码铸造失败，请重试。",
+      "retry": "重试",
+      "minting": "正在铸造配对码…",
+      "waiting": "配对码已就绪——等待机器首次报到（约 1 分钟）。机器一上报，它会自动出现在名册。",
+      "expired": "配对码已过期",
+      "expiresIn": "{{time}} 后失效",
+      "typeHint": "没有相机？也可以在桌面应用里手动输入这 6 位数字。",
+      "waitStart": "我已输入，等待机器报到",
+      "close": "关闭",
+      "refresh": "刷新配对码"
+    },
+    "converge": {
+      "synced": "已同步",
+      "converging": "收敛中",
+      "awaiting": "待取令",
+      "diverged": "背离",
+      "unknown": "状态未知",
+      "stale": "明细陈旧",
+      "syncedHint": "机器已收到云端期望 v{{version}}",
+      "convergingHint": "机器下一拍来取（≤60 秒）",
+      "awaitingHint": "期望已存盘；机器上线后自动生效。若长时间不来取，去本机看后台管家是否在运行。",
+      "staleHint": "明细已超过数拍未更新，状态未知——先查那台机器的管家在不在。",
+      "unknownHint": "机器尚未回报已消费的期望版本",
+      "divergedHint": "版本一致，但期望中的条目未在实况出现"
+    },
+    "history": {
+      "title": "机器历史",
+      "loading": "加载中…",
+      "empty": "暂无历史事件。上下线、期望变更与收敛结局会记录在这里。",
+      "expand": "查看全部 {{n}} 条",
+      "collapse": "收起",
+      "presenceFlip": "{{from}} → {{to}}",
+      "desiredChange": "{{who}} 修改期望 v{{version}}（+{{added}} / −{{removed}} / 启停 {{toggled}}）",
+      "mergeAdvance": "已消费期望版本 v{{from}} → v{{to}}",
+      "rejectsOpen": "合并被拒 {{count}} 条",
+      "rejectsClear": "合并拒绝已清零",
+      "divergenceOpen": "背离开始",
+      "divergenceClose": "背离结束",
+      "unbound": "{{who}} 解除绑定",
+      "other": "{{kind}}"
+    },
+    "unbind": {
+      "title": "解除绑定",
+      "hint": "解除后这台机器立即失去上报与取令权限，云端期望一并清空；历史保留 30 天。机器本务不受影响，只是不再听令。",
+      "confirmText": "确认解除这台机器？",
+      "confirm": "确认解除",
+      "cancel": "取消",
+      "error": "解除失败，请重试"
     }
   },
   "agentTeams": {

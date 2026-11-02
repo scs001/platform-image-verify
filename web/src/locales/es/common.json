@@ -1035,7 +1035,8 @@
       "boundAt": "Vinculado {{time}}",
       "revokeConfirm": "¿Revocar este dispositivo?",
       "revoke": "Revocar",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "machinesPointer": "El emparejamiento, la lista y la desvinculación de máquinas de agentes (mayordomo en segundo plano) se trasladaron a la página «Máquinas» de la navegación superior."
     },
     "websearch": {
       "subtitle": "El servicio de búsqueda que alimenta la herramienta web_search del agente. Déjalo vacío para usar la configuración integrada de esta instalación.",
@@ -3219,14 +3220,14 @@
     "setCategory": "Definir categoría",
     "feature": "Destacar",
     "unfeature": "Quitar destacado",
-      "allPacks": "Todos",
-      "onlyUnclassified": "Solo sin clasificar",
-      "unclassified": "Sin clasificar",
-      "unclassifiedCount": "Sin clasificar {{count}} / {{total}}",
-      "lineResolved": "Línea: {{line}}",
-      "domainsLabel": "Áreas",
-      "saveDomains": "Guardar áreas",
-      "vocabUnavailable": "Vocabulario no disponible"
+    "allPacks": "Todos",
+    "onlyUnclassified": "Solo sin clasificar",
+    "unclassified": "Sin clasificar",
+    "unclassifiedCount": "Sin clasificar {{count}} / {{total}}",
+    "lineResolved": "Línea: {{line}}",
+    "domainsLabel": "Áreas",
+    "saveDomains": "Guardar áreas",
+    "vocabUnavailable": "Vocabulario no disponible"
   },
   "facetMine": {
     "title": "Mis agentes",
@@ -3596,7 +3597,7 @@
   "machines": {
     "title": "Máquinas",
     "adminView": "Vista de administrador",
-    "empty": "Aún no hay máquinas emparejadas: empareja una app de escritorio con un código de seis dígitos en sus preferencias y aparecerá aquí.",
+    "empty": "Aún no hay máquinas emparejadas: genera un código de emparejamiento abajo y termina el emparejamiento en la app de escritorio; la máquina aparecerá aquí.",
     "rosterError": "Lista no disponible (sesión no iniciada o servicio desactivado)",
     "health": {
       "online": "En línea",
@@ -3652,6 +3653,66 @@
       "disable": "Desactivar",
       "remove": "Quitar",
       "saveError": "Error al guardar; reintenta"
+    },
+    "system": {
+      "unknown": "Información del sistema no reportada",
+      "boundAt": "Emparejada {{time}}"
+    },
+    "pair": {
+      "add": "Añadir máquina",
+      "emptyCta": "Emparejar una máquina",
+      "title": "Emparejar una máquina",
+      "hint": "Introduce el código de 6 dígitos abajo en la página de emparejamiento de la app de escritorio (o Ajustes → Mayordomo en segundo plano), o escanea el QR de la derecha.",
+      "signedOut": "Inicia sesión en la consola primero: los códigos de emparejamiento requieren una sesión iniciada.",
+      "unavailable": "Esta versión del servidor es más antigua y aún no ofrece emparejamiento de dispositivos.",
+      "error": "No se pudo generar el código. Inténtalo de nuevo.",
+      "retry": "Reintentar",
+      "minting": "Generando un código de emparejamiento…",
+      "waiting": "Código listo: esperando el primer reporte de la máquina (aproximadamente un minuto). Aparecerá en la lista en cuanto reporte.",
+      "expired": "Código caducado",
+      "expiresIn": "Caduca en {{time}}",
+      "typeHint": "¿Sin cámara? Escribe los mismos 6 dígitos en la app de escritorio.",
+      "waitStart": "Ya lo introduje: esperar a la máquina",
+      "close": "Cerrar",
+      "refresh": "Actualizar código"
+    },
+    "converge": {
+      "synced": "Sincronizada",
+      "converging": "Convergiendo",
+      "awaiting": "Pendiente de recogida",
+      "diverged": "Divergente",
+      "unknown": "Desconocido",
+      "stale": "Instantánea obsoleta",
+      "syncedHint": "La máquina ya consumió el deseado v{{version}}",
+      "convergingHint": "La máquina lo recogerá en su siguiente latido (≤60 s)",
+      "awaitingHint": "La expectativa está guardada; se aplicará cuando la máquina vuelva a estar en línea. Si no viene, revisa el mayordomo local.",
+      "staleHint": "Sin instantánea desde varios latidos: estado desconocido. Comprueba si el mayordomo de esa máquina está en ejecución.",
+      "unknownHint": "La máquina no ha reportado una versión consumida",
+      "divergedHint": "La versión coincide, pero falta localmente una entrada esperada"
+    },
+    "history": {
+      "title": "Historial de la máquina",
+      "loading": "Cargando…",
+      "empty": "Aún no hay eventos. Los cambios de estado, las ediciones de expectativas y los resultados de convergencia se registrarán aquí.",
+      "expand": "Ver los {{n}}",
+      "collapse": "Contraer",
+      "presenceFlip": "{{from}} → {{to}}",
+      "desiredChange": "{{who}} editó las expectativas v{{version}} (+{{added}} / −{{removed}} / alternadas {{toggled}})",
+      "mergeAdvance": "Deseado consumido v{{from}} → v{{to}}",
+      "rejectsOpen": "{{count}} rechazo(s) de fusión",
+      "rejectsClear": "Rechazos de fusión a cero",
+      "divergenceOpen": "Divergencia iniciada",
+      "divergenceClose": "Divergencia terminada",
+      "unbound": "{{who}} desvinculó la máquina",
+      "other": "{{kind}}"
+    },
+    "unbind": {
+      "title": "Desvincular",
+      "hint": "Al desvincular, la máquina pierde de inmediato el reporte y el acceso a la recogida, y la expectativa en la nube se borra; el historial se conserva 30 días. La máquina sigue funcionando localmente: solo deja de recibir órdenes.",
+      "confirmText": "¿Desvincular esta máquina?",
+      "confirm": "Desvincular",
+      "cancel": "Cancelar",
+      "error": "No se pudo desvincular. Inténtalo de nuevo."
     }
   },
   "agentTeams": {

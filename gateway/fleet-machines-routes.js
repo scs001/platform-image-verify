@@ -17,6 +17,8 @@
 
 import express from "express";
 
+import { HISTORY_LIMIT, HISTORY_RETENTION_MS } from "./fleet-machines-store.js";
+
 const DEFAULT_SILENCE_MS = 30 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD = 3;
 const DESIRED_LIMITS = { entries: 64, str: 200 };
@@ -82,7 +84,10 @@ export function registerFleetMachineRoutes({
 
   // Roster: the account's steward pairings, store rows joined in. Admin sees
   // every device the store knows (store rows are the only cross-account view;
-  // devices that never reported have nothing to show).
+  // devices that never reported have nothing to show). Silence is derived on
+  // read, so each read also books a silence flip into the machine's history —
+  // "observed silent" is a fact worth one event per silence episode, not one
+  // per poll.
   app.get("/api/machines", (req, res) => {
     const email = callerEmail(req);
     if (!email) return res.status(401).json({ error: "Authentication required" });
@@ -94,6 +99,7 @@ export function registerFleetMachineRoutes({
         machineView({ deviceId: binding.deviceId, binding, row: machines.get(binding.deviceId), now, silenceMs, alertThreshold }),
       );
     }
+    for (const item of items) machines.noteSilence?.(item.deviceId, item.health.silence);
     items.sort((a, b) => {
       const rank = (m) => (m.health.alerts.length > 0 ? 1 : 0);
       if (rank(a) !== rank(b)) return rank(a) - rank(b);
@@ -118,12 +124,59 @@ export function registerFleetMachineRoutes({
     if (!isAdmin(req) && !ownDeviceOr404(req, res, email)) return undefined;
     const deviceId = String(req.params?.deviceId ?? "");
     const row = machines.get(deviceId);
+    const health = deriveMachineHealth(row, { now, silenceMs, alertThreshold });
+    machines.noteSilence?.(deviceId, health.silence);
     return res.json({
       deviceId,
       detail: row?.detail ?? null,
       desired: row?.desired ? { version: row.desired.version, entries: row.desired.entries, updatedAt: row.desired.at } : { version: 0, entries: [] },
-      health: deriveMachineHealth(row, { now, silenceMs, alertThreshold }),
+      health,
     });
+  });
+
+  // Bounded per-machine metadata history (add-machine-lifecycle-console):
+  // newest first. Access mirrors the roster's account scoping, plus the
+  // revocation retention window — the account that revoked the machine may
+  // still read its history for HISTORY_RETENTION_MS, then the row (and its
+  // history) is swept. A bound machine that never reported has an empty
+  // history, not a 404.
+  app.get("/api/machines/:deviceId/history", (req, res) => {
+    const email = callerEmail(req);
+    if (!email) return res.status(401).json({ error: "Authentication required" });
+    const deviceId = String(req.params?.deviceId ?? "");
+    const ownBinding = stewardBindingsFor(email).some((d) => d.deviceId === deviceId);
+    const row = machines.get(deviceId);
+    const inRetention = Boolean(
+      row && row.revokedAt != null && row.ownerEmail === email && now() - row.revokedAt <= HISTORY_RETENTION_MS,
+    );
+    if (!ownBinding && !inRetention && !isAdmin(req)) {
+      return res.status(404).json({ error: "machine_not_found" });
+    }
+    if (!row) {
+      if (ownBinding) return res.json({ deviceId, history: [], revokedAt: null });
+      return res.status(404).json({ error: "machine_not_found" });
+    }
+    const rawLimit = Number(req.query?.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.trunc(rawLimit), HISTORY_LIMIT) : HISTORY_LIMIT;
+    return res.json({ deviceId, history: (row.history ?? []).slice(0, limit), revokedAt: row.revokedAt ?? null });
+  });
+
+  // Unbind from the machine console (add-machine-lifecycle-console): revoke
+  // the steward binding AND clear the cloud desired set, so a re-pair under
+  // the same deviceId cannot inherit stale expectations. The store row (with
+  // its history) is retained for the retention window, then swept.
+  app.delete("/api/machines/:deviceId", async (req, res) => {
+    const email = callerEmail(req);
+    if (!email) return res.status(401).json({ error: "Authentication required" });
+    if (!ownDeviceOr404(req, res, email)) return undefined;
+    const deviceId = String(req.params?.deviceId ?? "");
+    const revoked = await appAuth.revoke(email, deviceId);
+    if (!revoked?.ok) return res.status(404).json({ error: "machine_not_found" });
+    machines.revoke(deviceId, { who: email });
+    // Answer only once the revocation is durable — a 200 a gateway restart
+    // can erase would let a revoked machine keep pulling its old expectation.
+    await machines.flush;
+    return res.json({ ok: true, deviceId });
   });
 
   // Whole-set replace: the editor sends the complete desired list (add /

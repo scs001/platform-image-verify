@@ -1035,7 +1035,8 @@
       "boundAt": "{{time}} にペア設定",
       "revokeConfirm": "このデバイスを失効しますか？",
       "revoke": "失効",
-      "cancel": "キャンセル"
+      "cancel": "キャンセル",
+      "machinesPointer": "エージェントマシン（バックグラウンドスチュワード）のペアリング・名簿・バインド解除は、上部ナビゲーションの「マシン」ページに移動しました。"
     },
     "websearch": {
       "subtitle": "エージェントの web_search ツールを支える検索サービスです。未設定の場合はこのデプロイの組み込み設定を使用します。",
@@ -3219,14 +3220,14 @@
     "setCategory": "カテゴリを設定",
     "feature": "注目に追加",
     "unfeature": "注目を解除",
-      "allPacks": "すべて",
-      "onlyUnclassified": "未分類のみ",
-      "unclassified": "未分類",
-      "unclassifiedCount": "未分類 {{count}} / {{total}}",
-      "lineResolved": "ライン：{{line}}",
-      "domainsLabel": "領域",
-      "saveDomains": "領域を保存",
-      "vocabUnavailable": "ボキャブラリを利用できません"
+    "allPacks": "すべて",
+    "onlyUnclassified": "未分類のみ",
+    "unclassified": "未分類",
+    "unclassifiedCount": "未分類 {{count}} / {{total}}",
+    "lineResolved": "ライン：{{line}}",
+    "domainsLabel": "領域",
+    "saveDomains": "領域を保存",
+    "vocabUnavailable": "ボキャブラリを利用できません"
   },
   "facetMine": {
     "title": "マイエージェント",
@@ -3596,7 +3597,7 @@
   "machines": {
     "title": "マシン",
     "adminView": "管理者ビュー",
-    "empty": "ペアリング済みのマシンはまだありません。デスクトップアプリの設定で6桁のコードを入力すると表示されます。",
+    "empty": "ペアリング済みのマシンはまだありません。下のボタンでペアリングコードを発行し、デスクトップアプリでペアリングすると表示されます。",
     "rosterError": "ロスターを取得できません（未ログインまたはサービス無効）",
     "health": {
       "online": "オンライン",
@@ -3652,6 +3653,66 @@
       "disable": "無効にする",
       "remove": "削除",
       "saveError": "保存に失敗しました。再試行してください"
+    },
+    "system": {
+      "unknown": "システム情報は未報告",
+      "boundAt": "ペアリング日時 {{time}}"
+    },
+    "pair": {
+      "add": "マシンを追加",
+      "emptyCta": "マシンをペアリング",
+      "title": "マシンをペアリング",
+      "hint": "デスクトップアプリのペアリング画面（または 設定 → バックグラウンドスチュワード）に下の6桁コードを入力するか、右のQRコードを読み取ってください。",
+      "signedOut": "先にコンソールへサインインしてください。ペアリングコードの発行にはサインインが必要です。",
+      "unavailable": "このサーバーのバージョンは古く、デバイスペアリングにまだ対応していません。",
+      "error": "ペアリングコードを発行できませんでした。再試行してください。",
+      "retry": "再試行",
+      "minting": "ペアリングコードを発行しています…",
+      "waiting": "コードの準備ができました。マシンの初回報告を待っています（約1分）。報告されると自動的に名簿に表示されます。",
+      "expired": "コードの有効期限が切れました",
+      "expiresIn": "残り {{time}}",
+      "typeHint": "カメラがない場合は、デスクトップアプリに同じ6桁を入力してください。",
+      "waitStart": "入力済み — マシンの報告を待つ",
+      "close": "閉じる",
+      "refresh": "コードを更新"
+    },
+    "converge": {
+      "synced": "同期済み",
+      "converging": "収束中",
+      "awaiting": "取得待ち",
+      "diverged": "乖離",
+      "unknown": "状態不明",
+      "stale": "明細が古い",
+      "syncedHint": "マシンは望ましい状態 v{{version}} を取得済みです",
+      "convergingHint": "マシンは次の拍（≤60秒）で取得します",
+      "awaitingHint": "期待値は保存済みで、マシンがオンラインになると自動的に反映されます。長く取得しない場合は、その端末のスチュワードが動作しているか確認してください。",
+      "staleHint": "数拍分の明細更新がありません。状態不明です—そのマシンのスチュワードを確認してください。",
+      "unknownHint": "マシンは取得済みバージョンをまだ報告していません",
+      "divergedHint": "バージョンは一致していますが、期待した項目が実態にありません"
+    },
+    "history": {
+      "title": "マシン履歴",
+      "loading": "読み込み中…",
+      "empty": "まだ履歴イベントはありません。オンライン/オフラインの切替、期待値の変更、収束の結果がここに記録されます。",
+      "expand": "全{{n}}件を表示",
+      "collapse": "折りたたむ",
+      "presenceFlip": "{{from}} → {{to}}",
+      "desiredChange": "{{who}} が期待値を変更 v{{version}}（+{{added}} / −{{removed}} / 切替 {{toggled}}）",
+      "mergeAdvance": "取得済みバージョン v{{from}} → v{{to}}",
+      "rejectsOpen": "マージ拒否 {{count}} 件",
+      "rejectsClear": "マージ拒否が解消",
+      "divergenceOpen": "乖離が開始",
+      "divergenceClose": "乖離が終了",
+      "unbound": "{{who}} がバインドを解除",
+      "other": "{{kind}}"
+    },
+    "unbind": {
+      "title": "バインド解除",
+      "hint": "解除すると、このマシンは直ちに報告と取得の権限を失い、クラウド側の期待値も消去されます。履歴は30日間保持されます。マシン自体の動作は続きますが、命令を受けなくなるだけです。",
+      "confirmText": "このマシンのバインドを解除しますか？",
+      "confirm": "解除する",
+      "cancel": "キャンセル",
+      "error": "解除に失敗しました。再試行してください。"
     }
   },
   "agentTeams": {

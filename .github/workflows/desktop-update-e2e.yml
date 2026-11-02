@@ -123,22 +123,30 @@ jobs:
             APP_ROOT="dist/win-unpacked/resources/app"
           else
             EXE=$(ls dist/mac*/**/Contents/MacOS/* dist/mac*/*/Contents/MacOS/* 2>/dev/null | head -1)
-            APP_ROOT=$(dirname "$(dirname "$(dirname "$EXE")")")/Resources/app
+            # EXE = <App>/Contents/MacOS/<bin> → two dirnames = Contents
+            APP_ROOT="$(dirname "$(dirname "$EXE")")/Resources/app"
           fi
           echo "APP_EXE=$EXE" >> "$GITHUB_ENV"
           echo "binary: $EXE"
+          echo "app root: $APP_ROOT"
           ls -la "$(dirname "$EXE")" | head -4
           # The updater imports electron-updater at module scope; if the
           # afterPack runtime mirror dropped it (or a transitive dep), the
           # packaged main process dies on import and the E2E sees only silence.
           # Assert it shipped HERE so a missing-package failure reads as a real
-          # defect, not a mysterious timeout.
+          # defect, not a mysterious timeout. (Round 5 lesson: require() with a
+          # bare relative path resolves as a MODULE NAME — use resolve().)
           if [ ! -d "$APP_ROOT/node_modules/electron-updater" ]; then
             echo "::error::electron-updater NOT in packaged app ($APP_ROOT/node_modules) — afterPack runtime mirror gap"
             exit 1
           fi
           echo "packaged electron-updater: present"
-          node -e 'require(process.argv[1]+"/node_modules/electron-updater"); console.log("electron-updater resolves in packaged tree")' "$APP_ROOT" || {
+          node -e '
+            const path = require("node:path");
+            const target = path.resolve(process.argv[1], "node_modules/electron-updater");
+            require(target);
+            console.log("electron-updater resolves in packaged tree");
+          ' "$APP_ROOT" || {
             echo "::error::electron-updater present but unresolvable (missing transitive dep)"; exit 1; }
 
       # ── Phase 1: honest up-to-date ────────────────────────────────────────────
@@ -207,3 +215,23 @@ jobs:
             console.log('final state:', JSON.stringify(s));
             if (s.status !== '$EXPECT') process.exit(1);
           "
+
+      # ── Failure evidence ──────────────────────────────────────────────────────
+      # The packaged app mirrors every console.* to userData/main.log (main.js
+      # MAIN_LOG_PATH) — stdout is silent BY DESIGN, so this file is the real
+      # witness. Dump it whenever any phase failed.
+      - name: Dump app main.log (on failure)
+        if: failure()
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            LOG="$APPDATA/Platform/main.log"
+          else
+            LOG="$HOME/Library/Application Support/Platform/main.log"
+          fi
+          echo "=== $LOG ==="
+          tail -80 "$LOG" 2>/dev/null || echo "(no main.log — app never reached the console mirror)"
+          echo "=== updater-state.json ==="
+          cat updater-state.json 2>/dev/null || echo "(absent)"
+          # Belt: any app process left behind?
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then tasklist | grep -i "Platform" || true; else pgrep -fl "Platform" || true; fi

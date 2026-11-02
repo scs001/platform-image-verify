@@ -15,9 +15,17 @@
 
 import { app, shell } from "electron";
 import { writeFileSync } from "node:fs";
-import { autoUpdater } from "electron-updater";
+// electron-updater is CJS whose exports are attached through TS's
+// __exportStar/getter machinery — cjs-module-lexer cannot see them, so a
+// NAMED import (`import { autoUpdater } from "electron-updater"`) throws
+// SyntaxError at link time and kills the packaged app's whole import graph
+// (five E2E rounds of total silence; local repro: node --input-type=module).
+// The default export IS module.exports for CJS — destructure from it.
+import electronUpdater from "electron-updater";
 import { readSettings } from "./config/settings.js";
 import { autoUpdateSupported, macNotifyCheck, DEFAULT_UPDATE_URL } from "./updater-core.js";
+
+const { autoUpdater } = electronUpdater;
 
 const CHECK_DELAY_MS = 15_000; // boot settles first; the check never blocks startup
 

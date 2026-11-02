@@ -103,3 +103,22 @@ test("generator validation: garbage in throws — a malformed yml never reaches 
   assert.throws(() => generateLatestYml({ version: "1.0", files: [{ file: "x", sha512: null, size: 1 }] }));
   assert.throws(() => generateLatestYml({ version: "1.0", files: [{ file: "x", sha512: "s", size: "big" }] }));
 });
+
+// Regression pin (add-desktop-in-app-update, E2E rounds 1-5): the packaged app
+// died silently for five rounds because `import { autoUpdater } from
+// "electron-updater"` — a NAMED import of a CJS module whose exports are
+// attached via TS's __exportStar/getters — throws SyntaxError at link time and
+// takes down main.js's whole import graph. cjs-module-lexer cannot see the
+// binding, so the ONLY safe pattern here is the default import (module.exports)
+// plus destructuring. This static guard fails the suite if anyone reverts it.
+test("updater.js imports electron-updater via DEFAULT (CJS interop), never named", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../electron/updater.js", import.meta.url), "utf8")
+    // strip line comments — the guard's own rationale quotes the bad pattern
+    .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+  assert.ok(
+    !/import\s*\{[^}]*autoUpdater[^}]*\}\s*from\s*["']electron-updater["']/.test(src),
+    "named import of electron-updater kills the packaged app (CJS lexer gap) — use the default import",
+  );
+  assert.match(src, /import\s+electronUpdater\s+from\s*["']electron-updater["']/, "default import of electron-updater required");
+});

@@ -7,7 +7,7 @@ The application's left sidebar navigation shell: a canonical tab set (including 
 
 ### Requirement: Left sidebar navigation shell with a canonical tab set
 
-The web UI SHALL provide a persistent left sidebar navigation whose view tabs are rendered from the unified surface registry (per `layout-configuration`) resolved through the deployment→role→user layout chain, with platform predicates applied. The factory `standard-snapshot` preset SHALL render, in order, the view tabs: **Chat, Knowledge, Resources, Agents, Apps, Tasks**, plus **Fleet** on the desktop shell only (its platform predicate; the browser hides it). These are the application's *work surfaces* — views the user visits to read or produce content. Operational surfaces SHALL NOT appear as view tabs: **MCP Servers**, **Skills**, and **Models** are sections of the Settings modal (see `settings-surface`), and the former **Bots** and **Trace** tabs are likewise Settings sections (渠道接入 `channels` and 诊断 `diagnostics`). The legacy "Dashboard" and "Documents" top-level entries SHALL remain absent; System Status is a Settings section at `/settings/status`. The legacy `/extensions` parent route SHALL NOT be registered; `/documents` redirects to `/knowledge`. Each view tab SHALL correspond to exactly one main-content panel; the Resources tab's panel is the resources page at `/resources`. On initial load the UI SHALL activate the Chat tab. The sidebar session-list region SHALL remain visible regardless of which view tab is active. The displayed label of each view tab SHALL be resolved from the i18n bundle keyed by the registry's stable slug, so the label follows the active locale while the tab's identity, icon, and testid are stable. The zh-CN display names SHALL be user-language — Chat 对话, Knowledge 资料库, Resources 成果, Agents 智能体, Apps 应用, Tasks 自动化, Fleet 舰队 — while the underlying routes (`/chat`, `/knowledge`, `/resources`, `/agents`, `/apps`, `/tasks`, `/fleet`) SHALL NOT change. Preset resolution SHALL be able to hide or reorder tabs (per `layout-configuration`), never to add surfaces absent from the registry or defeat a platform predicate.
+The web UI SHALL provide a persistent left sidebar navigation whose view tabs are rendered from the unified surface registry (per `layout-configuration`) resolved through the deployment→role→user layout chain, with platform predicates applied. The factory `standard-snapshot` preset SHALL render, in order, the view tabs: **Chat, Knowledge, Resources, Agents, Apps, Tasks**, plus **Fleet** on the desktop shell only (its platform predicate; the browser hides it). These are the application's *work surfaces* — views the user visits to read or produce content. Operational surfaces SHALL NOT appear as view tabs: **MCP Servers**, **Skills**, and **Models** are sections of the Settings modal (see `settings-surface`), and the former **Bots** and **Trace** tabs are likewise Settings sections (渠道接入 `channels` and 诊断 `diagnostics`). The legacy "Dashboard" and "Documents" top-level entries SHALL remain absent; System Status is a Settings section at `/settings/status`. The legacy `/extensions` parent route SHALL NOT be registered; `/documents` redirects to `/knowledge`. Each view tab SHALL correspond to exactly one main-content panel; the Resources tab's panel is the resources page at `/resources`, and the Agents tab's panel is the agent builder hub at `/agents` (per `agent-builder-hub`). On initial load the UI SHALL activate the Chat tab. The sidebar session-list region SHALL remain visible regardless of which view tab is active. The displayed label of each view tab SHALL be resolved from the i18n bundle keyed by the registry's stable slug, so the label follows the active locale while the tab's identity, icon, and testid are stable. The zh-CN display names SHALL be user-language — Chat 对话, Knowledge 资料库, Resources 成果, Agents 智能体构建器, Apps 应用, Tasks 自动化, Fleet 舰队 — while the underlying routes (`/chat`, `/knowledge`, `/resources`, `/agents`, `/apps`, `/tasks`, `/fleet`) SHALL NOT change. Preset resolution SHALL be able to hide or reorder tabs (per `layout-configuration`), never to add surfaces absent from the registry or defeat a platform predicate.
 
 #### Scenario: initial load shows the Chat tab
 
@@ -27,7 +27,7 @@ The web UI SHALL provide a persistent left sidebar navigation whose view tabs ar
 - **WHEN** the sidebar renders under the factory preset
 - **THEN** each tab SHALL display a label resolved from the `common` i18n bundle under a stable key, alongside a stable icon and testid
 - **AND** the tab's stable identifier and ordering SHALL NOT change when the active locale changes
-- **AND** the zh-CN labels SHALL read 对话, 资料库, 成果, 智能体, 应用, 自动化 (舰队 on desktop)
+- **AND** the zh-CN labels SHALL read 对话, 资料库, 成果, 智能体构建器, 应用, 自动化 (舰队 on desktop)
 
 #### Scenario: configuration surfaces are absent from the nav
 
@@ -46,6 +46,12 @@ The web UI SHALL provide a persistent left sidebar navigation whose view tabs ar
 
 - **WHEN** the user clicks the Resources tab, or navigates directly to `/resources`
 - **THEN** the resources page SHALL render as the active panel
+
+#### Scenario: Agents tab opens the builder hub
+
+- **WHEN** the user clicks the Agents tab, or navigates directly to `/agents`
+- **THEN** the agent builder hub SHALL render as the active panel with its four areas (per `agent-builder-hub`)
+- **AND** the tab's slug, icon, and testid SHALL be unchanged from the previous 智能体 entry
 
 #### Scenario: Extensions parent is absent
 

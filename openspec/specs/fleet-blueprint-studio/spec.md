@@ -46,7 +46,6 @@ architect 面——两处共享 fleet 段校验函数与起草批准纪律，但
 - **WHEN** 主人在 Agent Studio 团队模式编辑一份蓝图的 boundary/dataSources/判据模型
 - **THEN** 这些蓝图专属段在团队模式内可编辑并随文档一起过完整校验链，且三桶段仍经三桶卡编辑
 
-
 ### Requirement: 校验链复用，禁新立第二套
 
 蓝图草稿与铸造前的全部校验 SHALL 复用既有校验链：`parseFleetTemplate`（fleet 段）→ 既有 `validatePackManifest`（manifest 段）→ 发布门 `allowTools ⊆ 商业集`（可携依赖声明复核）。错误回报 SHALL 逐字段指名并使用既有校验器原文语义——SHALL NOT 在该面另起第二套校验器或改写错误格式。
@@ -333,3 +332,22 @@ openspec: builder-team-templates）在对话内组稿、校验、落池。直通
 
 - **WHEN** 客户端请求 `GET /api/blueprints/judge-default`
 - **THEN** 命中该专用端点，不被 `GET /api/blueprints/:id` 当成一个名为 `judge-default` 的蓝图
+
+### Requirement: dataSources 可钉知识库 collection，实化成员即为 KB 型岗位
+蓝图 v2 的 `dataSources` 引用面 SHALL 接受知识库 collection 作为合法数据源（与 registry 服务名/internal store 逻辑名并列的第三种引用种类，指名 collection）。校验 SHALL 拒绝指向不存在或不可见 collection 的引用并指名之。经该蓝图铸造并实化的团队，其钉了库的成员 SHALL 获得限定到所钉 collection（∪ shared，按 document-library-tools 的边界条款）的 library 工具访问；未钉库的成员不因同队成员钉库而获得访问。试跑 SHALL 与实化同边界，绿报告如实反映"该岗位确实用上了库"。
+
+#### Scenario: 钉库蓝图过校验
+- **WHEN** 提交一份 `dataSources` 引用本人某 collection 的蓝图
+- **THEN** 校验绿，引用种类被承认为库引用，草稿面显示被钉集合名
+
+#### Scenario: 悬空引用指名拒绝
+- **WHEN** 引用的 collection 不存在或不属于蓝图作者可见范围
+- **THEN** 校验落一条指名该引用的错误，蓝图不落草稿
+
+#### Scenario: 实化成员获得限定库访问
+- **WHEN** 钉库蓝图铸造的团队被实化并开回合
+- **THEN** 钉库成员的工具名册含 library 四件、检索只覆盖所钉集合∪shared；同队未钉库成员不含这些工具或不可见该集合
+
+#### Scenario: 跨部署面同边界
+- **WHEN** 该团队经一键召唤进入智语房间，或整包含库引用部署到萬星
+- **THEN** 成员在两侧车道的库访问边界与站内实化一致，包不携带库内容本体（引用的是部署者账号内的集合）

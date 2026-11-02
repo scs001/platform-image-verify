@@ -43,6 +43,7 @@ export function AiDraftOverlay({
   const { t } = useTranslation();
   const [picked, setPicked] = useState<Set<DraftField["key"]>>(new Set());
   // A fresh draft is a fresh review — never carry stale picks across runs.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps 即意图——回调不读 draft，但要随新草稿翻转清空勾选
   useEffect(() => setPicked(new Set()), [draft]);
 
   const fields: DraftField[] = draft

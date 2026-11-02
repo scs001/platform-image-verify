@@ -78,7 +78,7 @@ export function AgentBucketsEditor({
 
   useEffect(() => {
     if (selectedId && !agents.some((a) => a.id === selectedId)) select(agents[0]?.id ?? null);
-  }, [agents, selectedId]);
+  }, [agents, selectedId, select]);
   const selected = agents.find((a) => a.id === selectedId) ?? null;
 
   const setAgents = (next: PackManifestAgent[]) => onChange({ ...value, agents: next });

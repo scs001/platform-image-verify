@@ -555,6 +555,16 @@ export function createPackRegistry({ file }) {
       ...(version.agent_count !== undefined && version.agent_count !== null
         ? { agentCount: Number(version.agent_count) }
         : {}),
+      // Skill/MCP counts (overhaul-market-catalog-presentation P2 3.2): the
+      // card's obtainable-signals slot — same SQL-projection convention as
+      // agent_count (absent when the caller's row didn't select it, unknown ≠
+      // zero; the renderer omits the segment rather than showing 0).
+      ...(version.skill_count !== undefined && version.skill_count !== null
+        ? { skillCount: Number(version.skill_count) }
+        : {}),
+      ...(version.mcp_count !== undefined && version.mcp_count !== null
+        ? { mcpCount: Number(version.mcp_count) }
+        : {}),
       // Facade flag (add-principal-facade): the latest version carries a
       // `facade` block — the pack is a principal's conversational front door.
       // Same SQL-select convention as agent_count: absent when the caller's
@@ -920,6 +930,8 @@ export function createPackRegistry({ file }) {
         `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at, v.vendor,
                 ${wantLocale ? "v.manifest AS manifest," : ""}
                 json_array_length(v.manifest, '$.agents') AS agent_count,
+                json_array_length(v.manifest, '$.skills') AS skill_count,
+                json_array_length(v.manifest, '$.mcpServers') AS mcp_count,
                 CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade,
                 CAST(json_extract(v.manifest, '$.fleet') IS NOT NULL AS INTEGER) AS has_fleet,
                 CAST(json_extract(v.manifest, '$.cluster') IS NOT NULL AS INTEGER) AS has_cluster,

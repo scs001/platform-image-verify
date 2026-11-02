@@ -1910,7 +1910,8 @@
         "settlementFailed": "Settlement did not complete — held for retry; try again from My Agents shortly.",
         "required": "Buy this agent before installing it."
       },
-      "fleetWizardBtn": "Instantiate as a team"
+      "fleetWizardBtn": "Instantiate as a team",
+      "boundary": "Boundaries & honesty"
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -2100,6 +2101,7 @@
       "compactPersonaMissing": "No persona",
       "compactSkills": "Skills {{n}}",
       "compactSkillsZero": "No skills",
+      "compactRoles": "Roles {{n}}",
       "compactTools": "Tools {{n}}",
       "compactToolsZero": "No tools",
       "forkedFrom": "Forked from {{packId}} v{{version}}"

@@ -373,6 +373,15 @@ test("market refetches when the locale switches, list and open dialog alike", as
   const card = page.locator('[data-testid^="pack-card-"]').first();
   await expect(card).toBeVisible();
   await expect(card).toContainText("谦面壳冒烟包");
+
+  // 五槽位卡片 (overhaul-market-catalog-presentation P2): identity seal, name,
+  // badges, version, then the PROMISE — the first sentence only, never the
+  // second sentence the seed carries to pin the extraction.
+  await expect(card.getByRole("img")).toHaveCount(1); // the line seal
+  await expect(card).toContainText("壳冒烟哨兵包。");
+  await expect(card).not.toContainText("这是第二句");
+  // explicit zero words (the pack declares no skills/roles/tools)
+  await expect(card).toContainText("无技能");
   // The canonical zh line word is the chip label under zh (label == word).
   await expect(page.getByTestId("pack-category-chips")).toContainText("柏讯 · 数据与情报");
 
@@ -400,6 +409,10 @@ test("market refetches when the locale switches, list and open dialog alike", as
   const detail = page.getByTestId("pack-detail");
   await expect(detail).toBeVisible();
   await expect(detail).toContainText("Facet Shell Smoke Pack");
+  // ⑥ 边界与诚实声明 sits at its fixed position (the version's note)
+  await expect(detail.getByTestId("pack-detail-boundary-notes")).toContainText("壳冒烟哨兵包的版本说明。");
+  // ⑦ version history stays at the content tail
+  await expect(detail.getByTestId("pack-version-list")).toBeVisible();
   await page.getByTestId("facet-locale-switcher").selectOption("zh-CN");
   await expect(detail).toContainText("谦面壳冒烟包");
   await page.getByTestId("pack-detail-close").click();

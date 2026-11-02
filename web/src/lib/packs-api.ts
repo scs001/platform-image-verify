@@ -53,6 +53,13 @@ export interface PackSummary {
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;
+  /** Skills / MCP references in the latest version's manifest — the card's
+   *  obtainable-signals slot (overhaul-market-catalog-presentation P2). Same
+   *  absent-means-unknown discipline as agentCount: a row whose SQL didn't
+   *  project it keeps its pre-change shape, and the renderer omits the
+   *  segment rather than showing zero. */
+  skillCount?: number;
+  mcpCount?: number;
   /** Facade flag (add-principal-facade): the latest version carries a facade
    *  block — the pack is a principal's conversational front door. */
   facade?: boolean;

@@ -1910,7 +1910,8 @@
       },
       "purchased": "comprado",
       "vendorBy": "de {{name}}",
-      "fleetWizardBtn": "Instanciar como equipo"
+      "fleetWizardBtn": "Instanciar como equipo",
+      "boundary": "Límites y honestidad"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -2100,6 +2101,7 @@
       "compactPersonaMissing": "Sin persona",
       "compactSkills": "Habilidades {{n}}",
       "compactSkillsZero": "Sin habilidades",
+      "compactRoles": "Roles {{n}}",
       "compactTools": "Herramientas {{n}}",
       "compactToolsZero": "Sin herramientas",
       "forkedFrom": "Bifurcado de {{packId}} v{{version}}"

@@ -1910,7 +1910,8 @@
       },
       "purchased": "購入済み",
       "vendorBy": "{{name}} 提供",
-      "fleetWizardBtn": "チームとして一括構築"
+      "fleetWizardBtn": "チームとして一括構築",
+      "boundary": "境界と誠実さ"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -2100,6 +2101,7 @@
       "compactPersonaMissing": "ペルソナなし",
       "compactSkills": "スキル {{n}}",
       "compactSkillsZero": "スキルなし",
+      "compactRoles": "役割 {{n}}",
       "compactTools": "ツール {{n}}",
       "compactToolsZero": "ツールなし",
       "forkedFrom": "{{packId}} v{{version}} からフォーク"

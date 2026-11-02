@@ -1910,7 +1910,8 @@
         "settlementFailed": "结算未完成——已挂账，稍后在我的智能体里重试。",
         "required": "该条目需要先购买再安装。"
       },
-      "fleetWizardBtn": "一键装作成团队"
+      "fleetWizardBtn": "一键装作成团队",
+      "boundary": "边界与诚实声明"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -2100,6 +2101,7 @@
       "compactPersonaMissing": "无角色",
       "compactSkills": "技能 {{n}}",
       "compactSkillsZero": "无技能",
+      "compactRoles": "角色 {{n}}",
       "compactTools": "工具 {{n}}",
       "compactToolsZero": "无工具",
       "forkedFrom": "克隆自 {{packId}} v{{version}}"

@@ -483,7 +483,7 @@ export function PackDetailDialog({
         {localeStale && !error && (
           <p
             data-testid="pack-detail-locale-stale"
-            className="rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+            className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
           >
             {t("packs.market.staleLocale")}
           </p>
@@ -587,12 +587,6 @@ export function PackDetailDialog({
                 <p className="mt-2 text-xs text-muted-foreground">{t("packs.guide.hint")}</p>
               </section>
             )}
-
-            {/* Version history (add-facet-version-history): lazy disclosure —
-                the list fetches only when opened, never riding the default
-                detail payload; rows are inspect-only (manifest + skill
-                links, notes when present). */}
-            <PackVersionList packId={pack.id} />
 
             {/* Three-bucket spec sheet (add-agent-spec-sheet): 角色/技能/工具
                 render as ONE shared component — the bucket layout lives there,
@@ -957,9 +951,29 @@ export function PackDetailDialog({
               </section>
             )}
 
+            {/* ⑥ 边界与诚实声明 (overhaul-market-catalog-presentation P2): the
+                version's honest statement (notes) gets its own fixed position —
+                today it is buried in the skill bodies, half a screen away from
+                the decision it qualifies. P4 adds the locale-coverage mark
+                to this section. */}
+            {(m.notes ?? "").trim() !== "" && (
+              <section
+                className="rounded-md border border-border bg-muted/30 p-3"
+                data-testid="pack-detail-boundary"
+              >
+                <h4 className="mb-1 font-medium">{t("packs.detail.boundary")}</h4>
+                <p className="text-xs leading-5 text-muted-foreground" data-testid="pack-detail-boundary-notes">
+                  {m.notes}
+                </p>
+              </section>
+            )}
+
+            {/* ⑦ 版本时间线（add-facet-version-history 懒披露契约不变：默认
+                payload 不带版本列表、打开才取、只读检视无安装动作）。位置从
+                规格书之前移到内容尾部——七段式阅读顺序。 */}
+            <PackVersionList packId={pack.id} />
           </div>
         )}
-
         </div>
 
         {/* Action bar (polish-facet-interactions): a real flex child pinned to

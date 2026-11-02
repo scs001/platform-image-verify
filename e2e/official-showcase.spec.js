@@ -118,8 +118,10 @@ test.describe("official showcase faces", () => {
     await expect(page.getByTestId("pack-card-off_1")).toBeVisible();
     await expect(page.getByTestId("pack-card-com_1")).toBeVisible();
     await page.getByTestId("pack-official-chip").click();
-    await expect(page.getByTestId("pack-card-off_1")).toBeVisible();
-    await expect(page.getByTestId("pack-card-com_1")).toHaveCount(0);
+    // The official filter switches the gallery tile (add-official-agent-gallery),
+    // which carries its own anchor; community rows leave the gallery projection.
+    await expect(page.getByTestId("pack-gallery-card-off_1")).toBeVisible();
+    await expect(page.getByTestId("pack-gallery-card-com_1")).toHaveCount(0);
     await expect(page.getByTestId("pack-official-badge-off_1")).toBeVisible();
   });
 });

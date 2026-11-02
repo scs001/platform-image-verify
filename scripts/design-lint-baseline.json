@@ -1,7 +1,4 @@
 {
-  "web/src/pages/AgentStudioPage.tsx": {
-    "named-color": 2
-  },
   "web/src/pages/TasksPage.tsx": {
     "named-color": 4
   },
@@ -96,9 +93,6 @@
   "web/src/components/packs/PackDraftsView.tsx": {
     "named-color": 2
   },
-  "web/src/components/packs/PackMarketView.tsx": {
-    "named-color": 4
-  },
   "web/src/components/packs/PresetPublishFlow.tsx": {
     "named-color": 4
   },
@@ -116,8 +110,5 @@
   },
   "web/src/components/skills/SkillCandidatesView.tsx": {
     "named-color": 2
-  },
-  "web/src/components/studio/BlueprintTeamMode.tsx": {
-    "named-color": 5
   }
 }

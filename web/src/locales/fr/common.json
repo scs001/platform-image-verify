@@ -1910,7 +1910,8 @@
       },
       "purchased": "acheté",
       "vendorBy": "par {{name}}",
-      "fleetWizardBtn": "Instancier en équipe"
+      "fleetWizardBtn": "Instancier en équipe",
+      "boundary": "Limites et honnêteté"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -2100,6 +2101,7 @@
       "compactPersonaMissing": "Sans persona",
       "compactSkills": "Compétences {{n}}",
       "compactSkillsZero": "Aucune compétence",
+      "compactRoles": "Rôles {{n}}",
       "compactTools": "Outils {{n}}",
       "compactToolsZero": "Aucun outil",
       "forkedFrom": "Dérivé de {{packId}} v{{version}}"

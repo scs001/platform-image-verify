@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
+import { PackCard } from "./PackCard";
 import { publishPackInspection } from "@/lib/copilot-pack-context";
 import { STARTER_TEAMS } from "@/lib/packGuides";
 import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
@@ -262,7 +263,7 @@ export function PackMarketView({
       {guideUnfocused && (
         <p
           data-testid="pack-market-guide-hint"
-          className="mb-3 rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+          className="mb-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
         >
           {t("packs.market.assistantHint")}
         </p>
@@ -353,10 +354,10 @@ export function PackMarketView({
           </div>
           {/* Axis 2 · domains — non-zero values only, declared order. Rendered
               only when the vocabulary has at least one listed value. */}
-          {(facets?.domains.length ?? 0) > 0 && (
+          {(facets?.domains?.length ?? 0) > 0 && (
             <div className="flex flex-wrap items-center gap-1.5" data-testid="pack-domain-chips">
               <span className="text-xs text-muted-foreground">{t("packs.market.domains")}</span>
-              {facets?.domains.map((d) => (
+              {(facets?.domains ?? []).map((d) => (
                 <button
                   key={d.slug}
                   onClick={() => {
@@ -379,7 +380,7 @@ export function PackMarketView({
       {localeStale && (
         <p
           data-testid="pack-market-locale-stale"
-          className="mb-3 rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+          className="mb-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning"
         >
           {t("packs.market.staleLocale")}
         </p>
@@ -392,24 +393,7 @@ export function PackMarketView({
               {visiblePacks
                 .filter((p) => p.featured)
                 .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setDetailId(p.id)}
-                    className="text-left border border-primary/40 rounded-lg p-4 hover:border-primary/70 transition-colors bg-primary/5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground flex items-center gap-1.5">
-                        {p.name}
-                        {p.badge ? (
-                          <Badge data-testid={`pack-type-badge-${p.id}`}>{t(`packs.badge.${p.badge}`)}</Badge>
-                        ) : (
-                          p.facade && <Badge data-testid={`pack-facade-badge-${p.id}`}>{t("packs.market.facade")}</Badge>
-                        )}
-                      </span>
-                      <span className="text-xs text-muted-foreground">v{p.version}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
-                  </button>
+                  <PackCard key={p.id} pack={p} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
                 ))}
             </div>
           </div>
@@ -439,60 +423,39 @@ export function PackMarketView({
         )}
         {visiblePacks.map((pack) =>
           officialOnly ? (
-            /* 官方 gallery (add-official-agent-gallery): presentation-layer
-               upgrade of the official set — the SAME list data (zero endpoint
-               change, D1), the shared spec sheet in compact density, the
-               starter sequence as a presentation marker (D2), and the fork
-               deep link (D3). Anonymous viewers see exactly the summary
-               projection — the full three-bucket sheet lives one click away
-               in the detail dialog (read visibility respected). */
-            <div
+            /* 官方 gallery (add-official-agent-gallery) 的呈现层升级在 PackCard 里
+               合并（overhaul-market-catalog-presentation P2）：同一列表数据（零端点、
+               零 fetch），compact 共享规格书与 starter 标记作为 children；克隆深链走
+               extra 兄弟行——卡片主体保持单一可点区（五槽位契约），fork 有自己的
+               键盘停靠点，不再是可点区内的嵌套目标。 */
+            <PackCard
               key={pack.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setDetailId(pack.id)}
-              onKeyDown={(e) => e.key === "Enter" && setDetailId(pack.id)}
-              data-testid={`pack-gallery-card-${pack.id}`}
-              className="text-left border border-primary/30 rounded-lg p-4 bg-primary/5 hover:border-primary/60 transition-colors cursor-pointer"
+              pack={pack}
+              tone="gallery"
+              testId={`pack-gallery-card-${pack.id}`}
+              onOpen={() => setDetailId(pack.id)}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-foreground flex items-center gap-1.5">
-                  {pack.name}
-                  {pack.official === true && pack.adopted === true ? (
-                    <Badge data-testid={`pack-adopted-badge-${pack.id}`}>{t("packs.market.officialAdoptedBadge")}</Badge>
-                  ) : (
-                    pack.official === true && (
-                      <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
-                    )
-                  )}
-                  {pack.badge ? (
-                    <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
-                  ) : (
-                    pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
-                  )}
-                  {(() => {
-                    const starter = STARTER_TEAMS.find((st) => st.packId === pack.id);
-                    if (!starter) return null;
-                    return (
+              {(() => {
+                const starter = STARTER_TEAMS.find((st) => st.packId === pack.id);
+                return (
+                  <>
+                    {starter && (
                       <Badge data-testid={`pack-gallery-starter-${pack.id}`}>
                         {t(`help.start.starterRole.${starter.role}`)}
                       </Badge>
-                    );
-                  })()}
-                </span>
-                <span className="text-xs text-muted-foreground">v{pack.version}</span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pack.description}</p>
-              <AgentSpecSheet
-                variant="compact"
-                testIdPrefix={`gallery-${pack.id}`}
-                badge={pack.badge ?? null}
-                official={pack.official === true}
-                adopted={pack.adopted === true}
-                personaPresent={(pack.agentCount ?? 0) > 0}
-                className="mt-2"
-              />
-              <div className="flex items-center gap-2 mt-2">
+                    )}
+                    <AgentSpecSheet
+                      variant="compact"
+                      testIdPrefix={`gallery-${pack.id}`}
+                      badge={pack.badge ?? null}
+                      official={pack.official === true}
+                      adopted={pack.adopted === true}
+                      personaPresent={(pack.agentCount ?? 0) > 0}
+                    />
+                  </>
+                );
+              })()}
+              extra={
                 <a
                   href={`${studioOrigin ?? ""}/studio?fork=${encodeURIComponent(pack.id)}`}
                   onClick={(e) => e.stopPropagation()}
@@ -501,48 +464,10 @@ export function PackMarketView({
                 >
                   {t("packs.detail.fork")}
                 </a>
-                <span className="text-xs text-muted-foreground ml-auto">{pack.authorEmail}</span>
-              </div>
-            </div>
+              }
+            </PackCard>
           ) : (
-          <button
-            key={pack.id}
-            onClick={() => setDetailId(pack.id)}
-            data-testid={`pack-card-${pack.id}`}
-            className="text-left border border-border rounded-lg p-4 hover:border-primary/50 transition-colors"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground flex items-center gap-1.5">
-                {pack.name}
-                {/* Adopted provenance (add-official-adopted-agents): needs BOTH
-                    the roster's official flag AND the adopted record — an
-                    adopted record alone never grants official status. Rendered
-                    separately from the plain 官方 badge so the three kinds
-                    (official-original / official-adopted / community) stay
-                    distinguishable at a glance. */}
-                {pack.official === true && pack.adopted === true ? (
-                  <Badge data-testid={`pack-adopted-badge-${pack.id}`}>{t("packs.market.officialAdoptedBadge")}</Badge>
-                ) : (
-                  pack.official === true && (
-                    <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
-                  )
-                )}
-                {pack.badge ? (
-                  <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
-                ) : (
-                  pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
-                )}
-              </span>
-              <span className="text-xs text-muted-foreground">v{pack.version}</span>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pack.description}</p>
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              {pack.tags.map((tag) => (
-                <Badge key={tag}>{tag}</Badge>
-              ))}
-              <span className="text-xs text-muted-foreground ml-auto">{pack.authorEmail}</span>
-            </div>
-          </button>
+            <PackCard key={pack.id} pack={pack} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
           )
         )}
       </div>

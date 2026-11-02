@@ -31,14 +31,14 @@
 
 ## 3. P2 · 卡片与详情的信息架构（不依赖 v2 字段）
 
-- [ ] 3.1 新组件 `PackIdentityMark`：服务端生成印章（线色底 + 线单字 + 结构角标），复用 `SiteMark` 印章语言与 `DESIGN.md` 字号登记；验证：五线 × 四结构快照测试，无任意值新登记外漏
-- [ ] 3.2 新组件 `PackCard`：五槽位（身份/承诺/可得信号/适用人群/边界）+ 降级链（promise→首句→name；整词截断补省略号；缺槽整段省略）；验证：单测覆盖降级链全部分支与"最长 678 字 description 不再出半行"
-- [ ] 3.3 `PackMarketView` 普通卡与官方画廊卡统一走 `PackCard`；消除嵌套可点目标（fork 链接移出卡片可点区）；验证：e2e 键盘 Tab 卡片单一焦点停靠点
-- [ ] 3.4 `PackDetailDialog` 七段式重排（首屏承诺/你会得到/三步上手/示例指令/三桶/边界与诚实声明/版本+常驻 CTA）；缺段整段省略；技能正文全量检视不回退（既有 e2e 锚点 `pack-skill-*` 保持）
+- [x] 3.1 新组件 `PackIdentityMark`：服务端生成印章（线色底 + 线单字 + 结构角标），复用 `SiteMark` 印章语言与 `DESIGN.md` 字号登记；验证：五线 × 四结构快照测试，无任意值新登记外漏
+- [x] 3.2 新组件 `PackCard`：五槽位（身份/承诺/可得信号/适用人群/边界）+ 降级链（promise→首句→name；整词截断补省略号；缺槽整段省略）；验证：单测覆盖降级链全部分支与"最长 678 字 description 不再出半行"
+- [x] 3.3 `PackMarketView` 普通卡与官方画廊卡统一走 `PackCard`；消除嵌套可点目标（fork 链接移出卡片可点区）；验证：e2e 键盘 Tab 卡片单一焦点停靠点
+- [x] 3.4 `PackDetailDialog` 七段式重排（首屏承诺/你会得到/三步上手/示例指令/三桶/边界与诚实声明/版本+常驻 CTA）；缺段整段省略；技能正文全量检视不回退（既有 e2e 锚点 `pack-skill-*` 保持）
 - [ ] 3.5 示例指令可点：壹座宿主带 prompt 进对话（`onOpenChat` 通道），facet 匿名复制到剪贴板；验证：e2e 两宿主各一条
 - [ ] 3.6 官方徽章收敛：列表/详情徽章只按服务端来源判定投影；roster 复核（71/75 通胀消除——非名册作者条目不再带官方徽章）；验证：`scripts/test-official-showcase.mjs` 扩断言
 - [ ] 3.7 `facet/web/DESIGN.md` 登记：新印章字号、新增任意值（若有）、入场动效（rise-in stagger ≤200ms）；`design-lint` 门绿
-- [ ] 3.8 e2e：卡片五槽位、详情七段、facet 壳 `#/packs` 无 Router 回归用例；`npm run test:e2e` 绿
+- [x] 3.8 e2e：卡片五槽位、详情七段、facet 壳 `#/packs` 无 Router 回归用例；`npm run test:e2e` 绿
 - [ ] 3.9 出片验证：生产卡片五槽位眼见、详情七段眼见、壹座 Store 面同步回归；台账记录
 
 ## 4. P3 · 显示格式 v2 + 作者端翻译工作台

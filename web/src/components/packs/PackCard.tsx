@@ -1,0 +1,151 @@
+// PackCard — the market's five-slot card (overhaul-market-catalog-presentation
+// P2): ONE component renders the plain card, the featured rail row, and the
+// official gallery tile, so the strip, the badges, and the degradation chain
+// can never drift between them. The card is a single focusable region — a
+// nested clickable (the gallery's fork link) would break the keyboard path;
+// that affordance lives in the detail dialog (`packs.detail.fork`).
+//
+// Slots (specs/pack-marketplace, 市场卡片按五槽位呈现):
+//   1 identity   — seal mark, name, provenance + structure badges, version
+//   2 promise    — `promise` (P3) → first sentence of the description → name
+//   3 signals    — skills / roles / tools counts; unknown counts are OMITTED
+//                  (unknown ≠ zero)
+//   4 audience   — `audience` (P3); until then the tag row, capped, same slot
+//   5 boundary   — `notes` first sentence (manifest-only, P3); until then
+//                  absent → the slot renders nothing
+//
+// testIds: the host passes the anchor (`pack-card-…`, `pack-featured-card-…`,
+// `pack-gallery-card-…`) so existing e2e/anchors keep working verbatim; the
+// badge anchors keep their historical names (pack-official-badge-… etc.).
+
+import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import type { PackSummary } from "@/lib/packs-api";
+import { Badge } from "@/components/packs/Badge";
+import { SiteMark } from "@/components/ui/site-mark";
+import { firstSentence, markCharOf } from "@/lib/packIdentity";
+
+export function PackCard({
+  pack,
+  onOpen,
+  testId,
+  tone = "plain",
+  children,
+  extra,
+}: {
+  pack: PackSummary;
+  onOpen: () => void;
+  testId: string;
+  // Gallery tiles ride the primary tint; the featured rail keeps the plain
+  // border but is reachable through the same component.
+  tone?: "plain" | "gallery";
+  // Host-chosen presentation extras (starter marker, compact spec sheet).
+  children?: ReactNode;
+  // The action row (official gallery's fork deep link) — rendered OUTSIDE the
+  // clickable content region as a sibling inside the tile: the card body stays
+  // a single focusable click target (specs/pack-marketplace 五槽位), the
+  // clone affordance (official-pack-showcase) keeps its own keyboard stop.
+  extra?: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const promise = firstSentence(pack.description);
+  // Signal anchors must NOT start with "pack-card-" — the e2e suite counts
+  // cards by the prefix selector [data-testid^="pack-card-"]; a child anchor
+  // on that prefix inflates the count (caught by facet-shell, 2026-11-03).
+  // Unknown (no server projection) omits the segment; a real zero renders the
+  // explicit zero word (the compact sheet's own discipline — "0" is a
+  // statement, silence is an absence).
+  const signals = (
+    <>
+      {pack.skillCount !== undefined && (
+        <span data-testid={`pack-signals-${pack.id}-skills`}>
+          {pack.skillCount > 0 ? t("packs.specSheet.compactSkills", { n: pack.skillCount }) : t("packs.specSheet.compactSkillsZero")}
+        </span>
+      )}
+      {pack.agentCount !== undefined && (
+        <span data-testid={`pack-signals-${pack.id}-roles`}>
+          {pack.agentCount > 0 ? t("packs.specSheet.compactRoles", { n: pack.agentCount }) : t("packs.specSheet.compactPersonaMissing")}
+        </span>
+      )}
+      {pack.mcpCount !== undefined && (
+        <span data-testid={`pack-signals-${pack.id}-tools`}>
+          {pack.mcpCount > 0 ? t("packs.specSheet.compactTools", { n: pack.mcpCount }) : t("packs.specSheet.compactToolsZero")}
+        </span>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      data-testid={testId}
+      className={`text-left border rounded-lg p-4 transition-colors ${
+        tone === "gallery" ? "border-primary/40 bg-primary/5 hover:border-primary/70" : "border-border hover:border-primary/50"
+      }`}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
+        className="cursor-pointer"
+      >
+      <div className="flex gap-3">
+        {/* Slot 1 · identity — the line seal gives 70 same-shaped cards a
+            one-glance fingerprint (the brand asset, no upload/audit surface). */}
+        <SiteMark chars={markCharOf(pack.line, pack.name)} size="sm" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-foreground flex items-center gap-1.5 min-w-0">
+              <span className="truncate">{pack.name}</span>
+              {/* Adopted provenance needs BOTH official and the adopted record
+                  (add-official-adopted-agents): an adopted record alone never
+                  grants official status; the three sources stay distinguishable. */}
+              {pack.official === true && pack.adopted === true ? (
+                <Badge data-testid={`pack-adopted-badge-${pack.id}`}>{t("packs.market.officialAdoptedBadge")}</Badge>
+              ) : pack.official === true ? (
+                <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
+              ) : null}
+              {pack.badge ? (
+                <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
+              ) : (
+                pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
+              )}
+            </span>
+            <span className="text-xs text-muted-foreground shrink-0">v{pack.version}</span>
+          </div>
+
+          {/* Slot 2 · promise — the degradation chain never renders a
+              half-clipped paragraph; long descriptions reach the reader in the
+              detail dialog. */}
+          {promise ? <p className="text-sm text-muted-foreground mt-1">{promise}</p> : null}
+
+          {/* Slot 3 · obtainable signals — unknown counts omit the segment. */}
+          {(pack.skillCount !== undefined || pack.agentCount !== undefined || pack.mcpCount !== undefined) && (
+            <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">{signals}</div>
+          )}
+
+          {/* Slot 4 · audience — pre-P3 this shows the tag row (capped at 3:
+              the vocabulary is free-form until authors declare audiences). */}
+          {pack.tags.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {pack.tags.slice(0, 3).map((tag) => (
+                <Badge key={tag}>{tag}</Badge>
+              ))}
+            </div>
+          )}
+
+          {children}
+        </div>
+      </div>
+      </div>
+      {extra && (
+        <div className="flex items-center gap-2 mt-2 border-t border-border/40 pt-2">{extra}</div>
+      )}
+    </div>
+  );
+}

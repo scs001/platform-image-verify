@@ -95,7 +95,8 @@ db.prepare(
   // label, cross-track search, and the dialog's language refetch.
   JSON.stringify({
     name: "谦面壳冒烟包",
-    description: "壳冒烟哨兵包。",
+    description: "壳冒烟哨兵包。这是第二句，用来钉卡片承诺位只取首句。",
+    notes: "壳冒烟哨兵包的版本说明。",
     category: "wire",
     skills: [],
     mcpServers: [],

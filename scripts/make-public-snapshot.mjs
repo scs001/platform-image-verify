@@ -111,6 +111,17 @@ const EXCLUDE_PATHS = new Set([
   "docs/zhiyu-handoff-note.md",
   "docs/zhiyu-site-deploy-requirements.md",
   "docs/zhiyu-site-supply-order-20261030.md",
+  // 素材广场上线材料（add-agent-materials-plaza，2026-11-03 禁品扫描拦下）：雷池
+  // 公网 IP、DNSPod 操作细节、generated/snapshot.json 里真实市场邮箱——同 zhiyu/
+  // yongyi 一类，真源在私有仓，属内部运维文档与数据产物，不入公开快照。其三支
+  // 站点/导出/浏览器测试读 site-plaza/ 或被排除目录（ENOENT 假红），按 c194b58b
+  // 「排除而非改他人测试内容」同法随行排除；导出器 scripts/plaza-export.mjs 无
+  // 禁品，留在公开树。
+  "docs/plaza-explore.md",
+  "scripts/deploy-plaza.sh",
+  "scripts/test-plaza-site.mjs",
+  "scripts/test-plaza-export.mjs",
+  "scripts/test-plaza-browser.mjs",
   // internal handoff / acceptance material for add-line-boards-and-action-gate
   // (2026-10-20): live cluster node names, fd-infra-deploy paths, internal TCR
   // URLs, private repo names — same class as the roadmap/handoff exclusions.
@@ -188,6 +199,9 @@ const EXCLUDE_PATHS = new Set([
 const EXCLUDE_PREFIXES_EXTRA = ["servers/fd-health-mcp/", "docs/sub2api-fork-patches/"];
 
 const EXCLUDE_PREFIXES = [
+  // 广场站点生成产物与部署跑本（2026-11-03 禁品扫描拦下：雷池 IP、真实市场邮箱）：
+  // 真源私有仓，站点经 rsync 上机、不靠公开快照分发；其测试随 EXCLUDE_PATHS 排除。
+  "site-plaza/",
   "k8s/",
   "argocd/",
   "openspec/changes/", // change archives carry live-ops notes (IPs, builds)

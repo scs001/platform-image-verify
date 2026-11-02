@@ -190,7 +190,7 @@ export function resolveFleetTemplateParams(template, provided = {}) {
 export function parseFleetTemplate(manifest) {
   if (!manifest || typeof manifest !== "object") return { ok: false, error: "manifest must be an object" };
   const section = manifest.fleet;
-  if (section === undefined || section === null) return { ok: false, error: "no fleet section" };
+  if (section === undefined || section === null) return { ok: false, error: "no fleet section", code: "fleet_missing" };
   if (typeof section !== "object" || Array.isArray(section)) {
     return { ok: false, error: "fleet section must be an object" };
   }
@@ -207,7 +207,7 @@ export function parseFleetTemplate(manifest) {
   const namePlaceholderError = declaredParams.size ? collectPlaceholderError(display, declaredParams) : null;
   if (namePlaceholderError) return { ok: false, error: `fleet.name ${namePlaceholderError}` };
   if (!Array.isArray(members) || members.length === 0) {
-    return { ok: false, error: "fleet.members must be a non-empty array" };
+    return { ok: false, error: "fleet.members must be a non-empty array", code: "fleet_members_empty" };
   }
   if (members.length > TEMPLATE_MEMBER_LIMIT) {
     return { ok: false, error: `fleet.members is capped at ${TEMPLATE_MEMBER_LIMIT}` };
@@ -218,17 +218,17 @@ export function parseFleetTemplate(manifest) {
   for (const m of members) {
     if (!m || typeof m !== "object") return { ok: false, error: "each member must be an object" };
     const ref = m.ref;
-    if (typeof ref !== "string" || !ref.trim()) return { ok: false, error: "each member needs a ref" };
+    if (typeof ref !== "string" || !ref.trim()) return { ok: false, error: "each member needs a ref", code: "fleet_member_needs_ref" };
     if (seenRefs.has(ref)) return { ok: false, error: `duplicate member ref '${ref}'` };
     seenRefs.add(ref);
     const title = m.title ?? m.titleKey;
     if (typeof title !== "string" || !title.trim()) {
-      return { ok: false, error: `member '${ref}' needs a title (or titleKey)` };
+      return { ok: false, error: `member '${ref}' needs a title (or titleKey)`, code: "fleet_member_needs_title" };
     }
     const target = m.target;
-    if (!target || typeof target !== "object") return { ok: false, error: `member '${ref}' needs a target` };
+    if (!target || typeof target !== "object") return { ok: false, error: `member '${ref}' needs a target`, code: "fleet_member_needs_target" };
     if (!TEMPLATE_TARGET_KINDS.includes(target.kind)) {
-      return { ok: false, error: `member '${ref}' target.kind must be one of ${TEMPLATE_TARGET_KINDS.join(", ")}` };
+      return { ok: false, error: `member '${ref}' target.kind must be one of ${TEMPLATE_TARGET_KINDS.join(", ")}`, code: "fleet_target_kind_invalid" };
     }
     // 参数占位（agent-fleet-templates delta）：白名单位置里的 ${param} 引用
     // 只许指向已声明槽位；占位在场的位置其形状检查后置到替换后重解析。
@@ -257,7 +257,7 @@ export function parseFleetTemplate(manifest) {
     if (target.kind === "tool" && !hasPlaceholder(target.id) && !TOOL_TARGET_SHAPE_RE.test(target.id)) {
       // Shape gate only (mirrors the live face's 'server::tool' contract);
       // whether the server is routable stays an instantiation-time fact.
-      return { ok: false, error: `member '${ref}' tool target.id must be 'server::tool' (got '${target.id}')` };
+      return { ok: false, error: `member '${ref}' tool target.id must be 'server::tool' (got '${target.id}')`, code: "fleet_tool_target_shape" };
     }
     if (m.kpiSlots !== undefined) {
       if (!Array.isArray(m.kpiSlots) || m.kpiSlots.length > 8) {
@@ -310,13 +310,13 @@ export function parseFleetTemplate(manifest) {
   for (const m of pending) {
     if (m.parentRef === undefined || m.parentRef === null) continue;
     if (typeof m.parentRef !== "string" || !byRef.has(m.parentRef)) {
-      return { ok: false, error: `member '${m.ref}' parentRef names no member` };
+      return { ok: false, error: `member '${m.ref}' parentRef names no member`, code: "handoff_unknown_parent" };
     }
     let cursor = m.parentRef;
     const walked = new Set();
     while (cursor != null) {
       if (cursor === m.ref || walked.has(cursor)) {
-        return { ok: false, error: `member '${m.ref}' parentRef chain forms a cycle` };
+        return { ok: false, error: `member '${m.ref}' parentRef chain forms a cycle`, code: "handoff_cycle" };
       }
       walked.add(cursor);
       cursor = byRef.get(cursor)?.parentRef ?? null;

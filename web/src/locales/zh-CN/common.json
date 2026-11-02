@@ -2150,7 +2150,7 @@
       "pick": "打开蓝图草稿…",
       "new": "新建蓝图",
       "untitled": "未命名蓝图",
-      "empty": "从草稿池打开一份蓝图，或新建——蓝图生命周期（校验→试跑→批准→铸造）与蓝图纸草稿池原样承载",
+      "empty": "从文档库打开一份，或新建——工作区按服务端真序承载生命周期（校验→批准→铸造→试跑→签字→重封）",
       "status": {
         "draft": "草稿",
         "approved": "已批准",
@@ -2180,7 +2180,8 @@
       "castRef": "已铸造：pack {{packId}} v{{version}}",
       "sign": "签字试跑报告（终审钥匙）",
       "unsign": "撤签",
-      "savedValid": "已保存，校验绿"
+      "savedValid": "已保存，校验绿",
+      "untitledAgent": "未命名智能体"
     },
     "validate": {
       "running": "校验中…",
@@ -2195,7 +2196,152 @@
       "draftOk": "草稿已创建——去「我的创作」继续发布",
       "failed": "发射失败：{{message}}"
     },
-    "remove": "移除"
+    "remove": "移除",
+    "workspace": {
+      "title": "智能体工作区",
+      "back": "返回构建器",
+      "dirty": "有未保存更改",
+      "saving": "保存中…",
+      "saved": "已保存 v{{version}}",
+      "saveFailed": "保存失败",
+      "overwriteDone": "已按你的版本保存",
+      "conflict": "该文档已在别处被修改（服务端 v{{server}}，你手上 v{{local}}）。请选择怎么继续——在此之前你的编辑不会丢。",
+      "conflictShort": "版本冲突",
+      "conflictReload": "加载最新",
+      "conflictOverwrite": "以我为准",
+      "conflictOverwriteConfirm": "这将用你的编辑覆盖服务端较新的版本。服务端会重新校验一切；另一份版本仍留在文档记录里。",
+      "actionFailed": "操作失败：{{action}}",
+      "createFailed": "新建文档失败",
+      "openFailed": "打开文档失败",
+      "forkMiss": "无法读取要克隆的源文档，已回到文档库",
+      "approved": "已批准",
+      "castOk": "已铸造：包 {{packId}} v{{version}}",
+      "signed": "已签署试跑报告",
+      "trialGreen": "试跑通过——断言全绿",
+      "trialRed": "试跑结束，存在红色断言",
+      "toggleLibrary": "切换文档库",
+      "toggleInspector": "切换检查器",
+      "section": {
+        "envelope": "边界"
+      },
+      "canvas": {
+        "empty": "尚未打开文档——从左侧文档库选一份，或新建。"
+      },
+      "emit": {
+        "section": "发射口",
+        "needGreen": "校验全绿后才能发射"
+      },
+      "draft": {
+        "adopt": "采用",
+        "adoptAll": "全部采用",
+        "adoptPicked": "采用所选",
+        "skip": "跳过",
+        "close": "关闭",
+        "inert": "未写入任何内容——文档保持原样。",
+        "field": {
+          "name": "名称",
+          "description": "一句话描述",
+          "persona": "人设",
+          "mcpServers": "工具（MCP）",
+          "skills": "技能"
+        },
+        "skillsNote": "AI 起草的技能暂不支持直接采用——请在文档的技能桶里编辑。"
+      },
+      "library": {
+        "search": "搜索文档",
+        "empty": "还没有文档。",
+        "guideBlank": "新建空白文档——即写即自动保存。",
+        "guideAi": "AI 起草——描述你要的智能体，逐字段评审后采用。",
+        "guideMarket": "从市场克隆——把任一已装功能包复制成新文档。",
+        "newAgent": "新建智能体",
+        "newTeam": "新建团队"
+      },
+      "ribbon": {
+        "stage": {
+          "draft": "草稿",
+          "approve": "批准",
+          "cast": "铸造",
+          "trial": "试跑",
+          "sign": "签字",
+          "reseal": "重封"
+        },
+        "reseal": "重封包",
+        "sign": "签字确认",
+        "trialRunning": "试跑进行中…"
+      },
+      "ribbonNeedGreen": "先把校验错误全部修绿",
+      "ribbonOnlyApprover": "只有批准人可以铸造这份文档",
+      "ribbonRecastNote": "铸造后你又改了内容——已落回草稿。市场包保持在上一次铸造版本，直到你重新批准并铸造。",
+      "ribbonCastRef": "已铸造到市场包。先试跑验证，再签字确认报告。",
+      "ribbonSignStale": "签字之后报告被重跑过——旧签字已不对应当前报告。",
+      "ribbonResealHint": "校验全绿、已签字且批准后未再修改——可重封，让签字报告随包进入市场。",
+      "validation": {
+        "jump": "定位到字段",
+        "jumpMiss": "该字段不在当前界面",
+        "copy": "复制原文",
+        "copied": "已复制"
+      },
+      "kind": {
+        "agent": "岗位",
+        "team": "团队"
+      },
+      "agent": {
+        "description": "一句话描述",
+        "hint": "岗位文档始终是草稿：用下面的发射口产出预设（本机可用）或市场草稿（团队/市场可见）。它不参与批准/铸造/试跑。"
+      }
+    },
+    "errors": {
+      "name_too_long": "名称需非空且不超过 80 字符（中文按双倍宽度计）",
+      "description_too_long": "一句话描述需为文本，不超过 2000 字符",
+      "pack_needs_one_reference": "至少需要一项内容：技能、工具、岗位或 bot",
+      "skills_too_many": "技能条数超出上限",
+      "skill_entry_invalid": "技能条目结构有误",
+      "skill_name_invalid": "技能名只允许字母数字 . _ -，1-64 字符",
+      "skill_name_duplicate": "技能名重复",
+      "skill_description_invalid": "技能描述需为非空文本，不超过 300 字符",
+      "skill_content_invalid": "技能内容需为非空文本",
+      "mcp_too_many": "工具（MCP）引用条数超出上限",
+      "mcp_entry_invalid": "工具（MCP）条目结构有误",
+      "mcp_forbidden_keys": "工具引用只能指向注册表服务器，不得携带端点或命令",
+      "mcp_needs_registry_name": "工具引用需选择注册表服务器",
+      "allowtools_conflict": "allowTools 与 fullSurface 不能同时声明",
+      "fullsurface_false": "fullSurface 声明时须为 true（否则不写该键）",
+      "fullsurface_needs_reason": "fullSurface 须附非空理由",
+      "reason_needs_fullsurface": "只有 fullSurface 引用可以省略工具清单",
+      "allowtools_invalid": "allowTools 需为非空的工具名数组",
+      "agents_too_many": "岗位条数超出上限",
+      "agent_entry_invalid": "岗位条目结构有误",
+      "agent_forbidden_keys": "岗位只承载人设，不得携带工具或服务配置",
+      "agent_id_invalid": "岗位 id 只允许字母数字 . _ -，1-64 字符",
+      "agent_id_duplicate": "岗位 id 重复",
+      "agent_name_invalid": "岗位名需非空，不超过 60 字符",
+      "agent_persona_invalid": "人设需为非空文本，不超过 16384 字符",
+      "credential_secret_literal": "文档不得携带密钥或凭据字面值",
+      "credential_forbidden_key": "该键名不得出现在文档中（疑似端点或凭据）",
+      "datasources_invalid": "数据源格式有误",
+      "datasource_entry_invalid": "数据源条目需为 { ref, note? } 形状",
+      "datasource_ref_invalid": "数据源引用须为服务器名、库逻辑名或知识库集合，禁止端点",
+      "datasource_library_unresolved": "引用的知识库集合不可见或不存在",
+      "datasource_note_invalid": "数据源备注需为文本",
+      "judge_model_unknown": "判据模型不在册：换一个，或清空以跟随部署默认",
+      "v1_format": "平台只接受 v2 格式的文档",
+      "acceptance_entry_invalid": "验收断言条目结构有误",
+      "acceptance_kind_unsupported": "不支持的断言类型",
+      "acceptance_target_invalid": "断言的 target 需为岗位标题",
+      "acceptance_expect_invalid": "escalate-bounded 断言的 expect 需为数字",
+      "acceptance_rubric_required": "llm-judged 断言需填写非空判据",
+      "acceptance_judge_cap": "llm-judged 断言超出预算上限，请合并或删减",
+      "fleet_name_invalid": "集群名需为非空文本",
+      "fleet_missing": "团队文档需要集群结构（fleet 段）",
+      "fleet_members_empty": "团队至少需要一个成员",
+      "fleet_member_needs_ref": "成员需声明 ref",
+      "fleet_member_needs_title": "成员需声明标题",
+      "fleet_member_needs_target": "成员需声明目标（target）",
+      "fleet_target_kind_invalid": "目标类型不在允许集内",
+      "fleet_tool_target_shape": "工具型目标须为 server::tool 形态",
+      "handoff_cycle": "成员父子关系成环",
+      "handoff_unknown_parent": "成员的父级引用了不存在的成员"
+    }
   },
   "overlay": {
     "title": "资源微调",
@@ -3589,7 +3735,9 @@
     "build": {
       "title": "可视化构建器",
       "desc": "用三桶卡（角色 / 技能 / 工具）组合一个智能体，或编一组团队；画布可写、校验实时、发射口直达预设与市场草稿。",
-      "cta": "打开构建画布"
+      "new": "新建文档",
+      "workspace": "进入工作区",
+      "recent": "最近文档"
     },
     "supply": {
       "packs": "智能体素材广场",

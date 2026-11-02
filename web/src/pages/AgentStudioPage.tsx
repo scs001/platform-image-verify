@@ -1,67 +1,53 @@
-// AgentStudioPage — the visual agent builder (add-agent-studio).
+// AgentStudioPage — the unified authoring workspace (add-agent-builder-workspace).
 //
-// Three panes: roster (left) · canvas (center) · preview/inspect (right).
-// The working document is EPHEMERAL CLIENT STATE (design D1): persisting
-// means emitting — a cell-local preset or a pack draft — through the
-// existing endpoints and gates. Compose-time validation rides the EXISTING
-// publish-gate dry-run `POST /api/packs/validate` (design D2, amended
-// 2026-10-31: reuse, zero new server code) — the errors shown are the ones
-// emit will produce, never a client-side rewording. The right pane renders
-// through the shared AgentSpecSheet (add-agent-spec-sheet): surfaces supply
-// data, the bucket layout lives in one place.
+// Three panes: document library (left) · canvas (center) · context inspector
+// (right). Every document is a PERSISTED blueprint record (design D1: the
+// ephemeral working document is retired — autosave rides the existing
+// optimistic-lock PUT; the draft pool is the workspace's own storage and
+// lands no market/cast/cluster artifact before approval, the
+// fleet-blueprint-studio doctrine verbatim). The inspector ALWAYS describes
+// the document open on the canvas (design D4 — the production-screenshot
+// mismatch, center editing the blueprint while the right pane validated an
+// empty ephemeral doc, is structurally impossible here). The lifecycle is one
+// ribbon projecting the server's real state machine (design D3), and the
+// retired team-mode tab / second editor host are gone: one editor, one truth.
 //
-// v1 scope (design D8): single-agent documents; the team tab renders a
-// document's fleet block read-only (FleetGraph, no edge affordances); AI
-// drafting lands with the builder tool-face HTTP bridge (task 4.x).
+// Batch 1 scope: team-shaped documents (kind arrives with batch 2); the
+// skills bucket is not editable here yet (assembleManifest carries none — a
+// bucket that silently drops at cast would be a false green).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, TriangleAlert } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Blocks, PanelLeft, PanelRight, Plus, Sparkles } from "lucide-react";
+import { useChatStore } from "@platform/core";
+import { useAuthStore } from "@/hooks/useAuth";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
+import * as bp from "@/lib/blueprint-api";
+import type { Blueprint, BlueprintContent, BlueprintSummary, TrialReport, ValidationVerdict } from "@/lib/blueprint-api";
 import * as presetsApi from "@/lib/presets-api";
 import * as packsApi from "@/lib/packs-api";
-import type { PackManifestAgent, PackManifestMcp, PackManifestSkill, PackSummary } from "@/lib/packs-api";
+import type { PackManifest, PackManifestAgent, PackManifestMcp, PackManifestSkill } from "@/lib/packs-api";
 import { AgentSpecSheet } from "@/components/packs/AgentSpecSheet";
+import { AgentBucketsEditor } from "@/components/studio/AgentBucketsEditor";
+import { DocumentLibrary, DOC_STATUS_TONE } from "@/components/studio/DocumentLibrary";
+import { LifecycleRibbon } from "@/components/studio/LifecycleRibbon";
+import { ValidationPanel } from "@/components/studio/ValidationPanel";
+import { AiDraftOverlay, type DraftField } from "@/components/studio/AiDraftOverlay";
+import { FleetGraph, type GraphEdge, type GraphMember } from "@/components/FleetGraph";
+import { teamRibbon } from "@/lib/workspace-lifecycle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { FleetGraph, type GraphEdge, type GraphMember } from "@/components/FleetGraph";
+import { StatusPill } from "@/components/ui/status-pill";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
+import { showToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
-import { BlueprintTeamMode } from "@/components/studio/BlueprintTeamMode";
-import { AgentBucketsEditor } from "@/components/studio/AgentBucketsEditor";
 
-// The working document: a pack manifest in the making (client state only).
-interface StudioDoc {
-  name: string;
-  description: string;
-  tags: string[];
-  agents: PackManifestAgent[];
-  skills: PackManifestSkill[];
-  mcpServers: PackManifestMcp[];
-  fleet?: Record<string, unknown>;
-  // Fork lineage (add-agent-fork-lineage D1/D6): a lineage-ONLY provenance
-  // block — no kind (the adopted record's contract is not the fork's to
-  // fabricate); the parent's license rides along when present.
-  provenance?: { forkOf: { packId: string; version: number }; license?: string };
-}
-
-const emptyDoc = (): StudioDoc => ({
-  name: "",
-  description: "",
-  tags: [],
-  agents: [],
-  skills: [],
-  mcpServers: [],
-});
-
-function newAgent(n: number): PackManifestAgent {
-  return { id: `agent-${n}`, name: "", persona: "" };
-}
-
-function SectionCard({ title, children, testid }: { title: string; children: React.ReactNode; testid: string }) {
+function SectionCard({ title, children, testid, anchor }: { title: string; children: React.ReactNode; testid: string; anchor?: string }) {
   return (
-    <div className="rounded-md border border-border p-3" data-testid={testid}>
+    <div className="rounded-md border border-border p-3" data-testid={testid} {...(anchor ? { "data-anchor": anchor } : {})}>
       <h4 className="mb-2 text-xs font-medium text-muted-foreground">{title}</h4>
       {children}
     </div>
@@ -77,482 +63,812 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const trialOf = (b: Blueprint | null): TrialReport | null => {
+  const r = b?.trialReport as { ranAt?: number; signoff?: { by?: string; reportRanAt?: number } } | null | undefined;
+  return r && typeof r.ranAt === "number" ? (r as unknown as TrialReport) : null;
+};
+
 export function AgentStudioPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // fold-blueprint-into-studio: the retired /blueprints route lands here with
-  // from=blueprint — team tab (the blueprint working surface) selected.
-  const fromBlueprint = searchParams.get("from") === "blueprint";
-  const { skills, marketCatalog, load } = useExtensionsStore();
+  const { marketCatalog, load, skills: localSkillsAll } = useExtensionsStore();
+  const modelRoster = useChatStore((s) => s.models);
+  const userEmail = useAuthStore((s) => s.email);
 
-  const [doc, setDoc] = useState<StudioDoc>(emptyDoc);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"agent" | "team">(fromBlueprint ? "team" : "agent");
-  const [verdict, setVerdict] = useState<{ valid: boolean; errors: { error: string; errors?: { error: string; entry?: string }[] }[] } | null>(null);
+  // ── library + open document ───────────────────────────────────────────────
+  const [docs, setDocs] = useState<BlueprintSummary[]>([]);
+  const [doc, setDoc] = useState<Blueprint | null>(null);
+  const [content, setContent] = useState<BlueprintContent | null>(null);
+  const [track, setTrack] = useState<"form" | "json">("form");
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  // ── save / validation / action state ──────────────────────────────────────
+  const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "conflict">("clean");
+  const [conflict, setConflict] = useState<{ serverVersion: number } | null>(null);
+  const [overwriteOpen, setOverwriteOpen] = useState(false);
+  const [verdict, setVerdict] = useState<ValidationVerdict | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const [emitBusy, setEmitBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  // AI drafting (add-studio-ai-drafting): the model's output lands here — a
-  // DRAFT, never the working doc. 「采用」 is the single human gate into the
-  // three buckets; 取消 discards the draft byte-for-byte (zero pollution).
-  const [aiDraft, setAiDraft] = useState<{ open: boolean; text: string; busy: boolean; draft: Record<string, unknown> | null; error: string | null }>({
-    open: false, text: "", busy: false, draft: null, error: null,
+  const [busy, setBusy] = useState<string | null>(null);
+  const [trialRunning, setTrialRunning] = useState(false);
+
+  // ── AI drafting (overlay) ─────────────────────────────────────────────────
+  const [aiOpen, setAiOpen] = useState(false);
+  const [ai, setAi] = useState<{ prompt: string; busy: boolean; draft: Record<string, unknown> | null; error: string | null }>({
+    prompt: "", busy: false, draft: null, error: null,
   });
-  const seq = useRef(0);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── canvas support data (collections for dataSources, judge default) ─────
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
+  const [judgeDefault, setJudgeDefault] = useState<bp.JudgeDefaultProbe | null>(null);
+
+  // ── pane visibility (narrow-screen collapse, spec 窄屏降级) ──────────────
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showInspector, setShowInspector] = useState(true);
+
+  const docRef = useRef<Blueprint | null>(null);
+  const contentRef = useRef<BlueprintContent | null>(null);
+  const savingRef = useRef(false);
+  const queuedRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusNameRef = useRef(false);
+  docRef.current = doc;
+  contentRef.current = content;
+
+  const refreshDocs = useCallback(async () => {
+    try {
+      const { blueprints } = await bp.listBlueprints();
+      setDocs(blueprints ?? []);
+    } catch {
+      /* the library keeps its last good list; a failed refresh is not fatal */
+    }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void refreshDocs();
+    bp.getJudgeDefault().then(setJudgeDefault).catch(() => {});
+    fetch("/api/collections")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`collections ${r.status}`))))
+      .then((body) => setCollections(Array.isArray(body?.collections) ? body.collections : []))
+      .catch(() => setCollections([]));
+  }, [load, refreshDocs]);
 
-  // Fork seeding (add-agent-fork-lineage 2.1): `?fork=<packId>` seeds the
-  // working document from a manifest the CALLER can read (the read API enforces
-  // visibility — an unreadable pack never seeds). Pure client-side seed: no
-  // market/casting/cluster write happens anywhere in this path (spec: fork
-  // seeds a draft, lifecycles untouched).
-  const forkId = searchParams.get("fork");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: seed once per fork id — the i18n `t` must not re-trigger the seed
-  useEffect(() => {
-    if (!forkId) return;
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch(`/api/packs/${encodeURIComponent(forkId)}`);
-        if (!r.ok) throw new Error(t("studio.fork.unavailable", { status: r.status }));
-        const detail = await r.json();
-        const m = detail.manifest ?? {};
-        const parentLicense = (m.provenance as { license?: string } | undefined)?.license;
-        setDoc({
-          name: m.name ?? "",
-          description: m.description ?? "",
-          tags: m.tags ?? [],
-          agents: m.agents ?? [],
-          skills: m.skills ?? [],
-          mcpServers: m.mcpServers ?? [],
-          provenance: {
-            forkOf: { packId: detail.id, version: detail.version },
-            ...(parentLicense ? { license: parentLicense } : {}),
-          },
-        });
-        setSelectedId((m.agents ?? [])[0]?.id ?? null);
-        setNotice({ kind: "ok", text: t("studio.fork.seeded", { name: detail.name ?? detail.id }) });
-      } catch (err) {
-        if (alive) setNotice({ kind: "err", text: (err as Error).message });
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per fork id
-  }, [forkId]);
-
-  const requestAiDraft = async () => {
-    setAiDraft((s) => ({ ...s, busy: true, error: null }));
+  const runValidate = useCallback(async (id: string) => {
+    setVerifying(true);
     try {
-      const r = await fetch("/api/studio/draft", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "agent-doc", prompt: aiDraft.text }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || `draft failed (${r.status})`);
-      setAiDraft((s) => ({ ...s, busy: false, draft: d.draft }));
-    } catch (err) {
-      setAiDraft((s) => ({ ...s, busy: false, error: (err as Error).message }));
+      setVerdict(await bp.validateBlueprint(id));
+    } catch {
+      setVerdict(null);
+    } finally {
+      setVerifying(false);
     }
-  };
-  // 人的采用是唯一写入门（spec studio-ai-drafting）：一次显式点击把草稿字段
-  // 并入工作文档；取消则草稿整体丢弃，工作文档逐字段不变。
-  const adoptAiDraft = () => {
-    const d = aiDraft.draft;
-    if (!d) return;
-    setDoc((doc0) => ({
-      ...doc0,
-      name: typeof d.name === "string" && d.name.trim() ? d.name : doc0.name,
-      description: typeof d.description === "string" && d.description ? d.description : doc0.description,
-      agents: (doc0.agents.length ? doc0.agents : [newAgent(1)]).map((a, i) =>
-        i === 0
-          ? { ...a, name: (typeof d.name === "string" && d.name.trim() ? d.name : a.name) || a.name, persona: typeof d.persona === "string" ? d.persona : a.persona }
-          : a,
-      ),
-      skills: Array.isArray(d.skills) && d.skills.length ? (d.skills as StudioDoc["skills"]) : doc0.skills,
-      mcpServers: Array.isArray(d.mcpServers) && d.mcpServers.length ? (d.mcpServers as StudioDoc["mcpServers"]) : doc0.mcpServers,
-    }));
-    setSelectedId((id) => id ?? "agent-1");
-    setAiDraft({ open: false, text: "", busy: false, draft: null, error: null });
-  };
-  const discardAiDraft = () => setAiDraft({ open: false, text: "", busy: false, draft: null, error: null });
+  }, []);
 
-  const selected = doc.agents.find((a) => a.id === selectedId) ?? null;
+  const applyBlueprint = useCallback((b: Blueprint) => {
+    setDoc(b);
+    setContent(b.content);
+    setJsonText(JSON.stringify(b.content, null, 2));
+    setTrack("form");
+    setJsonError(null);
+  }, []);
 
-  const patchDoc = useCallback((patch: Partial<StudioDoc>) => setDoc((d) => ({ ...d, ...patch })), []);
-  const patchAgent = useCallback(
-    (id: string, patch: Partial<PackManifestAgent>) =>
-      setDoc((d) => ({ ...d, agents: d.agents.map((a) => (a.id === id ? { ...a, ...patch } : a)) })),
-    [],
+  const openDoc = useCallback(
+    async (id: string) => {
+      setBusy("open");
+      try {
+        const { blueprint } = await bp.getBlueprint(id);
+        applyBlueprint(blueprint);
+        dirtyRef.current = false;
+        setSaveState("clean");
+        setConflict(null);
+        setSelectedAgentId((blueprint.content.agents as { id?: string }[] | undefined)?.[0]?.id ?? null);
+        void runValidate(blueprint.id);
+      } catch (err) {
+        showToast({ severity: "error", title: t("studio.workspace.openFailed"), description: (err as Error).message });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [applyBlueprint, runValidate, t],
   );
 
-  // ── Live validation: the publish-gate dry-run, debounced ──────────────────
-  useEffect(() => {
-    if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(async () => {
-      setVerifying(true);
-      try {
-        const r = await fetch("/api/packs/validate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ manifest: doc }),
-        });
-        setVerdict(await r.json());
-      } catch {
-        setVerdict(null);
-      } finally {
-        setVerifying(false);
+  // ── autosave: debounce → optimistic PUT → validate the SAVED content ─────
+  // (the dual-track discipline rides this: JSON edits land through the same
+  // PUT, and validation always speaks of what the server holds — never of an
+  // unsaved local guess.)
+  const saveNow = useCallback(async () => {
+    const d = docRef.current;
+    const c = contentRef.current;
+    if (!d || !c) return;
+    if (savingRef.current) {
+      queuedRef.current = true;
+      return;
+    }
+    savingRef.current = true;
+    setSaveState("saving");
+    try {
+      const { blueprint } = await bp.updateBlueprint(d.id, d.version, c);
+      applyBlueprint(blueprint);
+      dirtyRef.current = false;
+      setSaveState("clean");
+      setConflict(null);
+      await runValidate(blueprint.id);
+      void refreshDocs();
+    } catch (err) {
+      if (err instanceof bp.BlueprintApiError && err.status === 409) {
+        // Server holds a newer version — the user decides, nothing silent.
+        setSaveState("conflict");
+        setConflict({ serverVersion: Number(err.body?.currentVersion ?? 0) });
+        dirtyRef.current = true;
+      } else {
+        setSaveState("dirty");
+        dirtyRef.current = true;
+        showToast({ severity: "error", title: t("studio.workspace.saveFailed"), description: (err as Error).message });
       }
-    }, 600);
+    } finally {
+      savingRef.current = false;
+      if (queuedRef.current) {
+        queuedRef.current = false;
+        void saveNow();
+      }
+    }
+  }, [applyBlueprint, runValidate, refreshDocs, t]);
+
+  useEffect(() => {
+    if (!doc || !content || !dirtyRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => void saveNow(), 1500);
     return () => {
-      if (debounce.current) clearTimeout(debounce.current);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
     };
+  }, [content, doc, saveNow]);
+
+  const patchContent = useCallback((p: Partial<BlueprintContent>) => {
+    dirtyRef.current = true;
+    setSaveState("dirty");
+    setContent((c0) => (c0 ? { ...c0, ...p } : c0));
+  }, []);
+
+  const createDoc = useCallback(async (kind: "agent" | "team" = "team"): Promise<string | null> => {
+    setBusy("create");
+    try {
+      const seed = kind === "agent"
+        ? bp.agentSkeletonContent(t("studio.blueprint.untitledAgent"))
+        : bp.skeletonContent(t("studio.blueprint.untitled"));
+      const { blueprint } = await bp.createBlueprint(seed);
+      await refreshDocs();
+      focusNameRef.current = true;
+      await openDoc(blueprint.id);
+      return blueprint.id;
+    } catch (err) {
+      showToast({ severity: "error", title: t("studio.workspace.createFailed"), description: (err as Error).message });
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }, [openDoc, refreshDocs, t]);
+
+  // Focus the scene name right after a fresh document opens (one click to edit).
+  useEffect(() => {
+    if (doc && focusNameRef.current) {
+      focusNameRef.current = false;
+      document.querySelector<HTMLInputElement>('[data-anchor="boundary.name"]')?.focus();
+    }
   }, [doc]);
 
-  const flatErrors = useMemo(() => {
-    if (!verdict || verdict.valid) return [] as { error: string; entry?: string }[];
-    return verdict.errors.flatMap((e) => (e.errors && e.errors.length ? e.errors : [{ error: e.error }]));
-  }, [verdict]);
-  const docValid = verdict?.valid === true;
+  // ── deep links: ?doc= / ?fork= / ?new= / legacy ?from=blueprint ──────────
+  const docParam = searchParams.get("doc");
+  const forkParam = searchParams.get("fork");
+  const newParam = searchParams.get("new");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seed once per param value
+  useEffect(() => {
+    void (async () => {
+      if (docParam) {
+        await openDoc(docParam);
+        return;
+      }
+      if (forkParam) {
+        try {
+          const r = await fetch(`/api/packs/${encodeURIComponent(forkParam)}`);
+          if (!r.ok) throw new Error(t("studio.fork.unavailable", { status: r.status }));
+          const detail = await r.json();
+          const m = detail.manifest ?? {};
+          const parentLicense = (m.provenance as { license?: string } | undefined)?.license;
+          const seeded: BlueprintContent = {
+            boundary: { name: m.name ?? "", oneLine: m.description ?? "", outOfScope: "" },
+            tags: m.tags ?? [],
+            dataSources: [],
+            fleet: m.fleet ?? { name: m.name ?? "", members: [] },
+            agents: m.agents ?? [],
+            mcpServers: m.mcpServers ?? [],
+            monitoring: {},
+            acceptance: [],
+            board: {},
+            provenance: { forkOf: { packId: detail.id, version: detail.version }, ...(parentLicense ? { license: parentLicense } : {}) },
+          };
+          const { blueprint } = await bp.createBlueprint(seeded);
+          await refreshDocs();
+          await openDoc(blueprint.id);
+          // Replace the seeding URL: a reload must not mint a second draft.
+          navigate(`/studio?doc=${encodeURIComponent(blueprint.id)}`, { replace: true });
+          showToast({ severity: "success", title: t("studio.fork.seeded", { name: detail.name ?? detail.id }) });
+        } catch (err) {
+          // Unreadable seed: honest toast, land on the library — never a blank editor.
+          showToast({ severity: "error", title: t("studio.workspace.forkMiss"), description: (err as Error).message });
+        }
+        return;
+      }
+      if (newParam) {
+        // 4.4: ?new=agent 直铸岗位文档；?new=1 / ?new=team 铸场景文档。
+        const id = await createDoc(newParam === "agent" ? "agent" : "team");
+        if (id) navigate(`/studio?doc=${encodeURIComponent(id)}`, { replace: true });
+      }
+    })();
+  }, [docParam, forkParam, newParam]);
 
-  // ── Emit: preset (per selected agent) / pack draft (whole document) ───────
-  // Both re-validate at emit time (defense in depth) and never mutate the
-  // working document (spec: emit SHALL NOT mutate the working document).
+  // ── lifecycle actions (ribbon) ────────────────────────────────────────────
+  const act = useCallback(
+    async (label: string, fn: () => Promise<void>) => {
+      setBusy(label);
+      try {
+        await fn();
+      } catch (err) {
+        showToast({ severity: "error", title: t("studio.workspace.actionFailed", { action: label }), description: (err as Error).message });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [t],
+  );
+
+  const onRibbonAction = useCallback(
+    (a: "approve" | "cast" | "trial" | "sign" | "unsign" | "reseal") => {
+      if (!doc) return;
+      if (a === "approve") {
+        void act("approve", async () => {
+          const { blueprint } = await bp.approveBlueprint(doc.id, doc.version);
+          applyBlueprint(blueprint);
+          await runValidate(blueprint.id);
+          void refreshDocs();
+          showToast({ severity: "success", title: t("studio.workspace.approved") });
+        });
+      } else if (a === "cast" || a === "reseal") {
+        void act(a, async () => {
+          const { blueprint, cast } = await bp.castBlueprint(doc.id);
+          applyBlueprint(blueprint);
+          void refreshDocs();
+          showToast({ severity: "success", title: t("studio.workspace.castOk", { packId: cast.packId ?? blueprint.castPackId ?? "?", version: cast.version ?? blueprint.castPackVersion ?? "?" }) });
+        });
+      } else if (a === "trial") {
+        setTrialRunning(true);
+        void act("trial", async () => {
+          try {
+            const { report, blueprint } = await bp.runTrial(doc.id);
+            applyBlueprint(blueprint);
+            void refreshDocs();
+            showToast({
+              severity: report.green ? "success" : "error",
+              title: report.green ? t("studio.workspace.trialGreen") : t("studio.workspace.trialRed"),
+            });
+          } finally {
+            setTrialRunning(false);
+          }
+        }).catch(() => setTrialRunning(false));
+      } else if (a === "sign") {
+        void act("sign", async () => {
+          const { blueprint } = await bp.signTrialReport(doc.id);
+          applyBlueprint(blueprint);
+          void refreshDocs();
+          showToast({ severity: "success", title: t("studio.workspace.signed") });
+        });
+      } else if (a === "unsign") {
+        void act("unsign", async () => {
+          const { blueprint } = await bp.unsignTrialReport(doc.id);
+          applyBlueprint(blueprint);
+        });
+      }
+    },
+    [doc, act, applyBlueprint, runValidate, refreshDocs, t],
+  );
+
+  // ── emit ports (never mutate the document; re-validate at emit) ──────────
+  const selectedAgent = useMemo(
+    () => ((content?.agents ?? []) as PackManifestAgent[]).find((a) => a.id === selectedAgentId) ?? null,
+    [content?.agents, selectedAgentId],
+  );
+  // 4.1/4.4: kind 从持久正文读（缺省 team——存量文档零感知）。
+  const docKind: "agent" | "team" = content?.kind === "agent" ? "agent" : "team";
+  const docValid = verdict?.ok === true;
+
   const emitPreset = async () => {
-    if (!selected || !docValid) return;
-    setEmitBusy("preset");
-    setNotice(null);
+    if (!doc || !selectedAgent || !docValid) return;
+    setBusy("emit-preset");
     try {
-      const pre = await fetch("/api/packs/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ manifest: doc }),
-      }).then((r) => r.json());
-      if (!pre.valid) throw new Error(pre.errors?.[0]?.error ?? "invalid");
+      const mcp = (content?.mcpServers ?? []) as PackManifestMcp[];
+      // 4.3: 技能桶从持久文档读（不再恒空丢桶）；岗位只挂文档声明的技能名。
+      const skillNames = ((content?.skills ?? []) as PackManifestSkill[]).map((s) => s.name).filter(Boolean);
       await presetsApi.createCustomPreset({
-        name: selected.name || selected.id,
-        persona: selected.persona,
-        skills: doc.skills.map((s) => s.name),
-        mcpServers: doc.mcpServers.map((m) => m.registryName),
-        mcpTools: Object.fromEntries(
-          doc.mcpServers.filter((m) => m.allowTools?.length).map((m) => [m.registryName, m.allowTools!]),
-        ),
+        name: selectedAgent.name || selectedAgent.id,
+        persona: selectedAgent.persona,
+        skills: skillNames,
+        mcpServers: mcp.map((m) => m.registryName),
+        mcpTools: Object.fromEntries(mcp.filter((m) => m.allowTools?.length).map((m) => [m.registryName, m.allowTools!])),
       });
-      setNotice({ kind: "ok", text: t("studio.emit.presetOk", { name: selected.name || selected.id }) });
+      showToast({ severity: "success", title: t("studio.emit.presetOk", { name: selectedAgent.name || selectedAgent.id }) });
     } catch (err) {
-      setNotice({ kind: "err", text: t("studio.emit.failed", { message: (err as Error).message }) });
+      showToast({ severity: "error", title: t("studio.emit.failed", { message: (err as Error).message }) });
     } finally {
-      setEmitBusy(null);
+      setBusy(null);
     }
   };
 
   const emitDraft = async () => {
-    if (!docValid) return;
-    setEmitBusy("draft");
-    setNotice(null);
+    if (!doc || !docValid) return;
+    setBusy("emit-draft");
     try {
-      const pre = await fetch("/api/packs/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ manifest: doc }),
-      }).then((r) => r.json());
-      if (!pre.valid) throw new Error(pre.errors?.[0]?.error ?? "invalid");
+      const c = content;
+      // The open content shape carries the fork lineage we seeded at ?fork=
+      // time; the packs API validates the provenance record itself.
+      const prov = (c?.provenance as { forkOf?: { packId: string; version: number }; license?: string } | undefined)?.forkOf
+        ? (c?.provenance as PackManifest["provenance"])
+        : undefined;
+      // 4.3: 名字/一句话两 kind 各自的落点（agent 在顶层，team 在 boundary）。
+      const isAgent = (c?.kind ?? "team") === "agent";
       await packsApi.createPackDraft({
-        name: doc.name,
-        description: doc.description,
-        tags: doc.tags,
+        name: (isAgent ? c?.name : c?.boundary?.name) ?? doc.name,
+        description: (isAgent ? c?.description : c?.boundary?.oneLine) ?? doc.oneLine,
+        tags: (c?.tags as string[] | undefined) ?? [],
         entries: {
-          skills: doc.skills,
-          mcpServers: doc.mcpServers,
-          agents: doc.agents,
-          ...(doc.provenance ? { provenance: doc.provenance } : {}),
+          skills: ((c?.skills ?? []) as PackManifestSkill[]),
+          mcpServers: (c?.mcpServers ?? []) as PackManifestMcp[],
+          agents: (c?.agents ?? []) as PackManifestAgent[],
+          ...(prov ? { provenance: prov } : {}),
         },
       });
-      setNotice({ kind: "ok", text: t("studio.emit.draftOk") });
-      // The draft now lives in 我的创作 — take the user there (same IA the
-      // preset-conversion handoff uses).
+      showToast({ severity: "success", title: t("studio.emit.draftOk") });
       navigate("/agents?tab=market");
     } catch (err) {
-      setNotice({ kind: "err", text: t("studio.emit.failed", { message: (err as Error).message }) });
+      showToast({ severity: "error", title: t("studio.emit.failed", { message: (err as Error).message }) });
     } finally {
-      setEmitBusy(null);
+      setBusy(null);
     }
   };
 
-  // ── Buckets: skills / mcp editors ─────────────────────────────────────────
-  const localSkills = useMemo(
-    () => skills.filter((s) => s.source === "database" && s.enabled).sort((a, b) => a.name.localeCompare(b.name)),
-    [skills],
-  );
-  const catalogServers = useMemo(
-    () => marketCatalog?.mcpServers ?? [],
-    [marketCatalog],
-  );
+  // ── AI drafting ───────────────────────────────────────────────────────────
+  const runAiDraft = async () => {
+    setAi((s) => ({ ...s, busy: true, error: null, draft: null }));
+    try {
+      const r = await fetch("/api/studio/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "agent-doc", prompt: ai.prompt }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `draft failed (${r.status})`);
+      setAi((s) => ({ ...s, busy: false, draft: d.draft }));
+    } catch (err) {
+      setAi((s) => ({ ...s, busy: false, error: (err as Error).message }));
+    }
+  };
 
-  // Team tab: the document's fleet block, rendered read-only (v1 — no edge
-  // affordances; the graph reflects the document exactly as it stands).
+  const adoptAi = (picked: Set<DraftField["key"]>, draft: Record<string, unknown>) => {
+    if (!content) return;
+    const next: BlueprintContent = { ...content };
+    const b0 = { ...(content.boundary ?? {}) };
+    if (picked.has("name") && typeof draft.name === "string" && draft.name.trim()) b0.name = draft.name;
+    if (picked.has("description") && typeof draft.description === "string" && draft.description) b0.oneLine = draft.description;
+    next.boundary = b0;
+    const agents = [...((content.agents ?? []) as PackManifestAgent[])];
+    if (picked.has("persona") && typeof draft.persona === "string") {
+      const idx = Math.max(0, agents.findIndex((a) => a.id === selectedAgentId));
+      if (agents[idx]) agents[idx] = { ...agents[idx], persona: draft.persona };
+      else agents.push({ id: "agent-1", name: "", persona: draft.persona });
+      next.agents = agents;
+    }
+    if (picked.has("mcpServers") && Array.isArray(draft.mcpServers) && draft.mcpServers.length) {
+      const incoming = (draft.mcpServers as PackManifestMcp[]).filter((m) => m && typeof m.registryName === "string");
+      const merged = [...((content.mcpServers ?? []) as PackManifestMcp[])];
+      for (const m of incoming) if (!merged.some((x) => x.registryName === m.registryName)) merged.push({ registryName: m.registryName, ...(m.allowTools?.length ? { allowTools: m.allowTools } : {}) });
+      next.mcpServers = merged;
+    }
+    patchContent(next);
+    setAiOpen(false);
+    setAi({ prompt: "", busy: false, draft: null, error: null });
+  };
+
+  // ── ribbon projection ─────────────────────────────────────────────────────
+  const ribbonView = useMemo(() => {
+    if (!doc) return null;
+    const report = trialOf(doc);
+    return teamRibbon(
+      {
+        status: doc.status,
+        approvedBy: doc.approvedBy,
+        castPackId: doc.castPackId,
+        castPackVersion: doc.castPackVersion,
+        trialRanAt: report?.ranAt ?? null,
+        signedBy: report?.signoff?.by ?? null,
+        signedMatches: report?.signoff?.reportRanAt != null && report?.signoff?.reportRanAt === report?.ranAt,
+      },
+      { verdictOk: docValid, userEmail, saving: saveState === "saving" || busy !== null },
+    );
+  }, [doc, docValid, userEmail, saveState, busy]);
+
+  const totalTools = (registryName: string) => marketCatalog?.mcpServers?.find((s) => s.name === registryName)?.toolList?.length ?? null;
+
   const fleetMembers = useMemo<GraphMember[]>(() => {
-    const fleet = doc.fleet as { members?: GraphMember[] } | undefined;
+    const fleet = content?.fleet as { members?: GraphMember[] } | undefined;
     return Array.isArray(fleet?.members) ? fleet!.members : [];
-  }, [doc.fleet]);
+  }, [content?.fleet]);
   const fleetEdges = useMemo<GraphEdge[]>(() => {
-    const fleet = doc.fleet as { orchestration?: { edges?: GraphEdge[] } };
+    const fleet = content?.fleet as { orchestration?: { edges?: GraphEdge[] } } | undefined;
     return Array.isArray(fleet?.orchestration?.edges) ? fleet!.orchestration.edges : [];
-  }, [doc.fleet]);
+  }, [content?.fleet]);
 
-  const totalTools = (registryName: string) =>
-    marketCatalog?.mcpServers?.find((s) => s.name === registryName)?.toolList?.length ?? null;
+  const saveStateLabel =
+    saveState === "clean" ? t("studio.workspace.saved", { version: doc?.version ?? 0 })
+    : saveState === "dirty" ? t("studio.workspace.dirty")
+    : saveState === "saving" ? t("studio.workspace.saving")
+    : t("studio.workspace.conflictShort");
 
   return (
-    <div className="flex h-full flex-col bg-background" data-testid="agent-studio">
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
-        <h2 className="text-sm font-medium">{t("studio.title")}</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            data-testid="studio-new-agent"
-            onClick={() => {
-              seq.current += 1;
-              const a = newAgent(doc.agents.length + seq.current);
-              patchDoc({ agents: [...doc.agents, a] });
-              setSelectedId(a.id);
-              setTab("agent");
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" /> {t("studio.roster.new")}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            data-testid="studio-ai-draft-toggle"
-            onClick={() => setAiDraft((s) => ({ ...s, open: !s.open, draft: null, error: null }))}
-          >
-            {t("studio.aiDraft.title")}
-          </Button>
-        </div>
-      </div>
-
-      {aiDraft.open && (
-        <div className="space-y-2 border-b border-border px-4 py-2" data-testid="studio-ai-draft">
-          <textarea
-            data-testid="studio-ai-draft-prompt"
-            className="w-full rounded-md border border-border bg-background p-2 text-sm"
-            rows={2}
-            value={aiDraft.text}
-            onChange={(e) => setAiDraft((s) => ({ ...s, text: e.target.value }))}
-            placeholder={t("studio.aiDraft.promptLabel")}
-          />
-          <div className="flex items-center gap-2">
-            <Button size="sm" data-testid="studio-ai-draft-run" disabled={aiDraft.busy || !aiDraft.text.trim()} onClick={() => void requestAiDraft()}>
-              {aiDraft.busy ? "…" : t("studio.aiDraft.action")}
-            </Button>
-            {aiDraft.draft && (
-              <>
-                <Button size="sm" variant="outline" data-testid="studio-ai-draft-adopt" onClick={adoptAiDraft}>
-                  {t("studio.aiDraft.adopt")}
-                </Button>
-                <Button size="sm" variant="ghost" data-testid="studio-ai-draft-discard" onClick={discardAiDraft}>
-                  {t("studio.aiDraft.discard")}
-                </Button>
-              </>
-            )}
-            {aiDraft.error && <span className="text-xs text-destructive">{aiDraft.error}</span>}
-          </div>
-        </div>
-      )}
-
-      <div className="flex min-h-0 flex-1">
-        {/* ── Roster ── */}
-        <aside className="w-52 shrink-0 overflow-y-auto border-r border-border p-2" data-testid="studio-roster">
-          <div className="space-y-1">
-            {doc.agents.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                data-testid={`studio-roster-agent-${a.id}`}
-                onClick={() => {
-                  setSelectedId(a.id);
-                  setTab("agent");
-                }}
-                className={cn(
-                  "w-full truncate rounded-md px-2 py-1.5 text-left text-xs",
-                  selectedId === a.id && tab === "agent" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60",
-                )}
-              >
-                {a.name || a.id}
-              </button>
-            ))}
-            {doc.agents.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">{t("studio.roster.empty")}</p>}
-          </div>
-          <div className="mt-3 border-t border-border pt-2">
-            <button
-              type="button"
-              data-testid="studio-tab-team"
-              onClick={() => setTab("team")}
-              className={cn(
-                "w-full rounded-md px-2 py-1.5 text-left text-xs",
-                tab === "team" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60",
-              )}
-            >
-              {t("studio.team.tab")}
-            </button>
-          </div>
-        </aside>
-
-        {/* ── Canvas ── */}
-        <main className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="studio-canvas">
-          {tab === "team" ? (
-            <div className="flex h-full min-h-0 flex-col" data-testid="studio-team-view">
-              {/* Working-document fleet graph (read-only, v1): collapsed by
-                  default — the blueprint working surface is the fold's focus. */}
-              <details className="mx-auto w-full max-w-3xl px-3 pt-3" data-testid="studio-doc-graph">
-                <summary className="cursor-pointer text-xs text-muted-foreground">{t("studio.team.tab")}</summary>
-                <div className="mt-2">
-                  <FleetGraph
-                    members={fleetMembers}
-                    edges={fleetEdges}
-                    kindLabels={{}}
-                    emptyLabel={t("studio.team.empty")}
-                  />
-                  <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.team.readOnlyHint")}</p>
-                </div>
-              </details>
-              <div className="min-h-0 flex-1">
-                <BlueprintTeamMode autoFocusPool={fromBlueprint} />
-              </div>
-            </div>
-          ) : selected ? (
-            <div className="mx-auto max-w-2xl space-y-3">
-              <Field label={t("studio.agent.id")}>
-                <Input value={selected.id} disabled className="font-mono text-xs" data-testid="studio-agent-id" />
-              </Field>
-              <Field label={t("studio.agent.name")}>
-                <Input
-                  value={selected.name}
-                  onChange={(e) => patchAgent(selected.id, { name: e.target.value })}
-                  data-testid="studio-agent-name"
-                />
-              </Field>
-
-              {/* Three buckets via the SHARED editor (fold D1: one editor,
-                  two hosts — the blueprint team mode renders the same one). */}
-              {/* 文档信息（manifest 信封）——fold 换共享编辑器时误删，真机走查逮回归 */}
-              <SectionCard title={t("studio.doc.section")} testid="studio-doc-fields">
-                <div className="space-y-2">
-                  <Field label={t("studio.doc.name")}>
-                    <Input value={doc.name} onChange={(e) => patchDoc({ name: e.target.value })} data-testid="studio-doc-name" />
-                  </Field>
-                  <Field label={t("studio.doc.description")}>
-                    <Textarea
-                      rows={2}
-                      value={doc.description}
-                      onChange={(e) => patchDoc({ description: e.target.value })}
-                      data-testid="studio-doc-description"
-                    />
-                  </Field>
-                  <Field label={t("studio.doc.tags")}>
-                    <Input
-                      value={doc.tags.join(", ")}
-                      onChange={(e) => patchDoc({ tags: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })}
-                      data-testid="studio-doc-tags"
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-
-              <AgentBucketsEditor
-                value={doc}
-                localSkills={localSkills}
-                catalogServers={catalogServers}
-                onChange={(next: { agents: typeof doc.agents; skills?: typeof doc.skills; mcpServers: typeof doc.mcpServers }) => setDoc((d) => ({ ...d, ...next }))}
-                testIdPrefix="studio-bucket"
+    <div className="relative flex h-full flex-col bg-background" data-testid="agent-studio">
+      {/* ── Header: document identity + save state ── */}
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <Link to="/agents?tab=build" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="ws-back">
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("studio.workspace.back")}
+        </Link>
+        <h2 className="text-sm font-medium">{t("studio.workspace.title")}</h2>
+        <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted lg:hidden" aria-label={t("studio.workspace.toggleLibrary")} data-testid="ws-toggle-library" onClick={() => setShowLibrary((v) => !v)}>
+          <PanelLeft className="h-4 w-4" />
+        </button>
+        {doc && (
+          <>
+            <div className="mx-2 flex min-w-0 flex-1 items-center gap-2">
+              <Input
+                value={docKind === "agent" ? (content?.name ?? "") : (content?.boundary?.name ?? "")}
+                onChange={(e) =>
+                  docKind === "agent"
+                    ? patchContent({ name: e.target.value })
+                    : patchContent({ boundary: { ...content?.boundary, name: e.target.value } })
+                }
+                className="h-7 max-w-64 border-transparent bg-transparent px-1 text-sm font-medium hover:border-border focus-visible:border-border"
+                placeholder={docKind === "agent" ? t("studio.blueprint.untitledAgent") : t("studio.blueprint.untitled")}
+                data-testid="ws-doc-name"
+                data-anchor="boundary.name"
               />
-            </div>
-          ) : (
-            <p className="p-8 text-center text-sm text-muted-foreground" data-testid="studio-empty">
-              {t("studio.canvas.empty")}
-            </p>
-          )}
-        </main>
-
-        {/* ── Preview / validate / emit ── */}
-        <aside className="w-80 shrink-0 overflow-y-auto border-l border-border p-3" data-testid="studio-inspect">
-          <AgentSpecSheet
-            variant="full"
-            testIdPrefix="studio-spec"
-            lineage={doc.provenance?.forkOf ?? null}
-            roles={doc.agents.map((a) => ({ id: a.id, name: a.name, persona: a.persona, serving: a.serving != null }))}
-            skills={doc.skills}
-            mcp={doc.mcpServers.map((m) => ({ ...m, totalTools: totalTools(m.registryName) }))}
-          />
-
-          <div className="mt-4" data-testid="studio-verdict">
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              {verifying ? (
-                <span className="text-muted-foreground">{t("studio.validate.running")}</span>
-              ) : docValid ? (
-                <span className="text-emerald-600" data-testid="studio-verdict-ok">{t("studio.validate.ok")}</span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-destructive" data-testid="studio-verdict-bad">
-                  <TriangleAlert className="h-3.5 w-3.5" /> {t("studio.validate.bad", { n: flatErrors.length })}
+              <StatusPill status={DOC_STATUS_TONE[doc.status]} label={t(`studio.blueprint.status.${doc.status}`)} data-testid="ws-doc-status" />
+              <span className="shrink-0 rounded-full border border-border px-1.5 py-0 text-[10px] text-muted-foreground" data-testid="ws-doc-kind">
+                {t(`studio.workspace.kind.${docKind}`)}
+              </span>
+              {doc.castPackId && (
+                <span className="truncate text-[11px] text-muted-foreground" data-testid="ws-cast-ref">
+                  {t("studio.blueprint.castRef", { packId: doc.castPackId, version: doc.castPackVersion ?? "?" })}
                 </span>
               )}
             </div>
-            <ul className="mt-1 space-y-1">
-              {flatErrors.map((e, i) => (
-                <li
-                  /* biome-ignore lint/suspicious/noArrayIndexKey: error rows are a flat list of plain strings, never reordered */
-                  key={i}
-                  className="whitespace-pre-line rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs"
-                  data-testid="studio-verdict-error"
-                >
-                  {e.entry ? <span className="mr-1 font-mono text-[11px] text-destructive">{e.entry}</span> : null}
-                  {e.error}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <Button
-              size="sm"
-              className="w-full"
-              disabled={!docValid || !selected || emitBusy !== null}
-              onClick={emitPreset}
-              data-testid="studio-emit-preset"
-            >
-              {emitBusy === "preset" ? t("studio.emit.busy") : t("studio.emit.preset")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              disabled={!docValid || doc.agents.length === 0 || emitBusy !== null}
-              onClick={emitDraft}
-              data-testid="studio-emit-draft"
-            >
-              {emitBusy === "draft" ? t("studio.emit.busy") : t("studio.emit.draft")}
-            </Button>
-            {notice && (
-              <p className={cn("text-xs", notice.kind === "ok" ? "text-emerald-600" : "text-destructive")} data-testid="studio-notice">
-                {notice.text}
-              </p>
-            )}
-          </div>
-        </aside>
+            <span className="text-[11px] text-muted-foreground" data-testid="ws-save-state">{saveStateLabel}</span>
+          </>
+        )}
+        {!doc && <div className="flex-1" />}
+        <Button size="sm" variant="outline" onClick={() => void createDoc("agent")} disabled={busy !== null} data-testid="ws-new-agent-entry">
+          <Plus className="h-3.5 w-3.5" /> {t("studio.workspace.library.newAgent")}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setAiOpen((v) => !v)} data-testid="ws-ai-toggle">
+          <Sparkles className="h-3.5 w-3.5" /> {t("studio.aiDraft.title")}
+        </Button>
+        <button type="button" className="rounded p-1 text-muted-foreground hover:bg-muted xl:hidden" aria-label={t("studio.workspace.toggleInspector")} data-testid="ws-toggle-inspector" onClick={() => setShowInspector((v) => !v)}>
+          <PanelRight className="h-4 w-4" />
+        </button>
       </div>
+
+      {/* ── Conflict banner (409): the user decides, nothing silent ── */}
+      {conflict && doc && (
+        <div className="flex items-center justify-between gap-2 border-b border-destructive/40 bg-destructive/5 px-3 py-2 text-xs" data-testid="ws-conflict-banner">
+          <span className="min-w-0 flex-1 text-destructive">{t("studio.workspace.conflict", { server: conflict.serverVersion, local: doc.version })}</span>
+          <Button size="sm" variant="outline" onClick={() => void openDoc(doc.id)} data-testid="ws-conflict-reload">
+            {t("studio.workspace.conflictReload")}
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => setOverwriteOpen(true)} data-testid="ws-conflict-overwrite">
+            {t("studio.workspace.conflictOverwrite")}
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={overwriteOpen}
+        onOpenChange={setOverwriteOpen}
+        variant="danger"
+        title={t("studio.workspace.conflictOverwrite")}
+        description={t("studio.workspace.conflictOverwriteConfirm")}
+        confirmLabel={t("studio.workspace.conflictOverwrite")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => {
+          void (async () => {
+            if (!doc || !content) return;
+            try {
+              const { blueprint } = await bp.getBlueprint(doc.id);
+              await bp.updateBlueprint(doc.id, blueprint.version, content);
+              await openDoc(doc.id);
+              showToast({ severity: "success", title: t("studio.workspace.overwriteDone") });
+            } catch (err) {
+              showToast({ severity: "error", title: t("studio.workspace.saveFailed"), description: (err as Error).message });
+            }
+          })();
+        }}
+      />
+
+      <div className="flex min-h-0 flex-1">
+        {showLibrary && <DocumentLibrary docs={docs} activeId={doc?.id ?? null} onOpen={(id) => void openDoc(id)} onNew={(kind) => void createDoc(kind)} busy={busy !== null} />}
+
+        {/* ── Canvas ── */}
+        <main className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="ws-canvas">
+          {!doc || !content ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center" data-testid="ws-canvas-empty">
+              <Blocks className="h-8 w-8 text-muted-foreground" />
+              <p className="max-w-md text-sm text-muted-foreground">{t("studio.workspace.canvas.empty")}</p>
+              <Button size="sm" onClick={() => void createDoc("agent")} disabled={busy !== null} data-testid="ws-canvas-new">
+                <Plus className="h-3.5 w-3.5" /> {t("studio.blueprint.new")}
+              </Button>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-2xl space-y-3">
+              {/* form | json dual track — both land through the same PUT+chain */}
+              <div className="flex gap-2 text-xs">
+                {(["form", "json"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => {
+                      if (k === "json") setJsonText(JSON.stringify(content, null, 2));
+                      setTrack(k);
+                    }}
+                    className={cn("rounded-t-md px-3 py-1", track === k ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60")}
+                    data-testid={`ws-track-${k}`}
+                  >
+                    {t(`studio.blueprint.track.${k}`)}
+                  </button>
+                ))}
+              </div>
+
+              {track === "form" ? (
+                <>
+                  <SectionCard title={t("studio.workspace.section.envelope")} testid="ws-envelope">
+                    <div className="space-y-2">
+                      <div data-anchor="boundary.oneLine">
+                        <Field label={docKind === "agent" ? t("studio.workspace.agent.description") : t("studio.blueprint.boundary.oneLine")}>
+                          <Input
+                            value={docKind === "agent" ? (content.description ?? "") : (content.boundary?.oneLine ?? "")}
+                            onChange={(e) =>
+                              docKind === "agent"
+                                ? patchContent({ description: e.target.value })
+                                : patchContent({ boundary: { ...content.boundary, oneLine: e.target.value } })
+                            }
+                            data-testid="ws-field-oneline"
+                          />
+                        </Field>
+                      </div>
+                      {docKind === "team" && (
+                        <div data-anchor="boundary.outOfScope">
+                          <Field label={t("studio.blueprint.boundary.outOfScope")}>
+                            <Textarea rows={2} value={content.boundary?.outOfScope ?? ""} onChange={(e) => patchContent({ boundary: { ...content.boundary, outOfScope: e.target.value } })} data-testid="ws-field-oos" />
+                          </Field>
+                        </div>
+                      )}
+                      <div data-anchor="tags">
+                        <Field label={t("studio.doc.tags")}>
+                          <Input
+                            value={((content.tags as string[] | undefined) ?? []).join(", ")}
+                            onChange={(e) => patchContent({ tags: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })}
+                            data-testid="ws-field-tags"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  </SectionCard>
+
+                  <AgentBucketsEditor
+                    value={{
+                      agents: (content.agents ?? []) as PackManifestAgent[],
+                      skills: (content.skills ?? []) as PackManifestSkill[],
+                      mcpServers: (content.mcpServers ?? []) as PackManifestMcp[],
+                    }}
+                    showSkills
+                    localSkills={localSkillsAll.filter((s) => s.source === "database" && s.enabled)}
+                    catalogServers={marketCatalog?.mcpServers ?? []}
+                    onChange={({ agents, skills, mcpServers }) => patchContent({ agents, skills, mcpServers })}
+                    testIdPrefix="ws-bucket"
+                    selectedAgentId={selectedAgentId}
+                    onSelectAgent={setSelectedAgentId}
+                  />
+
+                  {docKind === "team" && (
+                    <>
+                      <SectionCard title={t("studio.team.tab")} testid="ws-graph" anchor="fleet">
+                        <FleetGraph members={fleetMembers} edges={fleetEdges} kindLabels={{}} emptyLabel={t("studio.team.empty")} />
+                        <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.team.readOnlyHint")}</p>
+                      </SectionCard>
+
+                      <SectionCard title={t("studio.blueprint.judge")} testid="ws-judge" anchor="judgeModel">
+                        <select
+                          className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                          value={content.judgeModel ?? ""}
+                          onChange={(e) => patchContent({ judgeModel: e.target.value || undefined })}
+                          data-testid="ws-field-judge"
+                        >
+                          <option value="">
+                            {judgeDefault?.resolved
+                              ? t("studio.blueprint.judgeFollows", { model: judgeDefault.resolved.model })
+                              : t("studio.blueprint.judgeFollowDefault")}
+                          </option>
+                          {(modelRoster ?? []).map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name || m.id}
+                            </option>
+                          ))}
+                        </select>
+                      </SectionCard>
+                    </>
+                  )}
+
+                  {docKind === "team" && (
+                    <SectionCard title={t("studio.blueprint.sources")} testid="ws-sources" anchor="dataSources">
+                    <div className="space-y-1">
+                      {(content.dataSources ?? []).map((s, i) => (
+                        /* biome-ignore lint/suspicious/noArrayIndexKey: positional rows of an ordered ref list */
+                        <div key={i} className="flex items-center gap-2">
+                          <select
+                            className="max-w-44 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                            value={s.ref.startsWith("library:") ? s.ref : ""}
+                            onChange={(e) => {
+                              if (!e.target.value) return;
+                              const sources = [...(content.dataSources ?? [])];
+                              sources[i] = { ref: e.target.value };
+                              patchContent({ dataSources: sources });
+                            }}
+                            data-testid={`ws-source-${i}`}
+                          >
+                            <option value="">{s.ref || t("studio.blueprint.pickCollection")}</option>
+                            {collections.map((c) => (
+                              <option key={c.id} value={`library:${c.id}`}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            aria-label={t("studio.remove")}
+                            onClick={() => patchContent({ dataSources: (content.dataSources ?? []).filter((_, j) => j !== i) })}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ))}
+                      <select
+                        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                        value=""
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          patchContent({ dataSources: [...(content.dataSources ?? []), { ref: e.target.value }] });
+                        }}
+                        data-testid="ws-source-add"
+                      >
+                        <option value="">{t("studio.blueprint.pickCollection")}</option>
+                        {collections.map((c) => (
+                          <option key={c.id} value={`library:${c.id}`}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    </SectionCard>
+                  )}
+
+                  <p className="text-[11px] text-muted-foreground">{t("studio.blueprint.jsonHint")}</p>
+                </>
+              ) : (
+                <div>
+                  <Textarea
+                    rows={24}
+                    value={jsonText}
+                    onChange={(e) => setJsonText(e.target.value)}
+                    className="font-mono text-xs"
+                    data-testid="ws-json"
+                  />
+                  {jsonError && <p className="mt-1 text-xs text-destructive">{jsonError}</p>}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    data-testid="ws-json-apply"
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(jsonText) as BlueprintContent;
+                        setJsonError(null);
+                        setTrack("form");
+                        patchContent(parsed);
+                      } catch (err) {
+                        setJsonError((err as Error).message);
+                      }
+                    }}
+                  >
+                    {t("studio.blueprint.jsonApply")}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+
+        {/* ── Inspector: ribbon / spec sheet / validation / emit ── */}
+        {showInspector && (
+          <aside className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-3" data-testid="ws-inspector">
+            {doc && docKind === "team" && ribbonView && <LifecycleRibbon view={ribbonView} onAction={onRibbonAction} busy={busy !== null} trialRunning={trialRunning} />}
+            {doc && docKind === "agent" && (
+              // 4.4: agent 文档没有团队档位——始终草稿 + 两发射口常驻（服务端
+              // approve/cast 409 同源），此处只如实说明，不画假进度。
+              <div className="rounded-md border border-border p-3" data-testid="ws-agent-draft-card">
+                <div className="flex items-center gap-2">
+                  <StatusPill status={DOC_STATUS_TONE[doc.status]} label={t(`studio.blueprint.status.${doc.status}`)} />
+                  <span className="text-[10px] text-muted-foreground">{t("studio.workspace.kind.agent")}</span>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.workspace.agent.hint")}</p>
+              </div>
+            )}
+            {doc && (
+              <>
+                <AgentSpecSheet
+                  variant="full"
+                  testIdPrefix="ws-spec"
+                  lineage={((content?.provenance as { forkOf?: { packId: string; version: number } } | undefined)?.forkOf) ?? null}
+                  roles={((content?.agents ?? []) as PackManifestAgent[]).map((a) => ({ id: a.id, name: a.name, persona: a.persona, serving: a.serving != null }))}
+                  skills={null}
+                  mcp={((content?.mcpServers ?? []) as PackManifestMcp[]).map((m) => ({ ...m, totalTools: totalTools(m.registryName) }))}
+                />
+                <ValidationPanel verdict={verdict} verifying={verifying} />
+                <div className="space-y-2 border-t border-border pt-3" data-testid="ws-emit">
+                  <p className="text-xs font-medium text-muted-foreground">{t("studio.workspace.emit.section")}</p>
+                  <Tooltip content={docValid ? "" : t("studio.workspace.emit.needGreen")}>
+                    <span className="block">
+                      <Button size="sm" className="w-full" disabled={!docValid || !selectedAgent || busy !== null} onClick={() => void emitPreset()} data-testid="ws-emit-preset">
+                        {busy === "emit-preset" ? t("studio.emit.busy") : t("studio.emit.preset")}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip content={docValid ? "" : t("studio.workspace.emit.needGreen")}>
+                    <span className="block">
+                      <Button size="sm" variant="outline" className="w-full" disabled={!docValid || !(content?.agents?.length) || busy !== null} onClick={() => void emitDraft()} data-testid="ws-emit-draft">
+                        {busy === "emit-draft" ? t("studio.emit.busy") : t("studio.emit.draft")}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </div>
+              </>
+            )}
+          </aside>
+        )}
+      </div>
+
+      {/* ── AI drafting overlay (right-docked; the canvas never squeezes) ── */}
+      {aiOpen && (
+        <AiDraftOverlay
+          prompt={ai.prompt}
+          onPrompt={(v) => setAi((s) => ({ ...s, prompt: v }))}
+          busy={ai.busy}
+          error={ai.error}
+          draft={ai.draft}
+          onRun={() => void runAiDraft()}
+          onClose={() => {
+            setAiOpen(false);
+            setAi({ prompt: "", busy: false, draft: null, error: null });
+          }}
+          onAdopt={adoptAi}
+        />
+      )}
     </div>
   );
 }
-
-// Keep PackSummary referenced for the draft emit return typing used by
-// PacksPage's handoff (the studio lands users on the market's 我的 view).
-export type { PackSummary };

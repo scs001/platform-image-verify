@@ -2150,7 +2150,7 @@
       "pick": "ブループリント下書きを開く…",
       "new": "新規ブループリント",
       "untitled": "無題ブループリント",
-      "empty": "プールから下書きを開くか新規作成 — ブループリントのライフサイクル（検証→試験→承認→鋳造）と下書きプールはそのままです",
+      "empty": "ライブラリからドキュメントを開くか新規作成してください — ワークスペースはサーバーの実順（検証→承認→キャスト→試走→署名→再封）に従います。",
       "status": {
         "draft": "下書き",
         "approved": "承認済",
@@ -2180,7 +2180,8 @@
       "castRef": "鋳造済：pack {{packId}} v{{version}}",
       "sign": "試験レポートに署名（最終キー）",
       "unsign": "署名を取消",
-      "savedValid": "保存しました、検証グリーン"
+      "savedValid": "保存しました、検証グリーン",
+      "untitledAgent": "無題のエージェント"
     },
     "validate": {
       "running": "検証中…",
@@ -2195,7 +2196,152 @@
       "draftOk": "下書きを作成しました —「自分の作成物」で公開へ進めます",
       "failed": "発射に失敗：{{message}}"
     },
-    "remove": "削除"
+    "remove": "削除",
+    "workspace": {
+      "title": "エージェントワークスペース",
+      "back": "ビルダーに戻る",
+      "dirty": "未保存の変更",
+      "saving": "保存中…",
+      "saved": "保存済み v{{version}}",
+      "saveFailed": "保存に失敗",
+      "overwriteDone": "あなたの版を保存しました",
+      "conflict": "このドキュメントは別の場所で変更されました（サーバー v{{server}}、ローカル v{{local}}）。続行方法を選択してください — それまで編集内容は保持されます。",
+      "conflictShort": "バージョンの競合",
+      "conflictReload": "最新を読み込む",
+      "conflictOverwrite": "自分の版を使う",
+      "conflictOverwriteConfirm": "サーバーの新しい版をあなたの編集で上書きします。サーバーがすべて再検証し、他の版はドキュメント記録に残ります。",
+      "actionFailed": "操作に失敗: {{action}}",
+      "createFailed": "ドキュメントを作成できません",
+      "openFailed": "ドキュメントを開けません",
+      "forkMiss": "コピー元ドキュメントを読み取れないため、ライブラリを表示しています",
+      "approved": "承認済み",
+      "castOk": "キャスト済み：パック {{packId}} v{{version}}",
+      "signed": "試走レポートに署名しました",
+      "trialGreen": "試走合格 — アサーションすべて緑",
+      "trialRed": "試走は赤いアサーションありで終了",
+      "toggleLibrary": "ドキュメントライブラリの表示切替",
+      "toggleInspector": "インスペクタの表示切替",
+      "section": {
+        "envelope": "外枠"
+      },
+      "canvas": {
+        "empty": "ドキュメント未選択 — ライブラリから選ぶか新規作成してください。"
+      },
+      "emit": {
+        "section": "出力先",
+        "needGreen": "検証が緑になるまで出力できません"
+      },
+      "draft": {
+        "adopt": "採用",
+        "adoptAll": "すべて採用",
+        "adoptPicked": "選択したものを採用",
+        "skip": "スキップ",
+        "close": "閉じる",
+        "inert": "何も書き込まれていません — ドキュメントは無変更です。",
+        "field": {
+          "name": "名称",
+          "description": "説明",
+          "persona": "ペルソナ",
+          "mcpServers": "ツール（MCP）",
+          "skills": "スキル"
+        },
+        "skillsNote": "AI 起草のスキルはまだ直接採用できません — 文書のスキル欄で編集してください。"
+      },
+      "library": {
+        "search": "ドキュメント検索",
+        "empty": "まだドキュメントがありません。",
+        "guideBlank": "新規ドキュメント — 白紙で作成し、入力に応じて自動保存されます。",
+        "guideAi": "AI ドラフト — エージェントを説明し、フィールドごとにレビューして採用。",
+        "guideMarket": "マーケットから複製 — インストール済みパックを新ドキュメントに。",
+        "newAgent": "新規エージェント",
+        "newTeam": "新規チーム"
+      },
+      "ribbon": {
+        "stage": {
+          "draft": "下書き",
+          "approve": "承認",
+          "cast": "キャスト",
+          "trial": "試走",
+          "sign": "署名",
+          "reseal": "再封"
+        },
+        "reseal": "パックを再封",
+        "sign": "試走レポートに署名",
+        "trialRunning": "試走中…"
+      },
+      "ribbonNeedGreen": "まず検証エラーをすべて解消してください",
+      "ribbonOnlyApprover": "承認者本人だけがこのドキュメントをキャストできます",
+      "ribbonRecastNote": "キャスト後に編集したため下書きに戻りました。マーケットのパックは再び承認・キャストするまで前回のキャスト版のままです。",
+      "ribbonCastRef": "マーケットのパックへキャスト済み。試走を実行し、レポートに署名してください。",
+      "ribbonSignStale": "署名後にレポートが再実行されました — 古い署名は現在のレポートと一致しません。",
+      "ribbonResealHint": "検証緑・署名済み・承認後に無変更 — 再封すると署名済みレポートがパックに載ります。",
+      "validation": {
+        "jump": "フィールドへ移動",
+        "jumpMiss": "そのフィールドはこの画面にありません",
+        "copy": "エラーをコピー",
+        "copied": "コピーしました"
+      },
+      "kind": {
+        "agent": "エージェント",
+        "team": "チーム"
+      },
+      "agent": {
+        "description": "一行説明",
+        "hint": "エージェント文書は常に下書きです：下の出力先からプリセット（この端末で利用）またはマーケット下書きを作成します。承認/キャスト/試走はありません。"
+      }
+    },
+    "errors": {
+      "name_too_long": "名前は空でなく 80 文字以内（全角は 2 文字分）",
+      "description_too_long": "説明は 2000 文字以内のテキストにしてください",
+      "pack_needs_one_reference": "スキル・ツール・エージェント・bot のいずれか 1 つ以上が必要です",
+      "skills_too_many": "スキルが多すぎます",
+      "skill_entry_invalid": "スキル項目の形式が不正です",
+      "skill_name_invalid": "スキル名は英数字と . _ - のみ（1-64 文字）",
+      "skill_name_duplicate": "スキル名が重複しています",
+      "skill_description_invalid": "スキル説明は 300 文字以内の空でないテキストにしてください",
+      "skill_content_invalid": "スキル内容は空でないテキストにしてください",
+      "mcp_too_many": "ツール（MCP）参照が多すぎます",
+      "mcp_entry_invalid": "ツール（MCP）項目の形式が不正です",
+      "mcp_forbidden_keys": "参照はレジストリのサーバー名のみ可（エンドポイント・コマンド不可）",
+      "mcp_needs_registry_name": "ツール参照にはレジストリのサーバーを選択してください",
+      "allowtools_conflict": "allowTools と fullSurface は同時に指定できません",
+      "fullsurface_false": "fullSurface は true のみ（不要ならキーを省略）",
+      "fullsurface_needs_reason": "fullSurface には空でない理由が必要です",
+      "reason_needs_fullsurface": "ツール一覧を省略できるのは fullSurface 参照のみです",
+      "allowtools_invalid": "allowTools は空でないツール名の配列にしてください",
+      "agents_too_many": "エージェントが多すぎます",
+      "agent_entry_invalid": "エージェント項目の形式が不正です",
+      "agent_forbidden_keys": "エージェントはペルソナのみ（ツール設定などは不可）",
+      "agent_id_invalid": "エージェント id は英数字と . _ - のみ（1-64 文字）",
+      "agent_id_duplicate": "エージェント id が重複しています",
+      "agent_name_invalid": "エージェント名は 60 文字以内の空でないテキストにしてください",
+      "agent_persona_invalid": "ペルソナは 16384 文字以内の空でないテキストにしてください",
+      "credential_secret_literal": "ドキュメントに鍵や資格情報を含められません",
+      "credential_forbidden_key": "このキーはドキュメントに含められません（エンドポイント/資格情報の疑い）",
+      "datasources_invalid": "データソースの形式が不正です",
+      "datasource_entry_invalid": "データソースは { ref, note? } 形式にしてください",
+      "datasource_ref_invalid": "参照はサーバー名・ライブラリ名・コレクションのみ（エンドポイント不可）",
+      "datasource_library_unresolved": "参照したナレッジコレクションが見つかりません",
+      "datasource_note_invalid": "データソースのメモはテキストにしてください",
+      "judge_model_unknown": "判定モデルが名簿にありません — 選択し直すか空欄にしてください",
+      "v1_format": "v2 形式のドキュメントのみ受け付けます",
+      "acceptance_entry_invalid": "受け入れ条件の形式が不正です",
+      "acceptance_kind_unsupported": "未対応の条件タイプです",
+      "acceptance_target_invalid": "条件の target はエージェントのタイトルにしてください",
+      "acceptance_expect_invalid": "escalate-bounded には数値の expect が必要です",
+      "acceptance_rubric_required": "llm-judged には空でない判定基準が必要です",
+      "acceptance_judge_cap": "llm-judged が上限を超えています — 統合か削除をしてください",
+      "fleet_name_invalid": "クラスタ名は空でないテキストにしてください",
+      "fleet_missing": "チーム文書にはクラスタ構造（fleet セクション）が必要です",
+      "fleet_members_empty": "チームには 1 名以上のメンバーが必要です",
+      "fleet_member_needs_ref": "メンバーには ref が必要です",
+      "fleet_member_needs_title": "メンバーにはタイトルが必要です",
+      "fleet_member_needs_target": "メンバーには target が必要です",
+      "fleet_target_kind_invalid": "target.kind が許可されていません",
+      "fleet_tool_target_shape": "ツール型 target は server::tool 形式にしてください",
+      "handoff_cycle": "メンバーの親子関係が循環しています",
+      "handoff_unknown_parent": "メンバーの親が存在しません"
+    }
   },
   "overlay": {
     "title": "リソース調整",
@@ -3589,7 +3735,9 @@
     "build": {
       "title": "ビジュアルビルダー",
       "desc": "三つのバケット（persona / スキル / ツール）でエージェントを組み立て、チームも編成。キャンバスは編集可能で検証はリアルタイム、プレセットや市場ドラフトへ直接出力できます。",
-      "cta": "キャンバスを開く"
+      "new": "新規ドキュメント",
+      "workspace": "ワークスペースへ",
+      "recent": "最近のドキュメント"
     },
     "supply": {
       "packs": "エージェント素材広場",

@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-// ── Agent Studio source-contract tests (add-agent-studio 2.x/3.x/5.x) ────────
+// ── Agent workspace source-contract tests (add-agent-studio, re-pinned by
+//    add-agent-builder-workspace batch 1) ────────────────────────────────────
 //
-// Pins the studio's structural contract by source assertion (repo convention:
-// node --test + source reads; behavior rides e2e/walkthrough):
-//   1. compose-time validation rides the EXISTING publish-gate dry-run
-//      endpoint — no client-side validator, no lib import in web code
-//   2. emit re-validates before writing (defense in depth, per spec)
-//   3. the right pane renders through the SHARED AgentSpecSheet; the team tab
-//      through the read-only FleetGraph (no edge authoring affordances)
-//   4. MCP references come from the catalog picker only — no free-form
-//      registryName text entry anywhere in the page
-//   5. the working document is client state (no studio store import)
-//   6. route + entry point wired (App.tsx /studio, AgentsPage link)
-//   7. i18n: studio.* chrome keys exist in all five locales
+// Pins the workspace's structural contract by source assertion (repo
+// convention: node --test + source reads; behavior rides e2e/walkthrough):
+//   1. validation rides the blueprint lifecycle's EXISTING publish-gate chain
+//      (POST /api/blueprints/:id/validate server-side) — no client validator
+//   2. autosave = debounced optimistic PUT; a 409 never overwrites silently
+//   3. the inspector follows the canvas: validation/spec sheet render ONLY for
+//      the open document (the production-screenshot mismatch is structurally
+//      impossible)
+//   4. the ribbon is a pure projection (teamRibbon) — the page never gates a
+//      lifecycle action on its own reading of status
+//   5. MCP references come from the catalog picker only (shared editor)
+//   6. the working document is PERSISTED (blueprint record); the ephemeral
+//      StudioDoc and the second editor host (BlueprintTeamMode) are retired
+//   7. routes wired: /studio + /blueprints redirect + hub entry/board
+//   8. i18n: studio.* chrome + the whole studio.workspace subtree in all five
 //
 //   node --test scripts/test-agent-studio.mjs
 
@@ -29,55 +33,123 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const page = read("web/src/pages/AgentStudioPage.tsx");
 const app = read("web/src/App.tsx");
 const agentsPage = read("web/src/pages/AgentsPage.tsx");
+const bucketsEditor = read("web/src/components/studio/AgentBucketsEditor.tsx");
+const ribbon = read("web/src/components/studio/LifecycleRibbon.tsx");
+const lifecycleLib = read("web/src/lib/workspace-lifecycle.ts");
 
-test("compose-time validation is the existing publish-gate dry-run, never a client validator", () => {
-  assert.match(page, /\/api\/packs\/validate/, "the studio calls POST /api/packs/validate");
-  assert.ok(!page.includes("lib/pack-manifest"), "no lib import in web code");
+test("validation is the existing publish-gate chain via the blueprint validate endpoint, never a client validator", () => {
+  assert.match(page, /validateBlueprint/, "the workspace calls POST /api/blueprints/:id/validate");
+  assert.ok(!page.includes("lib/pack-manifest"), "no validator lib import in web code");
   assert.ok(!/validatePackManifest/.test(page), "no validator re-implementation");
-  assert.match(page, /debounce|setTimeout/, "validation is debounced");
+  assert.ok(!/\/api\/packs\/validate/.test(page), "no second validate face from the page");
 });
 
-test("emit re-validates before writing", () => {
-  for (const [fn, write] of [["emitPreset", "createCustomPreset"], ["emitDraft", "createPackDraft"]]) {
-    const start = page.indexOf(`const ${fn} = async`);
-    const end = page.indexOf("};", start);
-    const body = page.slice(start, end);
-    assert.match(body, /\/api\/packs\/validate/, `${fn}: pre-emit validation call present`);
-    assert.ok(body.indexOf("/api/packs/validate") < body.indexOf(write), `${fn}: validate runs before the write`);
-  }
+test("autosave: debounced optimistic PUT; 409 shows the conflict banner, nothing silent", () => {
+  assert.match(page, /updateBlueprint\(/, "edits land through the blueprint PUT");
+  assert.match(page, /setTimeout\(\(\) => void saveNow\(\), 1500\)/, "debounce of 1.5s");
+  assert.match(page, /in-flight merge|queuedRef/, "concurrent saves merge (single in flight)");
+  assert.match(page, /status === 409/, "409 handled explicitly");
+  const conflictUi = page.slice(page.indexOf("Conflict banner"), page.indexOf("<ConfirmDialog"));
+  assert.match(conflictUi, /ws-conflict-reload/, "reload option present");
+  assert.match(conflictUi, /ws-conflict-overwrite/, "keep-mine option present");
+  // Keep-mine is destructive: it re-reads the server version and rides a
+  // ConfirmDialog — never a plain button write.
+  assert.match(page, /variant="danger"/, "overwrite confirm dialog is danger-variant");
+  assert.match(page, /getBlueprint\(doc\.id\)[\s\S]{0,120}updateBlueprint\(doc\.id, blueprint\.version/, "overwrite re-anchors on the server's newest version");
 });
 
-test("presentation is the shared sheet; the team graph is read-only", () => {
-  assert.match(page, /<AgentSpecSheet/, "right pane consumes the shared spec sheet");
-  assert.match(page, /<FleetGraph/, "team tab renders FleetGraph");
-  assert.match(page, /readOnlyHint/, "the read-only hint is present");
-  // No edge-authoring affordances: the page never calls an edge-add handler
-  // and FleetGraph receives plain data props.
-  assert.ok(!/onAddEdge|onEdgesChange|addEdge\(/.test(page), "no graph edge authoring");
+test("the inspector follows the canvas: it renders only for the open document", () => {
+  // ValidationPanel + AgentSpecSheet sit inside the `{doc && …}` inspector
+  // block — there is no code path that shows an inspector for a doc the
+  // canvas is not editing.
+  const inspector = page.slice(page.indexOf('data-testid="ws-inspector"'));
+  assert.ok(inspector.indexOf("<LifecycleRibbon") > inspector.indexOf("{doc && ribbonView"), "ribbon gated on doc");
+  assert.ok(inspector.indexOf("<ValidationPanel") > inspector.indexOf("{doc && ("), "validation gated on doc");
+  assert.ok(inspector.indexOf("<AgentSpecSheet") > inspector.indexOf("{doc && ("), "spec sheet gated on doc");
+});
+
+test("the ribbon is a pure projection: gates come from teamRibbon, the server re-checks", () => {
+  assert.match(page, /teamRibbon\(/, "the page projects through teamRibbon");
+  assert.match(lifecycleLib, /verdictOk && !saving/, "approve needs green validation (server truth)");
+  assert.match(lifecycleLib, /isApprover/, "cast/reseal keep the approver gate");
+  // trial only ever surfaces in the cast branch — the retired "trial before
+  // approval" UI lie is structurally impossible now.
+  assert.match(lifecycleLib, /status === "cast"/, "trial stage rides the cast branch");
+  assert.match(ribbon, /onAction\(a\.action\)/, "the ribbon only forwards actions; no gate logic here");
+  assert.ok(!/fetch\(|api\.|bp\./.test(ribbon), "the ribbon component never calls the server itself");
 });
 
 test("MCP references are picker-only (no free-form registryName entry)", () => {
-  // The picker lives in the SHARED editor (one editor, two hosts).
   assert.match(bucketsEditor, /mcp-add/, "the picker select exists in the shared editor");
-  for (const host of [page, teamMode]) {
-    // Every mcpServers mutation derives its registryName from the catalog
-    // (select onChange) — no text Input bound to registryName.
-    assert.ok(!/registryName[:=]\s*[a-z]*\.target\.value/.test(host), "no input binds registryName from typed text");
-  }
+  assert.ok(!/registryName[:=]\s*[a-z]*\.target\.value/.test(page), "no page input binds registryName from typed text");
 });
 
-test("the working document is client state — no second store", () => {
-  assert.match(page, /useState<StudioDoc>\(emptyDoc\)/, "document lives in component state");
-  assert.ok(!/useChatStore|zustand/.test(page), "no store import for the working document");
+test("the working document is persisted: ephemeral StudioDoc retired, blueprint records are the spine", () => {
+  assert.ok(!/useState<StudioDoc>|emptyDoc/.test(page), "no ephemeral document state left");
+  assert.match(page, /createBlueprint\(/, "new document POSTs a blueprint draft record");
+  assert.match(page, /Blueprint\b/, "the open document is a persisted Blueprint");
 });
 
-test("route and entry point are wired", () => {
+test("second host retired: no BlueprintTeamMode, routes redirect, hub carries entry + board", () => {
+  assert.ok(!fs.existsSync(path.join(root, "web/src/components/studio/BlueprintTeamMode.tsx")), "team-mode host removed");
+  assert.ok(!fs.existsSync(path.join(root, "web/src/pages/BlueprintStudioPage.tsx")), "old blueprint page removed");
+  assert.ok(!page.includes("BlueprintTeamMode") && !app.includes("BlueprintTeamMode"), "no imports of the retired host");
   assert.match(app, /path="\/studio"/, "App.tsx mounts /studio");
-  assert.match(app, /AgentStudioPage = lazy/, "lazy-loaded like the other work surfaces");
+  assert.match(app, /BlueprintRouteRedirect/, "the /blueprints route still resolves");
+  assert.match(app, /to="\/studio\?from=blueprint"/, "old route redirects into the workspace");
   assert.match(agentsPage, /agents-studio-link/, "AgentsPage carries the entry link");
+  assert.match(agentsPage, /build-docs-board/, "the build zone hosts the recent-documents board");
+  assert.match(agentsPage, /\/api\/blueprints/, "the board reads the EXISTING blueprint list endpoint (no new endpoint)");
 });
 
-test("i18n: studio chrome keys exist in all five locales", () => {
+test("deep links: doc / fork / new all seeded from search params; skills ride the persisted document", () => {
+  assert.match(page, /searchParams\.get\("doc"\)/, "?doc= opens a document");
+  assert.match(page, /searchParams\.get\("fork"\)/, "?fork= seeds from a pack");
+  assert.match(page, /searchParams\.get\("new"\)/, "?new= mints one document");
+  // A reload of a seeded URL must not mint a second record.
+  assert.match(page, /navigate\(`\/studio\?doc=.*replace: true/, "seeded URLs canonicalize to ?doc= (no double mint)");
+  // 4.3: skills live in the persisted content now — the bucket is editable and
+  // the emit ports read the document (assembleManifest carries skills).
+  assert.match(page, /\bshowSkills\b(?!=\{false\})/, "the skills bucket is enabled");
+  assert.match(page, /content\.skills/, "skills ride the persisted document");
+  assert.match(page, /skills: \(\(c\?\.skills \?\? \[\]\) as PackManifestSkill\[\]\)/, "emitDraft reads the document's skills");
+  assert.match(page, /skillNames/, "emitPreset forwards declared skill names");
+});
+
+test("kind (batch 2): dual create entries, agent documents carry no team ribbon, one-click agent mint", () => {
+  assert.match(page, /createDoc = useCallback\(async \(kind: "agent" \| "team" = "team"\)/, "createDoc takes the kind");
+  assert.match(page, /agentSkeletonContent/, "agent documents mint from the light skeleton");
+  assert.match(page, /newParam === "agent" \? "agent" : "team"/, "?new=agent opens the agent lane");
+  assert.match(page, /const docKind: "agent" \| "team" = content\?\.kind === "agent"/, "kind read from the persisted content (default team)");
+  // The ribbon only renders for team documents; agent documents get the honest
+  // draft card instead (server 409s approve/cast for agent kind).
+  assert.match(page, /docKind === "team" && ribbonView && <LifecycleRibbon/, "ribbon gated on team kind");
+  assert.match(page, /ws-agent-draft-card/, "agent documents get the draft card");
+  // The name/description binding follows the kind (no boundary on agent docs).
+  assert.match(page, /docKind === "agent"\s*\?\s*patchContent\(\{ name: e\.target\.value \}\)/, "agent name edits content.name");
+  assert.match(page, /docKind === "agent"\s*\?\s*patchContent\(\{ description: e\.target\.value \}\)/, "agent description edits content.description");
+  // Dual entries: library footer + header.
+  assert.match(page, /onNew=\{\(kind\) => void createDoc\(kind\)\}/, "library forwards the kind");
+  const lib = read("web/src/components/studio/DocumentLibrary.tsx");
+  assert.match(lib, /ws-new-agent/, "library carries the new-agent entry");
+  assert.match(lib, /ws-new-team/, "library carries the new-team entry");
+  assert.match(lib, /ws-library-kind-/, "the library marks the kind badge");
+});
+
+test("route entry: lazy mount like other work surfaces; hub link reachable", () => {
+  assert.match(app, /AgentStudioPage = lazy/, "lazy-loaded like the other work surfaces");
+});
+
+test("i18n: studio chrome + the full workspace subtree exist in all five locales", () => {
+  const W = [
+    "title", "back", "dirty", "saving", "saved", "saveFailed", "overwriteDone",
+    "conflict", "conflictShort", "conflictReload", "conflictOverwrite", "conflictOverwriteConfirm",
+    "actionFailed", "createFailed", "openFailed", "forkMiss",
+    "approved", "castOk", "signed", "trialGreen", "trialRed",
+    "toggleLibrary", "toggleInspector",
+    "ribbonNeedGreen", "ribbonOnlyApprover",
+    "ribbonRecastNote", "ribbonCastRef", "ribbonSignStale", "ribbonResealHint",
+  ];
   for (const loc of ["zh-CN", "en", "ja", "fr", "es"]) {
     const d = JSON.parse(read(`web/src/locales/${loc}/common.json`));
     const s = d.studio;
@@ -85,59 +157,40 @@ test("i18n: studio chrome keys exist in all five locales", () => {
     for (const k of ["title", "roster", "canvas", "agent", "doc", "skill", "mcp", "team", "validate", "emit", "remove"]) {
       assert.ok(s[k] !== undefined, `${loc}: studio.${k} present`);
     }
-    assert.ok(typeof d.agentsPage?.studio === "string" && d.agentsPage.studio.length > 0, `${loc}: agentsPage.studio present`);
+    const w = s.workspace;
+    assert.ok(w, `${loc}: studio.workspace present`);
+    for (const k of W) assert.ok(typeof w[k] === "string" && w[k].length > 0, `${loc}: studio.workspace.${k}`);
+    for (const k of ["envelope"]) assert.ok(w.section?.[k], `${loc}: studio.workspace.section.${k}`);
+    for (const k of ["empty"]) assert.ok(w.canvas?.[k], `${loc}: studio.workspace.canvas.${k}`);
+    for (const k of ["section", "needGreen"]) assert.ok(w.emit?.[k], `${loc}: studio.workspace.emit.${k}`);
+    for (const k of ["adopt", "adoptAll", "adoptPicked", "skip", "close", "inert"]) assert.ok(w.draft?.[k], `${loc}: studio.workspace.draft.${k}`);
+    for (const k of ["search", "empty", "guideBlank", "guideAi", "guideMarket"]) assert.ok(w.library?.[k], `${loc}: studio.workspace.library.${k}`);
+    for (const k of ["draft", "approve", "cast", "trial", "sign", "reseal"]) assert.ok(w.ribbon?.stage?.[k], `${loc}: studio.workspace.ribbon.stage.${k}`);
+    for (const k of ["reseal", "sign", "trialRunning"]) assert.ok(w.ribbon?.[k], `${loc}: studio.workspace.ribbon.${k}`);
+    for (const k of ["jump", "jumpMiss", "copy", "copied"]) assert.ok(w.validation?.[k], `${loc}: studio.workspace.validation.${k}`);
+    // hub board copy
+    assert.ok(d.hub?.build?.new && d.hub?.build?.workspace && d.hub?.build?.recent, `${loc}: hub.build board keys`);
   }
 });
 
-// ── fold-blueprint-into-studio ────────────────────────────────────────────────
-const teamMode = read("web/src/components/studio/BlueprintTeamMode.tsx");
-const bucketsEditor = read("web/src/components/studio/AgentBucketsEditor.tsx");
-
-test("fold: blueprint team mode rides the existing lifecycle endpoints, untouched", () => {
-  // Same /api/blueprints pool + lifecycle calls — no second lifecycle, no
-  // server changes in this change at all.
-  const calls = bpCalls(teamMode);
-  for (const fn of ["validateBlueprint", "approveBlueprint", "castBlueprint", "runTrial", "updateBlueprint", "listBlueprints"]) {
-    assert.ok(calls.includes(fn), `team mode uses bp.${fn} (existing lifecycle face)`);
-  }
-  assert.ok(!teamMode.includes("castPackId: "), "no direct pack minting from the studio");
-});
-
-function bpCalls(src) {
-  return [...src.matchAll(/bp\.(\w+)/g)].map((m) => m[1]);
-}
-
-test("fold: three buckets render through the SHARED editor (one editor, two hosts)", () => {
-  assert.match(teamMode, /<AgentBucketsEditor/, "blueprint team mode consumes the shared editor");
-  assert.match(page, /<AgentBucketsEditor/, "the studio canvas consumes the shared editor");
-  assert.ok(!/showSkills=\{true\}/.test(teamMode), "blueprints carry no skills bucket");
-});
-
-test("fold: JSON track never bypasses validation (dual-track, save→validate)", () => {
-  const save = teamMode.slice(teamMode.indexOf("const saveAndValidate"), teamMode.indexOf("};", teamMode.indexOf("const saveAndValidate")));
-  assert.match(save, /updateBlueprint/, "edits land through the blueprint PUT (expectVersion)");
-  assert.match(save, /validateBlueprint/, "validation runs the stored content after save");
-  assert.match(teamMode, /studio-blueprint-json-apply/, "JSON track applies into the form track");
-});
-
-test("fold: old route redirects (two-step retire), pool reachable from team tab", () => {
-  assert.match(app, /BlueprintRouteRedirect/);
-  assert.match(app, /to="\/studio\?from=blueprint"/, "old /blueprints redirects into the studio team mode");
-  assert.match(app, /fromBlueprint|from=blueprint/, "studio honors the source marker");
-  assert.match(teamMode, /autoFocusPool/, "pool focus rides the redirect");
-  // Step 2 of the two-step retire executed (92f13fbe): the dead component is
-  // gone from the tree; only the redirect remains.
-  assert.ok(!fs.existsSync(path.join(root, "web/src/pages/BlueprintStudioPage.tsx")), "old component removed");
-  assert.ok(!app.includes("pages/BlueprintStudioPage"), "no import of the retired page");
-});
-
-test("emit does not mutate the working document (5.3)", () => {
-  // emit writes through the API only — the page's working-doc state is never
-  // reassigned by the emit paths (no setDoc/resetDoc inside emit* bodies).
-  const page = read("web/src/pages/AgentStudioPage.tsx");
-  for (const fn of ["emitPreset", "emitDraft"]) {
-    const body = page.slice(page.indexOf(`const ${fn}`), page.indexOf("};", page.indexOf(`const ${fn}`)));
-    assert.doesNotMatch(body, /setDoc\(|setDocTitle\(|resetDoc/, `${fn}: working doc untouched`);
-    assert.match(body, /await .*(createCustomPreset|createPackDraft)/, `${fn}: writes via API`);
+test("the lifecycle copy tells the server's truth (validate→approve→cast→trial→sign→reseal)", () => {
+  // 2.2: no locale may list trial BEFORE approve in the lifecycle sentence —
+  // the retired host's lie was "validate → trial → approve → cast". Terms are
+  // per-locale inflections of the two words.
+  const TERMS = {
+    "zh-CN": ["批准", "试跑"],
+    "ja": ["承認", "試走"],
+    "en": ["approve", "trial"],
+    "es": ["aprobar", "prueba"],
+    "fr": ["approuver", "essai"],
+  };
+  for (const [loc, [ap, tr]] of Object.entries(TERMS)) {
+    const d = JSON.parse(read(`web/src/locales/${loc}/common.json`));
+    const s = d.studio.blueprint.empty;
+    const iAp = s.toLowerCase().indexOf(ap);
+    const iTr = s.toLowerCase().indexOf(tr);
+    assert.ok(iAp >= 0, `${loc}: empty copy names approve (${ap}) — got ${s}`);
+    assert.ok(iTr >= 0, `${loc}: empty copy names trial (${tr}) — got ${s}`);
+    assert.ok(iAp < iTr, `${loc}: approve before trial — got ${s}`);
   }
 });

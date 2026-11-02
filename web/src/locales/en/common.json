@@ -2150,7 +2150,7 @@
       "pick": "Open a blueprint draft…",
       "new": "New blueprint",
       "untitled": "Untitled blueprint",
-      "empty": "Open a draft from the pool, or create one — the blueprint lifecycle (validate → trial → approve → cast) and its draft pool ride unchanged",
+      "empty": "Open a document from the library, or create one — the workspace follows the server's real order (validate → approve → cast → trial → sign → reseal).",
       "status": {
         "draft": "Draft",
         "approved": "Approved",
@@ -2180,7 +2180,8 @@
       "castRef": "Cast: pack {{packId}} v{{version}}",
       "sign": "Sign trial report (final key)",
       "unsign": "Unsign",
-      "savedValid": "Saved, validation green"
+      "savedValid": "Saved, validation green",
+      "untitledAgent": "Untitled agent"
     },
     "validate": {
       "running": "Validating…",
@@ -2195,7 +2196,152 @@
       "draftOk": "Draft created — continue publishing in “My creations”",
       "failed": "Emit failed: {{message}}"
     },
-    "remove": "Remove"
+    "remove": "Remove",
+    "workspace": {
+      "title": "Agent workspace",
+      "back": "Back to builder",
+      "dirty": "Unsaved changes",
+      "saving": "Saving…",
+      "saved": "Saved v{{version}}",
+      "saveFailed": "Save failed",
+      "overwriteDone": "Saved your version",
+      "conflict": "This document changed elsewhere (server v{{server}}, yours v{{local}}). Choose how to continue — your edits are kept until then.",
+      "conflictShort": "Version conflict",
+      "conflictReload": "Load latest",
+      "conflictOverwrite": "Keep mine",
+      "conflictOverwriteConfirm": "This overwrites the newer server version with your edits. The server re-checks everything; the other version stays in the document record.",
+      "actionFailed": "Action failed: {{action}}",
+      "createFailed": "Could not create the document",
+      "openFailed": "Could not open the document",
+      "forkMiss": "This fork source is not readable — showing the library instead",
+      "approved": "Approved",
+      "castOk": "Cast: pack {{packId}} v{{version}}",
+      "signed": "Trial report signed",
+      "trialGreen": "Trial passed — all assertions green",
+      "trialRed": "Trial finished with red assertions",
+      "toggleLibrary": "Toggle document library",
+      "toggleInspector": "Toggle inspector",
+      "section": {
+        "envelope": "Envelope"
+      },
+      "canvas": {
+        "empty": "No document open — pick one from the library or create a new one."
+      },
+      "emit": {
+        "section": "Emit targets",
+        "needGreen": "Validation must be green before emitting"
+      },
+      "draft": {
+        "adopt": "Adopt",
+        "adoptAll": "Adopt all",
+        "adoptPicked": "Adopt selected",
+        "skip": "Skip",
+        "close": "Close",
+        "inert": "Nothing was written — the document is unchanged.",
+        "field": {
+          "name": "Name",
+          "description": "Description",
+          "persona": "Persona",
+          "mcpServers": "Tools (MCP)",
+          "skills": "Skills"
+        },
+        "skillsNote": "Skills from AI drafting can't be adopted yet — edit them in the document's skills bucket."
+      },
+      "library": {
+        "search": "Search documents",
+        "empty": "No documents yet.",
+        "guideBlank": "New document — a blank working document, autosaved as you type.",
+        "guideAi": "AI draft — describe the agent, review field by field, adopt what you like.",
+        "guideMarket": "Fork from the market — clone any installed pack into a new document.",
+        "newAgent": "New agent",
+        "newTeam": "New team"
+      },
+      "ribbon": {
+        "stage": {
+          "draft": "Draft",
+          "approve": "Approve",
+          "cast": "Cast",
+          "trial": "Trial",
+          "sign": "Sign off",
+          "reseal": "Reseal"
+        },
+        "reseal": "Reseal pack",
+        "sign": "Sign off",
+        "trialRunning": "Trial running…"
+      },
+      "ribbonNeedGreen": "Fix all validation errors first",
+      "ribbonOnlyApprover": "Only the approver can cast this document",
+      "ribbonRecastNote": "You edited after the cast — back to draft. The market pack stays at the last cast version until you approve and cast again.",
+      "ribbonCastRef": "Cast to the market pack. Run a trial to prove it, then sign the report.",
+      "ribbonSignStale": "The report was re-run after you signed — the old sign-off no longer matches it.",
+      "ribbonResealHint": "Green, signed and unmodified since approval — reseal so the signed report rides into the pack.",
+      "validation": {
+        "jump": "Jump to field",
+        "jumpMiss": "That field is not on this screen",
+        "copy": "Copy error",
+        "copied": "Copied"
+      },
+      "kind": {
+        "agent": "Agent",
+        "team": "Team"
+      },
+      "agent": {
+        "description": "One-line description",
+        "hint": "An agent document stays a draft: emit a preset (usable on this machine) or a market draft (visible to the team/market) from the ports below. It has no approve/cast/trial lane."
+      }
+    },
+    "errors": {
+      "name_too_long": "The name must be non-empty and at most 80 characters (CJK counts double)",
+      "description_too_long": "The one-line description must be text of at most 2000 characters",
+      "pack_needs_one_reference": "At least one item is required: a skill, tool reference, agent, or bot",
+      "skills_too_many": "Too many skills",
+      "skill_entry_invalid": "A skill entry has the wrong shape",
+      "skill_name_invalid": "Skill names allow letters, digits, . _ - (1-64 chars)",
+      "skill_name_duplicate": "Duplicate skill name",
+      "skill_description_invalid": "A skill description must be non-empty text of at most 300 chars",
+      "skill_content_invalid": "Skill content must be non-empty text",
+      "mcp_too_many": "Too many tool (MCP) references",
+      "mcp_entry_invalid": "A tool (MCP) entry has the wrong shape",
+      "mcp_forbidden_keys": "Tool references may only name registry servers — no endpoints or commands",
+      "mcp_needs_registry_name": "Pick a registry server for the tool reference",
+      "allowtools_conflict": "allowTools and fullSurface cannot be declared together",
+      "fullsurface_false": "fullSurface must be true when present (omit the key instead)",
+      "fullsurface_needs_reason": "fullSurface needs a non-empty reason",
+      "reason_needs_fullsurface": "Only fullSurface references may omit the tool list",
+      "allowtools_invalid": "allowTools must be a non-empty array of tool names",
+      "agents_too_many": "Too many agents",
+      "agent_entry_invalid": "An agent entry has the wrong shape",
+      "agent_forbidden_keys": "Agents carry a persona only — no tool or serving configuration",
+      "agent_id_invalid": "Agent ids allow letters, digits, . _ - (1-64 chars)",
+      "agent_id_duplicate": "Duplicate agent id",
+      "agent_name_invalid": "An agent name must be non-empty text of at most 60 chars",
+      "agent_persona_invalid": "A persona must be non-empty text of at most 16384 chars",
+      "credential_secret_literal": "Documents may not carry secret or credential literals",
+      "credential_forbidden_key": "This key may not appear in a document (it looks like an endpoint or credential)",
+      "datasources_invalid": "Data sources have the wrong shape",
+      "datasource_entry_invalid": "A data source entry must be { ref, note? }",
+      "datasource_ref_invalid": "A data source ref must name a server, a library name, or a knowledge collection — never an endpoint",
+      "datasource_library_unresolved": "The referenced knowledge collection is not visible or does not exist",
+      "datasource_note_invalid": "A data source note must be text",
+      "judge_model_unknown": "The judge model is not in this deployment's roster — pick one, or clear the field to follow the default",
+      "v1_format": "Only v2 format documents are accepted",
+      "acceptance_entry_invalid": "An acceptance assertion has the wrong shape",
+      "acceptance_kind_unsupported": "Unsupported assertion kind",
+      "acceptance_target_invalid": "The assertion target must be an agent title",
+      "acceptance_expect_invalid": "escalate-bounded assertions need a numeric expect",
+      "acceptance_rubric_required": "llm-judged assertions need a non-empty rubric",
+      "acceptance_judge_cap": "Too many llm-judged assertions — merge or drop some",
+      "fleet_name_invalid": "The cluster name must be non-empty text",
+      "fleet_missing": "A team document needs its cluster structure (fleet section)",
+      "fleet_members_empty": "A team needs at least one member",
+      "fleet_member_needs_ref": "A member needs a ref",
+      "fleet_member_needs_title": "A member needs a title",
+      "fleet_member_needs_target": "A member needs a target",
+      "fleet_target_kind_invalid": "The target kind is not in the allowed set",
+      "fleet_tool_target_shape": "Tool targets must be 'server::tool'",
+      "handoff_cycle": "Member parent relations form a cycle",
+      "handoff_unknown_parent": "A member's parent names no existing member"
+    }
   },
   "overlay": {
     "title": "Resource adjustments",
@@ -3589,7 +3735,9 @@
     "build": {
       "title": "Visual builder",
       "desc": "Compose an agent from three buckets — persona, skills, tools — or arrange a team on the canvas; editable with live validation, emitting straight to presets and market drafts.",
-      "cta": "Open the canvas"
+      "new": "New document",
+      "workspace": "Enter workspace",
+      "recent": "Recent documents"
     },
     "supply": {
       "packs": "Agent Materials Plaza",

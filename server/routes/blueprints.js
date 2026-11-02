@@ -155,11 +155,20 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (!user) return;
     const raw = req.body ?? {};
     const content = raw.content;
-    const { name, oneLine, outOfScope } = raw;
+    const { name, oneLine, outOfScope, kind: kindParam } = raw;
     if (!isPlainObject(content)) {
       return res.status(400).json({ error: "content must be a blueprint object (boundary/dataSources/fleet/agents/mcpServers/monitoring/acceptance/board)" });
     }
-    const sceneName = name ?? content.boundary?.name ?? content.fleet?.name ?? "";
+    // add-agent-builder-workspace 4.1: kind 显式两型（agent 岗位文档 | team 场景
+    // 文档），缺省 = team——存量客户端不带 kind 时行为逐字节不变。kind 在创建
+    // 时刻定死并写进 content（读面按 content.kind 缺省 team 还原）。
+    const kind = kindParam ?? content.kind ?? "team";
+    if (kind !== "agent" && kind !== "team") {
+      return res.status(400).json({ error: "kind must be 'agent' or 'team'" });
+    }
+    const stored = kind === content.kind ? content : { ...content, kind };
+    // agent 型没有 boundary/fleet：名字与一句话在 content.name / content.description。
+    const sceneName = name ?? content.name ?? content.boundary?.name ?? content.fleet?.name ?? "";
     if (typeof sceneName !== "string" || !sceneName.trim()) {
       return res.status(400).json({ error: "blueprint needs a scene name (name, boundary.name, or fleet.name)" });
     }
@@ -169,9 +178,9 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
         id: blueprintId(),
         ownerEmail: user.email,
         name: sceneName.trim(),
-        oneLine: oneLine ?? content.boundary?.oneLine ?? "",
+        oneLine: oneLine ?? content.description ?? content.boundary?.oneLine ?? "",
         outOfScope: outOfScope ?? content.boundary?.outOfScope ?? "",
-        content,
+        content: stored,
       });
     } catch (err) {
       if (err?.status === 422) return res.status(422).json({ error: err.message, findings: err.findings });
@@ -179,7 +188,7 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     }
     // shape 闸照报不阻：草稿可以是 WIP——非凭据类契约发现作警告随行；
     // 凭据类已在存储层硬拒，到不了这里。
-    const warnings = dataSourceFindings(content);
+    const warnings = dataSourceFindings(stored);
     res.status(201).json({ blueprint: created, warnings });
   });
 
@@ -227,13 +236,27 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (!isPlainObject(content)) {
       return res.status(400).json({ error: "content must be a blueprint object" });
     }
+    // kind 在创建时刻定死（4.1）：编辑可改内容，不可改型——显式 400 而非静默忽略。
+    const docKind = owned.blueprint.content?.kind === "agent" ? "agent" : "team";
+    if (content.kind !== undefined && content.kind !== docKind) {
+      return res.status(400).json({ error: `kind is fixed at creation (this document is '${docKind}')` });
+    }
+    // agent 型没有 boundary：名字与一句话在 content.name / content.description。
+    const nextName =
+      docKind === "agent"
+        ? (name ?? content.name ?? owned.blueprint.name)
+        : (name ?? content.boundary?.name ?? owned.blueprint.name);
+    const nextOneLine =
+      docKind === "agent"
+        ? (oneLine ?? content.description ?? owned.blueprint.oneLine)
+        : (oneLine ?? content.boundary?.oneLine ?? owned.blueprint.oneLine);
     // 归一化 diff 在编辑落定时刻计算（批准凭据同源——批准只盖戳不重算）。
     const diffSummary = JSON.stringify(diffBlueprint(owned.blueprint.content, content));
     let updated;
     try {
       updated = store.updateBlueprintContent(owned.blueprint.id, {
-        name: name ?? content.boundary?.name ?? owned.blueprint.name,
-        oneLine: oneLine ?? content.boundary?.oneLine ?? owned.blueprint.oneLine,
+        name: nextName,
+        oneLine: nextOneLine,
         outOfScope: outOfScope ?? content.boundary?.outOfScope ?? owned.blueprint.outOfScope,
         content,
         diffSummary,
@@ -281,6 +304,10 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (expectVersion !== owned.blueprint.version) {
       return res.status(409).json({ error: "version conflict — reload before approving", currentVersion: owned.blueprint.version });
     }
+    // 4.2: agent 型无铸造链（始终草稿 + 两发射口）——服务端显式 409，不靠 UI 藏按钮。
+    if (owned.blueprint.content?.kind === "agent") {
+      return res.status(409).json({ error: "agent-kind documents are not castable — emit a preset or a market draft instead", kind: "agent" });
+    }
     const verdict = validateBlueprint(owned.blueprint.content);
     if (!verdict.ok) {
       // 校验不过的批准短路（spec scenario）：指名未过项，铸造/上架不发生。
@@ -296,6 +323,10 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
     const { user, blueprint } = owned;
+    // 4.2: agent 型无铸造链——服务端显式 409（批准/铸造/试跑/签字全部不适用）。
+    if (blueprint.content?.kind === "agent") {
+      return res.status(409).json({ error: "agent-kind documents are not castable — emit a preset or a market draft instead", kind: "agent" });
+    }
     // 重新封印（add-blueprint-llm-assertions）：可售闸读的是 manifest 里的试跑报告，
     // 而试跑必须在铸造之后（先有包才能装台）——签完字若不重铸，市场里那份永远没有
     // 签字。故允许铸造态下再铸一版，条件是：草稿自批准后未改（version 未变）、
@@ -424,6 +455,10 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
   router.post("/:id/trial", async (req, res) => {
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
+    // 4.2: agent 型无试跑链（无包可装台）——与 cast 同一道显式 409。
+    if (owned.blueprint.content?.kind === "agent") {
+      return res.status(409).json({ error: "agent-kind documents have no trial lane — emit a preset or a market draft instead", kind: "agent" });
+    }
     if (owned.blueprint.status !== "cast") {
       return res.status(409).json({ error: "trial run requires a cast blueprint — cast before running the trial" });
     }
@@ -448,6 +483,10 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
   router.post("/:id/trial-signoff", (req, res) => {
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
+    // 4.2: agent 型无报告可签（试跑被上面那道 409 挡死，防御性同钉）。
+    if (owned.blueprint.content?.kind === "agent") {
+      return res.status(409).json({ error: "agent-kind documents have no trial report to sign", kind: "agent" });
+    }
     const report = owned.blueprint.trialReport;
     if (!report || !report.ranAt) {
       return res.status(409).json({ error: "no trial report to sign — run the trial first" });

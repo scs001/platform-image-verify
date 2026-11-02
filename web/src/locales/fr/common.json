@@ -2150,7 +2150,7 @@
       "pick": "Ouvrir un brouillon de blueprint…",
       "new": "Nouveau blueprint",
       "untitled": "Blueprint sans titre",
-      "empty": "Ouvrez un brouillon du pool ou créez-en un — le cycle de vie du blueprint (valider → essayer → approuver → couler) et son pool restent inchangés",
+      "empty": "Ouvrez un document depuis la bibliothèque ou créez-en un — l'espace suit l'ordre réel du serveur (valider → approuver → fusionner → essai → signer → re-sceller).",
       "status": {
         "draft": "Brouillon",
         "approved": "Approuvé",
@@ -2180,7 +2180,8 @@
       "castRef": "Coulé : pack {{packId}} v{{version}}",
       "sign": "Signer le rapport d'essai (clé finale)",
       "unsign": "Retirer la signature",
-      "savedValid": "Enregistré, validation verte"
+      "savedValid": "Enregistré, validation verte",
+      "untitledAgent": "Agent sans titre"
     },
     "validate": {
       "running": "Validation…",
@@ -2195,7 +2196,152 @@
       "draftOk": "Brouillon créé — poursuis la publication dans « Mes créations »",
       "failed": "Échec de l'émission : {{message}}"
     },
-    "remove": "Retirer"
+    "remove": "Retirer",
+    "workspace": {
+      "title": "Espace de travail de l'agent",
+      "back": "Retour au constructeur",
+      "dirty": "Modifications non enregistrées",
+      "saving": "Enregistrement…",
+      "saved": "Enregistré v{{version}}",
+      "saveFailed": "Échec de l'enregistrement",
+      "overwriteDone": "Votre version a été enregistrée",
+      "conflict": "Ce document a changé ailleurs (serveur v{{server}}, le vôtre v{{local}}). Choisissez la suite — vos modifications sont conservées jusque-là.",
+      "conflictShort": "Conflit de version",
+      "conflictReload": "Charger la dernière",
+      "conflictOverwrite": "Garder la mienne",
+      "conflictOverwriteConfirm": "Cela écrasera la version plus récente du serveur avec vos modifications. Le serveur revalidera tout ; l'autre version reste dans l'historique du document.",
+      "actionFailed": "Action échouée : {{action}}",
+      "createFailed": "Impossible de créer le document",
+      "openFailed": "Impossible d'ouvrir le document",
+      "forkMiss": "Le document source n'est pas lisible — retour à la bibliothèque",
+      "approved": "Approuvé",
+      "castOk": "Fusion : paquet {{packId}} v{{version}}",
+      "signed": "Rapport d'essai signé",
+      "trialGreen": "Essai réussi — assertions au vert",
+      "trialRed": "L'essai s'est terminé avec des assertions rouges",
+      "toggleLibrary": "Afficher/masquer la bibliothèque",
+      "toggleInspector": "Afficher/masquer l'inspecteur",
+      "section": {
+        "envelope": "Périmètre"
+      },
+      "canvas": {
+        "empty": "Aucun document ouvert — choisissez-en un dans la bibliothèque ou créez-en un."
+      },
+      "emit": {
+        "section": "Cibles d'émission",
+        "needGreen": "La validation doit être au vert avant l'émission"
+      },
+      "draft": {
+        "adopt": "Adopter",
+        "adoptAll": "Tout adopter",
+        "adoptPicked": "Adopter la sélection",
+        "skip": "Ignorer",
+        "close": "Fermer",
+        "inert": "Rien n'a été écrit — le document est inchangé.",
+        "field": {
+          "name": "Nom",
+          "description": "Description",
+          "persona": "Persona",
+          "mcpServers": "Outils (MCP)",
+          "skills": "Compétences"
+        },
+        "skillsNote": "Les compétences du brouillon IA ne peuvent pas encore être adoptées — éditez-les dans le compartiment compétences du document."
+      },
+      "library": {
+        "search": "Rechercher des documents",
+        "empty": "Aucun document pour l'instant.",
+        "guideBlank": "Nouveau document — une page blanche, auto-enregistrée pendant la saisie.",
+        "guideAi": "Brouillon IA — décrivez l'agent, champ par champ, puis adoptez.",
+        "guideMarket": "Dupliquer depuis la marketplace — copiez un paquet installé dans un nouveau document.",
+        "newAgent": "Nouvel agent",
+        "newTeam": "Nouvelle équipe"
+      },
+      "ribbon": {
+        "stage": {
+          "draft": "Brouillon",
+          "approve": "Approuver",
+          "cast": "Fusion",
+          "trial": "Essai",
+          "sign": "Signature",
+          "reseal": "Re-sceller"
+        },
+        "reseal": "Re-sceller le paquet",
+        "sign": "Signer le rapport",
+        "trialRunning": "Essai en cours…"
+      },
+      "ribbonNeedGreen": "Corrigez d'abord toutes les erreurs de validation",
+      "ribbonOnlyApprover": "Seul l'approbateur peut fusionner ce document",
+      "ribbonRecastNote": "Vous avez modifié après la fusion — retour au brouillon. Le paquet de la marketplace garde la dernière version fondue jusqu'à nouvelle approbation et fusion.",
+      "ribbonCastRef": "Fondu vers le paquet de la marketplace. Lancez un essai, puis signez le rapport.",
+      "ribbonSignStale": "Le rapport a été relancé depuis votre signature — la signature ne correspond plus.",
+      "ribbonResealHint": "Au vert, signé et inchangé depuis l'approbation — re-scellez pour que le rapport signé rejoigne le paquet.",
+      "validation": {
+        "jump": "Aller au champ",
+        "jumpMiss": "Ce champ n'est pas sur cet écran",
+        "copy": "Copier l'erreur",
+        "copied": "Copié"
+      },
+      "kind": {
+        "agent": "Agent",
+        "team": "Équipe"
+      },
+      "agent": {
+        "description": "Description en une ligne",
+        "hint": "Un document d'agent reste un brouillon : émettez un preset (utilisable ici) ou un brouillon de marché depuis les ports ci-dessous. Pas d'approbation/fusion/essai."
+      }
+    },
+    "errors": {
+      "name_too_long": "Le nom doit être non vide et faire au plus 80 caractères (le CJK compte double)",
+      "description_too_long": "La description doit être un texte de 2000 caractères au plus",
+      "pack_needs_one_reference": "Au moins un élément est requis : compétence, outil, agent ou bot",
+      "skills_too_many": "Trop de compétences",
+      "skill_entry_invalid": "Une compétence a une forme invalide",
+      "skill_name_invalid": "Les noms de compétence acceptent lettres, chiffres, . _ - (1-64)",
+      "skill_name_duplicate": "Nom de compétence en double",
+      "skill_description_invalid": "La description de compétence doit être un texte non vide de 300 caractères au plus",
+      "skill_content_invalid": "Le contenu de compétence doit être un texte non vide",
+      "mcp_too_many": "Trop de références d'outil (MCP)",
+      "mcp_entry_invalid": "Une entrée d'outil (MCP) a une forme invalide",
+      "mcp_forbidden_keys": "Les références ne peuvent nommer que des serveurs du registre, sans endpoint ni commande",
+      "mcp_needs_registry_name": "Choisissez un serveur du registre pour la référence",
+      "allowtools_conflict": "allowTools et fullSurface ne peuvent être déclarés ensemble",
+      "fullsurface_false": "fullSurface doit valoir true lorsqu'il est présent (omettez la clé)",
+      "fullsurface_needs_reason": "fullSurface exige un motif non vide",
+      "reason_needs_fullsurface": "Seules les références fullSurface peuvent omettre la liste d'outils",
+      "allowtools_invalid": "allowTools doit être un tableau non vide de noms d'outils",
+      "agents_too_many": "Trop d'agents",
+      "agent_entry_invalid": "Un agent a une forme invalide",
+      "agent_forbidden_keys": "Les agents ne portent qu'une persona, aucune configuration",
+      "agent_id_invalid": "Les ids d'agent acceptent lettres, chiffres, . _ - (1-64)",
+      "agent_id_duplicate": "Id d'agent en double",
+      "agent_name_invalid": "Le nom d'agent doit être un texte non vide de 60 caractères au plus",
+      "agent_persona_invalid": "La persona doit être un texte non vide de 16384 caractères au plus",
+      "credential_secret_literal": "Les documents ne peuvent porter de secrets ni de credentials",
+      "credential_forbidden_key": "Cette clé ne peut apparaître dans un document (endpoint ou credential probable)",
+      "datasources_invalid": "Les sources de données ont une forme invalide",
+      "datasource_entry_invalid": "Une source de données doit être { ref, note? }",
+      "datasource_ref_invalid": "La référence doit nommer un serveur, une bibliothèque ou une collection — jamais un endpoint",
+      "datasource_library_unresolved": "La collection de connaissances référencée est invisible ou inexistante",
+      "datasource_note_invalid": "La note de source de données doit être un texte",
+      "judge_model_unknown": "Le modèle juge n'est pas dans le roster — choisissez-en un ou videz le champ",
+      "v1_format": "Seuls les documents au format v2 sont acceptés",
+      "acceptance_entry_invalid": "Une assertion d'acceptation a une forme invalide",
+      "acceptance_kind_unsupported": "Type d'assertion non pris en charge",
+      "acceptance_target_invalid": "La cible de l'assertion doit être un titre d'agent",
+      "acceptance_expect_invalid": "Les assertions escalate-bounded exigent un expect numérique",
+      "acceptance_rubric_required": "Les assertions llm-judged exigent un critère non vide",
+      "acceptance_judge_cap": "Trop d'assertions llm-judged — fusionnez-en ou supprimez-en",
+      "fleet_name_invalid": "Le nom du cluster doit être un texte non vide",
+      "fleet_missing": "Un document d'équipe exige sa structure de cluster (section fleet)",
+      "fleet_members_empty": "Une équipe exige au moins un membre",
+      "fleet_member_needs_ref": "Un membre exige un ref",
+      "fleet_member_needs_title": "Un membre exige un titre",
+      "fleet_member_needs_target": "Un membre exige une cible",
+      "fleet_target_kind_invalid": "Le type de cible n'est pas autorisé",
+      "fleet_tool_target_shape": "Les cibles d'outil doivent être 'server::tool'",
+      "handoff_cycle": "Les relations parent-enfant forment un cycle",
+      "handoff_unknown_parent": "Le parent d'un membre n'existe pas"
+    }
   },
   "overlay": {
     "title": "Ajustement des ressources",
@@ -3589,7 +3735,9 @@
     "build": {
       "title": "Constructeur visuel",
       "desc": "Composez un agent à partir de trois compartiments — persona, compétences, outils — ou agencez une équipe sur le canevas ; éditable avec validation en direct et émission vers les presets et brouillons du marché.",
-      "cta": "Ouvrir le canevas"
+      "new": "Nouveau document",
+      "workspace": "Ouvrir l'espace de travail",
+      "recent": "Documents récents"
     },
     "supply": {
       "packs": "Place des Matériaux d'Agents",

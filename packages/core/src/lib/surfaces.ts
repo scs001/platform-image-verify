@@ -126,7 +126,12 @@ export interface NavFamily {
 
 export const NAV_FAMILIES: NavFamily[] = [
   { id: "knowledge", slugs: ["knowledge", "resources", "memory"] },
-  { id: "build", slugs: ["fleets", "blueprints"] },
+  // add-agent-builder-workspace 3.1: the family is the author→run pair now —
+  // the builder (agents) and the teams (fleets). The blueprint studio's nav
+  // entry is retired (its route stays a redirect into the workspace); the
+  // `blueprints` slug REMAINS in the registry so stored presets and deep
+  // links keep resolving (layout-configuration).
+  { id: "build", slugs: ["agents", "fleets"] },
 ];
 
 export function registryFor(container: SurfaceContainer): RegistryEntry[] {
@@ -203,7 +208,10 @@ export const FACTORY_PRESET_SLUG = "standard-snapshot";
 export const FACTORY_PRESETS: PresetCatalog = {
   [FACTORY_PRESET_SLUG]: {
     version: 1,
-    nav: NAV_SURFACES.map((s) => s.slug),
+    // add-agent-builder-workspace 3.1: `blueprints` is the one surface the
+    // factory nav drops (nav entry retired into the workspace redirect);
+    // every other registry slug stays, item for item, in registry order.
+    nav: NAV_SURFACES.map((s) => s.slug).filter((slug) => slug !== "blueprints"),
     settings: SETTINGS_SURFACES.map((s) => s.slug),
     // add-agent-builder-hub: the builder hub's four areas replace the retired
     // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES).

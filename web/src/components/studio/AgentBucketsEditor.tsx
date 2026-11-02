@@ -50,6 +50,8 @@ export function AgentBucketsEditor({
   catalogServers = [],
   onChange,
   testIdPrefix = "studio-bucket",
+  selectedAgentId,
+  onSelectAgent,
 }: {
   value: BucketsValue;
   showSkills?: boolean;
@@ -57,14 +59,25 @@ export function AgentBucketsEditor({
   catalogServers?: CatalogServer[];
   onChange: (next: BucketsValue) => void;
   testIdPrefix?: string;
+  // Controlled selection (add-agent-builder-workspace 1.4): the page owns the
+  // selected agent so the inspector can follow it; hosts that pass nothing
+  // keep the editor's internal selection (backward compatible).
+  selectedAgentId?: string | null;
+  onSelectAgent?: (id: string | null) => void;
 }) {
   const { t } = useTranslation();
   const { agents, skills = [], mcpServers } = value;
-  const [selectedId, setSelectedId] = useState<string | null>(agents[0]?.id ?? null);
+  const [innerId, setInnerId] = useState<string | null>(agents[0]?.id ?? null);
+  const controlled = selectedAgentId !== undefined;
+  const selectedId = controlled ? selectedAgentId : innerId;
+  const select = (id: string | null) => {
+    if (controlled) onSelectAgent?.(id);
+    else setInnerId(id);
+  };
   const seq = { current: 0 };
 
   useEffect(() => {
-    if (selectedId && !agents.some((a) => a.id === selectedId)) setSelectedId(agents[0]?.id ?? null);
+    if (selectedId && !agents.some((a) => a.id === selectedId)) select(agents[0]?.id ?? null);
   }, [agents, selectedId]);
   const selected = agents.find((a) => a.id === selectedId) ?? null;
 
@@ -84,7 +97,7 @@ export function AgentBucketsEditor({
                   key={a.id}
                   type="button"
                   data-testid={`${testIdPrefix}-agent-chip-${a.id}`}
-                  onClick={() => setSelectedId(a.id)}
+                  onClick={() => select(a.id)}
                   className={cn(
                     "rounded-full border px-2 py-0.5 text-[11px]",
                     selectedId === a.id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
@@ -99,7 +112,7 @@ export function AgentBucketsEditor({
                 onClick={() => {
                   const id = `agent-${agents.length + 1}-${++seq.current}`;
                   setAgents([...agents, { id, name: "", persona: "" }]);
-                  setSelectedId(id);
+                  select(id);
                 }}
                 className="rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
               >
@@ -107,7 +120,7 @@ export function AgentBucketsEditor({
               </button>
             </div>
             {selected && (
-              <div className="space-y-2">
+              <div className="space-y-2" data-anchor={`agents[${agents.findIndex((a) => a.id === selected.id)}]`}>
                 <div className="flex gap-2">
                   <Field label={t("studio.agent.id")}>
                     <Input value={selected.id} disabled className="w-40 font-mono text-xs" data-testid={`${testIdPrefix}-agent-id`} />
@@ -146,7 +159,7 @@ export function AgentBucketsEditor({
             onClick={() => {
               const id = `agent-${agents.length + 1}-${++seq.current}`;
               setAgents([{ id, name: "", persona: "" }]);
-              setSelectedId(id);
+              select(id);
             }}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
@@ -159,8 +172,8 @@ export function AgentBucketsEditor({
       {showSkills && (
         <SectionCard title={t("packs.detail.skills")} testid={`${testIdPrefix}-skills`}>
           <div className="space-y-2">
-            {skills.map((s) => (
-              <div key={s.name} className="rounded-md border border-border p-2" data-testid={`${testIdPrefix}-skill-${s.name}`}>
+            {skills.map((s, i) => (
+              <div key={s.name} className="rounded-md border border-border p-2" data-testid={`${testIdPrefix}-skill-${s.name}`} data-anchor={`skills[${i}]`}>
                 <div className="flex items-center gap-2">
                   <Input
                     value={s.name}
@@ -222,8 +235,8 @@ export function AgentBucketsEditor({
       {/* ── Bucket 3 · tools (registry picker only) ── */}
       <SectionCard title={t("packs.detail.mcp")} testid={`${testIdPrefix}-mcp`}>
         <div className="space-y-2">
-          {mcpServers.map((m) => (
-            <div key={m.registryName} className="rounded-md border border-border p-2" data-testid={`${testIdPrefix}-mcp-${m.registryName}`}>
+          {mcpServers.map((m, i) => (
+            <div key={m.registryName} className="rounded-md border border-border p-2" data-testid={`${testIdPrefix}-mcp-${m.registryName}`} data-anchor={`mcpServers[${i}]`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-xs">{m.registryName}</span>
                 <Button size="icon" variant="ghost" onClick={() => setMcp(mcpServers.filter((x) => x.registryName !== m.registryName))} aria-label={t("studio.remove")}>

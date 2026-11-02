@@ -103,6 +103,9 @@ export function createBlueprintDatabase({ file } = {}) {
       ownerEmail: row.owner_email,
       name: row.name,
       oneLine: row.one_line,
+      // add-agent-builder-workspace 4.4: 清单行投影 kind（正文缺省 team），
+      // 文档库/最近文档板按 kind 统一列并出徽章。
+      kind: row.kind_json === "agent" ? "agent" : "team",
       status: row.status,
       version: row.version,
       approvedBy: row.approved_by ?? null,
@@ -133,7 +136,8 @@ export function createBlueprintDatabase({ file } = {}) {
       return db
         .prepare(
           `SELECT id, owner_email, name, one_line, status, version, approved_by, approved_at,
-                  cast_pack_id, cast_pack_version, created_at, updated_at
+                  cast_pack_id, cast_pack_version, created_at, updated_at,
+                  json_extract(content_json, '$.kind') AS kind_json
            FROM blueprints WHERE owner_email = ? ORDER BY updated_at DESC`,
         )
         .all(ownerEmail)

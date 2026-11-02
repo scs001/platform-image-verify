@@ -52,8 +52,11 @@ let userCookie;
 // `fleets` (agent-fleet-core) is a plain web surface and rides in both lists.
 // Registry order (packages/core surfaces.ts NAV_SURFACES). memory/machines/
 // zhiyu/blueprints landed after this spec's original list — aligned here.
-const ALL_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints", "fleet"];
-const BROWSER_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "blueprints"];
+// add-agent-builder-workspace 3.1: `blueprints` retires from the FACTORY nav
+// (the workspace owns the route; /blueprints redirects) — so it is absent from
+// the baseline snapshot below while every other registry slug stays.
+const ALL_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "fleet"];
+const BROWSER_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu"];
 const ALL_SETTINGS = [
   "general", "account", "wechat-app", "devices", "connections", "mcp", "plugins",
   "models", "channels", "diagnostics", "status",

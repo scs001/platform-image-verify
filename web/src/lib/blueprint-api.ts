@@ -6,7 +6,20 @@
 
 export type BlueprintStatus = "draft" | "approved" | "cast";
 
+export type BlueprintKind = "agent" | "team";
+
+export interface BlueprintSkill {
+  name: string;
+  description?: string;
+  content: string;
+}
+
 export interface BlueprintContent {
+  /** add-agent-builder-workspace 4.1: agent（岗位文档）| team（场景文档）；缺省 = team。 */
+  kind?: BlueprintKind;
+  /** agent 型的名字与一句话（team 型在 boundary 下）。 */
+  name?: string;
+  description?: string;
   boundary?: { name?: string; oneLine?: string; outOfScope?: string };
   /** 判定该蓝图 llm-judged 断言的模型 id（空=跟随部署默认）。 */
   judgeModel?: string;
@@ -14,6 +27,8 @@ export interface BlueprintContent {
   fleet?: Record<string, unknown>;
   agents?: unknown[];
   mcpServers?: unknown[];
+  /** 4.3: 技能桶进持久文档（铸造/发射同源，不再静默丢）。 */
+  skills?: BlueprintSkill[];
   monitoring?: Record<string, unknown>;
   acceptance?: unknown[];
   board?: Record<string, unknown>;
@@ -24,6 +39,8 @@ export interface BlueprintSummary {
   id: string;
   name: string;
   oneLine: string;
+  /** 4.4: 清单行按 kind 统一列（缺省 team）。 */
+  kind: BlueprintKind;
   status: BlueprintStatus;
   version: number;
   approvedBy: string | null;
@@ -45,6 +62,8 @@ export interface Blueprint extends BlueprintSummary {
 export interface ValidationError {
   error: string;
   entry?: string;
+  /** add-agent-builder-workspace 5.1: stable code; unknown codes fall back to `error` verbatim. */
+  code?: string;
 }
 
 export interface ValidationVerdict {
@@ -208,13 +227,28 @@ export function runTrial(id: string) {
 // 新草稿骨架：六段在场、结构可编辑；场景名占位（创建后于表单轨改名）。
 export function skeletonContent(name: string): BlueprintContent {
   return {
+    kind: "team",
     boundary: { name, oneLine: "", outOfScope: "" },
     dataSources: [],
     fleet: { name, members: [] },
     agents: [],
     mcpServers: [],
+    skills: [],
     monitoring: {},
     acceptance: [],
     board: {},
+  };
+}
+
+// agent 型轻骨架（4.1/4.4）：无 boundary/fleet/acceptance，名字与一句话在顶层；
+// 一个空岗位即「已选岗位」——一次点击建好即可填人设，名称输入框随即聚焦。
+export function agentSkeletonContent(name: string): BlueprintContent {
+  return {
+    kind: "agent",
+    name,
+    description: "",
+    agents: [{ id: "agent-1", name: "", persona: "" }],
+    mcpServers: [],
+    skills: [],
   };
 }

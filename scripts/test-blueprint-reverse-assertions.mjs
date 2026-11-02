@@ -33,7 +33,9 @@ test("6.3 ① 无第二校验器：只 import 既有三器，本地零重实现"
   const src = code(VALIDATE);
   // 接法钉死：三处 import 各就各位。
   assert.match(src, /import \{ parseFleetTemplate \} from "\.\/fleet-template\.js";/);
-  assert.match(src, /import \{ validatePackManifest \} from "\.\.\/lib\/pack-manifest\.js";/);
+  // add-agent-builder-workspace 5.1: deriveCode rides the same import (the
+  // "no second validator" intent is unchanged — same module, zero reimplementation).
+  assert.match(src, /import \{ validatePackManifest(, deriveCode)? \} from "\.\.\/lib\/pack-manifest\.js";/);
   assert.match(
     src,
     /import \{ toolFaceErrors, toolClosureErrors \} from "\.\.\/lib\/publish-tool-gate\.js";/,

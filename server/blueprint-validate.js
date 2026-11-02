@@ -15,7 +15,7 @@
 // 内部库逻辑名；端点/凭据在存储层另有硬拒（blueprints-db.js assertStorable）。
 
 import { parseFleetTemplate } from "./fleet-template.js";
-import { validatePackManifest } from "../lib/pack-manifest.js";
+import { validatePackManifest, deriveCode } from "../lib/pack-manifest.js";
 import { toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
 import { buildUserProviderEntries, getDefault } from "../llm-providers.js";
 
@@ -40,7 +40,7 @@ export function credentialFindings(content) {
     }
     if (!node || typeof node !== "object") {
       if (typeof node === "string" && SECRET_LITERAL_RE.test(node)) {
-        findings.push({ error: `secret-like literal is not allowed in a blueprint`, entry: at || "$" });
+        findings.push({ error: `secret-like literal is not allowed in a blueprint`, entry: at || "$", code: "credential_secret_literal" });
       }
       return;
     }
@@ -50,7 +50,7 @@ export function credentialFindings(content) {
         !CONTRACT_KEY_WHITELIST.has(key) &&
         (FORBIDDEN_KEY_PARTS.test(key) || FORBIDDEN_KEY_EXACT.has(key.toLowerCase()))
       ) {
-        findings.push({ error: `key '${key}' may not carry endpoints or credentials in a blueprint`, entry });
+        findings.push({ error: `key '${key}' may not carry endpoints or credentials in a blueprint`, entry, code: "credential_forbidden_key" });
         continue; // 命中禁键即名之，不再下探该子树（错误归主键）。
       }
       walk(value, entry);
@@ -77,12 +77,12 @@ export function dataSourceFindings(content, resolveLibrary = null) {
   const sources = content?.dataSources;
   if (sources === undefined || sources === null) return findings;
   if (!Array.isArray(sources)) {
-    return [{ error: "dataSources must be an array of { ref } entries naming registry servers, internal libraries, or knowledge collections (library:<id>)", entry: "dataSources" }];
+    return [{ error: "dataSources must be an array of { ref } entries naming registry servers, internal libraries, or knowledge collections (library:<id>)", entry: "dataSources", code: "datasources_invalid" }];
   }
   sources.forEach((src, i) => {
     const entry = `dataSources[${i}]`;
     if (!src || typeof src !== "object" || Array.isArray(src)) {
-      findings.push({ error: `data source must be an object of { ref, note? } naming a registry server, an internal-library logical name, or a knowledge collection (library:<id>)`, entry });
+      findings.push({ error: `data source must be an object of { ref, note? } naming a registry server, an internal-library logical name, or a knowledge collection (library:<id>)`, entry, code: "datasource_entry_invalid" });
       return;
     }
     const ref = src.ref;
@@ -91,6 +91,7 @@ export function dataSourceFindings(content, resolveLibrary = null) {
       findings.push({
         error: `data source ref '${ref}' must be a registry server name, an internal-library logical name, or a knowledge collection (library:<id>) — no endpoints, no credentials`,
         entry: `${entry}.ref`,
+        code: "datasource_ref_invalid",
       });
       return;
     }
@@ -103,11 +104,12 @@ export function dataSourceFindings(content, resolveLibrary = null) {
         findings.push({
           error: `data source ${entry}.ref 'library:${id}' does not name a collection you can see${typeof verdict === "string" ? ` (${verdict})` : ""}`,
           entry: `${entry}.ref`,
+          code: "datasource_library_unresolved",
         });
       }
     }
     if (src.note !== undefined && typeof src.note !== "string") {
-      findings.push({ error: `data source note must be a string when present`, entry: `${entry}.note` });
+      findings.push({ error: `data source note must be a string when present`, entry: `${entry}.note`, code: "datasource_note_invalid" });
     }
   });
   return findings;
@@ -150,6 +152,7 @@ export function judgeModelFindings(content) {
     {
       error: `judgeModel '${wanted}' is not in this deployment's model roster — pick one on the model settings page, or clear the field to follow the deployment default`,
       entry: "judgeModel",
+      code: "judge_model_unknown",
     },
   ];
 }
@@ -179,7 +182,7 @@ export function v1FormatFindings(content) {
     (has("sources") && !has("dataSources")) ||
     (has("boards") && !has("board"));
   if (!v1Shaped) return [];
-  return [{ error: V1_FORMAT_ERROR, entry: "content" }];
+  return [{ error: V1_FORMAT_ERROR, entry: "content", code: "v1_format" }];
 }
 
 // ── Manifest 组装与全链校验 ────────────────────────────────────────────────
@@ -199,19 +202,19 @@ export function normalizeAcceptance(acceptance) {
   const errors = [];
   list.forEach((item, i) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
-      errors.push({ error: `acceptance[${i}] must be an object of { id, kind, target?, expect? }`, entry: `acceptance[${i}]` });
+      errors.push({ error: `acceptance[${i}] must be an object of { id, kind, target?, expect? }`, entry: `acceptance[${i}]`, code: "acceptance_entry_invalid" });
       return;
     }
     const id = typeof item.id === "string" && item.id.trim() ? item.id : `a${i + 1}`;
     const kind = item.kind;
     if (!TRIAL_ASSERTION_KINDS.includes(kind)) {
-      errors.push({ error: `acceptance[${i}] '${id}' declares unsupported assertion kind '${kind ?? "(none)"}' (supported: ${TRIAL_ASSERTION_KINDS.join(", ")})`, entry: `acceptance[${i}].kind` });
+      errors.push({ error: `acceptance[${i}] '${id}' declares unsupported assertion kind '${kind ?? "(none)"}' (supported: ${TRIAL_ASSERTION_KINDS.join(", ")})`, entry: `acceptance[${i}].kind`, code: "acceptance_kind_unsupported" });
     }
     if (item.target !== undefined && typeof item.target !== "string") {
-      errors.push({ error: `acceptance[${i}] '${id}' target must be a post title when present`, entry: `acceptance[${i}].target` });
+      errors.push({ error: `acceptance[${i}] '${id}' target must be a post title when present`, entry: `acceptance[${i}].target`, code: "acceptance_target_invalid" });
     }
     if (kind === "escalate-bounded" && item.expect !== undefined && !Number.isFinite(item.expect)) {
-      errors.push({ error: `acceptance[${i}] '${id}' expect must be a number for escalate-bounded`, entry: `acceptance[${i}].expect` });
+      errors.push({ error: `acceptance[${i}] '${id}' expect must be a number for escalate-bounded`, entry: `acceptance[${i}].expect`, code: "acceptance_expect_invalid" });
     }
     // llm-judged：rubric 是判据原文，必须非空——空判据等于没判据。
     let rubric = null;
@@ -220,6 +223,7 @@ export function normalizeAcceptance(acceptance) {
         errors.push({
           error: `acceptance[${i}] '${id}' llm-judged needs a non-empty rubric (the acceptance text the judge reads)`,
           entry: `acceptance[${i}].rubric`,
+          code: "acceptance_rubric_required",
         });
       } else {
         rubric = item.rubric.trim();
@@ -232,6 +236,7 @@ export function normalizeAcceptance(acceptance) {
     errors.push({
       error: `this blueprint declares ${judged.length} llm-judged assertions, over the cap of ${JUDGE_ASSERTION_CAP} (each one is a model call) — merge or drop some`,
       entry: "acceptance",
+      code: "acceptance_judge_cap",
     });
   }
   return { assertions, errors };
@@ -241,16 +246,29 @@ export function normalizeAcceptance(acceptance) {
 // 专辑位/徽章承载，名字不背类型——产品命名决议）；category 钉 "fleet"
 // （代码键零改老律：专辑显示名是市场层的词，键不动）。
 export function assembleManifest(content, { name } = {}) {
-  const sceneName = name ?? content?.boundary?.name ?? content?.fleet?.name ?? content?.fleet?.nameKey ?? "";
+  // add-agent-builder-workspace 4.1: content.kind 显式两型（缺省 = team，存量
+  // 记录零迁移）。agent 型是「岗位文档」：无 boundary/fleet/acceptance，名字
+  // 与一句话描述在 content.name / content.description 顶层。
+  const kind = content?.kind === "agent" ? "agent" : "team";
+  const sceneName =
+    name ??
+    (kind === "agent" ? content?.name : undefined) ??
+    content?.boundary?.name ??
+    content?.fleet?.name ??
+    content?.fleet?.nameKey ??
+    "";
   const manifest = {
     name: sceneName,
-    description: content?.boundary?.oneLine ?? "",
-    category: "fleet",
+    description: (kind === "agent" ? content?.description : content?.boundary?.oneLine) ?? "",
+    category: kind === "agent" ? "agent" : "fleet",
   };
   if (Array.isArray(content?.tags)) manifest.tags = content.tags;
   if (content?.agents !== undefined) manifest.agents = content.agents;
   if (content?.mcpServers !== undefined) manifest.mcpServers = content.mcpServers;
-  if (content?.fleet !== undefined) manifest.fleet = content.fleet;
+  // 4.3: skills 进蓝图 content——清单段照搬（validatePackManifest 技能段同
+  // 函数），铸造/发射产物不再静默丢技能桶（批 1 的假绿缺口就此闭合）。
+  if (Array.isArray(content?.skills)) manifest.skills = content.skills;
+  if (kind === "team" && content?.fleet !== undefined) manifest.fleet = content.fleet;
   return manifest;
 }
 
@@ -258,6 +276,10 @@ export function assembleManifest(content, { name } = {}) {
 // → validatePackManifest → toolFace/toolClosure。返回按链序摊平的 errors
 // （既有校验器原文逐字段）+ manifestPreview 供编辑面/铸造复用。
 export function validateBlueprint(content, { resolveLibrary = null } = {}) {
+  // 4.2: 校验链 kind 感知——agent 型跳过 parseFleetTemplate 段（无 fleet 可
+  // 解）；凭据/数据源/清单/验收/判据段两 kind 全量照跑（缺席即空跑，出现即
+  // 照检——不静默吞客户端误带的段）。
+  const kind = content?.kind === "agent" ? "agent" : "team";
   const manifestPreview = assembleManifest(content);
   // v1 方言前置短路（design D1）：错方言的派生发现（逐条 acceptance 形状错、
   // 无字段归属的包级错）会淹没根因——命中即只报这一条。
@@ -275,16 +297,19 @@ export function validateBlueprint(content, { resolveLibrary = null } = {}) {
   // 不留到试跑才暴露。
   const acceptance = normalizeAcceptance(content?.acceptance).errors;
   const judgeModel = judgeModelFindings(content);
-  const fleetParsed = parseFleetTemplate(manifestPreview);
-  const fleet = fleetParsed.ok ? [] : [{ error: fleetParsed.error, entry: "fleet" }];
+  const fleetParsed = kind === "team" ? parseFleetTemplate(manifestPreview) : { ok: true };
+  const fleet = fleetParsed.ok ? [] : [{ error: fleetParsed.error, entry: "fleet", code: fleetParsed.code ?? deriveCode(fleetParsed.error) }];
   const manifest = validatePackManifest(manifestPreview);
   const toolFace = toolFaceErrors(manifestPreview);
   const toolClosure = toolClosureErrors(manifestPreview);
-  const errors = [...shape, ...judgeModel, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure];
+  // 5.1 收口：任何来源的 finding 都必须带稳定 code——publish-tool-gate 等
+  // 未逐点补码的段在此兜底派生（原文逐字不动，code 附加）。
+  const withCode = (list) => list.map((e) => (e && typeof e === "object" && !e.code ? { ...e, code: deriveCode(e.error) } : e));
+  const errors = withCode([...shape, ...judgeModel, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure]);
   return {
     ok: errors.length === 0,
     errors,
-    findings: { v1: [], shape, judgeModel, acceptance, fleet, manifest, toolFace, toolClosure },
+    findings: { v1: [], shape: withCode(shape), judgeModel: withCode(judgeModel), acceptance: withCode(acceptance), fleet: withCode(fleet), manifest, toolFace: withCode(toolFace), toolClosure: withCode(toolClosure) },
     manifestPreview,
   };
 }

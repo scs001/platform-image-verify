@@ -27,8 +27,11 @@ import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
 import { PersonaAmendmentsView } from "@/components/persona/PersonaAmendmentsView";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
 import { Link } from "react-router-dom";
-import { Blocks } from "lucide-react";
+import { Blocks, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { StatusPill } from "@/components/ui/status-pill";
+import { DOC_STATUS_TONE } from "@/components/studio/DocumentLibrary";
+import type { BlueprintSummary } from "@/lib/blueprint-api";
 import type { AgentInfo } from "@platform/core";
 
 type Tab = "build" | "supply" | "creations" | "tuning";
@@ -59,6 +62,19 @@ async function fetchMineClusters(): Promise<{ clusters: MineCluster[] }> {
   return { clusters: data.clusters ?? [] };
 }
 
+// Recent-documents board (add-agent-builder-workspace 3.2): GET /api/blueprints
+// is owner-filtered server-side — the board reads the EXISTING endpoint, no new
+// surface (hub spec: 不新增端点/数据形状/校验器). Non-JSON (SPA fallback / old
+// server) means "no documents", never a thrown parse error.
+async function fetchMyDocs(): Promise<{ blueprints: BlueprintSummary[] }> {
+  const r = await fetch("/api/blueprints");
+  if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) {
+    return { blueprints: [] };
+  }
+  const data = await r.json();
+  return { blueprints: data.blueprints ?? [] };
+}
+
 // The tab label keys live client-side (the registry carries slugs/testids —
 // labels are presentation). One map, so a new tab cannot land with a missing
 // label silently.
@@ -85,9 +101,19 @@ export function AgentsPage() {
   // instead of showing an empty grid / clusters area and waiting for a refetch.
   const catalog = useListCache("catalog", fetchCatalogPage);
   const mine = useListCache("clusters.mine", fetchMineClusters);
+  const myDocs = useListCache("blueprints.mine", fetchMyDocs);
   const agents = catalog.data?.agents ?? [];
   const error = catalog.error;
   const dynamicClusters = mine.data?.clusters ?? [];
+  // Board order: most recently touched first; the hub shows six and the full
+  // roster lives in the workspace's left rail.
+  const recentDocs = useMemo(
+    () =>
+      [...(myDocs.data?.blueprints ?? [])]
+        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+        .slice(0, 6),
+    [myDocs.data],
+  );
 
   const [composerOpen, setComposerOpen] = useState(false);
   // Cluster detail (Manage): the summary row carries no agent list, so the full
@@ -250,18 +276,68 @@ export function AgentsPage() {
                 <div className="min-w-0 flex-1">
                   <h3 className="text-base font-medium">{t("hub.build.title")}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{t("hub.build.desc")}</p>
-                  <div className="mt-4">
+                  <div className="mt-4 flex items-center gap-2">
+                    <Link
+                      to="/studio?new=1"
+                      data-testid="build-new-doc-btn"
+                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {t("hub.build.new")}
+                    </Link>
                     <Link
                       to="/studio"
                       data-testid="build-studio-btn"
-                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+                      className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm hover:bg-muted"
                     >
-                      <Blocks className="h-4 w-4" />
-                      {t("hub.build.cta")}
+                      {t("hub.build.workspace")}
                     </Link>
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Recent-documents board (agent-builder-hub · 构建区 MODIFIED): the
+                hub answers "which document do I pick up next" — one row per
+                persisted working document, status on the shared pill, click
+                lands directly in the workspace on THAT document. */}
+            <div className="rounded-lg border border-border p-4" data-testid="build-docs-board">
+              <h3 className="text-sm font-medium text-muted-foreground">{t("hub.build.recent")}</h3>
+              {recentDocs.length > 0 ? (
+                <ul className="mt-2 divide-y divide-border">
+                  {recentDocs.map((d) => (
+                    <li key={d.id}>
+                      <Link
+                        to={`/studio?doc=${encodeURIComponent(d.id)}`}
+                        data-testid={`build-doc-${d.id}`}
+                        className="flex items-center gap-2 py-2 text-sm hover:bg-muted/50"
+                      >
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {d.name || t("studio.blueprint.untitled")}
+                        </span>
+                        <StatusPill
+                          status={DOC_STATUS_TONE[d.status]}
+                          label={t(`studio.blueprint.status.${d.status}`)}
+                          className="shrink-0 px-1.5 py-0 text-[10px]"
+                        />
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {new Date(d.updatedAt).toLocaleDateString()}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : myDocs.status === "loaded" ? (
+                // Empty state teaches the three real ways in (workspace spec
+                // doctrine: never a dead-end CTA).
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground" data-testid="build-docs-empty">
+                  <li>{t("studio.workspace.library.guideBlank")}</li>
+                  <li>{t("studio.workspace.library.guideAi")}</li>
+                  <li>{t("studio.workspace.library.guideMarket")}</li>
+                </ul>
+              ) : (
+                <Skeleton className="mt-2 h-8" data-testid="build-docs-skeleton" />
+              )}
             </div>
           </section>
         )}

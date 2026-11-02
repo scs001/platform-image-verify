@@ -83,11 +83,13 @@ const facetApp = read("facet/web/src/App.tsx");
 
 test("studio seeds from the READ api and carries lineage into the draft emit", () => {
   assert.match(page, /searchParams\.get\("fork"\)/, "?fork= param consumed");
-  assert.match(page, /fetch\(`\/api\/packs\/\$\{encodeURIComponent\(forkId\)\}`\)/, "seed fetched through the read API (visibility enforced there)");
+  // add-agent-builder-workspace 批 1 重建后契约等价：播种仍走 READ api（可见性
+  // 在读面强制），lineage 落 content.provenance，emitDraft 从持久文档带出。
+  assert.match(page, /fetch\(`\/api\/packs\/\$\{encodeURIComponent\(fork\w*\)\}`\)/, "seed fetched through the read API (visibility enforced there)");
   assert.match(page, /forkOf: \{ packId: detail\.id, version: detail\.version \}/, "lineage stamped on the seed");
   assert.ok(!/kind: ["']official/.test(page), "the seed never fabricates an adopted record");
-  const emit = page.slice(page.indexOf("const emitDraft"), page.indexOf("};", page.indexOf("const emitDraft")));
-  assert.match(emit, /provenance: doc\.provenance/, "emitDraft carries the lineage block");
+  // 全页唯一出现点即 emitDraft（TS 类型注解里的 `};` 会让切片式提取截断）。
+  assert.match(page, /provenance: prov/, "emitDraft carries the lineage block");
   assert.ok(!/\/api\/fork|fork.*POST/.test(page), "no fork write endpoint in the studio");
 });
 

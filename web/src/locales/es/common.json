@@ -2150,7 +2150,7 @@
       "pick": "Abrir un borrador de blueprint…",
       "new": "Nuevo blueprint",
       "untitled": "Blueprint sin título",
-      "empty": "Abre un borrador del pool o crea uno — el ciclo de vida del blueprint (validar → probar → aprobar → fundir) y su pool siguen igual",
+      "empty": "Abre un documento de la biblioteca o crea uno: el espacio sigue el orden real del servidor (validar → aprobar → fundir → prueba → firmar → re-sellar).",
       "status": {
         "draft": "Borrador",
         "approved": "Aprobado",
@@ -2180,7 +2180,8 @@
       "castRef": "Fundido: pack {{packId}} v{{version}}",
       "sign": "Firmar el informe de prueba (clave final)",
       "unsign": "Quitar firma",
-      "savedValid": "Guardado, validación verde"
+      "savedValid": "Guardado, validación verde",
+      "untitledAgent": "Agente sin título"
     },
     "validate": {
       "running": "Validando…",
@@ -2195,7 +2196,152 @@
       "draftOk": "Borrador creado — continúa la publicación en «Mis creaciones»",
       "failed": "Fallo al emitir: {{message}}"
     },
-    "remove": "Quitar"
+    "remove": "Quitar",
+    "workspace": {
+      "title": "Espacio de trabajo del agente",
+      "back": "Volver al constructor",
+      "dirty": "Cambios sin guardar",
+      "saving": "Guardando…",
+      "saved": "Guardado v{{version}}",
+      "saveFailed": "Error al guardar",
+      "overwriteDone": "Guardada tu versión",
+      "conflict": "Este documento cambió en otro lugar (servidor v{{server}}, el tuyo v{{local}}). Elige cómo continuar; tus ediciones se conservan hasta entonces.",
+      "conflictShort": "Conflicto de versión",
+      "conflictReload": "Cargar la última",
+      "conflictOverwrite": "Usar la mía",
+      "conflictOverwriteConfirm": "Esto sobrescribirá la versión más nueva del servidor con tus ediciones. El servidor revalidará todo; la otra versión queda en el historial del documento.",
+      "actionFailed": "Acción fallida: {{action}}",
+      "createFailed": "No se pudo crear el documento",
+      "openFailed": "No se pudo abrir el documento",
+      "forkMiss": "El documento de origen no es legible — mostrando la biblioteca",
+      "approved": "Aprobado",
+      "castOk": "Fundido: paquete {{packId}} v{{version}}",
+      "signed": "Informe de prueba firmado",
+      "trialGreen": "Prueba superada — aserciones en verde",
+      "trialRed": "La prueba terminó con aserciones en rojo",
+      "toggleLibrary": "Mostrar/ocultar biblioteca",
+      "toggleInspector": "Mostrar/ocultar inspector",
+      "section": {
+        "envelope": "Contorno"
+      },
+      "canvas": {
+        "empty": "Ningún documento abierto — elige uno en la biblioteca o crea uno nuevo."
+      },
+      "emit": {
+        "section": "Destinos de emisión",
+        "needGreen": "La validación debe estar en verde antes de emitir"
+      },
+      "draft": {
+        "adopt": "Adoptar",
+        "adoptAll": "Adoptar todo",
+        "adoptPicked": "Adoptar lo seleccionado",
+        "skip": "Omitir",
+        "close": "Cerrar",
+        "inert": "No se escribió nada — el documento no cambió.",
+        "field": {
+          "name": "Nombre",
+          "description": "Descripción",
+          "persona": "Persona",
+          "mcpServers": "Herramientas (MCP)",
+          "skills": "Habilidades"
+        },
+        "skillsNote": "Las habilidades del boceto con IA aún no se pueden adoptar: edítalas en el cubo de habilidades del documento."
+      },
+      "library": {
+        "search": "Buscar documentos",
+        "empty": "Aún no hay documentos.",
+        "guideBlank": "Documento nuevo — en blanco, autoguardado al escribir.",
+        "guideAi": "Boceto con IA — describe el agente, revisa campo por campo y adopta lo que quieras.",
+        "guideMarket": "Duplicar del mercado — copia cualquier paquete instalado en un documento nuevo.",
+        "newAgent": "Nuevo agente",
+        "newTeam": "Nuevo equipo"
+      },
+      "ribbon": {
+        "stage": {
+          "draft": "Borrador",
+          "approve": "Aprobar",
+          "cast": "Fundir",
+          "trial": "Prueba",
+          "sign": "Firmar",
+          "reseal": "Re-sellar"
+        },
+        "reseal": "Re-sellar paquete",
+        "sign": "Firmar informe",
+        "trialRunning": "Prueba en curso…"
+      },
+      "ribbonNeedGreen": "Primero corrige todos los errores de validación",
+      "ribbonOnlyApprover": "Solo quien aprobó puede fundir este documento",
+      "ribbonRecastNote": "Editaste después de fundir — volvió a borrador. El paquete del mercado conserva la última versión fundida hasta aprobar y fundir de nuevo.",
+      "ribbonCastRef": "Fundido al paquete del mercado. Ejecuta una prueba y firma el informe.",
+      "ribbonSignStale": "El informe se volvió a ejecutar tras tu firma — la firma anterior ya no corresponde.",
+      "ribbonResealHint": "En verde, firmado y sin cambios desde la aprobación — re-sella para que el informe firmado llegue al paquete.",
+      "validation": {
+        "jump": "Ir al campo",
+        "jumpMiss": "Ese campo no está en esta pantalla",
+        "copy": "Copiar error",
+        "copied": "Copiado"
+      },
+      "kind": {
+        "agent": "Agente",
+        "team": "Equipo"
+      },
+      "agent": {
+        "description": "Descripción de una línea",
+        "hint": "Un documento de agente sigue siendo borrador: emite un preset (usable aquí) o un borrador de mercado desde los puertos de abajo. No tiene aprobación/fundición/prueba."
+      }
+    },
+    "errors": {
+      "name_too_long": "El nombre debe ser no vacío y de 80 caracteres como máximo (el CJK cuenta doble)",
+      "description_too_long": "La descripción debe ser texto de 2000 caracteres como máximo",
+      "pack_needs_one_reference": "Se requiere al menos un elemento: habilidad, herramienta, agente o bot",
+      "skills_too_many": "Demasiadas habilidades",
+      "skill_entry_invalid": "Una habilidad tiene forma incorrecta",
+      "skill_name_invalid": "Los nombres de habilidad admiten letras, dígitos, . _ - (1-64)",
+      "skill_name_duplicate": "Nombre de habilidad duplicado",
+      "skill_description_invalid": "La descripción de la habilidad debe ser texto no vacío de 300 caracteres como máximo",
+      "skill_content_invalid": "El contenido de la habilidad debe ser texto no vacío",
+      "mcp_too_many": "Demasiadas referencias de herramienta (MCP)",
+      "mcp_entry_invalid": "Una entrada de herramienta (MCP) tiene forma incorrecta",
+      "mcp_forbidden_keys": "Las referencias solo pueden nombrar servidores del registro, sin endpoints ni comandos",
+      "mcp_needs_registry_name": "Elige un servidor del registro para la referencia",
+      "allowtools_conflict": "allowTools y fullSurface no pueden declararse juntos",
+      "fullsurface_false": "fullSurface debe ser true cuando aparece (omita la clave)",
+      "fullsurface_needs_reason": "fullSurface necesita un motivo no vacío",
+      "reason_needs_fullsurface": "Solo las referencias fullSurface pueden omitir la lista de herramientas",
+      "allowtools_invalid": "allowTools debe ser un arreglo no vacío de nombres de herramienta",
+      "agents_too_many": "Demasiados agentes",
+      "agent_entry_invalid": "Un agente tiene forma incorrecta",
+      "agent_forbidden_keys": "Los agentes solo llevan persona, sin configuración de herramientas o servicio",
+      "agent_id_invalid": "Los ids de agente admiten letras, dígitos, . _ - (1-64)",
+      "agent_id_duplicate": "Id de agente duplicado",
+      "agent_name_invalid": "El nombre del agente debe ser texto no vacío de 60 caracteres como máximo",
+      "agent_persona_invalid": "La persona debe ser texto no vacío de 16384 caracteres como máximo",
+      "credential_secret_literal": "Los documentos no pueden llevar secretos ni credenciales",
+      "credential_forbidden_key": "Esta clave no puede aparecer en un documento (parece un endpoint o credencial)",
+      "datasources_invalid": "Las fuentes de datos tienen forma incorrecta",
+      "datasource_entry_invalid": "Una fuente de datos debe ser { ref, note? }",
+      "datasource_ref_invalid": "La referencia debe nombrar un servidor, una biblioteca o una colección — nunca un endpoint",
+      "datasource_library_unresolved": "La colección de conocimiento referenciada no es visible o no existe",
+      "datasource_note_invalid": "La nota de la fuente de datos debe ser texto",
+      "judge_model_unknown": "El modelo juez no está en el roster — elige otro o deja el campo vacío",
+      "v1_format": "Solo se aceptan documentos en formato v2",
+      "acceptance_entry_invalid": "Una aserción de aceptación tiene forma incorrecta",
+      "acceptance_kind_unsupported": "Tipo de aserción no soportado",
+      "acceptance_target_invalid": "El target de la aserción debe ser el título de un agente",
+      "acceptance_expect_invalid": "Las aserciones escalate-bounded necesitan un expect numérico",
+      "acceptance_rubric_required": "Las aserciones llm-judged necesitan un criterio no vacío",
+      "acceptance_judge_cap": "Demasiadas aserciones llm-judged — fusiona o elimina algunas",
+      "fleet_name_invalid": "El nombre del clúster debe ser texto no vacío",
+      "fleet_missing": "Un documento de equipo necesita su estructura de clúster (sección fleet)",
+      "fleet_members_empty": "Un equipo necesita al menos un miembro",
+      "fleet_member_needs_ref": "Un miembro necesita un ref",
+      "fleet_member_needs_title": "Un miembro necesita un título",
+      "fleet_member_needs_target": "Un miembro necesita un target",
+      "fleet_target_kind_invalid": "El tipo de target no está permitido",
+      "fleet_tool_target_shape": "Los targets de herramienta deben ser 'server::tool'",
+      "handoff_cycle": "Las relaciones padre-hijo forman un ciclo",
+      "handoff_unknown_parent": "El padre de un miembro no existe"
+    }
   },
   "overlay": {
     "title": "Ajuste de recursos",
@@ -3589,7 +3735,9 @@
     "build": {
       "title": "Constructor visual",
       "desc": "Compón un agente a partir de tres cubetas — persona, habilidades, herramientas — o organiza un equipo en el lienzo; editable con validación en vivo y emisión directa a presets y borradores del mercado.",
-      "cta": "Abrir el lienzo"
+      "new": "Documento nuevo",
+      "workspace": "Abrir el espacio de trabajo",
+      "recent": "Documentos recientes"
     },
     "supply": {
       "packs": "Plaza de Materiales para Agentes",

@@ -33,12 +33,15 @@ function makeFixture() {
 
   let nextPid = 100;
   // rssPages: statm field[1]. args: argv array (NUL-joined by the writer).
-  function addProc({ rssPages = 1000, args, cwd = null }) {
+  function addProc({ rssPages = 1000, args, cwd = null, ppid = 1 }) {
     const pid = nextPid++;
     const dir = path.join(procRoot, String(pid));
     mkdirSync(dir);
     writeFileSync(path.join(dir, "statm"), `1 ${rssPages} 1 1 0 0 0\n`);
     writeFileSync(path.join(dir, "cmdline"), args.join("\0") + "\0");
+    // /proc/<pid>/stat: pid (comm) state ppid ... — the writer fakes a comm so
+    // the parser's after-last-')' split has realistic shape.
+    writeFileSync(path.join(dir, "stat"), `${pid} (node) S ${ppid} 1 1 0 0 0\n`);
     if (cwd) symlinkSync(cwd, path.join(dir, "cwd"));
     return pid;
   }
@@ -131,6 +134,54 @@ test("ungrouped remainder stays visible, gateway bucket separate", () => {
       gateway: 1,
       ungrouped: 1,
     });
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("gateway relative cmdline arg is attributed (2026-11-02 live gap)", () => {
+  const f = makeFixture();
+  try {
+    // Production shape: `node gateway/index.js` — a relative arg that neither
+    // starts the joined cmdline nor follows a slash in it.
+    f.addProc({ rssPages: 25000, args: ["node", "gateway/index.js"], cwd: "/app" });
+    const snap = groupScan(scanProcesses({ procRoot: f.procRoot, cellsRoot: f.cellsRoot }));
+    assert.equal(snap.gateway.processes.length, 1, "gateway bucket catches its own process");
+    assert.equal(snap.ungrouped.processes.length, 0);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test("one-step ppid inheritance: dsh stdio MCP satellites land in their host cell", () => {
+  const f = makeFixture();
+  try {
+    const cellA = path.join(f.cellsRoot, "aaaaaaaaaaaaaaaa");
+    mkdirSync(path.join(cellA, "runtime"), { recursive: true });
+    // The gateway first — children must point at its real fixture pid.
+    const gwPid = f.addProc({ rssPages: 25000, args: ["node", "gateway/index.js"], cwd: "/app", ppid: 0 });
+    // The dsh runtime: attributed via cmdline patch args.
+    const dshPid = f.addProc({
+      rssPages: 33000,
+      args: ["node", "/opt/dsh/bin.js", "--mcp-patch", path.join(cellA, "dsh", "mcp.patch.yml")],
+      cwd: "/app",
+      ppid: gwPid,
+    });
+    // Its stdio MCP satellite: cwd=/app, no cell clue anywhere — attribution
+    // rides the single ppid hop to the attributed dsh process.
+    f.addProc({ rssPages: 7000, args: ["node", "server/delegation-mcp.js"], cwd: "/app", ppid: dshPid });
+    // The gateway's transient child inherits the gateway bucket.
+    f.addProc({ rssPages: 8, args: ["curl", "http://127.0.0.1:3100/api/ready"], cwd: "/app", ppid: gwPid });
+    // A clueless orphan (parent gone/never attributed) stays ungrouped.
+    f.addProc({ rssPages: 500, args: ["node", "/app/loose.js"], cwd: "/app", ppid: 999999 });
+
+    const snap = groupScan(scanProcesses({ procRoot: f.procRoot, cellsRoot: f.cellsRoot }));
+    const a = snap.cells.find((c) => c.cellId === "aaaaaaaaaaaaaaaa");
+    assert.ok(a, "dsh runtime grouped to its cell");
+    assert.deepEqual(a.processes.map((p) => p.role).sort(), ["dsh-runtime", "mcp-satellite"], "satellite rides one hop into the cell");
+    assert.equal(a.totalBytes, (33000 + 7000) * PAGE, "satellite RSS counts into the cell total");
+    assert.equal(snap.gateway.processes.length, 2, "gateway itself + its transient child in the gateway bucket");
+    assert.equal(snap.ungrouped.processes.length, 1, "orphan without an attributed parent stays honestly ungrouped");
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }

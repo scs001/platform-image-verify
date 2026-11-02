@@ -173,7 +173,10 @@
   async function refreshLive() {
     // Live refresh attempt (spec: graceful, silent, never blocking the page).
     try {
-      const res = await fetch(`${FACET_BASE}/api/packs?page=1&pageSize=100&locale=${encodeURIComponent(store.locale)}`, {
+      // same-origin: the edge proxies /api/packs to the facet market — a
+      // cross-origin fetch here would die on CORS and the live face would
+      // never show (the snapshot fallback would silently become the only face)
+      const res = await fetch(`/api/packs?page=1&pageSize=100&locale=${encodeURIComponent(store.locale)}`, {
         signal: AbortSignal.timeout(6000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

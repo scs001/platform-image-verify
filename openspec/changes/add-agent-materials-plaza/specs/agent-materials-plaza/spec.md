@@ -1,12 +1,12 @@
 ## Purpose
 
-The Materials Plaza is the outward understanding surface of 壹座·智能体素材广场: a static five-locale site plus machine-readable surfaces that let humans of any language background and AI agents alike understand what infrastructure the platform provides, how it is provided, and which materials exist today — all rendered from one truth, the facet market listing.
+The Materials Plaza is the outward understanding surface of 壹座·智能体素材广场: a static five-locale site plus machine-readable surfaces that let humans of any language background and AI agents alike understand what infrastructure the platform provides, how it is provided, and which materials exist today — rendered from the registries' own public faces, with the material inventory itself as the site's core.
 
 ## ADDED Requirements
 
 ### Requirement: The human face is a five-locale static site with a fixed narrative structure
 
-The plaza site SHALL be a purely static site serving five locales (zh-CN, en, es, fr, ja) with locale parity enforced by the existing locale gate. The human face SHALL present, in order: a hero stating the plaza's one-line purpose with live material counts; the five material categories (功能集, 生态技能, MCP 服务, AI 分身, 官方数据锚) as one card each with a concrete example; the supply mechanism chain in four segments (publish → obtain → run → serve) each explained from the material's perspective; a material inventory gallery with official/facade badges, category filtering, and search; and a dual audience section (human paths and AI paths) plus the five-line footer ladder with sibling-site links. No locale SHALL fall back to another locale's text on any page.
+The plaza site SHALL be a purely static site serving five locales (zh-CN, en, es, fr, ja) with locale parity enforced by the site-side parity gate. The human face SHALL present, in order: a hero whose primary data is the live material inventory itself — the three species counts (agents/packs, skills, MCP services) plus the tool count and the snapshot as-of date; the five material categories (功能集, 生态技能, MCP 服务, AI 分身, 官方数据锚) as one card each with a concrete example; the supply mechanism chain in four segments (publish → obtain → run → serve) each explained from the material's perspective; a material inventory gallery with species tabs, official/facade badges, category filtering, and search; and a dual audience section (human paths and AI paths) plus the five-line footer ladder with sibling-site links. No locale SHALL fall back to another locale's text on any page.
 
 #### Scenario: Five locales render complete pages
 
@@ -18,19 +18,39 @@ The plaza site SHALL be a purely static site serving five locales (zh-CN, en, es
 - **WHEN** a reader follows the supply mechanism section
 - **THEN** each of the four segments states what the mechanism does for the materials (e.g. publish freezes an immutable version snapshot) rather than presenting an architecture lecture
 
-#### Scenario: Sibling sites are linked both ways
+#### Scenario: Hero carries the species inventory
 
-- **WHEN** a visitor follows the footer ladder to the zhiyu or yongyi sibling site
-- **THEN** those sites link back to the plaza, and the plaza links to them
+- **WHEN** the page loads with a valid catalog
+- **THEN** the hero shows the three species counts (agents, skills, MCP services) and the tool count, not only a single pack count
 
-### Requirement: Machine surfaces are generated from the single market truth
+#### Scenario: Species tab filters the gallery
 
-The plaza's machine surfaces — `llms.txt`, `llms-full.txt`, `catalog.json`, per-material Markdown pages, and `infrastructure.md` — SHALL be generated at build time by the plaza export from the market listing. No hand-maintained inventory copy SHALL exist: if a material appears in the machine surfaces, it comes from the listing; if it was unpublished, the next export drops it. `catalog.json` entries SHALL reuse the production annotation shape (`canonical.brief`, `human` in five locales, `whenToUse`, `provenance.source` + `provenance.updatedAt`) with no new vocabulary. Every human page SHALL embed JSON-LD structured data and a link to its machine twin.
+- **WHEN** a visitor selects the skills or MCP species tab
+- **THEN** the gallery narrows to that species and the other species' cards are hidden, with counts per tab visible
+
+#### Scenario: Hostname preselects the species
+
+- **WHEN** the site is opened through skills.finddatatech.cloud
+- **THEN** the gallery opens preselected on the skills species, while agent.finddatatech.cloud opens unfiltered
+
+### Requirement: Machine surfaces are generated from the registries' own public faces
+
+The plaza's machine surfaces — `llms.txt`, `llms-full.txt`, `catalog.json`, per-material Markdown pages, and `infrastructure.md` — SHALL be generated at build time by the plaza export from the registries' own public faces (the pack listing, the skills catalog, the MCP catalog and its per-server depth). No hand-maintained inventory copy SHALL exist: if a material appears in the machine surfaces, it comes from its registry; if it was unpublished or group-gated away, the next export drops it. `catalog.json` entries SHALL reuse the production annotation shape (`canonical.brief`, `human` in five locales, `whenToUse`, `provenance.source` + `provenance.updatedAt`) with no new vocabulary; MCP entries carry their annotation-layer projection natively, and skill entries not yet covered by an annotation pass SHALL carry their zh source text in all five locale slots with provenance unchanged rather than being silently translated or omitted. Every human page SHALL embed JSON-LD structured data and a link to its machine twin.
 
 #### Scenario: Catalog entries carry the annotation shape
 
 - **WHEN** an AI agent reads `catalog.json`
-- **THEN** every entry has a canonical brief, human summaries in five locales, a whenToUse hint, and provenance (source and as-of date), using the same field names as the production annotation layer
+- **THEN** every entry has a canonical brief, human summaries in five locale slots, a whenToUse hint, and provenance (source and as-of date), using the same field names as the production annotation layer
+
+#### Scenario: MCP entries speak the annotation layer natively
+
+- **WHEN** an annotated MCP server is exported with a requested locale
+- **THEN** its catalog entry carries the projected localized name/summary/whenToUse from the supply annotations, falling back to zh exactly as the platform's own surfaces do
+
+#### Scenario: Un-annotated skills are honest about their text
+
+- **WHEN** a skill has no annotation coverage
+- **THEN** its entry carries the zh source text (not a machine translation, not an omission) and its provenance still names the skills catalog and as-of date
 
 #### Scenario: Unpublish removes a material from the next export
 
@@ -42,19 +62,38 @@ The plaza's machine surfaces — `llms.txt`, `llms-full.txt`, `catalog.json`, pe
 - **WHEN** a crawler or AI agent parses any plaza human page
 - **THEN** it finds JSON-LD describing the page and a link to the corresponding machine-readable surface
 
-### Requirement: The listing rule is the market's single admission rule
+### Requirement: Each species admits through its own registry's public face
 
-The plaza export SHALL admit materials through the market's one listing rule (public, non-unlisted, curated — or the operator whitelist replacing curation outright). The export SHALL NOT carry a second admission rule. A reconciliation gate SHALL compare the exported catalog's material count with the market listing API's count at export time and fail the build on any mismatch.
+The plaza export SHALL admit each species through that species' own registry public face — packs through the market listing rule (public, non-unlisted, curated — or the operator whitelist replacing curation outright), skills and MCP servers through the registry visibility rule (no required groups = public; group-gated entries never appear anonymously). The export SHALL NOT restate or reinterpret any admission predicate. A reconciliation gate SHALL compare the exported catalog's per-species material count with each source's count at export time and fail the build on any mismatch.
 
-#### Scenario: Private and unlisted packs never appear
+#### Scenario: Private, unlisted, and group-gated materials never appear
 
-- **WHEN** the export runs against a market containing private and unlisted packs
-- **THEN** neither appears in any machine surface or human gallery, byte-identical to what the market browse face shows
+- **WHEN** the export runs against sources containing private packs, unlisted packs, and group-gated MCP servers
+- **THEN** none of them appear in any machine surface or human gallery — byte-identical to what the anonymous browse faces show
 
-#### Scenario: Count reconciliation gate
+#### Scenario: Per-source count reconciliation gate
 
-- **WHEN** the exported catalog count differs from the market listing count at export time
-- **THEN** the export fails with the two counts in the error, and no artifacts are written
+- **WHEN** any species' exported count differs from its source's count at export time
+- **THEN** the export fails naming the species and both counts, and no artifacts are written
+
+### Requirement: The inventory spans the three material species
+
+The export SHALL ingest all three material species: packs from the market listing, skills from the skills catalog, and MCP servers from the MCP catalog. Each MCP server's material page SHALL embed its full public tool surface (tool names and descriptions, tool count, license and provider where exposed) rather than splitting tools into separate pages. Each pack's material page SHALL enumerate the skills and MCP server references declared in its own manifest, so the contents inside 壹座 packs are themselves visible.
+
+#### Scenario: Skills and MCP species are populated
+
+- **WHEN** the export completes with all three sources reachable
+- **THEN** `catalog.json` carries nonzero skills and MCP entries alongside packs, each with a stable species-appropriate address, and the hero counts agree with the catalog
+
+#### Scenario: MCP material page embeds the tool surface
+
+- **WHEN** a reader opens an MCP server's material page
+- **THEN** the page lists every public tool with its description and the total tool count, self-contained with provenance
+
+#### Scenario: Pack page enumerates its own contents
+
+- **WHEN** a reader opens a pack's material page
+- **THEN** the page names the skills and MCP server references the pack's manifest declares, in addition to the obtain paths
 
 ### Requirement: Freshness is always visible and degrade is graceful
 
@@ -86,7 +125,7 @@ The export SHALL enforce six lint rules on every generated machine surface: each
 
 ### Requirement: Addresses are stable across content and locale changes
 
-Material page slugs SHALL be stable identifiers that do not change when content updates or locales are added; locale switching SHALL NOT alter material addresses. The `catalog.json` category field SHALL be a versioned closed enumeration; adding a new material species SHALL extend the enumeration with a version bump rather than overloading an existing category.
+Material page slugs SHALL be stable identifiers that do not change when content updates or locales are added; locale switching SHALL NOT alter material addresses. Slugs SHALL be namespaced per species (pack-, skill-, mcp-) so the three registries never collide. The `catalog.json` category field SHALL be a versioned closed enumeration; adding a new material species SHALL extend the enumeration with a version bump rather than overloading an existing category.
 
 #### Scenario: Content update keeps the address
 
@@ -97,3 +136,27 @@ Material page slugs SHALL be stable identifiers that do not change when content 
 
 - **WHEN** a new material species (e.g. fleet templates) joins the plaza
 - **THEN** the category enumeration gains a new value with a version bump, and no existing category absorbs it
+
+### Requirement: Three domains open one inventory
+
+The plaza SHALL be reachable through three domains as three doors into one inventory: agent.finddatatech.cloud is the canonical door opening unfiltered; skills.finddatatech.cloud serves the same site with the gallery preselected on the skills species; mcp.finddatatech.cloud's anonymous root path SHALL redirect to the plaza (species-preselected on MCP) while every other path on that domain — the MCP protocol endpoints (/<server>/mcp), the registry console, and its API/registry.json faces — SHALL be untouched, and a request to the mcp. root carrying the registry session SHALL still reach the registry console as its spec governs. All three hostnames SHALL be covered by the edge certificate (single SAN set, all domains listed — a re-sign that drops any prior domain is a failure).
+
+#### Scenario: Skills door preselects the species
+
+- **WHEN** a visitor opens skills.finddatatech.cloud
+- **THEN** they see the same plaza inventory with the skills species preselected, and can clear the filter to see everything
+
+#### Scenario: MCP anonymous root redirects, protocol endpoints never
+
+- **WHEN** an anonymous client requests the root of mcp.finddatatech.cloud
+- **THEN** it is redirected to the plaza (MCP species preselected), while a request to /<server>/mcp or /api/mcp-registry.json on the same domain is served by the registry unchanged
+
+#### Scenario: Registry session keeps its console
+
+- **WHEN** a client with a valid registry session requests the root of mcp.finddatatech.cloud
+- **THEN** the registry console answers as its own product spec requires — the redirect only governs anonymous traffic
+
+#### Scenario: Certificate covers every door
+
+- **WHEN** the edge certificate is re-signed for the plaza's domains
+- **THEN** its SAN list includes every prior domain plus the new ones, and a TLS handshake succeeds for all of them

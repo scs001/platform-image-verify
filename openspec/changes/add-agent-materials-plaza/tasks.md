@@ -25,3 +25,19 @@
 - [ ] 4.1 人面走查：五语真机全页 + 两客户端（桌面/移动宽度）眼见—— 验证：截图入台账 §9【五语内容公网 curl 实证已录 §9；浏览器截图证据未拍——本任务保持开放】
 - [x] 4.2 AI 面走查：派真实 agent 从 `/llms.txt` → `catalog.json` → 任一 material md → 真装一个包全链零人工干预—— 验证：走查报告记台账；冷读三问全对
 - [x] 4.3 兄弟站互链往返 + www products/facet 页加广场链接（外部件记挂）—— 验证：三站往返成立
+
+## 5. v2 三类素材接入（用户裁定 2026-11-03：核心=素材清单，三类全暴露）
+
+- [ ] 5.1 导出接 skills-catalog 源：`/api/skills-catalog` 全量（197）入 catalog，slug=skill-<name> 前缀，zh 直通四语槽位同文（provenance 如实标注源与日期，不伪造翻译）—— 验证：实跑 catalog 中 skill 类计数=源计数；逐源对账门含 skill
+- [ ] 5.2 导出接 mcp-catalog 源：`/api/mcp-catalog`（13 公开）+ 深度路由全 tool 面入 catalog，slug=mcp-<name>；素材页内嵌 tools[]（名+描述+toolCount+license+provider），不拆工具页—— 验证：mcp 类计数=源计数；任一服务页 tools 明细数=深度路由 toolCount；注释投影 ?locale=en 实测 en 落 catalog
+- [ ] 5.3 pack 素材页枚举自身内容：pack 详情匿名可读 manifest，页内列出该包 skills 与 mcpServers 引用（"壹座 packs 里面有的"字面暴露）—— 验证：抽 3 包页内核对其 manifest 清单
+- [ ] 5.4 逐源对账门 v2：packs 对 marketplace.json 权威（现行），skills/mcp 各对其源端点计数，任一差非零即红零产物—— 验证：mock 任一源差一即红
+- [ ] 5.5 hero 重定心：三类素材活计数（智能体/技能/MCP 服务/工具数）+ 快照截至为主数据；画廊加 species 标签页（agent/skills/mcp 三签，计数各显）—— 验证：counts.json 含三源计数；页面五语 parity 门绿
+- [ ] 5.6 测试套件 v2：fixture 加 skill/mcp 条目，门套全绿（11 旧测不破+新源用例）—— 验证：`node --test scripts/test-plaza-export.mjs scripts/test-plaza-site.mjs` 全绿
+
+## 6. v2 三域一门
+
+- [ ] 6.1 站内 hostname 感知：location.hostname 为 skills./mcp. 时画廊预选对应 species（agent. 不过滤）—— 验证：三域打开预选状态眼见
+- [ ] 6.2 skills. 域接线：Caddy 新块（root 同 /srv/agent-plaza-site）→ 雷池 site 31 并域 17→18（GET 活体→全字段 PUT→读回核验）→ 证书重签 **18-SAN**（17 旧 `-d` 逐个核对再加 skills——挤出事故律）→ push-cert —— 验证：https://skills.finddatatech.cloud/ 200 且 SAN 计数=18；17 旧域回归全 200/302
+- [ ] 6.3 mcp. 根跳转：Caddy mcp 块加匿名根 matcher（无注册表会话 cookie 且 path=/ → 302 agent.finddatatech.cloud?species=mcp）；`/<server>/mcp`、`/api/*`、/static 零触碰—— 验证：匿名根 302；任一 `/x/mcp` 端点仍 200/401（非 302）；带会话根路径进控制台
+- [ ] 6.4 三域回归入部署验单：agent/skills 双域五点验 + mcp. 三态（匿名根跳/协议端点不动/会话不跳）—— 验证：curl 断言脚本入 deploy-plaza.sh，全绿出单

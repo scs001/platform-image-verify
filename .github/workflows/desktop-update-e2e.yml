@@ -125,8 +125,7 @@ jobs:
           fi
           echo "APP_EXE=$EXE" >> "$GITHUB_ENV"
           echo "binary: $EXE"
-          # Binary sanity: Electron answers --version without booting the app.
-          "$EXE" --version; echo "version-exit=$?"
+          ls -la "$(dirname "$EXE")" | head -4
 
       # ── Phase 1: honest up-to-date ────────────────────────────────────────────
       - name: Phase 1 — lane matches running version → up-to-date

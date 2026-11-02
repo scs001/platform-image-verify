@@ -48,6 +48,8 @@ function contrast(fg, bg) {
 }
 
 // Parse `--color-x: light-dark(oklch(...), oklch(...));` into {light, dark}.
+// `--color-x: var(--color-y);` alias lines (the status pinning) resolve to the
+// target's parsed pair, so semantic aliases get checked like literals.
 function parsePalettes(css) {
   const light = {};
   const dark = {};
@@ -57,6 +59,13 @@ function parsePalettes(css) {
   for (const [, name, l, d] of css.matchAll(re)) {
     light[name] = oklchToSrgb(...nums(l));
     dark[name] = oklchToSrgb(...nums(d));
+  }
+  const varRe = /--color-([\w-]+):\s*var\(--color-([\w-]+)\)\s*;/g;
+  for (const [, name, target] of css.matchAll(varRe)) {
+    if (light[target]) {
+      light[name] = light[target];
+      dark[name] = dark[target];
+    }
   }
   return { light, dark };
 }
@@ -91,6 +100,14 @@ const PAIRS = [
   ["destructive-foreground", "destructive-deep", 4.5],
   ["success", "card", 3.0],
   ["warning", "card", 3.0],
+  // Status aliases (web-design-system color discipline): var-resolved from their
+  // pinned sources above; StatusPill renders the label on card / a 12% tint of
+  // the same color, so the card floor is the real one (3.0 mirrors the signal
+  // pair convention this repo already uses for status-colored labels).
+  ["status-running", "card", 3.0],
+  ["status-waiting", "card", 3.0],
+  ["status-failed", "card", 4.5],
+  ["status-paused", "card", 4.5],
   // Non-text boundaries. WCAG sets no minimum for a decorative separator, so
   // this is not an AA threshold — it is a "visible at all" floor that catches a
   // border collapsing into its surface. Deliberately low: subtle separators are
@@ -128,3 +145,31 @@ for (const theme of ["light", "dark"]) {
     assert.equal(failures.length, 0, `${theme} palette contrast failures:\n${failures.join("\n")}`);
   });
 }
+
+// The series ramp's discipline is EQUAL LIGHTNESS: every step shares the lamp's
+// L in each theme (light 0.48 / dark 0.64), descending chroma only. That is what
+// makes "no step can fall under the contrast floor" true by construction —
+// contrast is lightness-driven, and primary/card is already pinned above.
+test("series ramp is equal-lightness vs the lamp, descending chroma", () => {
+  const re =
+    /--color-(primary|series-[1-4]):\s*light-dark\(\s*oklch\(([^)]*)\)\s*,\s*oklch\(([^)]*)\)\s*\)/g;
+  const steps = {};
+  for (const [, name, l, d] of css.matchAll(re)) {
+    steps[name] = { light: l.trim().split(/\s+/).map(Number), dark: d.trim().split(/\s+/).map(Number) };
+  }
+  for (let i = 1; i <= 4; i++) {
+    const s = steps[`series-${i}`];
+    assert.ok(s, `--color-series-${i} missing`);
+    assert.equal(s.light[0], steps.primary.light[0], `series-${i} light L must equal the lamp's`);
+    assert.equal(s.dark[0], steps.primary.dark[0], `series-${i} dark L must equal the lamp's`);
+    assert.equal(s.light[2], 250, `series-${i} keeps the lamp hue`);
+  }
+  const chroma = [1, 2, 3, 4].map((i) => steps[`series-${i}`].light[1]);
+  for (let i = 1; i < chroma.length; i++) {
+    assert.ok(chroma[i] < chroma[i - 1], `chroma must descend: step ${i + 1} (${chroma[i]}) !< step ${i} (${chroma[i - 1]})`);
+  }
+});
+
+// EChart.tsx consumes the ramp at runtime by resolving `var(--color-series-N)`
+// through a computed style (ECharts cannot read custom properties), so the
+// values above remain the single source — no hex mirrors exist to pin.

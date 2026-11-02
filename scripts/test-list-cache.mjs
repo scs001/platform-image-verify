@@ -3,6 +3,7 @@
 // the framework-free core is imported under plain node (type stripping) and the
 // React binding's DOM behavior is covered by e2e. Runs under `npm run test:unit`.
 
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -21,6 +22,15 @@ test("cold key has no cached value", () => {
   assert.equal(listCacheGet("catalog"), undefined);
 });
 
+
+test("background revalidation failure keeps last-known-good (no blank-out)", () => {
+  // The hook contract (hooks/useListCache.ts load()): on fetch error the status
+  // stays "loaded" whenever a cached payload exists, and `data` is never reset
+  // to null. Pin the source so a refactor cannot silently blank cached surfaces.
+  const src = readFileSync(new URL("../web/src/hooks/useListCache.ts", import.meta.url), "utf8");
+  assert.match(src, /setStatus\(listCacheGet\(key\) !== undefined \? "loaded" : "error"\)/, "error path must keep cached surfaces loaded");
+  assert.doesNotMatch(src, /listCacheSet\(key,\s*null/, "error path must never null the cache");
+});
 test("round-trips a payload", () => {
   listCacheClear();
   listCacheSet("catalog", { agents: ["a"], apps: ["b"] });

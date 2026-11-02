@@ -81,6 +81,31 @@
   --color-success: light-dark(oklch(0.52 0.15 145), oklch(0.72 0.17 145));
   --color-warning: light-dark(oklch(0.52 0.14 85), oklch(0.80 0.15 85));
 
+  /* ── Color discipline: lamp / status / series (web-design-system) ─────────
+   * The LAMP (`primary`) means exactly one thing: work is happening here —
+   * streaming, focus, the user's own bubble, and the single primary action of
+   * a view. STATUS aliases pin the four runtime states (running/paused/
+   * failed/waiting) to signal values; StatusPill and its ②③ consumers use
+   * these four names and nothing else. SERIES is the only legal color source
+   * for multi-series meters; a single-series meter always uses the lamp.
+   * Pages and components consume the SEMANTIC names, never a raw value — the
+   * ratchet gate (scripts/design-lint.mjs) enforces the second half. */
+  --color-status-running: var(--color-success);
+  --color-status-paused: var(--color-muted-foreground);
+  --color-status-failed: var(--color-destructive);
+  --color-status-waiting: var(--color-warning);
+
+  /* Series ramp: same hue (250) as the lamp, SAME LIGHTNESS as the lamp in each
+   * theme (light 0.48 / dark 0.64), descending chroma. Equal lightness is the
+   * discipline — contrast against any surface equals `primary`'s already-AA
+   * pairing, so no ramp step can fall under the floor regardless of chroma.
+   * test-palette-contrast.mjs pins the lightness rule. Exact chroma steps may
+   * be tuned at batch ② against the real Resources render; the rule holds. */
+  --color-series-1: light-dark(oklch(0.48 0.16 250), oklch(0.64 0.16 250));
+  --color-series-2: light-dark(oklch(0.48 0.12 250), oklch(0.64 0.12 250));
+  --color-series-3: light-dark(oklch(0.48 0.08 250), oklch(0.64 0.08 250));
+  --color-series-4: light-dark(oklch(0.48 0.05 250), oklch(0.64 0.05 250));
+
   /* Backdrop behind modals and the mobile nav drawer. A token, not bg-black/60,
    * so it can be lighter in light mode where a near-opaque black scrim is
    * jarring. */

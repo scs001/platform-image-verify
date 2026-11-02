@@ -174,11 +174,34 @@ One blue in two lightness steps — same hue (250), same chroma (0.16); only the
 - **Done Green** (`light-dark(oklch(0.52 0.15 145), oklch(0.72 0.17 145))`, `success`): Connected status dot, completed-tool left rail.
 - **Pending Amber** (`light-dark(oklch(0.52 0.14 85), oklch(0.80 0.15 85))`, `warning`): Connecting status dot.
 
+### Color Discipline: Lamp / Status / Series (web-design-system)
+
+Three roles, three tiers — each color choice must name its tier first. The 2026-11-02 design audit found the lamp doctrine dissolving on surfaces that needed *status* color and *series* color but had no vocabulary for them, so each tier gets its own pinned scale and only one legal source.
+
+**Status vocabulary** — four aliases pin the runtime states to signal values; `StatusPill` (and every ②③ surface) uses these names, never the raw hues:
+
+| Semantic name | Pinned to | Means |
+|---|---|---|
+| `status-running` | `success` | work is live: streaming, running tool, connected |
+| `status-paused` | `muted-foreground` | idle, parked, awaiting a return |
+| `status-failed` | `destructive` | failed, disconnected, error state |
+| `status-waiting` | `warning` | queued, pending, needs a human |
+
+**Series ramp** — `series-1..4` (hue 250, chroma descending from the lamp's 0.16): the ONLY legal color source for multi-series meters and charts. Every step shares the lamp's exact lightness per theme (light 0.48 / dark 0.64) — equal lightness means every step inherits the lamp's already-AA contrast, so no ramp step can sink below the floor regardless of its chroma (`scripts/test-palette-contrast.mjs` pins the rule). A single-series meter uses the lamp itself, never the ramp.
+
 ### Named Rules
 
 **The One Lamp Rule.** Workbench Blue appears on ≤10% of any screen and always means live work: streaming, focus, selection, active navigation, or the user's own words. If blue is used decoratively, the lamp goes out — the accent dies.
 
+**The Color Speaks Twice Rule.** Color never carries meaning alone. Every status distinguished by hue also carries the state in text (and an icon where the surface scrolls by shape). A red dot plus the word 「失败」 is the unit of status; a bare dot is a violation.
+
+**The Status Vocabulary Rule.** Runtime states are painted from the four `status-*` aliases only. An invented fifth state color — a local cyan, a one-off violet chip — is debt; the ratchet gate catches it as literal-color debt.
+
+**The Series Ramp Rule.** Multi-series data visuals use `series-1..4` in order; single-series visuals use the lamp. Meter bars, burn-down chips, and resource scales are the same visual noun and share the ramp.
+
 **The One Mechanism Rule.** A color themes exactly one way: a `light-dark()` pair in the `@theme` block, resolved by `color-scheme`. No per-component light variants, no `[data-theme]` forks below the token layer, no hand-written theme hex in JSX. `scripts/test-palette-contrast.mjs` gates every pair at WCAG AA in both halves — run it after touching any value.
+
+**The Ratchet Rule.** Color discipline is machine-enforced, not tribal: `scripts/design-lint.mjs` (via `npm run test:unit`) blocks new hex literals, raw rgba, literal arbitrary color classes, Tailwind named palette shades (`bg-emerald-500`), side-tab card borders, and native `confirm()` outside the primitives layer. Existing debt lives in `scripts/design-lint-baseline.json` with a per-file count that only moves down. A page that pays debt should shrink the baseline in the same commit; the gate's hint tells you when.
 
 **The Dead Navy Rule.** The 2019-era navy palette of the pre-redesign vanilla page is a confirmed anti-reference. No navy, no desaturated steel blues, no second accent hue.
 
@@ -294,11 +317,26 @@ A transcript outline (every user turn's first line) docks at the transcript's ri
 
 Centered, `max-w-lg`, 8px radius, 1px border, Worktop fill, 24px padding, Floating shadow, over the blurred `scrim` token; enters with fade only. The Settings modal is the flagship: a section registry (`sections.ts`) is the single source of truth — both the modal's section list and the `/settings/:section` routes read it, sections lazy-mount, and legacy routes (`/models`, `/mcp`, `/skills`, `/dashboard`) redirect to their slugs. Section slugs are public API; they are bookmarked.
 
+### Foundation primitives (web-design-system)
+
+`web/src/components/ui/` is the only place a page's visual nouns come from; primitives own zero user-facing strings (all copy arrives as props, so the locale gate never sees the kit). Batch ②③ migrate surfaces onto these — a page hand-rolling a card, tab, pill, select, tooltip, confirm, page header, or data state is ratchet debt.
+
+- **Card** (`card.tsx`): hairline-bordered surface with optional title/actions row; elevation is the border, never a stacked shadow.
+- **StatusPill** (`status-pill.tsx`): `{ status: running|paused|failed|waiting|neutral, label }` — the status vocabulary rendered as a 12% tint + the color's own text step + required label (The Color Speaks Twice Rule). `dot` is decoration, never the meaning.
+- **Tabs** (`tabs.tsx`): `role=tablist`, `aria-selected`, roving focus — Arrow keys wrap and skip disabled tabs, Home/End jump; the view follows the selection (automatic activation). Replaces the three hand-rolled tab bars.
+- **Select** (`select.tsx`): themed wrapper over the NATIVE `<select>` — deliberate; focus, typing, IME and SR semantics are free, and the 23 hand-rolled selects swap in one tag.
+- **Tooltip** (`tooltip.tsx`): 300ms hover delay, immediate on keyboard focus, Escape closes. Replaces bare `title=`.
+- **Toast v2** (`toast.tsx` + `lib/toastCore.ts`): queued multi-slot host (≤3 visible, FIFO overflow), severity `success|error|info`, dwell 3s/8s/4s, error always manually closable, optional action slot (retry/undo). The single feedback channel batch ③ converges async success/error onto; the host's close label is locale-supplied at the App root.
+- **ConfirmDialog** (`confirm-dialog.tsx`): wraps `ui/dialog` (focus trap / Escape / restore are reused verbatim); cancel precedes confirm in DOM order so the dialog's first-focus lands on the safe side; `danger` paints the confirm button with the destructive fill. The designated replacement for native `confirm()` (batch ③).
+- **PageShell** (`page-shell.tsx`): the fixed heading hierarchy — title is always the first reading point, actions right-anchored, filters below the header, body scrolls in-shell. It exists because audited pages let filter bars outrank titles.
+- **StatesKit** (`states-kit.tsx`): `Skeleton`/`SkeletonList` (shape-matched placeholders — loading keeps the real layout's silhouette, never a void), `EmptyState` (reason + next-step action; a bare 「暂无数据」 is the failure mode this replaces), `ErrorState` (problem named + retry offered).
+
 ## Do's and Don'ts
 
 ### Do:
 
 - **Do** use Workbench Blue for exactly five things: streaming, focus/selection, active nav, running tools, and the user bubble (The One Lamp Rule).
+- **Do** paint runtime states from the four `status-*` aliases via `StatusPill`/`StatusToken`, and multi-series visuals from `series-1..4` in order — no invented state colors, no per-page ramps (The Status Vocabulary / Series Ramp Rules).
 - **Do** theme every new color as a `light-dark()` pair in the `@theme` block, and run `scripts/test-palette-contrast.mjs` after touching any value — AA in both halves or it doesn't ship (The One Mechanism Rule).
 - **Do** build depth with the neutral steps and 1px hairlines — a raised surface is a lighter (dark) or whiter (light) surface.
 - **Do** center the transcript at 768px (`max-w-3xl`) and keep 24px between turns.
@@ -314,5 +352,7 @@ Centered, `max-w-lg`, 8px radius, 1px border, Worktop fill, 24px padding, Floati
 - **Don't** introduce webfonts, icon fonts, or remote type assets (The Invisible Type Rule).
 - **Don't** hand-write light-mode or dark-mode values in components, or fork styles under `[data-theme]` — the token pair is the only theming path.
 - **Don't** let markdown or panel headings exceed 18px, or add entrance/parallax/decorative motion.
-- **Don't** hard-code hex colors in components — extend the `@theme` tokens instead.
+- **Don't** hard-code hex colors in components — extend the `@theme` tokens instead. `scripts/design-lint.mjs` counts the debt per file and blocks new ones (The Ratchet Rule).
+- **Don't** put a colored side-tab (`border-l-2`+) on cards, list rows, or callouts — the one-sided accent border is the most recognizable tell of assembled-not-authored UI; state rides on the StatusPill vocabulary or a leading icon.
+- **Don't** call `window.confirm` / `confirm()` from UI code — ConfirmDialog is the themed, locale-checked, safe-side-focus replacement (batch ③ migrates the existing sites).
 - **Don't** design a second navigation pattern for mobile — the below-`md` drawer is the same rail, floating.

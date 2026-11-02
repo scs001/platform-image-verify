@@ -1,5 +1,10 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
+// One focusable-descendant contract for every trap in the app (ui/dialog's
+// own trap and SettingsDialog's specialized variant share it).
+export const FOCUSABLE_SELECTOR =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 import { cn } from "@/lib/utils"
 
 interface DialogProps {
@@ -25,9 +30,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
     () =>
       rootRef.current
         ? Array.from(
-            rootRef.current.querySelectorAll<HTMLElement>(
-              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            )
+            rootRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
           ).filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null)
         : [],
     []

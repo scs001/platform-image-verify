@@ -2606,6 +2606,16 @@
       "expiredTitle": "Sesión expirada",
       "expiredBody": "Tu sesión de Wire expiró — abre la página de conexión para volver a autorizar; no hay clave que pegar.",
       "connect": "Conectar"
+    },
+    "back": "Volver al centro de aplicaciones",
+    "underConstruction": "En construcción: la vista completa está en el sitio original",
+    "metric": {
+      "datasets": "Conjuntos de datos",
+      "artifacts": "Artefactos",
+      "demands": "Solicitudes",
+      "quota": "Cuota del plan gratuito",
+      "my_packs": "Mis paquetes",
+      "published_versions": "Versiones publicadas"
     }
   },
   "copilot": {

@@ -644,10 +644,14 @@ test("5.1 connected: four real blocks, counts, quota, deep links, row actions", 
   assert.equal(calls.length, 4, "exactly the four upstream reads");
   assert.ok(calls.every((c) => c.auth === "Bearer tok"));
   const overview = out.blocks[0];
-  assert.equal(overview.data["数据集"], 1);
-  assert.equal(overview.data["产物"], 2);
-  assert.equal(overview.data["需求单"], 2);
-  assert.equal(overview.data["免费档配额"], "1/3");
+  // fix-line-boards-ux D3: metric keys are stable snake_case identifiers the
+  // renderer localizes via board.metric.<key> — never raw display strings.
+  assert.equal(overview.data.datasets, 1);
+  assert.equal(overview.data.artifacts, 2);
+  assert.equal(overview.data.demands, 2);
+  assert.equal(overview.data.quota, "1/3");
+  // D2: every block declares its owning tab (the page's tab contract).
+  assert.deepEqual(out.blocks.map((b) => b.tab), ["overview", "datasets", "artifacts", "demands"]);
   const datasets = out.blocks[1];
   assert.equal(datasets.data[0].title, "销售台账");
   assert.equal(datasets.data[0].badges.join(","), "免费档,120 行");

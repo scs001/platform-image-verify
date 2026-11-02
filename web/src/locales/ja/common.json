@@ -2606,6 +2606,16 @@
       "expiredTitle": "ログインの期限切れ",
       "expiredBody": "Wire のログインが期限切れです。接続ページを開いて再認可してください（キーの貼り付けは不要）。",
       "connect": "接続する"
+    },
+    "back": "アプリセンターへ戻る",
+    "underConstruction": "構築中——完全なビューは原サイトへ",
+    "metric": {
+      "datasets": "データセット",
+      "artifacts": "成果物",
+      "demands": "依頼票",
+      "quota": "無料枠クォータ",
+      "my_packs": "マイパック",
+      "published_versions": "公開済みバージョン"
     }
   },
   "copilot": {

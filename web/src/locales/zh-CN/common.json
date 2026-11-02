@@ -2449,6 +2449,16 @@
       "expiredTitle": "登录已过期",
       "expiredBody": "柏讯登录已过期——重新进入连接页即可重新授权，无需粘贴任何密钥。",
       "connect": "去连接"
+    },
+    "back": "返回应用中心",
+    "underConstruction": "建设中——完整视图请到原站",
+    "metric": {
+      "datasets": "数据集",
+      "artifacts": "产物",
+      "demands": "需求单",
+      "quota": "免费档配额",
+      "my_packs": "我的包",
+      "published_versions": "已发布版本"
     }
   },
   "copilot": {

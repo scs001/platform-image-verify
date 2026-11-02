@@ -18,9 +18,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { ExternalLink, Loader2, AlertCircle, Plug } from "lucide-react";
+import { ExternalLink, Loader2, AlertCircle, Plug, Clock } from "lucide-react";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { ActionCard, type ActionProposal } from "@/components/ActionCard";
+import { PageShell } from "@/components/ui/page-shell";
+import { Button } from "@/components/ui/button";
 
 interface BlockAction {
   id: string;
@@ -46,6 +48,10 @@ interface ListRow {
 interface Block {
   id: string;
   type: "metrics" | "list" | "timeline";
+  /** The tab this block belongs to (fix-line-boards-ux D2). Adapters declare
+   *  it explicitly; the renderer matches on it and only falls back to a
+   *  normalized id comparison for adapters that predate the field. */
+  tab?: string;
   title: string;
   data?: unknown;
   error?: string;
@@ -177,15 +183,29 @@ export function BoardsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6" data-testid={`board-${data.line}`}>
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{data.title}</h1>
-          <p className="text-sm text-muted-foreground">{t("board.subtitle", { line: data.line })}</p>
-        </div>
-        <OriginLink href={data.originUrl} label={t("board.openOrigin")} />
-      </div>
+    <PageShell
+      data-testid={`board-${data.line}`}
+      title={data.title}
+      subtitle={t("board.subtitle", { line: data.line })}
+      actions={
+        <>
+          {/* Return path the hash-tab trap used to steal (D1): an explicit
+              control back to the discovery surface that opened this board. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="board-back"
+            onClick={() => navigate("/apps")}
+          >
+            {t("board.back")}
+          </Button>
+          <OriginLink href={data.originUrl} label={t("board.openOrigin")} />
+        </>
+      }
+      bodyClassName="mx-auto w-full max-w-4xl"
+    >
+      <div className="space-y-6">
 
       {data.connected === false ? (
         <div data-testid="board-unconnected" className="space-y-3 rounded-md border border-border bg-muted px-4 py-4 text-sm">
@@ -218,7 +238,13 @@ export function BoardsPage() {
                   key={tab}
                   data-testid={`board-tab-${tab}`}
                   onClick={() => {
-                    window.location.hash = tab;
+                    // replaceState, not `location.hash =`: the tab stays
+                    // shareable in the URL, but clicking tabs never pushes
+                    // history entries — one browser back leaves the board
+                    // straight for where the user came from (D1). replaceState
+                    // fires no hashchange, so the state update is explicit.
+                    window.history.replaceState(null, "", `#${tab}`);
+                    setCurrentTab(tab);
                   }}
                   className={
                     currentTab === tab
@@ -232,12 +258,20 @@ export function BoardsPage() {
             </div>
           )}
 
-          {/* Blocks filtered by tab */}
+          {/* Blocks for the current tab. The tab field is the contract (D2);
+              the normalized-id fallback only serves adapters that predate it,
+              and it compares whole names (hyphen ≡ underscore) — never the old
+              substring guess that left 谦面's two tabs permanently empty. */}
           <div className="space-y-4">
             {data.blocks
               .filter((block) => {
                 if (!currentTab) return true;
-                return block.id.includes(currentTab) || block.id === "metrics" || block.id === "recent_events";
+                if (block.tab) return block.tab === currentTab;
+                // Legacy fallback for tab-less blocks: substring match on
+                // normalized names (hyphen ≡ underscore), so `overview_metrics`
+                // answers `overview` and `my_packs` answers `my-packs` — the
+                // old raw substring guess missed the hyphen/underscore pair.
+                return block.id.replace(/-/g, "_").includes(currentTab.replace(/-/g, "_"));
               })
               .map((block) => (
                 <BlockCard key={block.id} block={block} onChanged={refresh} />
@@ -245,7 +279,8 @@ export function BoardsPage() {
           </div>
         </>
       )}
-    </div>
+      </div>
+    </PageShell>
   );
 }
 
@@ -327,7 +362,10 @@ function MetricsBlock({ block }: MetricsBlockProps) {
         {Object.entries(data).map(([key, value]) => (
           <div key={key} className="text-center">
             <div className="text-lg font-semibold">{String(value)}</div>
-            <div className="text-xs text-muted-foreground">{key}</div>
+            {/* D3: the data key is a stable identifier, never display copy —
+                the label comes from the locale (board.metric.<key>), with the
+                raw key only as the last-resort default. */}
+            <div className="text-xs text-muted-foreground">{t(`board.metric.${key}`, { defaultValue: key })}</div>
           </div>
         ))}
       </div>
@@ -486,6 +524,25 @@ function TimelineBlock({ block }: TimelineBlockProps) {
 
 function BlockCard({ block, onChanged }: { block: Block; onChanged: () => void }) {
   const { t } = useTranslation();
+  // The honest-degradation sentinel (D4): the adapter has no upstream for
+  // this block yet. Neutral card, deep link kept — never the red failure
+  // chrome, and never a fabricated number.
+  if (block.error === "under_construction") {
+    return (
+      <div
+        data-testid={`block-${block.id}-construction`}
+        className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+      >
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4" aria-hidden="true" />
+          <span>
+            {block.title}: {t("board.underConstruction")}
+          </span>
+        </div>
+        {block.href && <OriginLink href={block.href} label={t("board.openOrigin")} small />}
+      </div>
+    );
+  }
   if (block.error) {
     return (
       <div

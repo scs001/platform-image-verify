@@ -2449,6 +2449,16 @@
       "expiredTitle": "Session expired",
       "expiredBody": "Your Wire login expired — open the connection page to re-authorize; there is no key to paste.",
       "connect": "Connect"
+    },
+    "back": "Back to App Center",
+    "underConstruction": "Under construction — the origin site has the full view",
+    "metric": {
+      "datasets": "Datasets",
+      "artifacts": "Artifacts",
+      "demands": "Demands",
+      "quota": "Free-tier quota",
+      "my_packs": "My packs",
+      "published_versions": "Published versions"
     }
   },
   "copilot": {

@@ -21,6 +21,19 @@ import { autoUpdateSupported, macNotifyCheck, DEFAULT_UPDATE_URL } from "./updat
 
 const CHECK_DELAY_MS = 15_000; // boot settles first; the check never blocks startup
 
+// E2E instrumentation (desktop-update-e2e round 4): this mirror is written at
+// MODULE SCOPE — main.js statically imports this file, so the write happens
+// the moment the packaged app's main process loads its entry graph, BEFORE
+// whenReady/boot. A missing file therefore means the app never ran the bundle
+// (packaging/launch problem); a file stuck at "module-loaded" means boot threw
+// or blocked before reaching createDesktopUpdater(). Rounds 1-3 could not tell
+// these apart because the write lived inside the factory.
+if (process.env.UPDATER_STATE_FILE) {
+  try {
+    writeFileSync(process.env.UPDATER_STATE_FILE, JSON.stringify({ status: "module-loaded", at: Date.now() }));
+  } catch { /* instrumentation never breaks the updater */ }
+}
+
 export function createDesktopUpdater({ platform = process.platform, signed = false, log = console } = {}) {
   const state = {
     status: "idle", // idle|checking|downloading|downloaded|up-to-date|notify-only|error
@@ -31,16 +44,6 @@ export function createDesktopUpdater({ platform = process.platform, signed = fal
   };
   const listeners = new Set();
   let wired = false;
-
-  // E2E instrumentation: the mirror appears the moment this module initializes
-  // inside the packaged app — a MISSING file means the app died before wiring
-  // (boot crash), an idle file means the check never fired. Distinguishes the
-  // two silences the first E2E round could not.
-  if (process.env.UPDATER_STATE_FILE) {
-    try {
-      writeFileSync(process.env.UPDATER_STATE_FILE, JSON.stringify({ status: "module-loaded", at: Date.now() }));
-    } catch { /* instrumentation never breaks the updater */ }
-  }
 
   const setState = (patch) => {
     Object.assign(state, patch, { checkedAt: Date.now(), runningVersion: app.getVersion() });

@@ -120,12 +120,26 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             EXE=$(ls dist/win-unpacked/*.exe | head -1)
+            APP_ROOT="dist/win-unpacked/resources/app"
           else
             EXE=$(ls dist/mac*/**/Contents/MacOS/* dist/mac*/*/Contents/MacOS/* 2>/dev/null | head -1)
+            APP_ROOT=$(dirname "$(dirname "$(dirname "$EXE")")")/Resources/app
           fi
           echo "APP_EXE=$EXE" >> "$GITHUB_ENV"
           echo "binary: $EXE"
           ls -la "$(dirname "$EXE")" | head -4
+          # The updater imports electron-updater at module scope; if the
+          # afterPack runtime mirror dropped it (or a transitive dep), the
+          # packaged main process dies on import and the E2E sees only silence.
+          # Assert it shipped HERE so a missing-package failure reads as a real
+          # defect, not a mysterious timeout.
+          if [ ! -d "$APP_ROOT/node_modules/electron-updater" ]; then
+            echo "::error::electron-updater NOT in packaged app ($APP_ROOT/node_modules) — afterPack runtime mirror gap"
+            exit 1
+          fi
+          echo "packaged electron-updater: present"
+          node -e 'require(process.argv[1]+"/node_modules/electron-updater"); console.log("electron-updater resolves in packaged tree")' "$APP_ROOT" || {
+            echo "::error::electron-updater present but unresolvable (missing transitive dep)"; exit 1; }
 
       # ── Phase 1: honest up-to-date ────────────────────────────────────────────
       - name: Phase 1 — lane matches running version → up-to-date
@@ -137,6 +151,7 @@ jobs:
           set -euo pipefail
           rm -f updater-state.json app-out.log
           "$APP_EXE" --enable-logging=stderr > app-out.log 2>&1 &
+          APP_PID=$!
           for i in $(seq 1 60); do
             sleep 5
             if [ -f updater-state.json ]; then
@@ -146,6 +161,9 @@ jobs:
                 up-to-date) echo "PHASE1 OK"; break ;;
                 error) echo "PHASE1 FAIL: $(cat updater-state.json)"; tail -30 app-out.log 2>/dev/null; exit 1 ;;
               esac
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "PHASE1 APP EXITED (pid $APP_PID gone) — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log)"; exit 1
             fi
             [ "$i" = "60" ] && { echo "PHASE1 TIMEOUT — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log file)"; exit 1; }
           done
@@ -166,6 +184,7 @@ jobs:
           cp lane/latest-mac.yml dist/latest-mac.yml 2>/dev/null || true
           rm -f updater-state.json app-out.log
           "$APP_EXE" --enable-logging=stderr > app-out.log 2>&1 &
+          APP_PID=$!
           EXPECT=notify-only
           if [ "${{ matrix.os }}" = "windows-latest" ]; then EXPECT=downloaded; fi
           for i in $(seq 1 90); do
@@ -177,6 +196,9 @@ jobs:
                 $EXPECT) echo "PHASE2 OK ($EXPECT)"; break ;;
                 error) echo "PHASE2 FAIL: $(cat updater-state.json)"; tail -30 app-out.log 2>/dev/null; exit 1 ;;
               esac
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "PHASE2 APP EXITED (pid $APP_PID gone) — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log)"; exit 1
             fi
             [ "$i" = "90" ] && { echo "PHASE2 TIMEOUT (expected $EXPECT) — electron log tail:"; tail -40 app-out.log 2>/dev/null || echo "(no log file)"; exit 1; }
           done

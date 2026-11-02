@@ -28,7 +28,7 @@ echo "   包: $BUNDLE ($(du -h "$BUNDLE" | cut -f1 | tr -d '\t'))"
 echo "③ 上传并落位 $TARGET:$PLAZA_DIR ..."
 ssh "$TARGET" "mkdir -p '$PLAZA_DIR' 2>/dev/null || sudo mkdir -p '$PLAZA_DIR'"
 scp -q "$BUNDLE" "$TARGET:/tmp/agent-plaza-site.tar.gz"
-ssh "$TARGET" "tar -xzf /tmp/agent-plaza-site.tar.gz -C '$PLAZA_DIR' && ls '$PLAZA_DIR' | tr '\n' ' ' && echo"
+ssh "$TARGET" "tar -xzf /tmp/agent-plaza-site.tar.gz -C '$PLAZA_DIR' && cp '$PLAZA_DIR/generated/llms.txt' '$PLAZA_DIR/llms.txt' && printf 'User-agent: *\nAllow: /\n# AI agents: start at /llms.txt — the self-contained site index\n' > '$PLAZA_DIR/robots.txt' && ls '$PLAZA_DIR' | tr '\n' ' ' && echo"
 
 cat <<EOF
 
@@ -43,7 +43,7 @@ cat <<EOF
 
    重载：caddy reload --config /etc/caddy/Caddyfile（零停机；unit 无 ExecReload）
 
-⑤ 雷池控制台 → 新增网站（唯一需要控制台凭据的一步，2026-11-03 待用户完成）：
+⑤ 雷池侧（2026-11-03 已并域进 site 31——API /api/open/site PUT + acme 17-SAN 重签 + push-cert，实操链见台账 §9 本条；仅新站/新域时才走本步）：
    域名:  agent.finddatatech.cloud
    源站:  http://127.0.0.1:8080（与 zhiyu/yongyi 域同上游，照抄其网站条目）
    证书:  按 zhiyu 同法签发（Safeline 证书管理）

@@ -7,7 +7,9 @@
 // pack id on the draft so later publishes append versions.
 
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { assembleEnOverlay, outOfVocabulary } from "@/lib/packDraftLift";
 import * as api from "@/lib/packs-api";
 import type { PackDraft, PackManifest, PackManifestAgent, PackManifestBot, PackManifestSkill } from "@/lib/packs-api";
 import { takeBridgeHandoff } from "@/lib/pack-draft-bridge";
@@ -202,6 +204,12 @@ export function compileDraftManifest(
     // Plain authoring drafts never carry the key, so their manifests stay
     // byte-identical; the server validator decides whether the shape is legal.
     ...(entries.provenance ? { provenance: entries.provenance } : {}),
+    // Domain/audience picks (4.8): authored values ride the manifest verbatim
+    // — out-of-table values are blocked at PUBLISH, never silently rewritten
+    // here (保存零静默改写). Empty/absent arrays keep old drafts' manifests
+    // byte-identical.
+    ...(Array.isArray(entries.domain) && entries.domain.length > 0 ? { domain: entries.domain } : {}),
+    ...(Array.isArray(entries.audience) && entries.audience.length > 0 ? { audience: entries.audience } : {}),
   };
 }
 
@@ -278,6 +286,45 @@ function PackDraftEditor({
     return init;
   });
   const [agents, setAgents] = useState(() => withKeys(draft.entries.agents ?? []));
+  // ── 领域/人群词表选择器 + 翻译工作台 (overhaul-market-catalog-presentation
+  // 4.7/4.8): the picks ride the draft entries bag verbatim — save NEVER
+  // rewrites out-of-table legacy values (保存零静默改写); only publish gates
+  // on them. The en track state mirrors the stored i18n.en block; keys the
+  // workbench does not manage (notes/promise overlays from imported bundles)
+  // pass through untouched.
+  const [enTrack, setEnTrack] = useState(() => {
+    const src = ((draft.entries as { i18n?: { en?: Record<string, unknown> } }).i18n?.en ?? {}) as Record<string, unknown>;
+    const keyed = (group: string, field: "description" | "name"): Record<string, string> => {
+      const map = src[group];
+      const out: Record<string, string> = {};
+      if (map && typeof map === "object" && !Array.isArray(map)) {
+        for (const [id, ov] of Object.entries(map as Record<string, Record<string, unknown>>)) {
+          if (typeof ov?.[field] === "string") out[id] = ov[field] as string;
+        }
+      }
+      return out;
+    };
+    const guideObj = src.guide as { steps?: { title?: string; body?: string }[] } | undefined;
+    // notes/promise/bots overlays the EDITOR cannot author a zh side for ride
+    // through untouched (保存零静默改写); the workbench manages the seven keys
+    // it can pair against live zh state.
+    const managed = ["name", "description", "tags", "guide", "skills", "agents", "mcpServers"];
+    return {
+      name: typeof src.name === "string" ? (src.name as string) : "",
+      description: typeof src.description === "string" ? (src.description as string) : "",
+      tags: Array.isArray(src.tags) ? (src.tags as string[]) : [],
+      guideSteps: Array.isArray(guideObj?.steps) ? guideObj!.steps! : [],
+      skills: keyed("skills", "description"),
+      agents: keyed("agents", "name"),
+      passthrough: Object.fromEntries(Object.entries(src).filter(([k]) => !managed.includes(k))),
+    };
+  });
+  const [domainPicks, setDomainPicks] = useState<string[]>(() => (Array.isArray(draft.entries.domain) ? [...draft.entries.domain] : []));
+  const [audiencePicks, setAudiencePicks] = useState<string[]>(() => (Array.isArray(draft.entries.audience) ? [...draft.entries.audience] : []));
+  const [vocabulary, setVocabulary] = useState<{ slug: string; label: string }[]>([]);
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [coverage, setCoverage] = useState<{ total: number; covered: number; missing: string[] } | null>(null);
+  const [gateGaps, setGateGaps] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -289,11 +336,37 @@ function PackDraftEditor({
 
   useEffect(() => {
     refreshMarketCatalog();
+    // Controlled-vocabulary source for the pickers (P1 facets endpoint; the
+    // full vocabulary incl. zero-count values). A failed fetch degrades to
+    // the server validator alone — the truth never lives client-side.
+    void api.getPackFacets().then((f) => setVocabulary(f.vocabulary ?? [])).catch(() => {});
   }, [refreshMarketCatalog]);
 
   // The picker lists registry-sourced market entries only (spec:
   // pack-authoring — no free-form endpoint or command entry exists).
   const registryMcp = (marketCatalog?.mcpServers ?? []).filter((s) => s.origin === "registry");
+
+  // 4.7 save-side assembly (不写翻译不产生空 i18n 键): managed keys rebuild from
+  // workbench state through the one pure rule (assembleEnOverlay: scalars
+  // trimmed-non-empty, tags/guide all-or-nothing, entity maps per declared
+  // key); unmanaged stored keys pass through. Nothing authored → no i18n key
+  // → byte-identical drafts.
+  const buildEnBlock = (): { i18n?: { en: Record<string, unknown> } } => {
+    const zhTagList = tags.split(",").map((x) => x.trim()).filter(Boolean);
+    const skillNames = skills.map((e) => (e.value as { name?: string }).name ?? "").filter(Boolean);
+    const agentIds = agents.map((e) => (e.value as { id?: string }).id ?? "").filter(Boolean);
+    const assembled = assembleEnOverlay({
+      name: enTrack.name,
+      description: enTrack.description,
+      tags: zhTagList.length > 0 ? zhTagList.map((_, i) => enTrack.tags[i] ?? "") : [],
+      guideSteps: enTrack.guideSteps,
+      skills: Object.fromEntries(skillNames.map((n) => [n, enTrack.skills[n] ?? ""])),
+      agents: Object.fromEntries(agentIds.map((id) => [id, enTrack.agents[id] ?? ""])),
+      mcpServers: Object.fromEntries(mcpPicked.map((n) => [n, mcpEnDescriptions[n] ?? ""])),
+    });
+    const merged = { ...(enTrack.passthrough as Record<string, unknown>), ...(assembled ?? {}) };
+    return Object.keys(merged).length > 0 ? { i18n: { en: merged } } : {};
+  };
 
   const save = async () => {
     setSaving(true);
@@ -325,18 +398,13 @@ function PackDraftEditor({
               : {})(
             guideSteps.map((st) => ({ title: st.title.trim(), body: st.body.trim() })),
           ),
-          // mcpServers en overlay rides the entries JSON too (add-mcp-
-          // annotation-overlay 3.4): only picked servers with a non-empty en
-          // description serialize; an absent key keeps old drafts identical.
-          ...((enMcp: Record<string, { description: string }>) =>
-            Object.keys(enMcp).length ? { i18n: { en: { mcpServers: enMcp } } } : {})(
-            Object.fromEntries(
-              mcpPicked
-                .map((registryName) => [registryName, mcpEnDescriptions[registryName]?.trim()] as const)
-                .filter(([, d]) => typeof d === "string" && d.length > 0)
-                .map(([n, d]) => [n, { description: d as string }]),
-            ),
-          ),
+          // The en block is assembled by ONE pure rule (不写翻译不产生空 i18n
+          // 键): managed keys from workbench state (all-or-nothing groups
+          // included), everything else passthrough. Absent overlay = absent
+          // key = byte-identical drafts. (overhaul-market-catalog-presentation 4.7)
+          ...buildEnBlock(),
+          ...(domainPicks.length > 0 ? { domain: domainPicks } : {}),
+          ...(audiencePicks.length > 0 ? { audience: audiencePicks } : {}),
         },
       });
       Object.assign(draft, updated);
@@ -364,6 +432,18 @@ function PackDraftEditor({
       setError(t("packs.editor.toolsFaceRequired", { servers: missingFace.join(", ") }));
       return;
     }
+    // 4.8 vocabulary publish gate: out-of-table picks are blocked HERE first
+    // (client pre-check names them), and the server validator remains the
+    // truth — if the vocabulary fetch failed, the publish attempt itself is
+    // answered by the gate collector's structural error.
+    if (vocabulary.length > 0) {
+      const slugs = vocabulary.map((v) => v.slug);
+      const bad = [...outOfVocabulary(domainPicks, slugs), ...outOfVocabulary(audiencePicks, slugs)];
+      if (bad.length > 0) {
+        setError(t("packs.editor.vocabBlocked", { values: [...new Set(bad)].join(", ") }));
+        return;
+      }
+    }
     setPublishing(true);
     try {
       const updated = await save();
@@ -376,11 +456,73 @@ function PackDraftEditor({
         Object.assign(draft, marked);
       }
       setPublishResult(t("packs.editor.publishOk", { version: r.version }));
+      setGateGaps(null);
       onPublished({ ...draft, ...updated, publishedPackId: draft.publishedPackId ?? r.id });
     } catch (err) {
-      setError((err as Error).message);
+      // 4.9 分级提示: the server answers verbatim. An official en-coverage
+      // rejection (422, code-named) shows the itemized gap list with jump
+      // targets; community publishes never meet this gate and plain errors
+      // pass through unchanged.
+      const body = (err as Error & { body?: { code?: string; error?: string; coverage?: { missing?: string[] } } }).body;
+      if (body?.code === "official_en_coverage_incomplete") {
+        setError(body.error ?? (err as Error).message);
+        setGateGaps(body.coverage?.missing ?? []);
+      } else {
+        setError((err as Error).message);
+        setGateGaps(null);
+      }
     } finally {
       setPublishing(false);
+    }
+  };
+
+  // Workbench coverage comes from the SERVER's one denominator
+  // (POST /api/packs/coverage over the compiled draft — same module the
+  // publish gate and the P4 audit use; the client never re-derives "covered").
+  const recomputeCoverage = async () => {
+    const updated = await save();
+    if (!updated) return;
+    try {
+      const r = await api.getPackCoverage(compileDraftManifest(updated, visibility), "en");
+      setCoverage(r.coverage);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  // 缺项定位跳转: field path → the workbench input's DOM id.
+  const gapAnchor = (path: string): string | null => {
+    if (path === "name") return "pack-en-name";
+    if (path === "description") return "pack-en-description";
+    if (path === "tags") return "pack-en-tags-0";
+    let m = /^guide\.steps\[(\d+)\]\.title$/.exec(path);
+    if (m) return `pack-en-guide-${m[1]}-title`;
+    m = /^guide\.steps\[(\d+)\]\.body$/.exec(path);
+    if (m) return `pack-en-guide-${m[1]}-body`;
+    m = /^skills\['([^']+)\'\]\.description$/.exec(path);
+    if (m) {
+      const i = skills.findIndex((e) => (e.value as { name?: string }).name === m![1]);
+      return i >= 0 ? `pack-en-skill-${i}` : null;
+    }
+    m = /^agents\['([^']+)\'\]\.name$/.exec(path);
+    if (m) {
+      const i = agents.findIndex((e) => (e.value as { id?: string }).id === m![1]);
+      return i >= 0 ? `pack-en-agent-${i}` : null;
+    }
+    m = /^mcpServers\['([^']+)\'\]\.description$/.exec(path);
+    if (m) return "pack-en-mcp-pointer";
+    return null;
+  };
+  const jumpToGap = (path: string) => {
+    // flushSync: the drawer may not exist until this tick commits — the focus
+    // lookup below must see the mounted inputs.
+    flushSync(() => setWorkbenchOpen(true));
+    const anchor = gapAnchor(path);
+    if (!anchor) return;
+    const el = document.getElementById(anchor);
+    if (el) {
+      el.scrollIntoView({ block: "center" });
+      (el as HTMLElement).focus();
     }
   };
 
@@ -520,6 +662,24 @@ function PackDraftEditor({
       </div>
 
       {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md" data-testid="pack-editor-error" role="alert">{error}</div>}
+      {gateGaps && gateGaps.length > 0 && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3" data-testid="pack-publish-gate" role="alert">
+          <p className="text-xs font-medium text-destructive">{t("packs.editor.officialGateHint")}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {gateGaps.map((path) => (
+              <button
+                key={path}
+                type="button"
+                data-testid={`pack-publish-gap-${path}`}
+                onClick={() => jumpToGap(path)}
+                className="rounded-full border border-destructive/40 px-2 py-0.5 font-mono text-[10px] text-destructive hover:bg-destructive/10"
+              >
+                {path}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {publishResult && (
         <div className="bg-primary/10 text-primary px-4 py-3 rounded-md" data-testid="pack-publish-ok">
           {publishResult}
@@ -835,6 +995,240 @@ function PackDraftEditor({
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      {/* 领域/人群词表选择器 (overhaul-market-catalog-presentation 4.8): chips from
+          the controlled vocabulary; out-of-table stored values keep their chip
+          (invalid styling) and ride save untouched — publish is the gate. */}
+      <section className="space-y-3">
+        <div data-testid="pack-domain-picker">
+          <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.domains")}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {vocabulary.map((v) => {
+              const picked = domainPicks.includes(v.slug);
+              return (
+                <button
+                  key={v.slug}
+                  type="button"
+                  aria-pressed={picked}
+                  data-testid={`pack-domain-pick-${v.slug}`}
+                  onClick={() => setDomainPicks((x) => (x.includes(v.slug) ? x.filter((x2) => x2 !== v.slug) : x.length >= 3 ? x : [...x, v.slug]))}
+                  className={`rounded-full border px-2.5 py-1 text-xs ${picked ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                >
+                  {v.label}
+                </button>
+              );
+            })}
+            {domainPicks.filter((slug) => !vocabulary.some((v) => v.slug === slug)).map((slug) => (
+              <span
+                key={slug}
+                data-testid={`pack-domain-invalid-${slug}`}
+                className="rounded-full border border-destructive/50 bg-destructive/10 px-2.5 py-1 text-xs text-destructive"
+              >
+                {slug}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div data-testid="pack-audience-picker">
+          <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.audience")}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {vocabulary.map((v) => {
+              const picked = audiencePicks.includes(v.slug);
+              return (
+                <button
+                  key={v.slug}
+                  type="button"
+                  aria-pressed={picked}
+                  data-testid={`pack-audience-pick-${v.slug}`}
+                  onClick={() => setAudiencePicks((x) => (x.includes(v.slug) ? x.filter((x2) => x2 !== v.slug) : x.length >= 3 ? x : [...x, v.slug]))}
+                  className={`rounded-full border px-2.5 py-1 text-xs ${picked ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}
+                >
+                  {v.label}
+                </button>
+              );
+            })}
+            {audiencePicks.filter((slug) => !vocabulary.some((v) => v.slug === slug)).map((slug) => (
+              <span
+                key={slug}
+                data-testid={`pack-audience-invalid-${slug}`}
+                className="rounded-full border border-destructive/50 bg-destructive/10 px-2.5 py-1 text-xs text-destructive"
+              >
+                {slug}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{t("packs.editor.vocabKeepHint")}</p>
+        </div>
+      </section>
+
+      {/* 翻译工作台抽屉 (4.7): zh/目标语并排 + 服务端同一分母的覆盖率 + 缺项跳转。 */}
+      <section>
+        <button
+          type="button"
+          onClick={() => setWorkbenchOpen((v) => !v)}
+          aria-expanded={workbenchOpen}
+          data-testid="pack-workbench-toggle"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {t("packs.editor.workbench")}
+        </button>
+        {workbenchOpen && (
+          <div className="mt-2 space-y-3 rounded-md border border-border p-3" data-testid="pack-workbench">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-muted-foreground" data-testid="pack-workbench-coverage">
+                {coverage ? t("packs.editor.coverageAdvisory", { covered: coverage.covered, total: coverage.total }) : t("packs.editor.coverageUnknown")}
+              </p>
+              <button type="button" data-testid="pack-workbench-recompute" onClick={() => void recomputeCoverage()} className="shrink-0 text-xs text-primary underline">
+                {t("packs.editor.recompute")}
+              </button>
+            </div>
+            {coverage && coverage.missing.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" data-testid="pack-workbench-gaps">
+                {coverage.missing.map((path) => (
+                  <button
+                    key={path}
+                    type="button"
+                    data-testid={`pack-workbench-gap-${path}`}
+                    onClick={() => jumpToGap(path)}
+                    className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    {path}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">{t("packs.editor.workbenchHint")}</p>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.name")} · zh</p>
+                <p className="mt-1 break-words text-xs">{name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.name")} · en</p>
+                <Input id="pack-en-name" className="mt-1" value={enTrack.name} onChange={(e) => setEnTrack((x) => ({ ...x, name: e.target.value }))} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.description")} · zh</p>
+                <p className="mt-1 break-words text-xs">{description || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.description")} · en</p>
+                <Textarea id="pack-en-description" className="mt-1" rows={2} value={enTrack.description} onChange={(e) => setEnTrack((x) => ({ ...x, description: e.target.value }))} />
+              </div>
+            </div>
+            {(() => {
+              const zhTagList = tags.split(",").map((x) => x.trim()).filter(Boolean);
+              if (zhTagList.length === 0) return null;
+              return (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.tags")} · en</p>
+                  <div className="mt-1 grid gap-2 md:grid-cols-2">
+                    {zhTagList.map((zhTag, i) => (
+                      <div key={zhTag} className="flex items-center gap-2">
+                        <span className="w-24 shrink-0 truncate text-xs text-muted-foreground">{zhTag}</span>
+                        <Input
+                          id={`pack-en-tags-${i}`}
+                          value={enTrack.tags[i] ?? ""}
+                          onChange={(e) =>
+                            setEnTrack((x) => {
+                              const next = Array.from({ length: zhTagList.length }, (_, j) => x.tags[j] ?? "");
+                              next[i] = e.target.value;
+                              return { ...x, tags: next };
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            {(guideSteps.some((st) => st.title || st.body) || enTrack.guideSteps.length > 0) && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.guide.title")} · en</p>
+                <div className="mt-1 space-y-2">
+                  {[0, 1, 2].map((i) => {
+                    const zh = guideSteps[i] ?? { title: "", body: "" };
+                    const en = enTrack.guideSteps[i] ?? { title: "", body: "" };
+                    return (
+                      <div key={i} className="grid gap-2 md:grid-cols-2">
+                        <div className="min-w-0 text-xs text-muted-foreground">
+                          <p className="font-medium">{zh.title || "—"}</p>
+                          <p className="break-words">{zh.body || ""}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Input
+                            id={`pack-en-guide-${i}-title`}
+                            placeholder={t("packs.guide.step", { n: i + 1 })}
+                            value={en.title ?? ""}
+                            onChange={(e) =>
+                              setEnTrack((x) => {
+                                const steps = Array.from({ length: 3 }, (_, j) => ({ title: "", body: "", ...(x.guideSteps[j] ?? {}) }));
+                                steps[i] = { ...steps[i]!, title: e.target.value };
+                                return { ...x, guideSteps: steps };
+                              })
+                            }
+                          />
+                          <Input
+                            id={`pack-en-guide-${i}-body`}
+                            value={en.body ?? ""}
+                            onChange={(e) =>
+                              setEnTrack((x) => {
+                                const steps = Array.from({ length: 3 }, (_, j) => ({ title: "", body: "", ...(x.guideSteps[j] ?? {}) }));
+                                steps[i] = { ...steps[i]!, body: e.target.value };
+                                return { ...x, guideSteps: steps };
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {skills.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.skills")} · en</p>
+                <div className="mt-1 space-y-2">
+                  {skills.map((entry, i) => {
+                    const sk = entry.value as { name?: string; description?: string };
+                    if (!sk.name) return null;
+                    return (
+                      <div key={entry.key} className="grid gap-2 md:grid-cols-2">
+                        <p className="min-w-0 break-words text-xs text-muted-foreground">{sk.name}：{sk.description || "—"}</p>
+                        <Input id={`pack-en-skill-${i}`} value={enTrack.skills[sk.name] ?? ""} onChange={(e) => setEnTrack((x) => ({ ...x, skills: { ...x.skills, [sk.name as string]: e.target.value } }))} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {agents.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{t("packs.editor.agents")} · en</p>
+                <div className="mt-1 space-y-2">
+                  {agents.map((entry, i) => {
+                    const ag = entry.value as { id?: string; name?: string };
+                    if (!ag.id) return null;
+                    return (
+                      <div key={entry.key} className="grid gap-2 md:grid-cols-2">
+                        <p className="min-w-0 break-words text-xs text-muted-foreground">{ag.id}：{ag.name || "—"}</p>
+                        <Input id={`pack-en-agent-${i}`} value={enTrack.agents[ag.id] ?? ""} onChange={(e) => setEnTrack((x) => ({ ...x, agents: { ...x.agents, [ag.id as string]: e.target.value } }))} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {mcpPicked.length > 0 && (
+              <p id="pack-en-mcp-pointer" className="text-xs text-muted-foreground">
+                {t("packs.editor.workbenchMcpPointer")}
+              </p>
+            )}
           </div>
         )}
       </section>

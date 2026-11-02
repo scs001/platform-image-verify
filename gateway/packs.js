@@ -1678,6 +1678,23 @@ export function registerPackRoutes(app, {
     });
   });
 
+  // 覆盖度核算面 (overhaul-market-catalog-presentation 4.7): the author-side
+  // translation workbench asks the SERVER the same question the publish gate
+  // and the audit ask — one denominator module (lib/pack-locale-coverage), no
+  // client re-derivation. Pure read: validates nothing, stores nothing,
+  // mints nothing. Shape-tolerant (a half-authored draft must still get its
+  // coverage numbers), so it runs localeCoverage over whatever the caller
+  // compiled; a non-object manifest is an honest empty surface.
+  app.post("/api/packs/coverage", express.json({ limit: jsonLimit }), (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const manifest = req.body?.manifest;
+    const raw = typeof req.body?.locale === "string" ? req.body.locale : "en";
+    const locale = resolveLocale({ locale: raw });
+    const safe = manifest && typeof manifest === "object" && !Array.isArray(manifest) ? manifest : {};
+    res.json({ coverage: localeCoverage(safe, locale) });
+  });
+
   // Browse: paginated, searchable listing of live packs.
   app.get("/api/packs", (req, res) => {
     const user = authRead(req);

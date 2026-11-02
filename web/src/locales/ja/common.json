@@ -2023,7 +2023,18 @@
       "exportOk": "{{file}} を書き出しました",
       "import": "パッケージを読み込む",
       "importing": "読み込み中…",
-      "importOk": "下書き「{{name}}」として読み込みました"
+      "importOk": "下書き「{{name}}」として読み込みました",
+      "domains": "領域（制御語彙、最大3）",
+      "audience": "対象層（制御語彙、最大3）",
+      "vocabKeepHint": "語彙外の既存値はそのまま保持——公開前に語彙内の値を選択してください",
+      "vocabBlocked": "以下の選択は制御語彙外のため公開を停止：{{values}}",
+      "workbench": "翻訳ワークベンチ（英語トラック）",
+      "workbenchHint": "中国語メイントラックに対訳を入力。タグとガイドはグループ項目——全欄が埋まって初めて書き込まれます。",
+      "workbenchMcpPointer": "MCP サーバーの英語説明は上のサーバー節で編集してください。",
+      "recompute": "保存してカバー率を計算",
+      "coverageAdvisory": "英語カバー {{covered}}/{{total}} 組織面（コミュニティ公開はブロックされません）",
+      "coverageUnknown": "未計算——「保存して計算」を押してください",
+      "officialGateHint": "英語カバー門により公式公開が停止——欠项は下記、クリックで該当欄へ"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",

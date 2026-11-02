@@ -2023,7 +2023,18 @@
       "exportOk": "Exporté {{file}}",
       "import": "Importer le paquet",
       "importing": "Importation…",
-      "importOk": "Importé comme brouillon « {{name}} »"
+      "importOk": "Importé comme brouillon « {{name}} »",
+      "domains": "Domaines (vocabulaire contrôlé, max 3)",
+      "audience": "Audience (vocabulaire contrôlé, max 3)",
+      "vocabKeepHint": "Les valeurs hors vocabulaire sont conservées telles quelles — choisissez des entrées valides avant publication.",
+      "vocabBlocked": "Ces choix sont hors du vocabulaire contrôlé ; publication bloquée : {{values}}",
+      "workbench": "Atelier de traduction (piste anglaise)",
+      "workbenchHint": "Remplissez chaque champ face au rastro zh ; étiquettes et guide sont des groupes : sérialisation seulement si toutes les cases sont remplies.",
+      "workbenchMcpPointer": "Les descriptions anglaises des serveurs MCP s'éditent dans la section serveurs ci-dessus.",
+      "recompute": "Enregistrer et recalculer la couverture",
+      "coverageAdvisory": "L'anglais couvre {{covered}}/{{total}} champs de surface (la publication communautaire n'est jamais bloquée)",
+      "coverageUnknown": "Couverture non calculée — utilisez Enregistrer et recalculer",
+      "officialGateHint": "Publication officielle bloquée par la porte de couverture anglaise — lacunes ci-dessous, cliquez pour naviguer"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",

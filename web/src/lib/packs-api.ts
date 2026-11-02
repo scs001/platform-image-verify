@@ -379,6 +379,14 @@ export interface PackDraft {
     // draft carries its audit trail here so the publish path lifts it into the
     // manifest. Plain authoring drafts never set it → byte-identical manifests.
     provenance?: PackManifest["provenance"];
+    // Locale overlay draft (overhaul-market-catalog-presentation 4.7): the
+    // workbench saves its en track here; the compiler lifts it verbatim.
+    // Absent for plain drafts — byte-identical manifests.
+    i18n?: Record<string, Record<string, unknown>>;
+    // Domain/audience picks (4.8): vocabulary slugs as authored; out-of-table
+    // legacy values ride untouched (保存零静默改写) and are blocked at publish.
+    domain?: string[];
+    audience?: string[];
   };
   publishedPackId: string | null;
   createdAt: string;
@@ -437,6 +445,17 @@ export interface PackFacets {
   /** The full selectable vocabulary (including zero-count values) — the
    *  curation surface's picker source. Browse renders `domains` only. */
   vocabulary?: { slug: string; label: string }[];
+}
+
+// Workbench coverage read (4.7): the SAME server-side denominator as the
+// publish gate and the audit — the client never re-derives what "covered"
+// means. Pure read; shape-tolerant for half-authored drafts.
+export function getPackCoverage(manifest: unknown, locale = "en"): Promise<{ coverage: PackLocaleCoverage }> {
+  return fetch(`/api/packs/coverage${localeQuery()}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ manifest, locale }),
+  }).then(json) as Promise<{ coverage: PackLocaleCoverage }>;
 }
 
 export function getPackFacets() {

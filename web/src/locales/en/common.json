@@ -2023,7 +2023,18 @@
       "exportOk": "Exported {{file}}",
       "import": "Import bundle",
       "importing": "Importing…",
-      "importOk": "Imported as draft “{{name}}”"
+      "importOk": "Imported as draft “{{name}}”",
+      "domains": "Domains (controlled vocabulary, up to 3)",
+      "audience": "Audience (controlled vocabulary, up to 3)",
+      "vocabKeepHint": "Out-of-table values are kept verbatim — pick vocabulary entries before publishing.",
+      "vocabBlocked": "These picks are outside the controlled vocabulary; publish blocked: {{values}}",
+      "workbench": "Translation workbench (English track)",
+      "workbenchHint": "Fill each field against the zh main track; tags and guide are group fields — they serialize only when every slot is filled.",
+      "workbenchMcpPointer": "English MCP server descriptions are edited in the servers section above.",
+      "recompute": "Save & recompute coverage",
+      "coverageAdvisory": "English covers {{covered}}/{{total}} org-surface fields (community publishing is never blocked by this)",
+      "coverageUnknown": "Coverage not computed yet — use Save & recompute",
+      "officialGateHint": "Official publish blocked by the English coverage gate — gaps below; click one to jump"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",

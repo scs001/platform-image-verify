@@ -61,7 +61,42 @@ function installGatewayMock(page, state) {
         .map(summary);
       return route.fulfill(json({ total: packs.length, page: 1, pageSize: 50, packs }));
     }
+    // Facets for the author editor's vocabulary pickers (P3 4.8) — a fixed
+    // controlled set the test can assert chips against; browse strips are
+    // not asserted through this mock.
+    if (method === "GET" && path === "/api/packs/facets") {
+      const vocabulary = state.facetsVocabulary ?? [
+        { slug: "legal", label: "法务" },
+        { slug: "investing", label: "投研" },
+        { slug: "risk", label: "风控" },
+        { slug: "knowledge", label: "知识库" },
+      ];
+      return route.fulfill(
+        json({
+          lines: [
+            { slug: "base", word: "壹座 · 智能体团队", label: "壹座 · 智能体团队", count: 0 },
+            { slug: "lex", word: "识律 · 法律智能", label: "识律 · 法律智能", count: 0 },
+            { slug: "wire", word: "柏讯 · 数据与情报", label: "柏讯 · 数据与情报", count: 0 },
+            { slug: "facet", word: "谦面 · 业务流", label: "谦面 · 业务流", count: 0 },
+            { slug: "constellation", word: "萬星 · 智能体连接", label: "萬星 · 智能体连接", count: 0 },
+          ],
+          domains: vocabulary.map((v) => ({ ...v, count: 0 })),
+          vocabulary,
+        }),
+      );
+    }
+    // Coverage read for the workbench (P3 4.7): a STUB — the real denominator
+    // is the server's module (scripts/test-pack-display-projection pins it);
+    // the mock returns a fixed verdict or the test-set state.coverage.
+    if (method === "POST" && path === "/api/packs/coverage") {
+      return route.fulfill(
+        json({ coverage: state.coverage ?? { locale: "en", total: 4, covered: 2, missing: ["description", "tags"] } }),
+      );
+    }
     if (method === "POST" && path === "/api/packs") {
+      // 4.9 official en-coverage gate: when the test arms it, publish answers
+      // the server's structured 422 (verbatim-body posture) instead of storing.
+      if (state.publishGate) return route.fulfill(json(state.publishGate, 422));
       const body = req.postDataJSON();
       if (body.packId) {
         const p = state.packs.find((x) => x.id === body.packId);
@@ -1072,4 +1107,113 @@ test("facade matters: the owner queue replies and closes through the detail dial
   await expect(panel.getByTestId("pack-matter-reply-input-mt_e2e1")).toHaveCount(0);
   expect(actions).toHaveLength(2);
   expect(actions[1].kind).toBe("close");
+});
+
+// ── P3 4.7/4.8/4.9 · 作者端工作台 + 词表选择器 + 分级提示 ────────────────────
+test("工作台填英文、词表多选（上限3），发布 manifest 逐字携带 i18n/domain (4.7/4.8)", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  await gotoPacksTab(page, "mine");
+  await page.getByTestId("pack-draft-create").click();
+  await page.locator("#pack-name").fill("双语法务包");
+  await page.locator("#pack-tags").fill("法律, 合同");
+  await page.locator("#pack-desc").fill("合同审查工作流。");
+  await page.getByTestId("pack-skill-add").click();
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(0).fill("bilingual-skill");
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(1).fill("五阶段合同审查");
+  await page.getByTestId("pack-skill-entry-0").locator("textarea").fill(SKILL_V1);
+
+  // 4.8: vocabulary chips; the 3-cap refuses a 4th pick.
+  await page.getByTestId("pack-domain-pick-legal").click();
+  await page.getByTestId("pack-domain-pick-investing").click();
+  await page.getByTestId("pack-domain-pick-risk").click();
+  await page.getByTestId("pack-domain-pick-knowledge").click();
+  await expect(page.getByTestId("pack-domain-pick-knowledge")).toHaveAttribute("aria-pressed", "false");
+
+  // 4.7: the workbench pairs en inputs against the zh state.
+  await page.getByTestId("pack-workbench-toggle").click();
+  await page.locator("#pack-en-name").fill("Bilingual Legal Pack");
+  await page.locator("#pack-en-description").fill("Contract review workflow.");
+  await page.locator("#pack-en-tags-0").fill("Law");
+  await page.locator("#pack-en-tags-1").fill("Contract");
+  await page.getByTestId("pack-workbench-recompute").click();
+  await expect(page.getByTestId("pack-workbench-coverage")).toContainText("2/4");
+
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toBeVisible({ timeout: 10_000 });
+
+  // The published manifest carries the authored overlay + picks VERBATIM.
+  const published = gw.state.packs[0].manifest;
+  expect(published.i18n.en.name).toBe("Bilingual Legal Pack");
+  expect(published.i18n.en.description).toBe("Contract review workflow.");
+  expect(published.i18n.en.tags).toEqual(["Law", "Contract"]);
+  expect(published.domain).toEqual(["legal", "investing", "risk"]);
+});
+
+test("词表外存量取值：标示不合法、阻发布、保存零静默改写 (4.8 三态)", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  // 造一份带表外旧值的草稿（柏讯是线词不是领域 slug）。
+  const created = await page.request.post("/api/pack-drafts", { data: { name: "旧词表包", description: "旧草稿。", tags: ["法律"] } });
+  const draftId = (await created.json()).draft.id;
+  const put = await page.request.put(`/api/pack-drafts/${draftId}`, {
+    data: {
+      name: "旧词表包",
+      description: "旧草稿。",
+      tags: ["法律"],
+      entries: { skills: [{ name: "s", description: "技能", content: "# s" }], mcpServers: [], agents: [], domain: ["柏讯"], audience: ["legal", "made-up"] },
+    },
+  });
+  expect(put.ok(), JSON.stringify(await put.json().catch(() => ({})))).toBeTruthy();
+
+  await gotoPacksTab(page, "mine");
+  await page.locator('[data-testid^="pack-draft-item-"]').first().click();
+  await expect(page.getByTestId("pack-editor")).toBeVisible();
+  // 非法态：表外值以 invalid chip 原样呈现（不消失、不改写）。
+  await expect(page.getByTestId("pack-domain-invalid-柏讯")).toContainText("柏讯");
+  await expect(page.getByTestId("pack-audience-invalid-made-up")).toContainText("made-up");
+
+  // 发布被拦（客户端预检点名全部越界值）。
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-editor-error")).toContainText("柏讯");
+  await expect(page.getByTestId("pack-editor-error")).toContainText("made-up");
+
+  // 保存零静默改写：authored NEW content in the same write (an en name via
+  // the workbench) proves save ran, and the out-of-table picks come back
+  // VERBATIM in that same stored draft — no silent normalization.
+  await page.getByTestId("pack-workbench-toggle").click();
+  await page.locator("#pack-en-name").fill("Legacy Pack");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/pack-drafts/${draftId}`)).json()).draft)
+    .toHaveProperty(["entries", "i18n", "en", "name"], "Legacy Pack");
+  const stored = await (await page.request.get(`/api/pack-drafts/${draftId}`)).json();
+  expect(stored.draft.entries.domain).toEqual(["柏讯"]);
+  expect(stored.draft.entries.audience).toEqual(["legal", "made-up"]);
+});
+
+test("官方 422 分级提示：逐项缺项可点跳工作台并聚焦对应输入 (4.9)", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.state.publishGate = {
+    error: "official publishes must carry full en coverage on the display surface (2/4 covered)",
+    code: "official_en_coverage_incomplete",
+    coverage: { locale: "en", total: 4, covered: 2, missing: ["description", "skills['gate-skill'].description"] },
+  };
+  gw.install();
+  await gotoPacksTab(page, "mine");
+  await page.getByTestId("pack-draft-create").click();
+  await page.locator("#pack-name").fill("官门包");
+  await page.locator("#pack-desc").fill("官方发布门用例。");
+  await page.getByTestId("pack-skill-add").click();
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(0).fill("gate-skill");
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(1).fill("门技");
+  await page.getByTestId("pack-skill-entry-0").locator("textarea").fill(SKILL_V1);
+
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-publish-gate")).toBeVisible();
+  await expect(page.getByTestId("pack-editor-error")).toContainText("full en coverage");
+  // 点击缺项 → 工作台打开并聚焦该项输入。
+  await page.getByTestId("pack-publish-gap-description").click();
+  await expect(page.getByTestId("pack-workbench")).toBeVisible();
+  await expect(page.evaluate(() => document.activeElement?.id ?? "")).resolves.toBe("pack-en-description");
 });

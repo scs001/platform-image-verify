@@ -2023,7 +2023,18 @@
       "exportOk": "已导出 {{file}}",
       "import": "导入安装包",
       "importing": "导入中…",
-      "importOk": "已导入为草稿「{{name}}」"
+      "importOk": "已导入为草稿「{{name}}」",
+      "domains": "领域（受控词表，最多 3 个）",
+      "audience": "适用人群（受控词表，最多 3 个）",
+      "vocabKeepHint": "词表外的旧取值原样保留——发布前须改为词表内取值",
+      "vocabBlocked": "以下取值不在受控词表内，发布被阻止：{{values}}",
+      "workbench": "翻译工作台（英文副轨）",
+      "workbenchHint": "逐字段对照中文主轨填写；标签与指南属整组字段，整组填满才会写入副轨。",
+      "workbenchMcpPointer": "MCP 服务的英文描述在上方的服务区填写。",
+      "recompute": "保存并核算覆盖",
+      "coverageAdvisory": "英文覆盖 {{covered}}/{{total}} 组织面（社区条目不因此阻断发布）",
+      "coverageUnknown": "尚未核算——点「保存并核算覆盖」",
+      "officialGateHint": "官方发布被英文覆盖门阻断——逐项列在下方，点击跳转工作台"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",

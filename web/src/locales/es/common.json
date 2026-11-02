@@ -2023,7 +2023,18 @@
       "exportOk": "Exportado {{file}}",
       "import": "Importar paquete",
       "importing": "Importando…",
-      "importOk": "Importado como borrador «{{name}}»"
+      "importOk": "Importado como borrador «{{name}}»",
+      "domains": "Dominios (vocabulario controlado, máx. 3)",
+      "audience": "Audiencia (vocabulario controlado, máx. 3)",
+      "vocabKeepHint": "Los valores fuera del vocabulario se conservan tal cual: elige entradas válidas antes de publicar.",
+      "vocabBlocked": "Estas opciones están fuera del vocabulario controlado; publicación bloqueada: {{values}}",
+      "workbench": "Panel de traducción (pista en inglés)",
+      "workbenchHint": "Rellena cada campo frente al rastro zh; etiquetas y guía son grupos: se serializan solo con todas las casillas llenas.",
+      "workbenchMcpPointer": "Las descripciones en inglés de los servidores MCP se editan en la sección de servidores de arriba.",
+      "recompute": "Guardar y recalcular cobertura",
+      "coverageAdvisory": "El inglés cubre {{covered}}/{{total}} campos de superficie (publicar community nunca se bloquea)",
+      "coverageUnknown": "Cobertura sin calcular — usa Guardar y recalcular",
+      "officialGateHint": "Publicación oficial bloqueada por la puerta de cobertura en inglés; fallos abajo, clic para saltar"
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",

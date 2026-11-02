@@ -321,7 +321,7 @@ export function buildLlmsTxt(catalog, base, generatedAt) {
 }
 
 // ── main ──
-export async function runExport({ base = DEFAULT_BASE, siteBase = process.env.PLAZA_SITE_BASE || "https://plaza.finddatatech.cloud", outDir = "site-plaza/generated", fixture = null, allowStale = false, whitelist = [] } = {}) {
+export async function runExport({ base = DEFAULT_BASE, siteBase = process.env.PLAZA_SITE_BASE || "https://agent.finddatatech.cloud", outDir = "site-plaza/generated", fixture = null, allowStale = false, whitelist = [] } = {}) {
   const generatedAt = new Date().toISOString().slice(0, 10);
   let listingsByLocale;
   let marketplaceCount = null;

@@ -1,94 +1,94 @@
 # Yizuo Agent Materials Plaza（壹座·智能体素材广场）
 
-> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Canonical data: https://plaza.finddatatech.cloud/generated/catalog.json. As of: 2026-11-02.
+> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Canonical data: https://agent.finddatatech.cloud/generated/catalog.json. As of: 2026-11-02.
 
 ## Machine surfaces
 
-- [catalog.json](https://plaza.finddatatech.cloud/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.
-- [infrastructure.md](https://plaza.finddatatech.cloud/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.
+- [catalog.json](https://agent.finddatatech.cloud/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.
+- [infrastructure.md](https://agent.finddatatech.cloud/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.
 
 ## Materials (one self-contained page each, stable addresses)
 
-- [Xingyan Academy](https://plaza.finddatatech.cloud/generated/materials/pack-bq-nloblozeggfkiczktda.md): Xingyan Academy's first release, two lessons: 1) 'Getting Started with Yizuo' — your first deliverable: document library, pack install, a re
-- [Wire · Strategy Lab](https://plaza.finddatatech.cloud/generated/materials/pack-fn7pti9th5jmg3ynqut0w.md): Wire Strategy Lab, a four-skill set: strategy design (weight semantics and universe validation), backtest interpretation (five requirements 
-- [Wire · Sentiment-Driven](https://plaza.finddatatech.cloud/generated/materials/pack-amdkhzcbsc3fpsyiqmduoa.md): Wire Sentiment, a three-skill set that turns announcement text into observable dimensions that carry verbatim quotes and can be verified and
-- [Wire · Regional Economy Suite](https://plaza.finddatatech.cloud/generated/materials/pack-5mqv0jhihj0ahdnpcpc1iw.md): Regional economy comparison: a multi-indicator system backed by the city panel (209 variables × 297 cities × 2000-2024) and the statistical 
-- [Wire · Portfolio Risk](https://plaza.finddatatech.cloud/generated/materials/pack-mfyxwufp5ohspcprdhxahw.md): Wire Portfolio Risk, a four-skill set: risk budgeting (per-position and sector caps + proportional reallocation on breach + an explicit iter
-- [Wire · Macro Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-cjt2aw1qdgpgbvnifmlgdg.md): Macro cycle and conditions analysis: a six-domain indicator framework (growth / inflation / money & credit / fiscal / external trade / prope
-- [Wire · Industry-Chain Linkage](https://plaza.finddatatech.cloud/generated/materials/pack-dxt2hez1z8gibrjmagfjjw.md): Wire industry-chain linkage four-skill suite: chain mapping (multi-level upstream/midstream/downstream segments with representative names an
-- [Wire · Industry & Corporate Suite](https://plaza.finddatatech.cloud/generated/materials/pack-xozwssrjsa8mxfpkhbjzbw.md): Industry cyclical conditions and chain transmission + corporate fundamentals and financial quality + panel econometrics: industry structure 
-- [Wire · Policy Transmission](https://plaza.finddatatech.cloud/generated/materials/pack-ceuuuwyfyh-hiynj6uyqsg.md): Wire Policy Transmission four-skill set: policy identification (ministry items with source_type=ministry; read the body and extract the seve
-- [Lex · Legal Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-zxuh617bsfnj1qqk81qy-a.md): A five-tool legal research set: statute and validity checks, similar-case retrieval reports, legal concept maps, five-corpus search with cal
-- [Wire · Paper Trading Suite](https://plaza.finddatatech.cloud/generated/materials/pack-dydb2cal-m9l91imjyhsha.md): Wire paper trading three-skill suite: conversational operations (accounts/positions/orders/cancellations), strategy workflow (templates and 
-- [Wire · IC Debate](https://plaza.finddatatech.cloud/generated/materials/pack-i5n-srpbxufu6wlbh6pfvq.md): Wire IC Debate, a three-skill set: it turns the company-level debate procedure that TradingAgents/FinRobot spell out but never wire up into 
-- [Wire · Factor Selection](https://plaza.finddatatech.cloud/generated/materials/pack-kimcqr9qsygmbxej3cmedg.md): Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator
-- [Wire · Event-Driven](https://plaza.finddatatech.cloud/generated/materials/pack-bx0qjze26kju-walqnvs-a.md): Wire event-driven four-skill set: event identification (three-way retrieval over announcement list / classification / full text, mapped into
-- [Wire · Valuation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-alziwywesfbs9hqri4d-ia.md): Equity valuation and earnings-cycle analysis: DCF (five-year forecast + WACC + terminal value + sensitivity tables) + comparable companies +
-- [Wire · Equity Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-azkowu4q6mmtmbw75ow7yq.md): Full-chain single-stock research: data acquisition and methodology, peers and competition, financial modeling, thesis synthesis, and 13-chap
-- [Wire · Decision Review Suite](https://plaza.finddatatech.cloud/generated/materials/pack-wqpd5rpcfl3qihg6oldamg.md): Turns 'the call made at the time' into an auditable history: decision logging (append-only, idempotent, revisions leave traces) → settlement
-- [Wire · Data Governance](https://plaza.finddatatech.cloud/generated/materials/pack-8edswnv3lixcusakzs9vva.md): Wire data governance suite: read the data collected through forms, correct one record, undo a correction, review correction history, and exp
-- [Wire · Artifact Build](https://plaza.finddatatech.cloud/generated/materials/pack-swpvacoftftfvngmmfotwq.md): Wire artifact build suite: turn data into things visible in the console through conversation — build data-entry forms, build single-record s
-- [Wire · Adaptive Rotation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-nol2xkatzp2kierrc-gtka.md): Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength r
-- [Wire · Info Shock](https://plaza.finddatatech.cloud/generated/materials/pack-txqaaury2f-kog-rb21bcw.md): Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initi
-- [Wire · Expectation Gap](https://plaza.finddatatech.cloud/generated/materials/pack-dnynrrjjawinzqr-armbjq.md): Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + comp
-- [Text Engine · Screenplay Classics Suite](https://plaza.finddatatech.cloud/generated/materials/pack-1majyoowe-sajhzqtnmhbw.md): Retrieval and research over public-domain classic plays: structure analysis (act/scene skeleton and plot progression), character search (lin
-- [Text Engine · Paper Research Suite](https://plaza.finddatatech.cloud/generated/materials/pack-1oq93flbzzvgcn2js31ada.md): Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of p
-- [Micro-Business · Retail Signal Pack](https://plaza.finddatatech.cloud/generated/materials/pack-uxwchrypeynue1z4qql-tw.md): Retail industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): wholesale price reference (Kunming In
-- [Micro-Business · Catering Signal Pack](https://plaza.finddatatech.cloud/generated/materials/pack-bnia5thfddb3og-ft0ckja.md): Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity E
-- [Micro-Business · Core Checkup Suite](https://plaza.finddatatech.cloud/generated/materials/pack-mbcxthtyymoxdhmsuyvddq.md): Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting
-- [Lex · Litigation Documents Suite](https://plaza.finddatatech.cloud/generated/materials/pack-3uoelnbma6wiwstqxrv93g.md): Civil/commercial litigation drafting and filing prep: complaints, defenses and evidence lists, with evidence cards and checklists; v2 adds e
-- [Lex · Labor Law Suite](https://plaza.finddatatech.cloud/generated/materials/pack-ndvkyag2nfivxg7osdawxw.md): Full labor-dispute workflow plus two calculators (Lex × Wire convergence): labor arbitration end to end (application / defense / evidence li
-- [Lex · Criminal Defense Suite](https://plaza.finddatatech.cloud/generated/materials/pack-uzmqpvazqdmpluqsby-eng.md): Criminal defense suite: a master workflow chains plea/non-prosecution argumentation (review-for-prosecution) with examination outlines (firs
-- [Lex · Contract Review Suite](https://plaza.finddatatech.cloud/generated/materials/pack-mfaiaxhrvfqjaxpxyiazkq.md): Contract review under PRC (mainland) law: five industry review cards (labor & employment / loans & financing / NDA & confidentiality / sale 
-- [Lex · Civil Litigation Suite](https://plaza.finddatatech.cloud/generated/materials/pack-rz-ebxhd5astvgcyqlhmqa.md): End-to-end analysis of civil and commercial cases: fixing the claims (S1) → basis of the claim (S2) → defense analysis (S3) → element breakd
-- [Platform Guides](https://plaza.finddatatech.cloud/generated/materials/pack-3luwfbgs3rje5biv9mvbfw.md): Operation and authoring guides for the Finddata platform: 1) the Yizuo and Wanxing manuals — using the AI assistant workbench, installing pa
-- [Facet Forge](https://plaza.finddatatech.cloud/generated/materials/pack-b99vdq0cfbnqgvmfy5isw.md): The pack-forging workshop for ecosystem creators: turn an idea into an installable pack. 1) Forge — discover the platform's MCP tools and sk
-- [Lex Console Companion](https://plaza.finddatatech.cloud/generated/materials/pack-xfyxvzonqfelnfigm0djvw.md): A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation 
-- [内容工厂](https://plaza.finddatatech.cloud/generated/materials/pack-mnvipe6mi-fboul1z0tdtw.md): 选题→初稿→审校的流水线，只出草稿供人定稿；不自动发布
-- [Infra Factory Fleet](https://plaza.finddatatech.cloud/generated/materials/pack-bkipx4urgfo5te6gjj9ihg.md): Owner-facing three-post fleet: the sentinel audits all registered fleets and infrastructure against countable thresholds and lands a per-ite
-- [Cross-border E-commerce Policy Watch](https://plaza.finddatatech.cloud/generated/materials/pack-c8wx14-4h7zj0n19-j4nwq.md): A policy-watch cluster over customs/commerce/tax/port announcement lanes, daily brief with three escalation criteria, board draft contributi
-- [Wanxing Fleet Ops](https://plaza.finddatatech.cloud/generated/materials/pack-8wjvzznk369wm0ofscdeca.md): Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing members), agent steward over the wanxing read face (degrades
-- [Facet Platform Ops](https://plaza.finddatatech.cloud/generated/materials/pack-ujui1a2cacuw7tg1z1mleg.md): Facet platform-ops cluster: inventory patrol (read-only), daily integrity sentinel that degrades honestly when integrity is not exposed, and
-- [Marketing Site Content](https://plaza.finddatatech.cloud/generated/materials/pack-ljtjzwqsr2aox7weftvlpg.md): Marketing content fleet template: topics → draft → review → publish-draft chain (staggered crons) plus an eval sentinel post. Magnitude-only
-- [Wire Intel & Sentiment](https://plaza.finddatatech.cloud/generated/materials/pack-ivcgxpg9itgnlphxt1khwq.md): Wire intel/sentiment fleet template: intel patrol + sentiment sentinel run in parallel, the chief cross-checks both and composes the morning
-- [Wire Ontology Builder](https://plaza.finddatatech.cloud/generated/materials/pack-yt87-2axuu49i123zvyyha.md): A Wire ontology-building cluster for the data plane: profile datasets, draft entity/relation declarations, pass deterministic validation, an
-- [Lex Marketing](https://plaza.finddatatech.cloud/generated/materials/pack-y99vun6rdws98ock0zan8a.md): Lex marketing content cluster template (content-factory variant): collector (customer scenarios and industry pain points) → synthesizer (mag
-- [Lex Zhengxin Watch](https://plaza.finddatatech.cloud/generated/materials/pack-1hbpcl4lab-cskpuqgn2ew.md): Lex Zhengxin watch cluster template: the monitor patrols the real V-Dem/MARPOR libraries by domain (fd-zhengxin-reference read face), the sy
-- [Lex Statute Update](https://plaza.finddatatech.cloud/generated/materials/pack-zcot-b6hsnjrttdkr-aunq.md): Lex statute-update cluster template: the monitor scans new/amended/repealed statutes daily (fd-legal-search-mcp authoritative statute face, 
-- [Intel Gathering](https://plaza.finddatatech.cloud/generated/materials/pack-4z4dmrtnbtn2wce-45qpfw.md): Shared fleet layer: collection discipline for intel patrol posts — fd-info references, source-list patrol, read-the-original before summariz
-- [Board Contribution](https://plaza.finddatatech.cloud/generated/materials/pack-mo3-awe7tf2efvzkqft9ma.md): Shared fleet layer: artifact-write discipline for contribution posts — wire-build references, draft-first, source_ref triplets, column pre-c
-- [Vertical Constructor](https://plaza.finddatatech.cloud/generated/materials/pack-o30la92kq1d5uunibgkszq.md): Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acc
-- [Eval Sentinel](https://plaza.finddatatech.cloud/generated/materials/pack-rl8i99cs5nwuarvbp0d5q.md): Shared fleet layer: quality-gate discipline — gold-set comparison (exact/direction/coverage), KPI reporting, drift escalation, eval reports 
-- [Data Q&A](https://plaza.finddatatech.cloud/generated/materials/pack-y2-qsukxv8dzfr-39-0zrq.md): Shared fleet layer: read-only analysis discipline — dataset read faces, every number traceable, scope stated, honest empty results, chart-co
-- [Briefing & Reporting](https://plaza.finddatatech.cloud/generated/materials/pack-f8gbhnaeg6c2rdz468mwaa.md): Shared fleet layer: reporting and briefing discipline for brief/chief posts — report_status slots aligned to the fleet KPIs, morning/weekly 
-- [FindData Product Introduction](https://plaza.finddatatech.cloud/generated/materials/pack-v8rz8f7e92mrssz92ygnxq.md): External-facing product-introduction team: one front-desk “Product Guide” plus five product-line specialists (FindData·Base / Lex / Wire / F
-- [团队架构师](https://plaza.finddatatech.cloud/generated/materials/pack-nobbxkvxznjnhlcrawwp-w.md): 壹座聊天内的团队自然语言编排面：把用户的话编译成团队结构草稿，经校验与成本预估呈 diff，用户批准后落地。管编制不管作战——不做运行时指挥。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 pack 清单校验。
-- [nano-pdf](https://plaza.finddatatech.cloud/generated/materials/pack-5y0-gislp-ogelqq4zpswa.md): Edit PDFs with natural-language instructions using the nano-pdf CLI.
-- [柏讯 · 投研三镜头](https://plaza.finddatatech.cloud/generated/materials/pack-egayyoazvtf0fwllvagaqa.md): 三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。团队任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态团队叠加。
-- [分身工坊](https://plaza.finddatatech.cloud/generated/materials/pack-vcfzzuxpgkirsj5pozigg.md): 和工坊助手聊几句，它把你的知识变成一个可发布的 AI 分身：采访你、整理语料、生成接待人设与 manifest.json，给出发布三步指引。造好的分身部署后，任何人从目录点「和这个分身聊」就能了解你——费用你出（hosted），访客免费。
-- [晨报情报站](https://plaza.finddatatech.cloud/generated/materials/pack-56opygliv9fyamhmsdijow.md): 官方团队模板：每日晨报情报站——科技与市场情报员每日清晨分头巡检，情报主编 8 点合成晨报；另含团队引用岗（existing-cluster，每周一做深度聚合，演示团队 fan-out 引用与派生报数）。演示：双情报源并行、晨报流、cluster 引用岗（公司种子只演示了 a2a
-- [内容流水线](https://plaza.finddatatech.cloud/generated/materials/pack-tkhe8ihe0budyyig5lgluw.md): 官方团队模板：周流水线内容工厂——主编周一主持选题会，选题策划立项、撰稿人周二至四成稿，审校为被动岗（受委托唤醒，演示成员间横向协作的唯一通道 delegation）。演示：周节奏流水线、被动岗受委托唤醒、文档工具面；编导段为 trigger(周一)→handoff 流水线（主编
-- [客服班组](https://plaza.finddatatech.cloud/generated/materials/pack-emgw14n8voa1b36lsutxxw.md): 官方团队模板：高频客服护航——客服组长每 4 小时带队巡检工单，一线客服处理、质检员抽检；组长对疑难工单用 escalate 合并上报（演示对抗每日防洪上限的上报纪律）与 CRM 客服工具面（凭据未配置时如实空转，不整体失败）。恰 3 岗满编无引用岗；编导段演示入站唤醒：even
-- [Investment Research Morning Meeting](https://plaza.finddatatech.cloud/generated/materials/pack-ymst-hrninwxrllyc8psia.md): 官方团队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗；编导段为 trigger+ha
-- [AI 公司](https://plaza.finddatatech.cloud/generated/materials/pack-aofnf6o2lr61lpk8ivvkjw.md): 官方团队模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星团队 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证）
-- [数据 · 自助分析](https://plaza.finddatatech.cloud/generated/materials/pack-50tp176hw0hyttwxzbarka.md): 谦面自助分析消费八件套：取数（工作流清单/AkShare）、实体与集合管理、指标查询、看板检视、PDF 语义检索、头脑风暴与一键研究——业务人自助完成数据消费全流程
-- [数据 · 指标工坊](https://plaza.finddatatech.cloud/generated/materials/pack-ogurb41bdyaotvgoebhzua.md): 谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产
-- [萬星机群助手](https://plaza.finddatatech.cloud/generated/materials/pack-indsrwpgpp2q03i0z3xofa.md): 在壹座中操作萬星机群的专用助手——浏览 agent 目录、读详情、查看部署状态。只读工具 + 提议通道，所有写操作需经动作闸确认。
-- [寻数分身](https://plaza.finddatatech.cloud/generated/materials/pack-ut-bjmuw5kxad83kimpmlg.md): 寻数（FindData）的企业 AI 分身：想了解我们的企业、在做的项目、产品具备的能力，直接和分身聊。回答出自随版本冻结的策展语料，每条带语料截至时间；答不了的如实说答不了，并建议找人对的人。
-- [谦面助手](https://plaza.finddatatech.cloud/generated/materials/pack-qceiutjzqd49jndtv4qeqw.md): 在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。
-- [CRM 客服套件](https://plaza.finddatatech.cloud/generated/materials/pack-0avynunhmsctaxu7fgs-nq.md): 商家自带 Chatwoot 的客服接待套件：连接你的 Chatwoot 账号后，读未处理会话、草拟回复、人工确认后发送，全程你自己的租户与凭据（BYOK）。含客服接待技能与使用指南。
-- [萬星 · 本地内容发布套件](https://plaza.finddatatech.cloud/generated/materials/pack-bzz9r5rmypiaits8ca33lw.md): 云端生成 + 本地发布的完整闭环：从 VAAS 托管实例拉取租户名下的生成产物（图/视频/图文），在本机完成平台适配、人工确认后经自己的浏览器登录态发布到 10 视频平台 + 11 图文平台。登录态只存本机、平台零保管（见包内 SECURITY-NOTES.md）。发布前必须人工
-- [谦面市场助手](https://plaza.finddatatech.cloud/generated/materials/pack-0rdqe184anpuamhivfwnda.md): 用 AI 直接操作谦面市场与网关：浏览/检索功集与网关条目、发布新功集与新版本、上下架、切可见性、策展分类、发布前查重。装包即得 facet_market_* 与 facet_agent_* 十二个工具（凭据走壹座既有连接：registry + 谦面市场配对），配两份手册技能讲清
-- [市场快讯 · 一页速览](https://plaza.finddatatech.cloud/generated/materials/pack-ev5e51eth7e5mcvydrl9rg.md): 把一段财经新闻、公告或行情评论收敛成一页速览：三行结论、五个要点、一处存疑。为需要在盘前/会前快速消化的读者而生。
-- [外部好货 · 简报快写](https://plaza.finddatatech.cloud/generated/materials/pack-thd65-7sfbt-z0kftvhgiw.md): M4③ 套装验收——第二件外作者绿地带货
-- [外部好货 · 数据速览](https://plaza.finddatatech.cloud/generated/materials/pack-6kdskgmb-3-86a81vzc6ua.md): M4② 绿地从目录部署验收——外作者的可部署 pack
-- [数据研究 · 生态版](https://plaza.finddatatech.cloud/generated/materials/pack-aqag8mky4ksopmwrdmcvyw.md): 官方功能集（生态首发）：FindData 数据底座（fd-open-data-mcp 宏观/金融真数据）+ 官方 time/fetch 生态 server + 数据研究 persona。装上即可做可溯源的数据问答与网页取证。
-- [文档工坊](https://plaza.finddatatech.cloud/generated/materials/pack-qnhd7b3j1-hkddkzzq-fuq.md): Office 文档生成与编辑：商务报告（docx）、数据工作簿（xlsx）、汇报演示（pptx）三场景成稿，配验证过的封面配方、中式设计系统与生成后质检 postcheck；支持编辑用户上传的原件（fetch_document_file 取原件）。回合内免费。
+- [Xingyan Academy](https://agent.finddatatech.cloud/generated/materials/pack-bq-nloblozeggfkiczktda.md): Xingyan Academy's first release, two lessons: 1) 'Getting Started with Yizuo' — your first deliverable: document library, pack install, a re
+- [Wire · Strategy Lab](https://agent.finddatatech.cloud/generated/materials/pack-fn7pti9th5jmg3ynqut0w.md): Wire Strategy Lab, a four-skill set: strategy design (weight semantics and universe validation), backtest interpretation (five requirements 
+- [Wire · Sentiment-Driven](https://agent.finddatatech.cloud/generated/materials/pack-amdkhzcbsc3fpsyiqmduoa.md): Wire Sentiment, a three-skill set that turns announcement text into observable dimensions that carry verbatim quotes and can be verified and
+- [Wire · Regional Economy Suite](https://agent.finddatatech.cloud/generated/materials/pack-5mqv0jhihj0ahdnpcpc1iw.md): Regional economy comparison: a multi-indicator system backed by the city panel (209 variables × 297 cities × 2000-2024) and the statistical 
+- [Wire · Portfolio Risk](https://agent.finddatatech.cloud/generated/materials/pack-mfyxwufp5ohspcprdhxahw.md): Wire Portfolio Risk, a four-skill set: risk budgeting (per-position and sector caps + proportional reallocation on breach + an explicit iter
+- [Wire · Macro Research Suite](https://agent.finddatatech.cloud/generated/materials/pack-cjt2aw1qdgpgbvnifmlgdg.md): Macro cycle and conditions analysis: a six-domain indicator framework (growth / inflation / money & credit / fiscal / external trade / prope
+- [Wire · Industry-Chain Linkage](https://agent.finddatatech.cloud/generated/materials/pack-dxt2hez1z8gibrjmagfjjw.md): Wire industry-chain linkage four-skill suite: chain mapping (multi-level upstream/midstream/downstream segments with representative names an
+- [Wire · Industry & Corporate Suite](https://agent.finddatatech.cloud/generated/materials/pack-xozwssrjsa8mxfpkhbjzbw.md): Industry cyclical conditions and chain transmission + corporate fundamentals and financial quality + panel econometrics: industry structure 
+- [Wire · Policy Transmission](https://agent.finddatatech.cloud/generated/materials/pack-ceuuuwyfyh-hiynj6uyqsg.md): Wire Policy Transmission four-skill set: policy identification (ministry items with source_type=ministry; read the body and extract the seve
+- [Lex · Legal Research Suite](https://agent.finddatatech.cloud/generated/materials/pack-zxuh617bsfnj1qqk81qy-a.md): A five-tool legal research set: statute and validity checks, similar-case retrieval reports, legal concept maps, five-corpus search with cal
+- [Wire · Paper Trading Suite](https://agent.finddatatech.cloud/generated/materials/pack-dydb2cal-m9l91imjyhsha.md): Wire paper trading three-skill suite: conversational operations (accounts/positions/orders/cancellations), strategy workflow (templates and 
+- [Wire · IC Debate](https://agent.finddatatech.cloud/generated/materials/pack-i5n-srpbxufu6wlbh6pfvq.md): Wire IC Debate, a three-skill set: it turns the company-level debate procedure that TradingAgents/FinRobot spell out but never wire up into 
+- [Wire · Factor Selection](https://agent.finddatatech.cloud/generated/materials/pack-kimcqr9qsygmbxej3cmedg.md): Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator
+- [Wire · Event-Driven](https://agent.finddatatech.cloud/generated/materials/pack-bx0qjze26kju-walqnvs-a.md): Wire event-driven four-skill set: event identification (three-way retrieval over announcement list / classification / full text, mapped into
+- [Wire · Valuation Suite](https://agent.finddatatech.cloud/generated/materials/pack-alziwywesfbs9hqri4d-ia.md): Equity valuation and earnings-cycle analysis: DCF (five-year forecast + WACC + terminal value + sensitivity tables) + comparable companies +
+- [Wire · Equity Research Suite](https://agent.finddatatech.cloud/generated/materials/pack-azkowu4q6mmtmbw75ow7yq.md): Full-chain single-stock research: data acquisition and methodology, peers and competition, financial modeling, thesis synthesis, and 13-chap
+- [Wire · Decision Review Suite](https://agent.finddatatech.cloud/generated/materials/pack-wqpd5rpcfl3qihg6oldamg.md): Turns 'the call made at the time' into an auditable history: decision logging (append-only, idempotent, revisions leave traces) → settlement
+- [Wire · Data Governance](https://agent.finddatatech.cloud/generated/materials/pack-8edswnv3lixcusakzs9vva.md): Wire data governance suite: read the data collected through forms, correct one record, undo a correction, review correction history, and exp
+- [Wire · Artifact Build](https://agent.finddatatech.cloud/generated/materials/pack-swpvacoftftfvngmmfotwq.md): Wire artifact build suite: turn data into things visible in the console through conversation — build data-entry forms, build single-record s
+- [Wire · Adaptive Rotation Suite](https://agent.finddatatech.cloud/generated/materials/pack-nol2xkatzp2kierrc-gtka.md): Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength r
+- [Wire · Info Shock](https://agent.finddatatech.cloud/generated/materials/pack-txqaaury2f-kog-rb21bcw.md): Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initi
+- [Wire · Expectation Gap](https://agent.finddatatech.cloud/generated/materials/pack-dnynrrjjawinzqr-armbjq.md): Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + comp
+- [Text Engine · Screenplay Classics Suite](https://agent.finddatatech.cloud/generated/materials/pack-1majyoowe-sajhzqtnmhbw.md): Retrieval and research over public-domain classic plays: structure analysis (act/scene skeleton and plot progression), character search (lin
+- [Text Engine · Paper Research Suite](https://agent.finddatatech.cloud/generated/materials/pack-1oq93flbzzvgcn2js31ada.md): Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of p
+- [Micro-Business · Retail Signal Pack](https://agent.finddatatech.cloud/generated/materials/pack-uxwchrypeynue1z4qql-tw.md): Retail industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): wholesale price reference (Kunming In
+- [Micro-Business · Catering Signal Pack](https://agent.finddatatech.cloud/generated/materials/pack-bnia5thfddb3og-ft0ckja.md): Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity E
+- [Micro-Business · Core Checkup Suite](https://agent.finddatatech.cloud/generated/materials/pack-mbcxthtyymoxdhmsuyvddq.md): Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting
+- [Lex · Litigation Documents Suite](https://agent.finddatatech.cloud/generated/materials/pack-3uoelnbma6wiwstqxrv93g.md): Civil/commercial litigation drafting and filing prep: complaints, defenses and evidence lists, with evidence cards and checklists; v2 adds e
+- [Lex · Labor Law Suite](https://agent.finddatatech.cloud/generated/materials/pack-ndvkyag2nfivxg7osdawxw.md): Full labor-dispute workflow plus two calculators (Lex × Wire convergence): labor arbitration end to end (application / defense / evidence li
+- [Lex · Criminal Defense Suite](https://agent.finddatatech.cloud/generated/materials/pack-uzmqpvazqdmpluqsby-eng.md): Criminal defense suite: a master workflow chains plea/non-prosecution argumentation (review-for-prosecution) with examination outlines (firs
+- [Lex · Contract Review Suite](https://agent.finddatatech.cloud/generated/materials/pack-mfaiaxhrvfqjaxpxyiazkq.md): Contract review under PRC (mainland) law: five industry review cards (labor & employment / loans & financing / NDA & confidentiality / sale 
+- [Lex · Civil Litigation Suite](https://agent.finddatatech.cloud/generated/materials/pack-rz-ebxhd5astvgcyqlhmqa.md): End-to-end analysis of civil and commercial cases: fixing the claims (S1) → basis of the claim (S2) → defense analysis (S3) → element breakd
+- [Platform Guides](https://agent.finddatatech.cloud/generated/materials/pack-3luwfbgs3rje5biv9mvbfw.md): Operation and authoring guides for the Finddata platform: 1) the Yizuo and Wanxing manuals — using the AI assistant workbench, installing pa
+- [Facet Forge](https://agent.finddatatech.cloud/generated/materials/pack-b99vdq0cfbnqgvmfy5isw.md): The pack-forging workshop for ecosystem creators: turn an idea into an installable pack. 1) Forge — discover the platform's MCP tools and sk
+- [Lex Console Companion](https://agent.finddatatech.cloud/generated/materials/pack-xfyxvzonqfelnfigm0djvw.md): A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation 
+- [内容工厂](https://agent.finddatatech.cloud/generated/materials/pack-mnvipe6mi-fboul1z0tdtw.md): 选题→初稿→审校的流水线，只出草稿供人定稿；不自动发布
+- [Infra Factory Fleet](https://agent.finddatatech.cloud/generated/materials/pack-bkipx4urgfo5te6gjj9ihg.md): Owner-facing three-post fleet: the sentinel audits all registered fleets and infrastructure against countable thresholds and lands a per-ite
+- [Cross-border E-commerce Policy Watch](https://agent.finddatatech.cloud/generated/materials/pack-c8wx14-4h7zj0n19-j4nwq.md): A policy-watch cluster over customs/commerce/tax/port announcement lanes, daily brief with three escalation criteria, board draft contributi
+- [Wanxing Fleet Ops](https://agent.finddatatech.cloud/generated/materials/pack-8wjvzznk369wm0ofscdeca.md): Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing members), agent steward over the wanxing read face (degrades
+- [Facet Platform Ops](https://agent.finddatatech.cloud/generated/materials/pack-ujui1a2cacuw7tg1z1mleg.md): Facet platform-ops cluster: inventory patrol (read-only), daily integrity sentinel that degrades honestly when integrity is not exposed, and
+- [Marketing Site Content](https://agent.finddatatech.cloud/generated/materials/pack-ljtjzwqsr2aox7weftvlpg.md): Marketing content fleet template: topics → draft → review → publish-draft chain (staggered crons) plus an eval sentinel post. Magnitude-only
+- [Wire Intel & Sentiment](https://agent.finddatatech.cloud/generated/materials/pack-ivcgxpg9itgnlphxt1khwq.md): Wire intel/sentiment fleet template: intel patrol + sentiment sentinel run in parallel, the chief cross-checks both and composes the morning
+- [Wire Ontology Builder](https://agent.finddatatech.cloud/generated/materials/pack-yt87-2axuu49i123zvyyha.md): A Wire ontology-building cluster for the data plane: profile datasets, draft entity/relation declarations, pass deterministic validation, an
+- [Lex Marketing](https://agent.finddatatech.cloud/generated/materials/pack-y99vun6rdws98ock0zan8a.md): Lex marketing content cluster template (content-factory variant): collector (customer scenarios and industry pain points) → synthesizer (mag
+- [Lex Zhengxin Watch](https://agent.finddatatech.cloud/generated/materials/pack-1hbpcl4lab-cskpuqgn2ew.md): Lex Zhengxin watch cluster template: the monitor patrols the real V-Dem/MARPOR libraries by domain (fd-zhengxin-reference read face), the sy
+- [Lex Statute Update](https://agent.finddatatech.cloud/generated/materials/pack-zcot-b6hsnjrttdkr-aunq.md): Lex statute-update cluster template: the monitor scans new/amended/repealed statutes daily (fd-legal-search-mcp authoritative statute face, 
+- [Intel Gathering](https://agent.finddatatech.cloud/generated/materials/pack-4z4dmrtnbtn2wce-45qpfw.md): Shared fleet layer: collection discipline for intel patrol posts — fd-info references, source-list patrol, read-the-original before summariz
+- [Board Contribution](https://agent.finddatatech.cloud/generated/materials/pack-mo3-awe7tf2efvzkqft9ma.md): Shared fleet layer: artifact-write discipline for contribution posts — wire-build references, draft-first, source_ref triplets, column pre-c
+- [Vertical Constructor](https://agent.finddatatech.cloud/generated/materials/pack-o30la92kq1d5uunibgkszq.md): Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acc
+- [Eval Sentinel](https://agent.finddatatech.cloud/generated/materials/pack-rl8i99cs5nwuarvbp0d5q.md): Shared fleet layer: quality-gate discipline — gold-set comparison (exact/direction/coverage), KPI reporting, drift escalation, eval reports 
+- [Data Q&A](https://agent.finddatatech.cloud/generated/materials/pack-y2-qsukxv8dzfr-39-0zrq.md): Shared fleet layer: read-only analysis discipline — dataset read faces, every number traceable, scope stated, honest empty results, chart-co
+- [Briefing & Reporting](https://agent.finddatatech.cloud/generated/materials/pack-f8gbhnaeg6c2rdz468mwaa.md): Shared fleet layer: reporting and briefing discipline for brief/chief posts — report_status slots aligned to the fleet KPIs, morning/weekly 
+- [FindData Product Introduction](https://agent.finddatatech.cloud/generated/materials/pack-v8rz8f7e92mrssz92ygnxq.md): External-facing product-introduction team: one front-desk “Product Guide” plus five product-line specialists (FindData·Base / Lex / Wire / F
+- [团队架构师](https://agent.finddatatech.cloud/generated/materials/pack-nobbxkvxznjnhlcrawwp-w.md): 壹座聊天内的团队自然语言编排面：把用户的话编译成团队结构草稿，经校验与成本预估呈 diff，用户批准后落地。管编制不管作战——不做运行时指挥。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 pack 清单校验。
+- [nano-pdf](https://agent.finddatatech.cloud/generated/materials/pack-5y0-gislp-ogelqq4zpswa.md): Edit PDFs with natural-language instructions using the nano-pdf CLI.
+- [柏讯 · 投研三镜头](https://agent.finddatatech.cloud/generated/materials/pack-egayyoazvtf0fwllvagaqa.md): 三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。团队任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态团队叠加。
+- [分身工坊](https://agent.finddatatech.cloud/generated/materials/pack-vcfzzuxpgkirsj5pozigg.md): 和工坊助手聊几句，它把你的知识变成一个可发布的 AI 分身：采访你、整理语料、生成接待人设与 manifest.json，给出发布三步指引。造好的分身部署后，任何人从目录点「和这个分身聊」就能了解你——费用你出（hosted），访客免费。
+- [晨报情报站](https://agent.finddatatech.cloud/generated/materials/pack-56opygliv9fyamhmsdijow.md): 官方团队模板：每日晨报情报站——科技与市场情报员每日清晨分头巡检，情报主编 8 点合成晨报；另含团队引用岗（existing-cluster，每周一做深度聚合，演示团队 fan-out 引用与派生报数）。演示：双情报源并行、晨报流、cluster 引用岗（公司种子只演示了 a2a
+- [内容流水线](https://agent.finddatatech.cloud/generated/materials/pack-tkhe8ihe0budyyig5lgluw.md): 官方团队模板：周流水线内容工厂——主编周一主持选题会，选题策划立项、撰稿人周二至四成稿，审校为被动岗（受委托唤醒，演示成员间横向协作的唯一通道 delegation）。演示：周节奏流水线、被动岗受委托唤醒、文档工具面；编导段为 trigger(周一)→handoff 流水线（主编
+- [客服班组](https://agent.finddatatech.cloud/generated/materials/pack-emgw14n8voa1b36lsutxxw.md): 官方团队模板：高频客服护航——客服组长每 4 小时带队巡检工单，一线客服处理、质检员抽检；组长对疑难工单用 escalate 合并上报（演示对抗每日防洪上限的上报纪律）与 CRM 客服工具面（凭据未配置时如实空转，不整体失败）。恰 3 岗满编无引用岗；编导段演示入站唤醒：even
+- [Investment Research Morning Meeting](https://agent.finddatatech.cloud/generated/materials/pack-ymst-hrninwxrllyc8psia.md): 官方团队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗；编导段为 trigger+ha
+- [AI 公司](https://agent.finddatatech.cloud/generated/materials/pack-aofnf6o2lr61lpk8ivvkjw.md): 官方团队模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星团队 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证）
+- [数据 · 自助分析](https://agent.finddatatech.cloud/generated/materials/pack-50tp176hw0hyttwxzbarka.md): 谦面自助分析消费八件套：取数（工作流清单/AkShare）、实体与集合管理、指标查询、看板检视、PDF 语义检索、头脑风暴与一键研究——业务人自助完成数据消费全流程
+- [数据 · 指标工坊](https://agent.finddatatech.cloud/generated/materials/pack-ogurb41bdyaotvgoebhzua.md): 谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产
+- [萬星机群助手](https://agent.finddatatech.cloud/generated/materials/pack-indsrwpgpp2q03i0z3xofa.md): 在壹座中操作萬星机群的专用助手——浏览 agent 目录、读详情、查看部署状态。只读工具 + 提议通道，所有写操作需经动作闸确认。
+- [寻数分身](https://agent.finddatatech.cloud/generated/materials/pack-ut-bjmuw5kxad83kimpmlg.md): 寻数（FindData）的企业 AI 分身：想了解我们的企业、在做的项目、产品具备的能力，直接和分身聊。回答出自随版本冻结的策展语料，每条带语料截至时间；答不了的如实说答不了，并建议找人对的人。
+- [谦面助手](https://agent.finddatatech.cloud/generated/materials/pack-qceiutjzqd49jndtv4qeqw.md): 在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。
+- [CRM 客服套件](https://agent.finddatatech.cloud/generated/materials/pack-0avynunhmsctaxu7fgs-nq.md): 商家自带 Chatwoot 的客服接待套件：连接你的 Chatwoot 账号后，读未处理会话、草拟回复、人工确认后发送，全程你自己的租户与凭据（BYOK）。含客服接待技能与使用指南。
+- [萬星 · 本地内容发布套件](https://agent.finddatatech.cloud/generated/materials/pack-bzz9r5rmypiaits8ca33lw.md): 云端生成 + 本地发布的完整闭环：从 VAAS 托管实例拉取租户名下的生成产物（图/视频/图文），在本机完成平台适配、人工确认后经自己的浏览器登录态发布到 10 视频平台 + 11 图文平台。登录态只存本机、平台零保管（见包内 SECURITY-NOTES.md）。发布前必须人工
+- [谦面市场助手](https://agent.finddatatech.cloud/generated/materials/pack-0rdqe184anpuamhivfwnda.md): 用 AI 直接操作谦面市场与网关：浏览/检索功集与网关条目、发布新功集与新版本、上下架、切可见性、策展分类、发布前查重。装包即得 facet_market_* 与 facet_agent_* 十二个工具（凭据走壹座既有连接：registry + 谦面市场配对），配两份手册技能讲清
+- [市场快讯 · 一页速览](https://agent.finddatatech.cloud/generated/materials/pack-ev5e51eth7e5mcvydrl9rg.md): 把一段财经新闻、公告或行情评论收敛成一页速览：三行结论、五个要点、一处存疑。为需要在盘前/会前快速消化的读者而生。
+- [外部好货 · 简报快写](https://agent.finddatatech.cloud/generated/materials/pack-thd65-7sfbt-z0kftvhgiw.md): M4③ 套装验收——第二件外作者绿地带货
+- [外部好货 · 数据速览](https://agent.finddatatech.cloud/generated/materials/pack-6kdskgmb-3-86a81vzc6ua.md): M4② 绿地从目录部署验收——外作者的可部署 pack
+- [数据研究 · 生态版](https://agent.finddatatech.cloud/generated/materials/pack-aqag8mky4ksopmwrdmcvyw.md): 官方功能集（生态首发）：FindData 数据底座（fd-open-data-mcp 宏观/金融真数据）+ 官方 time/fetch 生态 server + 数据研究 persona。装上即可做可溯源的数据问答与网页取证。
+- [文档工坊](https://agent.finddatatech.cloud/generated/materials/pack-qnhd7b3j1-hkddkzzq-fuq.md): Office 文档生成与编辑：商务报告（docx）、数据工作簿（xlsx）、汇报演示（pptx）三场景成稿，配验证过的封面配方、中式设计系统与生成后质检 postcheck；支持编辑用户上传的原件（fetch_document_file 取原件）。回合内免费。
 
 ## For humans
 
-- [The plaza site](https://plaza.finddatatech.cloud/): five-locale narrative face — what materials exist, how they are supplied, live inventory.
-- [Market actions](https://plaza.finddatatech.cloud/#/packs): browse, subscribe, install — the action layer on the same truth.
+- [The plaza site](https://agent.finddatatech.cloud/): five-locale narrative face — what materials exist, how they are supplied, live inventory.
+- [Market actions](https://agent.finddatatech.cloud/#/packs): browse, subscribe, install — the action layer on the same truth.
 
 
 ---
@@ -114,7 +114,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install bQ-NlOBloZegGfkiczktDA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -143,7 +143,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install _FN7pti9TH5JMg3YnQut0w
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -172,7 +172,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install aMdkHzCbsc3fPsYiqMDUOA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -201,7 +201,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 5mqV0jhihj0AhdNPCpc1iw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -230,7 +230,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install mFYxWUfp5oHsPcpRDhxAhw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -259,7 +259,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install cjT2AW1QDGPGbvNIFmLgDg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -288,7 +288,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install dxT2HEZ1z8GibrjMAgFJJw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -317,7 +317,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install XozWSsRjsA8MxFPkHBJZbw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -346,7 +346,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install ceuUUWYFYH_HiYnJ6UYqSg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -375,7 +375,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install zxuH617BsFnj1QQk81QY-A
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -404,7 +404,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install DydB2cal-M9l91IMJYHshA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -433,7 +433,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install I5n-sRpbXuFu6WLbh6PfvQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -462,7 +462,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install kimcQr9qSyGmbXej3CmeDg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -491,7 +491,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install BX0qjZe26KJU-waLQNVS-A
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -520,7 +520,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install AlZiwYWeSfbs9hqRI4d-IA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -549,7 +549,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install azkOwU4q6mmTmbw75Ow7yQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -578,7 +578,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install wqpd5rPCFl3qIHg6oLDamg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -607,7 +607,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 8edSwnv3lIXcuSAkzS9vvA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -636,7 +636,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install SWPvacoFTftfVngMMFotwQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -665,7 +665,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install noL2XKaTZP2kiERrC_gtKA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -694,7 +694,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install tXQaAuRY2F-Kog-rb21bCw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -723,7 +723,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install DNYnRrjjAWINzqR_ArmbjQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -752,7 +752,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 1mAJYooWE-SajhzqTNMhBw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -781,7 +781,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 1OQ93FLBzzVGcn2js31ADA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -810,7 +810,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install UXWcHRYPeyNue1Z4qQl-Tw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -839,7 +839,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install BniA5thfDdb3oG-FT0CkJA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -868,7 +868,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install MBcXTHtyyMOxDHmSUYvDdQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -897,7 +897,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 3uOELnBMA6WiWSTQxrV93g
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -926,7 +926,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install ndVkyAg2NfIVXg7oSDAWxw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -955,7 +955,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install UzMQPvaZqdmpluQsbY-eng
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -984,7 +984,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install mfaIAXHRVFQJaXPXyiAzKQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1013,7 +1013,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install rz-ebXHD5astVGcyqlhmqA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1042,7 +1042,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 3LUWFBGS3RJe5BIV9MvBFw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1071,7 +1071,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install _B99vDq0CFBNQGvmfy5iSw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1100,7 +1100,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install XfyXvzONQFelnFIgM0dJVw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1127,7 +1127,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install MnViPe6mi-FBOUL1Z0tDTw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1156,7 +1156,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install bKipx4urGfO5TE6GjJ9Ihg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1185,7 +1185,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install C8wx14-4h7zJ0N19-J4NwQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1214,7 +1214,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 8wJVZZnk369wm0oFScdecA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1243,7 +1243,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install ujUI1A2caCUW7TG1Z1mlEg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1272,7 +1272,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install LjTJZWqSr2AOX7WEFTVlpg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1301,7 +1301,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install IVCGxpg9itGnLpHxT1khWQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1330,7 +1330,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install YT87-2Axuu49I123zVYyhA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1359,7 +1359,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Y99VUN6RdWs98ocK0ZAN8A
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1388,7 +1388,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 1HbpcL4LaB-csKpUQgN2Ew
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1417,7 +1417,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install ZCot-b6HsnJRTTDKr_aunQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1446,7 +1446,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 4z4dMrtNbTn2WcE-45QPfw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1475,7 +1475,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Mo3_aWe7tF2eFVzkqFT9mA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1504,7 +1504,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install O30LA92kq1D5uuNIBGKsZQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1533,7 +1533,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install _Rl8i99CS5nwuARVbp0D5Q
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1562,7 +1562,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install y2_QsuKxV8dZFr-39_0zRQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1591,7 +1591,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install F8gbhNaEG6c2rDz468MwaA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1620,7 +1620,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install v8rZ8F7E92MrssZ92ygnXQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1647,7 +1647,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install NoBBXkvxZnJNHlCrAwWp-w
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1674,7 +1674,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 5y0_Gislp_OgElqq4zPswA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1701,7 +1701,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install egaYyOaZVTf0FWlLvaGAQA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1728,7 +1728,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install _vcfZzuxPgkiRsj5poZIgg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1755,7 +1755,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 56opYgliV9FYAmhmsDIJOw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1782,7 +1782,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install tkHe8IHE0BuDYYIg5LglUw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1809,7 +1809,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install EMGW14N8voa1b36LSuTxxw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1836,7 +1836,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install YMSt-hRNiNWXrlLYC8PSiA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1863,7 +1863,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install aofNf6o2LR61lPK8IVVkJw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1890,7 +1890,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 50Tp176hW0HYTTWXZbarKA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1917,7 +1917,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install oGURb41bdyAotVGOeBHZUA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1944,7 +1944,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install INdsRWpgpp2Q03I0z3XoFA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1971,7 +1971,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Ut_bJMuW5KxAD83KImPmlg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -1998,7 +1998,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install qCEIutJzQd49jnDtV4qeqw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2025,7 +2025,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 0aVynUNHmscTAxu7fGs-NQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2052,7 +2052,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Bzz9r5rmYPIAitS8Ca33Lw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2079,7 +2079,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 0RdQE184anPUaMhIvFwndA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2106,7 +2106,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install ev5E51eth7e5McvyDrl9Rg
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2133,7 +2133,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install tHd65-7SfBT_z0KfTvHGIw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2160,7 +2160,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install 6kDsKgmb-3_86A81VZC6UA
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2187,7 +2187,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Aqag8Mky4ksoPmwRDMCVYw
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 
@@ -2214,7 +2214,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install qnhd7B3J1-HKDDKzZQ_fUQ
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 

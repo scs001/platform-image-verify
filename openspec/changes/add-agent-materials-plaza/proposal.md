@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- 新增 `site-plaza/` 纯静态官网（plaza.finddatatech.cloud）：五语人面（hero + 五类素材卡墙 + 机制链四段 + 素材目录 + 给谁用 + 五行梯页脚）+ AI 面（/llms.txt、/llms-full.txt、/catalog.json、/materials/*.md、/infrastructure.md、人面 JSON-LD + 机器孪生链接）。
+- 新增 `site-plaza/` 纯静态官网（agent.finddatatech.cloud）：五语人面（hero + 五类素材卡墙 + 机制链四段 + 素材目录 + 给谁用 + 五行梯页脚）+ AI 面（/llms.txt、/llms-full.txt、/catalog.json、/materials/*.md、/infrastructure.md、人面 JSON-LD + 机器孪生链接）。
 - 新增 `scripts/plaza-export.mjs` 构建期导出管线：从 facet 市场 API（`loadListedPacks` 单一上市判据）生成 snapshot.json / catalog.json / llms.txt / materials markdown / 人面计数注入。
 - 新增导出校验门：ai_readable 六条 lint、catalog 与 /api/packs 数目对账、llms.txt 链接可达断言、五语 parity 沿用 check-locales。
 - HTML 素材目录画廊双层新鲜度：客户端实时拉 /api/packs，失败静默退回构建期快照并标注"快照截至"。
@@ -23,7 +23,7 @@
 ## Impact
 
 - 新文件：`site-plaza/`（静态站，纯 HTML/CSS/JS + 五语 JSON 文案）、`scripts/plaza-export.mjs`、`scripts/test-plaza-export.mjs`。
-- 部署：新域名 `plaza.finddatatech.cloud`（DNS A → 雷池 103.236.89.212 由域主加；Caddy 每域一块 file_server，配方同台账 §15.59）。
+- 部署：新域名 `agent.finddatatech.cloud`（DNS A → 雷池 103.236.89.212 由域主加；Caddy 每域一块 file_server，配方同台账 §15.59）。
 - 依赖：读 facet `/api/packs`（匿名可读面）；不新增任何写路径、不新增服务进程——纯静态 + 构建期脚本。
 - 门：新 `test-plaza-export.mjs` 入 unit 冒烟；ai_readable lint 门入导出（红则构建失败）。
 - 前置：`rename-agent-materials-plaza`（品牌终词）先行归档或同班落地。

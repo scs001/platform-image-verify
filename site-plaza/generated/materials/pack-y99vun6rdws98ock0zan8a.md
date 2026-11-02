@@ -19,7 +19,7 @@ Three paths, all landing the same frozen version snapshot:
 
        npx @finddatatechnology/facet install Y99VUN6RdWs98ocK0ZAN8A
 
-3. From the market page: https://plaza.finddatatech.cloud/#/packs
+3. From the market page: https://agent.finddatatech.cloud/#/packs
 
 ## As of
 

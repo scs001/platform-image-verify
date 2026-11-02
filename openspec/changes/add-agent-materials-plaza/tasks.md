@@ -17,7 +17,7 @@
 
 ## 3. 上产与部署
 
-- [ ] 3.1 部署物：静态目录上 cheap/雷池机【配置面已完成：deploy/README+Caddyfile 已写；主机落位+DNS 外部件未做】，Caddy 每域一块 file_server `plaza.finddatatech.cloud`（配方同台账 §15.59）；DNS A 记录由域主加（外部件，记录等待）—— 验证：域名解析后 200，无域名前经 hosts 验证
+- [ ] 3.1 部署物：静态目录上 cheap/雷池机【配置面已完成：deploy/README+Caddyfile 已写；主机落位+DNS 外部件未做】，Caddy 每域一块 file_server `agent.finddatatech.cloud`（配方同台账 §15.59）；DNS A 记录由域主加（外部件，记录等待）—— 验证：域名解析后 200，无域名前经 hosts 验证
 - [ ] 3.2 导出进部署链：deploy 前跑 plaza-export（红则中止不发车）—— 验证：故意破坏一条 lint，部署链拒发
 
 ## 4. 双面走查（出口判据）

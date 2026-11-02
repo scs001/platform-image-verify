@@ -13,7 +13,7 @@
 
 ## 接入
 
-- 人：壹座 web（https://plaza.finddatatech.cloud）、谦面市场（https://plaza.finddatatech.cloud/#/packs）、五编辑器 CLI（npx @finddatatechnology/facet install <packId>）。
+- 人：壹座 web（https://agent.finddatatech.cloud）、谦面市场（https://agent.finddatatech.cloud/#/packs）、五编辑器 CLI（npx @finddatatechnology/facet install <packId>）。
 - AI：本文件、catalog.json、每素材一页的 materials/*.md（稳定地址），以及 A2A 服务端点。
 
 ---

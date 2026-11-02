@@ -15,7 +15,7 @@
 4. **AI 面三件套分层**：llms.txt（索引面，en 主 zh 镜）→ catalog.json（数据面）→ materials/*.md（叙事面）。llms.txt 生态尚在形成期，故自足 Markdown + JSON-LD 是主承载（D5 风险裁决）。
 5. **六条 ai_readable lint 做成门而非守则**（星研纪律的家世：规则写了没人查就等于没有；星研把 ai_readable_check 做成了第 4 道机检，广场同法）。
 6. **slug 稳定性走"内容寻址不做"**：slug = packId 派生（packs-<packId> 先例见 docs/wanxing-serving-api.md），内容更新不动地址；类目枚举带版本字段。
-7. **域名 plaza.finddatatech.cloud**：一产品一域名家族（yongyi/memory/zhiyu/wanxing/facet/mcp）。备选"挂 www 子路径"被否：www 是另仓另班，互链即可不强绑。
+7. **域名 agent.finddatatech.cloud**：一产品一域名家族（yongyi/memory/zhiyu/wanxing/facet/mcp）。备选"挂 www 子路径"被否：www 是另仓另班，互链即可不强绑。
 
 ## Risks / Trade-offs
 

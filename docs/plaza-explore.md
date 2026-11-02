@@ -36,7 +36,7 @@
 
 ## 二、命名与词汇裁定（v5）
 
-- 全名：**壹座·智能体素材广场**（Yizuo Agent Materials Plaza）；短名：**素材广场**；域名：`plaza.finddatatech.cloud`。
+- 全名：**壹座·智能体素材广场**（Yizuo Agent Materials Plaza）；短名：**素材广场**；域名：`agent.finddatatech.cloud`。
 - 词汇谱系：「素材（Material）」是**属**——广场上一件可被人与 AI 理解、获取、运行的供给物；
   种仍是既有词条（功能集/生态技能/MCP 服务/AI 分身/官方数据锚）。改名不改种词。
 - **零 API 改**：路由 `/packs`、`/api/packs`、`packs` DB、代码键、manifest 字段全部不动
@@ -46,7 +46,7 @@
 ## 三、官网信息架构
 
 ```
-壹座·智能体素材广场  plaza.finddatatech.cloud（纯静态，雷池+Caddy 配方）
+壹座·智能体素材广场  agent.finddatatech.cloud（纯静态，雷池+Caddy 配方）
 
 人面（五语）
   HERO    "智能体要用的每一种素材，都摆在这个广场上。" + 三活数字（功能集/技能/MCP 计数）

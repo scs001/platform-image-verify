@@ -3,7 +3,7 @@
 ## 拓扑
 
 ```
-plaza.finddatatech.cloud (A → 103.236.89.212 雷池, TTL 先 600s, 域主加)
+agent.finddatatech.cloud (A → 103.236.89.212 雷池, TTL 先 600s, 域主加)
   → safeline-tengine :443 (WAF)
     → 本机 Caddy :8080 每域一块 → file_server root=<站点目录>
 ```
@@ -21,7 +21,7 @@ rsync -av --delete site-plaza/ <host>:/srv/plaza/
 ## Caddy 块（本机 Caddyfile 追加一块）
 
 ```caddy
-plaza.finddatatech.cloud {
+agent.finddatatech.cloud {
     root * /srv/plaza
     encode gzip zstd
     header {

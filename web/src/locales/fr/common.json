@@ -520,6 +520,7 @@
     "loading": "Chargement…",
     "disabledMessage": "Les documents sont indisponibles (la collection de documents est désactivée ou la base de données est inaccessible).",
     "remove": "Retirer",
+    "removeConfirm": "Cette action est irréversible. Retirer ce document ?",
     "status": {
       "ready": "prêt",
       "indexing": "indexation",
@@ -2093,7 +2094,13 @@
     }
   },
   "studio": {
-    "aiDraft": { "title": "Brouillon IA", "promptLabel": "Décrivez en une phrase ce que cet agent doit faire…", "action": "Brouillon", "adopt": "Adopter", "discard": "Annuler" },
+    "aiDraft": {
+      "title": "Brouillon IA",
+      "promptLabel": "Décrivez en une phrase ce que cet agent doit faire…",
+      "action": "Brouillon",
+      "adopt": "Adopter",
+      "discard": "Annuler"
+    },
     "fork": {
       "unavailable": "Impossible de lire cet agent ({{status}}) — le fork suit la visibilité de lecture",
       "seeded": "« {{name}} » chargé comme document de travail — filiation estampillée"

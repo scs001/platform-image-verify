@@ -520,6 +520,7 @@
     "loading": "加载中…",
     "disabledMessage": "文档不可用（文档集合已禁用或数据库无法访问）。",
     "remove": "移除",
+    "removeConfirm": "删除后不可恢复。确定移除这篇文档吗？",
     "status": {
       "ready": "就绪",
       "indexing": "索引中",
@@ -2093,7 +2094,13 @@
     }
   },
   "studio": {
-    "aiDraft": { "title": "AI 起草", "promptLabel": "用一句话描述这个 agent 要做什么…", "action": "起草", "adopt": "采用", "discard": "取消" },
+    "aiDraft": {
+      "title": "AI 起草",
+      "promptLabel": "用一句话描述这个 agent 要做什么…",
+      "action": "起草",
+      "adopt": "采用",
+      "discard": "取消"
+    },
     "fork": {
       "unavailable": "无法读取该智能体（{{status}}）——克隆沿读可见性",
       "seeded": "已载入「{{name}}」为工作文档——血缘已盖章"

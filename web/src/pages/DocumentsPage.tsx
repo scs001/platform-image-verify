@@ -57,6 +57,10 @@ export function DocumentsPage({ send }: { send: (m: ClientMessage) => void }) {
   const setComposerDraft = useChatStore((s) => s.setComposerDraft);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [configChecked, setConfigChecked] = useState(false);
+  // Row delete goes through ConfirmDialog (unify-operate-states): a trash icon
+  // is one stray click away from an unrecoverable delete, so the row button
+  // parks the pending id here and the dialog below performs the removal.
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,7 +172,7 @@ export function DocumentsPage({ send }: { send: (m: ClientMessage) => void }) {
                 <DocRow key={d.id} doc={d}
                   selected={selectedDocId === d.id}
                   onSelect={() => selectDoc(d.id)}
-                  onDelete={async () => { await api.deleteDocument(d.id); await refreshDocs(); }}
+                  onDelete={() => setDeleteDocId(d.id)}
                   onConverse={() => startConversation(`@doc:${d.id}`)}
                 />
               ))}
@@ -190,6 +194,22 @@ export function DocumentsPage({ send }: { send: (m: ClientMessage) => void }) {
           </div>
         </section>
       )}
+
+      <ConfirmDialog
+        open={deleteDocId != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDocId(null);
+        }}
+        title={t("documents.remove")}
+        description={t("documents.removeConfirm")}
+        confirmLabel={t("documents.remove")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => {
+          if (deleteDocId) void api.deleteDocument(deleteDocId).then(() => refreshDocs());
+          setDeleteDocId(null);
+        }}
+      />
 
       <CollectionsSection onConverse={startConversation} />
     </main>

@@ -520,6 +520,7 @@
     "loading": "読み込み中…",
     "disabledMessage": "ドキュメントは利用できません（ドキュメントコレクションが無効か、データベースに接続できません）。",
     "remove": "削除",
+    "removeConfirm": "削除すると元に戻せません。このドキュメントを削除しますか？",
     "status": {
       "ready": "準備完了",
       "indexing": "インデックス中",
@@ -2093,7 +2094,13 @@
     }
   },
   "studio": {
-    "aiDraft": { "title": "AI 下書き", "promptLabel": "このエージェントの仕事を一文で説明…", "action": "下書き", "adopt": "採用", "discard": "破棄" },
+    "aiDraft": {
+      "title": "AI 下書き",
+      "promptLabel": "このエージェントの仕事を一文で説明…",
+      "action": "下書き",
+      "adopt": "採用",
+      "discard": "破棄"
+    },
     "fork": {
       "unavailable": "このエージェントを読み取れません（{{status}}）— フォークは読み取り可視性に従います",
       "seeded": "「{{name}}」を作業ドキュメントとして読み込みました — 血統をスタンプ済み"

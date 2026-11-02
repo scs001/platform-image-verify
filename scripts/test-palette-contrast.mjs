@@ -173,3 +173,23 @@ test("series ramp is equal-lightness vs the lamp, descending chroma", () => {
 // EChart.tsx consumes the ramp at runtime by resolving `var(--color-series-N)`
 // through a computed style (ECharts cannot read custom properties), so the
 // values above remain the single source — no hex mirrors exist to pin.
+
+// Ship guard (2026-11-02 release walkthrough): Tailwind v4 tree-shakes plain
+// @theme tokens no scanned source line references. The series ramp's only
+// consumer resolves them through a template literal — invisible to the
+// scanner — so series-2..4 silently vanished from the built CSS (only
+// series-1 survived, extracted from a comment's "1..4" range). The tokens
+// must live in an `@theme static` block, which always emits.
+test("series ramp tokens live in an @theme static block (survives tree-shaking)", () => {
+  const staticBlocks = [...css.matchAll(/@theme\s+static\s*\{([^}]*)\}/g)].map((m) => m[1]);
+  assert.ok(staticBlocks.length >= 1, "globals.css has an @theme static block");
+  const staticText = staticBlocks.join("\n");
+  for (const i of [1, 2, 3, 4]) {
+    assert.match(staticText, new RegExp(`--color-series-${i}\\s*:`), `series-${i} must be declared inside @theme static`);
+  }
+  // The plain @theme block must not also declare them (single source, no drift).
+  const plainBlocks = [...css.matchAll(/@theme\s*\{([^}]*)\}/g)].map((m) => m[1]).join("\n");
+  for (const i of [1, 2, 3, 4]) {
+    assert.doesNotMatch(plainBlocks, new RegExp(`--color-series-${i}\\s*:`), `series-${i} must NOT also appear in the plain @theme block`);
+  }
+});

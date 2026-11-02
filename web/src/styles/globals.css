@@ -95,17 +95,6 @@
   --color-status-failed: var(--color-destructive);
   --color-status-waiting: var(--color-warning);
 
-  /* Series ramp: same hue (250) as the lamp, SAME LIGHTNESS as the lamp in each
-   * theme (light 0.48 / dark 0.64), descending chroma. Equal lightness is the
-   * discipline — contrast against any surface equals `primary`'s already-AA
-   * pairing, so no ramp step can fall under the floor regardless of chroma.
-   * test-palette-contrast.mjs pins the lightness rule. Exact chroma steps may
-   * be tuned at batch ② against the real Resources render; the rule holds. */
-  --color-series-1: light-dark(oklch(0.48 0.16 250), oklch(0.64 0.16 250));
-  --color-series-2: light-dark(oklch(0.48 0.12 250), oklch(0.64 0.12 250));
-  --color-series-3: light-dark(oklch(0.48 0.08 250), oklch(0.64 0.08 250));
-  --color-series-4: light-dark(oklch(0.48 0.05 250), oklch(0.64 0.05 250));
-
   /* Backdrop behind modals and the mobile nav drawer. A token, not bg-black/60,
    * so it can be lighter in light mode where a near-opaque black scrim is
    * jarring. */
@@ -214,4 +203,22 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── Series ramp (web-design-system): MUST be @theme static ─────────────────
+ * Tailwind v4 tree-shakes plain @theme tokens that no scanned source line
+ * references. The only consumer is EChart's runtime probe, which resolves
+ * them through a template literal (`var(--color-series-${i})`) invisible to
+ * the scanner — it emitted only --color-series-1, caught from the "1..4"
+ * range in a comment. Multi-series charts then collapse series 2-4 to the
+ * inherited text color. `static` forces all four into the built CSS.
+ * Lightness discipline: same hue (250) as the lamp, SAME LIGHTNESS as the
+ * lamp in each theme (light 0.48 / dark 0.64), descending chroma — equal
+ * lightness means contrast against any surface equals primary's already-AA
+ * pairing. test-palette-contrast.mjs pins the lightness rule. */
+@theme static {
+  --color-series-1: light-dark(oklch(0.48 0.16 250), oklch(0.64 0.16 250));
+  --color-series-2: light-dark(oklch(0.48 0.12 250), oklch(0.64 0.12 250));
+  --color-series-3: light-dark(oklch(0.48 0.08 250), oklch(0.64 0.08 250));
+  --color-series-4: light-dark(oklch(0.48 0.05 250), oklch(0.64 0.05 250));
 }

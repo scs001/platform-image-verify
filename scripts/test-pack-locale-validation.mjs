@@ -110,9 +110,9 @@ test("an override with no zh base is rejected", () => {
 });
 
 test("an over-cap scalar override is rejected and names the field", () => {
-  const errors = errorsOf(withOverlay({ name: "x".repeat(81) }));
+  const errors = errorsOf(withOverlay({ name: "x".repeat(161) }));
   assert.ok(has(errors, "i18n.en.name"));
-  assert.ok(has(errors, "at most 80 characters"));
+  assert.ok(has(errors, "within 80 CJK-equivalent display widths"));
 });
 
 test("guide overlay: exactly three steps or nothing", () => {
@@ -151,7 +151,7 @@ test("cluster override without a zh base cluster is rejected", () => {
 test("long-form parity is bounded in both directions", () => {
   const zh = "字".repeat(40);
   const manifest = { ...BASE, description: zh };
-  assert.ok(has(errorsOf({ ...manifest, i18n: { en: { description: "a".repeat(200) } } }), "more than 3x"));
+  assert.ok(has(errorsOf({ ...manifest, i18n: { en: { description: "a".repeat(250) } } }), "more than 3x"));
   const longZh = { ...BASE, description: "字".repeat(100) };
   assert.ok(has(errorsOf({ ...longZh, i18n: { en: { description: "a".repeat(21) } } }), "more than 3x"));
   assert.deepEqual(errorsOf({ ...manifest, i18n: { en: { description: "a".repeat(100) } } }), []);
@@ -177,7 +177,7 @@ test("a non-en locale block is not claim-scanned", () => {
 });
 
 test("errors name the exact locale field path", () => {
-  const bad = { steps: [step("One", "a"), step("Two", "b"), step("x".repeat(61), "c")] };
+  const bad = { steps: [step("One", "a"), step("Two", "b"), step("x".repeat(121), "c")] };
   assert.ok(has(errorsOf(withOverlay({ guide: bad })), "i18n.en.guide.steps[2].title"));
 });
 // ── mcpServers overlay (add-mcp-annotation-overlay) ──────────────────────────

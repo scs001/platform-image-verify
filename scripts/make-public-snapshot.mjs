@@ -145,6 +145,17 @@ const EXCLUDE_PATHS = new Set([
   // words so a reader of the public drop could enumerate them. The guard stays
   // in the private repo; shipping it would defeat the scan that caught it.
   "scripts/test-product-intro-seed.mjs",
+  // content-baseline tests whose fixtures live under openspec/changes/ (pruned
+  // wholesale below): both sides of the comparison are excluded, so the guard
+  // is meaningless in the public drop and crashes unit stage with ENOENT.
+  // Same class as the official-starter-teams degrade, but these load at module
+  // top level with no guard — exclude rather than rewrite others' tests.
+  "scripts/test-assistant-packs-content-baseline.mjs",
+  "scripts/test-business-teams-content-baseline.mjs",
+  "scripts/test-starter-content-baseline.mjs",
+  // desktop update-lane test: imports ../electron/updater-core.js which is
+  // excluded above — the test only exists where the lane exists.
+  "scripts/test-desktop-update.mjs",
   // internal planning docs: 双星伞文档与市场线路线图 carry live-ops facts
   // (cluster node names, law-ai-official relay line, production shas) and
   // change with every internal slice — not curated for the public drop.

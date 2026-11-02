@@ -135,3 +135,93 @@ test("运行时契约不因 v2 字段移动：同包带/不带 v2 的其余错�
   const brokenNoV2 = validatePackManifest({ ...BASE, skills: [{ name: "s", content: "# s" }] });
   assert.ok(broken.length > 0 && broken.length === brokenNoV2.length);
 });
+
+// ── 4.2 叠加校验 (pack-locale-tracks: 显示字段的 zh 主轨与顶层叠加块) ────────
+// The same validator answers for overlay blocks. Pins the new scenarios of the
+// MODIFIED requirement one for one.
+
+const BASE_V2 = {
+  ...BASE,
+  promise: "一句话讲清这个包。",
+  domain: ["investing", "risk"],
+  audience: ["legal"],
+  outcomes: [
+    { title: "因子库", detail: "每周更新" },
+    { title: "纪要" },
+  ],
+  examples: [
+    { title: "问风险", prompt: "评估回撤" },
+    { title: "拟策略", prompt: "月度调仓" },
+  ],
+  identity: { mark: { kind: "glyph", value: "柏" }, accent: "wire" },
+};
+
+const overlayErrors = (manifest) =>
+  validatePackManifest(manifest).filter((e) => String(e.entry ?? e.error).startsWith("i18n."));
+
+test("副轨覆盖合法：promise/outcomes 同索引 title/domain 同长度/tags 同长度 全过", () => {
+  const en = {
+    ...BASE_V2,
+    i18n: {
+      en: {
+        promise: "One sentence, one pack.",
+        domain: ["investing", "risk"],
+        audience: ["legal"],
+        outcomes: [{ title: "Factor library", detail: "weekly" }, { title: "Minutes" }],
+        examples: [{ title: "Ask risk", prompt: "Assess drawdown" }, { title: "Draft", prompt: "Monthly rebalance" }],
+        identity: { mark: { value: "W" } },
+      },
+    },
+  };
+  assert.deepEqual(overlayErrors(en), []);
+});
+
+test("tags 副轨：与 zh 基同长度的英文标签通过；长度不齐拒并说明两边条数", () => {
+  const ok = { ...BASE, tags: ["法律", "合同", "审查", "风控"], i18n: { en: { tags: ["Law", "Contract", "Review", "Risk"] } } };
+  assert.deepEqual(overlayErrors(ok), []);
+  const bad = { ...BASE, tags: ["法律", "合同", "审查", "风控"], i18n: { en: { tags: ["Law", "Contract"] } } };
+  const errs = overlayErrors(bad);
+  assert.equal(errs.length, 1);
+  assert.match(errs[0].error, /2 entries but the zh base declares 4/);
+});
+
+test("数组长度不对齐被拒（domain 2 vs 3 / outcomes 条数不齐）并指明 locale+路径+条数", () => {
+  const d = { ...BASE_V2, i18n: { en: { domain: ["investing"] } } };
+  const errs = overlayErrors(d);
+  assert.equal(errs.length, 1);
+  assert.equal(errs[0].entry, "i18n.en.domain");
+  assert.match(errs[0].error, /1 entries but the zh base declares 2/);
+  const o = { ...BASE_V2, i18n: { en: { outcomes: [{ title: "Only one" }] } } };
+  assert.match(overlayErrors(o)[0].error, /1 entries but the zh base declares 2/);
+});
+
+test("结构字段进叠加块被拒（identity.accent / identity.mark.kind 各点名）", () => {
+  const accent = overlayErrors({ ...BASE_V2, i18n: { en: { identity: { accent: "lex" } } } });
+  assert.equal(accent.length, 1);
+  assert.match(accent[0].error, /structure, not display copy/);
+  const kind = overlayErrors({ ...BASE_V2, i18n: { en: { identity: { mark: { kind: "emoji", value: "X" } } } } });
+  assert.equal(kind.length, 1);
+  assert.match(kind[0].error, /identity\.mark\.kind is structure/);
+});
+
+test("叠加块引用未声明实体被拒（promise/mark 基字段缺席即拒）", () => {
+  const p = overlayErrors({ ...BASE, i18n: { en: { promise: "No base promise to override." } } });
+  assert.equal(p.length, 1);
+  assert.match(p[0].error, /does not declare in its zh main track/);
+  const m = overlayErrors({ ...BASE, i18n: { en: { identity: { mark: { value: "柏" } } } } });
+  assert.equal(m.length, 1);
+});
+
+test("副轨的 promise 同样受 60 显示宽上限；detail/prompt 只覆盖基字段声明过的子键", () => {
+  assert.equal(overlayErrors({ ...BASE_V2, i18n: { en: { promise: "长".repeat(31) } } }).length, 1);
+  // outcomes[1] (纪要) declares NO detail; the invented detail lands THERE.
+  const invented = overlayErrors({ ...BASE_V2, i18n: { en: { outcomes: [{ title: "a" }, { title: "b", detail: "invented" }] } } });
+  assert.equal(invented.length, 1);
+  assert.match(invented[0].error, /zh base entry does not declare/);
+});
+
+test("词表外 slug 在副轨同样被拒；未知键仍按白名单拒", () => {
+  assert.match(overlayErrors({ ...BASE_V2, i18n: { en: { domain: ["crypto", "risk"] } } })[0].error, /controlled vocabulary/);
+  const unk = overlayErrors({ ...BASE_V2, i18n: { en: { colorway: "red" } } });
+  assert.match(unk[0].error, /unknown key 'colorway'/);
+});

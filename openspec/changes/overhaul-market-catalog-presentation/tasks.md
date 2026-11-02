@@ -46,7 +46,7 @@
 ## 4. P3 · 显示格式 v2 + 作者端翻译工作台
 
 - [x] 4.1 `lib/pack-manifest.js`：v2 字段校验器（identity/promise/audience/outcomes/examples/domain 形状、显示宽上限、词表校验）；新增 `scripts/test-pack-display-format.mjs` 校验矩阵（含超宽/越界/词表外/色值拒绝）
-- [ ] 4.2 `LOCALE_OVERLAY_KEYS` 扩容（promise/audience/outcomes/examples/domain/tags/identity.mark.value）+ 叠加校验（数组等长对齐、结构字段禁入）；验证：overlay 校验用例 + `pack-locale-tracks` 场景逐条对上
+- [x] 4.2 `LOCALE_OVERLAY_KEYS` 扩容（promise/audience/outcomes/examples/domain/tags/identity.mark.value）+ 叠加校验（数组等长对齐、结构字段禁入）；验证：overlay 校验用例 + `pack-locale-tracks` 场景逐条对上
 - [ ] 4.3 `lib/pack-locale.js` 投影扩展：v2 字段按 locale 覆盖与 zh 回落；验证：en/ja 请求投影单测
 - [ ] 4.4 发布面把 manifest `domain[]` 写入 `packs.domains` 列；策展端点接受 `domains[]`（词表内）；验证：发布→facets 计数联动单测
 - [ ] 4.5 读面透传：summary/detail 携带 v2 字段；`PackCard`/详情消费（无 v2 字段时降级链不变）；验证：**存量 manifest 变更前后投影 diff=0** 快照测试（逐字节）

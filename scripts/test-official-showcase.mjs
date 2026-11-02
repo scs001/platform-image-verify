@@ -126,6 +126,55 @@ test("roster change re-derives the flag on the next read, without any write", as
   }
 });
 
+// ── P2 3.6 官方徽章收敛 (overhaul-market-catalog-presentation) ───────────────
+// The badge on EVERY read face is the roster's answer — never the manifest's
+// self-declaration, never a client inference. Two faces have historically been
+// where a projection drops a flag (repo law: 写面修过、读面漏网): the localized
+// list track and the detail route.
+
+test("徽章收敛①：本地化轨道不丢 official（en 轨与 zh 轨同一裁决）", async () => {
+  const { reg, template, outsider } = seedRegistry();
+  const server = mountApp(reg, { anonymousRead: true, officialAuthors: ["official@finddata.cloud"] });
+  try {
+    for (const url of ["/api/packs?locale=en", "/api/packs"]) {
+      const list = await get(server, url);
+      const byId = Object.fromEntries(list.body.packs.map((p) => [p.id, p]));
+      assert.equal(byId[template.id].official, true, `${url}: 名册作者在本地化轨道上仍是官方`);
+      assert.ok(byId[template.id].name, `${url}: summary 完好`);
+      assert.equal(byId[outsider.id].official ?? false, false, `${url}: 名册外条目任何轨道都不带官方`);
+    }
+  } finally {
+    server.close();
+    reg.close();
+  }
+});
+
+test("徽章收敛②：详情面同样只按名册；adopted 记录不给名册外作者发官方", async () => {
+  const { reg, template, outsider } = seedRegistry();
+  // A NON-roster author who self-declares official-adopted provenance: the
+  // source projection must read community (describeProvenance gate), and the
+  // pack must not gain the official flag on the detail face either.
+  const faked = reg.publish({
+    email: "random@x",
+    manifest: { ...PLAIN_MANIFEST(), name: "冒牌已审校", provenance: { kind: "official-adopted", upstream: "x" } },
+  });
+  const server = mountApp(reg, { anonymousRead: true, officialAuthors: ["official@finddata.cloud"] });
+  try {
+    const det = await get(server, `/api/packs/${template.id}`);
+    assert.equal(det.body.official, true, "详情面官方=名册判定");
+    const detOut = await get(server, `/api/packs/${outsider.id}`);
+    assert.equal(detOut.body.official ?? false, false, "详情面对名册外不发官方");
+    const detFake = await get(server, `/api/packs/${faked.id}`);
+    assert.equal(detFake.body.official ?? false, false, "自报 provenance 换不来官方");
+    // community carries NO provenance key at all — the documented contract:
+    // a non-roster pack's payload stays byte-identical to a legacy pack's.
+    assert.equal(detFake.body.provenance, undefined, `adopted 记录×名册外 = community(无键)，实际: ${JSON.stringify(detFake.body.provenance)}`);
+  } finally {
+    server.close();
+    reg.close();
+  }
+});
+
 test("showcase: three segments, roster-only, private in none, anonymous regardless of the switch", async () => {
   const { reg, template, assistant, featured, outsider, priv } = seedRegistry();
   // The switch is OFF — /api/packs walls, but /api/packs/official still answers.

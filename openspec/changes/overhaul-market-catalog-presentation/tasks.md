@@ -36,7 +36,8 @@
 - [x] 3.3 `PackMarketView` 普通卡与官方画廊卡统一走 `PackCard`；消除嵌套可点目标（fork 链接移出卡片可点区）；验证：e2e 键盘 Tab 卡片单一焦点停靠点
 - [x] 3.4 `PackDetailDialog` 七段式重排（首屏承诺/你会得到/三步上手/示例指令/三桶/边界与诚实声明/版本+常驻 CTA）；缺段整段省略；技能正文全量检视不回退（既有 e2e 锚点 `pack-skill-*` 保持）
 - [x] 3.5 示例指令可点：壹座宿主带 prompt 进对话（parked-draft 通道，DocumentsPage 先例），facet 匿名复制到剪贴板；验证：e2e 两宿主各一条
-- [ ] 3.6 官方徽章收敛：列表/详情徽章只按服务端来源判定投影；roster 复核（71/75 通胀消除——非名册作者条目不再带官方徽章）；验证：`scripts/test-official-showcase.mjs` 扩断言
+- [x] 3.6 官方徽章收敛：列表/详情徽章只按服务端来源判定投影；roster 复核（71/75 通胀消除——非名册作者条目不再带官方徽章）；验证：`scripts/test-official-showcase.mjs` 扩断言
+  > 复核实录（2026-11-03，现网 /api/packs?pageSize=100 全量对账）：徽章已是纯名册投影——4 支非名册作者条目（ops-seed/chengsi/qq/doc-studio）零官方徽章，名册内作者全部带章，互斥矩阵由 describeProvenance 单点裁决（adopted×名册外=community 无键）。71/75 之「通胀」不是投影缺陷而是供给结构：62 支官方内容全在走查账号 aloadtree@gmail.com 名下发布（供给发布身份卫生，归后续供给面提案，不属本 change）；扩断言 7/7 绿（含 en 轨不丢章、详情同判两防漏）。
 - [ ] 3.7 `facet/web/DESIGN.md` 登记：新印章字号、新增任意值（若有）、入场动效（rise-in stagger ≤200ms）；`design-lint` 门绿
 - [x] 3.8 e2e：卡片五槽位、详情七段、facet 壳 `#/packs` 无 Router 回归用例；`npm run test:e2e` 绿
 - [ ] 3.9 出片验证：生产卡片五槽位眼见、详情七段眼见、壹座 Store 面同步回归；台账记录

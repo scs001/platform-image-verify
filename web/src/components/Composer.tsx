@@ -27,7 +27,7 @@ import { useVoice } from "@/hooks/useVoice";
 import { pickRecordingFormat, recordingSupported, transcribeAudio, VoiceError } from "@/lib/voice";
 import type { ClientMessage } from "@platform/core";
 import { cn } from "@/lib/utils";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { uploadFile } from "@platform/core";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { fileUrl, type FileRef } from "@/lib/file-preview";
@@ -377,7 +377,7 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
           ),
         );
         // The chip shows the failure; the toast carries the reason.
-        showToast(t("composer.uploadFailed", { message: message.slice(0, 80) }));
+        showToast({ severity: "error", title: t("composer.uploadFailed", { message: message.slice(0, 80) }) });
       } finally {
         abortRef.current.delete(key);
       }

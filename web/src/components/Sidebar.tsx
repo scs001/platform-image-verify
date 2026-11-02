@@ -46,6 +46,7 @@ import {
 import { useChatStore } from "@platform/core";
 import type { ClientMessage, SessionMeta } from "@platform/core";
 import { NAV_SURFACES, NAV_FAMILIES, FACTORY_PRESETS, FACTORY_PRESET_SLUG, registryFor } from "@platform/core";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { getLastSeen, markSessionSeen, isSessionUnseen } from "@/lib/unread";
 import { ChatSessionMenu } from "@/components/ChatSessionMenu";
@@ -194,6 +195,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // Workbench customization drawer (layout-configuration): the user's own
   // visibility/order adjustments on top of what the layers above left.
   const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [wsConfirm, setWsConfirm] = useState<{ path: string; close: () => void } | null>(null);
 
   // Right-click context menu on session rows: one trigger ref per row, one
   // popover anchored to the row that fired it.
@@ -411,7 +413,8 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       close();
       return;
     }
-    if (turns.length > 0 && !window.confirm(t("composer.strip.workspaceConfirm", { path: next }))) {
+    if (turns.length > 0) {
+      setWsConfirm({ path: next, close });
       return;
     }
     setWsError(null);
@@ -978,6 +981,26 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={wsConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setWsConfirm(null);
+        }}
+        title={wsConfirm ? (t("composer.strip.workspaceConfirm", { path: wsConfirm.path }).split("\n")[0] ?? "") : ""}
+        description={wsConfirm ? (t("composer.strip.workspaceConfirm", { path: wsConfirm.path }).split("\n").slice(1).join("\n").trim() || "") : ""}
+        confirmLabel={t("common.confirm")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => {
+          const c = wsConfirm;
+          setWsConfirm(null);
+          if (!c) return;
+          setWsError(null);
+          setWsDraft("");
+          setPendingConfig("workspace");
+          send({ type: "set_workspace", path: c.path });
+          c.close();
+        }}
+      />
     </nav>
   );
 }

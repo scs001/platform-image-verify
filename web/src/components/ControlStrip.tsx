@@ -32,6 +32,7 @@
 // SlashCommandPicker the typed `/` path uses.
 
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   ChevronDown,
   FolderOpen,
@@ -370,6 +371,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
   // permanently-disabled control teaches users to ignore this region.
   const efforts = models.find((m) => m.id === currentModel)?.reasoningEfforts ?? [];
 
+  const [wsConfirm, setWsConfirm] = useState<{ path: string; close: () => void } | null>(null);
   const switchWorkspace = (path: string, close: () => void) => {
     const next = path.trim();
     if (!next) return;
@@ -385,7 +387,8 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
     }
     // Switching mid-conversation leaves the transcript referencing paths that
     // no longer resolve — make that the user's call, not a side effect.
-    if (turns.length > 0 && !window.confirm(t("composer.strip.workspaceConfirm", { path: next }))) {
+    if (turns.length > 0) {
+      setWsConfirm({ path: next, close });
       return;
     }
     setPathError(null);
@@ -773,7 +776,26 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
           send({ type: "set_permission", name: "danger-full-access" });
         }}
       />
-
+      <ConfirmDialog
+        open={wsConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setWsConfirm(null);
+        }}
+        title={wsConfirm ? (t("composer.strip.workspaceConfirm", { path: wsConfirm.path }).split("\n")[0] ?? "") : ""}
+        description={wsConfirm ? (t("composer.strip.workspaceConfirm", { path: wsConfirm.path }).split("\n").slice(1).join("\n").trim() || "") : ""}
+        confirmLabel={t("common.confirm")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => {
+          const c = wsConfirm;
+          setWsConfirm(null);
+          if (!c) return;
+          setPathError(null);
+          setPathDraft("");
+          setPendingConfig("workspace");
+          send({ type: "set_workspace", path: c.path });
+          c.close();
+        }}
+      />
     </div>
   );
 }

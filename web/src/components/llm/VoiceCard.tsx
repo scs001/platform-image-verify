@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { refreshVoiceStatus, useVoice } from "@/hooks/useVoice";
 import { updateVoiceConfig, VoiceError, type VoiceConfig } from "@/lib/voice";
 
@@ -51,7 +51,7 @@ export function VoiceCard({ isAdmin }: { isAdmin: boolean }) {
       await updateVoiceConfig(draft);
       await refreshVoiceStatus();
       setDraft(null); // re-seed from the saved block
-      showToast(t("voiceCard.saved"));
+      showToast({ severity: "error", title: t("voiceCard.saved") });
     } catch (e) {
       setError(e instanceof VoiceError ? e.message : (e as Error).message);
     } finally {

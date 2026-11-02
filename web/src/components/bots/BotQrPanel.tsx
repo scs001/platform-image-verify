@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { getBotQr, updateBot, type Bot, type BotQr } from "@platform/core";
 
 const dataUri = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -42,11 +42,11 @@ export function BotQrPanel({ bot, onSaved }: { bot: Bot; onSaved: () => void }) 
   const saveLink = async () => {
     try {
       await updateBot(bot.id, { credentials: { qrUrl: link } });
-      showToast(t("botsPage.saved"));
+      showToast({ severity: "error", title: t("botsPage.saved") });
       onSaved();
       await loadQr();
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   };
 
@@ -54,9 +54,9 @@ export function BotQrPanel({ bot, onSaved }: { bot: Bot; onSaved: () => void }) 
     if (!qr?.url) return;
     try {
       await navigator.clipboard.writeText(qr.url);
-      showToast(t("botsPage.qr.linkCopied"));
+      showToast({ severity: "error", title: t("botsPage.qr.linkCopied") });
     } catch {
-      showToast(t("botsPage.copyFailed"));
+      showToast({ severity: "error", title: t("botsPage.copyFailed") });
     }
   };
 

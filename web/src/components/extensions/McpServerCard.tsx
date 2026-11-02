@@ -2,6 +2,7 @@
 // Card component for displaying an installed MCP server.
 
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import type { McpServer } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
@@ -61,8 +62,8 @@ export function McpServerCard({ server, onEdit }: McpServerCardProps) {
     }
   };
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const handleDelete = async () => {
-    if (!confirm(t("extensions.mcp.confirmDelete", { name: server.name }))) return;
     try {
       await removeMcpServer(server.name);
     } catch (err) {
@@ -175,12 +176,22 @@ export function McpServerCard({ server, onEdit }: McpServerCardProps) {
             variant="ghost"
             size="icon"
             className={isAuto ? "invisible" : undefined}
-            onClick={handleDelete}
+            onClick={() => setDeleteOpen(true)}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("common.delete")}
+        description={t("extensions.mcp.confirmDelete", { name: server.name })}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

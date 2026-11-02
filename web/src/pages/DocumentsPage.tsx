@@ -12,6 +12,8 @@
 // then a card per collection. Each section is a Card primitive so the page
 // reads as a stack of distinct actions rather than a flat form.
 import { useEffect, useMemo, useState } from "react";
+import { showToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
@@ -319,7 +321,7 @@ function DocRow({ doc, selected, onSelect, onDelete, onConverse }: {
         className="shrink-0 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40" data-testid="doc-converse">
         {t("documents.startConversation")}
       </button>
-      <button onClick={onDelete} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid="doc-delete" title={t("documents.remove")}>
+      <button onClick={onDelete} aria-label={t("documents.remove")} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid="doc-delete" title={t("documents.remove")}>
         <Icon name="trash-2" size={14} />
       </button>
     </li>
@@ -338,6 +340,7 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
   const [members, setMembers] = useState<DocMeta[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [addDocId, setAddDocId] = useState("");
+  const [deleteOpenId, setDeleteOpenId] = useState<string | null>(null);
   // Project filter (add-web-project-container 3.3): "all" is the default and
   // filters nothing — the page reads exactly as before this change. "default"
   // narrows to the unattributed (默认项目) bucket; a project id narrows to that
@@ -359,7 +362,6 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
     catch (e) { alert((e as Error).message); }
   };
   const remove = async (id: string) => {
-    if (!confirm(t("documents.collection.confirmDelete"))) return;
     await api.deleteCollection(id);
     if (openId === id) setOpenId(null);
     await load();
@@ -435,7 +437,7 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
                   >
                     {t("documents.collection.makeAgent")}
                   </button>
-                  <button onClick={() => remove(c.id)} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid="col-delete" title={t("documents.collection.delete")}>
+                  <button onClick={() => setDeleteOpenId(c.id)} className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" data-testid="col-delete" title={t("documents.collection.delete")}>
                     <Icon name="trash-2" size={14} />
                   </button>
                 </div>
@@ -468,6 +470,22 @@ function CollectionsSection({ onConverse }: { onConverse: (token: string) => voi
             ))}
           </ul>
         )}
+        <ConfirmDialog
+          open={deleteOpenId != null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteOpenId(null);
+          }}
+          title={t("documents.collection.delete")}
+          description={t("documents.collection.confirmDelete")}
+          confirmLabel={t("documents.collection.delete")}
+          cancelLabel={t("common.cancel")}
+          variant="danger"
+          onConfirm={() => {
+            if (deleteOpenId) void remove(deleteOpenId);
+            showToast({ severity: "success", title: t("documents.collection.delete") });
+            setDeleteOpenId(null);
+          }}
+        />
       </div>
     </section>
   );

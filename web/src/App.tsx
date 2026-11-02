@@ -12,17 +12,19 @@
 // Code splitting: the chat surface (the product's primary view) stays in the
 // eager entry chunk; every other page loads lazily on first navigation.
 
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
-import { useChatStore } from "@platform/core";
+import { registryFor, useChatStore } from "@platform/core";
 import { listCacheClear, listCacheInvalidate } from "@/lib/listCache";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { useAuthStore } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Sidebar } from "@/components/Sidebar";
 import { ToastHost } from "@/components/Toast";
+import { ToastV2Host } from "@/components/ui/toast";
+import { buildGMap, gKeyStep, type NavTarget } from "@/lib/gNav";
 import { ChatPage } from "@/pages/ChatPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
@@ -144,8 +146,28 @@ export default function App() {
   // thinking blocks — see chat-activity-collapse).
   // Ctrl/Cmd + , opens Settings — the universal shortcut for it.
   // Ctrl/Cmd + B toggles the desktop nav rail (the convention most tools share).
+  // g-prefix navigation (web-operate-states 4.3): press-and-release "g", then a
+  // surface slug's first letter inside the window — g c jumps to chat. Inputs
+  // are exempt (typing "g" in the composer must never navigate).
+  const gTargets = useMemo<NavTarget[]>(
+    () => registryFor("nav").map((e) => ({ slug: e.slug, path: `/${e.slug}` })),
+    [],
+  );
+  const gMap = useMemo(() => buildGMap(gTargets), [gTargets]);
+  const gStateRef = useRef<{ gAt: number | null }>({ gAt: null });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (!(e.ctrlKey || e.metaKey) && !e.altKey) {
+        const step = gKeyStep(gStateRef.current, Date.now(), e.key, gMap);
+        gStateRef.current = step.next;
+        if (step.goto) {
+          e.preventDefault();
+          navigate(step.goto);
+        }
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key.toLowerCase() === "o") {
         e.preventDefault();
@@ -349,6 +371,10 @@ export default function App() {
           </Routes>
         </Suspense>
         <ToastHost />
+        {/* Toast v2 (web-design-system): the queued multi-severity host. Mounted
+            once at the root; page wiring moves onto showToast() in batch ③.
+            closeLabel is locale-supplied so the primitive carries no strings. */}
+        <ToastV2Host closeLabel={t("common.close")} />
       </div>
 
       {/* Copilot dock (add-line-boards-and-action-gate): FAB + iframe dock.

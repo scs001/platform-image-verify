@@ -12,7 +12,7 @@ import { groupTurnBlocks, useChatStore, type Turn } from "@platform/core";
 import { useBranding } from "@/hooks/useAppConfig";
 import { useVoice } from "@/hooks/useVoice";
 import { speechPlayer, synthesizeSpeech, VoiceError } from "@/lib/voice";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { Markdown } from "@/components/Markdown";
 import { ActivityGroup } from "@/components/ActivityGroup";
 import { ThinkingBlock } from "@/components/ThinkingBlock";
@@ -76,11 +76,11 @@ function AssistantTurnBase({
     setSpeakLoading(true);
     try {
       const { blob, truncated } = await synthesizeSpeech(answerText);
-      if (truncated) showToast(t("turn.speakTruncated"));
+      if (truncated) showToast({ severity: "error", title: t("turn.speakTruncated") });
       await speechPlayer.play(turn.id, blob);
     } catch (e) {
       const err = e instanceof VoiceError ? e : null;
-      showToast(err?.message || t("turn.speakFailed"));
+      showToast({ severity: "error", title: err?.message || t("turn.speakFailed") });
       if (err?.status === 401 || err?.status === 503) void voice.refresh();
     } finally {
       setSpeakLoading(false);

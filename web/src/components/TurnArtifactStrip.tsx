@@ -24,7 +24,7 @@ import {
   useChatStore,
   type AssistantTurn,
 } from "@platform/core";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { usePathSaveStates } from "@/hooks/useResourceStatus";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { baseName, fileUrl } from "@/lib/file-preview";
@@ -67,14 +67,12 @@ export function TurnArtifactStrip({ turn }: { turn: AssistantTurn }) {
         path: rel,
         sessionId: useChatStore.getState().currentSessionId,
       });
-      showToast(inserted ? t("resources.save.saved") : t("resources.save.exists"));
+      showToast({ severity: "error", title: inserted ? t("resources.save.saved") : t("resources.save.exists") });
     } catch (err) {
       const key = saveErrorKey(err);
-      showToast(
-        key
+      showToast({ severity: "error", title: key
           ? t(`resources.save.errors.${key}`)
-          : t("resources.save.failed", { message: (err as Error).message }),
-      );
+          : t("resources.save.failed", { message: (err as Error).message }), });
     } finally {
       setBusy(null);
     }

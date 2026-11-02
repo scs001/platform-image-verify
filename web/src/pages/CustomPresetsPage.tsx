@@ -12,6 +12,8 @@
 // sharing goes through authoring a pack draft.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { showToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { PackagePlus, Pencil, Plus, Rocket, TriangleAlert, Trash2 } from "lucide-react";
@@ -390,8 +392,8 @@ export function CustomPresetsPage() {
     void refresh();
   }, [refresh, catalogVersion]);
 
+  const [deleteTarget, setDeleteTarget] = useState<CustomPreset | null>(null);
   const remove = async (preset: CustomPreset) => {
-    if (!window.confirm(t("customPresets.deleteConfirm"))) return;
     try {
       await api.deleteCustomPreset(preset.id);
       await refresh();
@@ -544,7 +546,7 @@ export function CustomPresetsPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => void remove(p)}
+                    onClick={() => setDeleteTarget(p)}
                     aria-label={t("customPresets.delete")}
                     data-testid={`preset-delete-${p.id}`}
                   >
@@ -565,6 +567,22 @@ export function CustomPresetsPage() {
           }}
         />
       )}
+      <ConfirmDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title={t("customPresets.delete")}
+        description={t("customPresets.deleteConfirm")}
+        confirmLabel={t("customPresets.delete")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => {
+          if (deleteTarget) void remove(deleteTarget);
+          showToast({ severity: "success", title: t("customPresets.delete") });
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

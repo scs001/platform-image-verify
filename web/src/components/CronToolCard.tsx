@@ -8,7 +8,9 @@
 // has no record yet, the card still shows the invocation's own facts.
 
 import { CalendarClock, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useCronStore, type Block, type CronJob } from "@platform/core";
 import { describeJobSchedule } from "@/lib/cron-text";
 import { wsSend } from "@/hooks/useWebSocket";
@@ -28,6 +30,7 @@ function jobFromArgs(args: unknown): Partial<CronJob> {
 
 export function CronToolCard({ block }: { block: Extract<Block, { kind: "tool" }> }) {
   const { t, i18n } = useTranslation();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const jobs = useCronStore((s) => s.jobs);
   const { args, state, result } = block;
 
@@ -77,15 +80,21 @@ export function CronToolCard({ block }: { block: Extract<Block, { kind: "tool" }
                 </button>
                 <button
                   className="rounded-md border border-destructive/40 px-2 py-0.5 text-[11px] text-destructive hover:bg-destructive/10"
-                  onClick={() => {
-                    if (window.confirm(t("tasks.actions.deleteConfirm"))) {
-                      wsSend({ type: "cron_remove", jobId: job.id });
-                    }
-                  }}
+                  onClick={() => setDeleteOpen(true)}
                   data-testid="cron-tool-card-delete"
                 >
                   {t("tasks.actions.delete")}
                 </button>
+                <ConfirmDialog
+                  open={deleteOpen}
+                  onOpenChange={setDeleteOpen}
+                  title={t("tasks.actions.delete")}
+                  description={t("tasks.actions.deleteConfirm")}
+                  confirmLabel={t("tasks.actions.delete")}
+                  cancelLabel={t("common.cancel")}
+                  variant="danger"
+                  onConfirm={() => wsSend({ type: "cron_remove", jobId: job.id })}
+                />
               </span>
             </div>
           ) : jobId ? (

@@ -7,6 +7,8 @@
 // a bad expression.
 
 import { useEffect, useMemo, useState } from "react";
+import { showToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useChatStore, useCronStore, type ClientMessage, type CronJob } from "@platform/core";
@@ -87,6 +89,7 @@ function TaskCard({
   // is not possible here (the entries ride the job payload), so the expansion
   // never blocks the inline card.
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <div
@@ -203,15 +206,24 @@ function TaskCard({
           </button>
           <button
             className="rounded-md border border-destructive/40 px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              if (window.confirm(t("tasks.actions.deleteConfirm"))) {
-                send({ type: "cron_remove", jobId: job.id });
-              }
-            }}
+            onClick={() => setDeleteOpen(true)}
             data-testid="cron-job-delete"
           >
             {t("tasks.actions.delete")}
           </button>
+          <ConfirmDialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            title={t("tasks.actions.delete")}
+            description={t("tasks.actions.deleteConfirm")}
+            confirmLabel={t("tasks.actions.delete")}
+            cancelLabel={t("common.cancel")}
+            variant="danger"
+            onConfirm={() => {
+              send({ type: "cron_remove", jobId: job.id });
+              showToast({ severity: "success", title: t("tasks.actions.delete") });
+            }}
+          />
         </div>
       </div>
 

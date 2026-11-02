@@ -11,7 +11,7 @@ import remarkGfm from "remark-gfm";
 import { Copy, Check, Library } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { EChart } from "@/components/EChart";
 import { canonicalChartHash, useChatStore } from "@platform/core";
 import { useChartCaptured } from "@/hooks/useResourceStatus";
@@ -272,10 +272,10 @@ function HighlightedCode({ code, lang }: { code: string; lang: string }) {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
-      showToast(t("markdown.copied"));
+      showToast({ severity: "error", title: t("markdown.copied") });
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      showToast(t("markdown.copyFailed"));
+      showToast({ severity: "error", title: t("markdown.copyFailed") });
     }
   };
 

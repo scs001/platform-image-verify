@@ -10,6 +10,7 @@
 // field on edit means "keep the stored one".
 
 import { useCallback, useEffect, useState } from "react";
+import { SkeletonList } from "@/components/ui/states-kit";
 import { useTranslation } from "react-i18next";
 import { Plus, Copy, Trash2, Pencil, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { useChatStore } from "@platform/core";
 import { BotPlatformIcon } from "@/components/bots/BotPlatformIcons";
 import { BotQrPanel } from "@/components/bots/BotQrPanel";
@@ -46,6 +47,7 @@ type FormState =
 export function BotsPage() {
   const { t } = useTranslation();
   const [bots, setBots] = useState<Bot[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [types, setTypes] = useState<BotType[]>([]);
   const [form, setForm] = useState<FormState>({ mode: "closed" });
   const [toDelete, setToDelete] = useState<Bot | null>(null);
@@ -55,8 +57,9 @@ export function BotsPage() {
       const data = await listBots();
       setBots(data.bots);
       setTypes(data.types);
+      setLoaded(true);
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   }, []);
 
@@ -69,7 +72,7 @@ export function BotsPage() {
       await updateBot(bot.id, { enabled });
       await refresh();
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   };
 
@@ -80,16 +83,16 @@ export function BotsPage() {
       setToDelete(null);
       await refresh();
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   };
 
   const copyWebhook = async (bot: Bot) => {
     try {
       await navigator.clipboard.writeText(new URL(bot.webhookUrl, window.location.origin).href);
-      showToast(t("botsPage.webhookCopied"));
+      showToast({ severity: "error", title: t("botsPage.webhookCopied") });
     } catch {
-      showToast(t("botsPage.copyFailed"));
+      showToast({ severity: "error", title: t("botsPage.copyFailed") });
     }
   };
 
@@ -129,12 +132,16 @@ export function BotsPage() {
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-foreground">{t("botsPage.configuredTitle")}</h2>
           {bots.length === 0 ? (
-            <div
-              className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground"
-              data-testid="bots-empty"
-            >
-              {t("botsPage.empty")}
-            </div>
+            loaded ? (
+              <div
+                className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground"
+                data-testid="bots-empty"
+              >
+                {t("botsPage.empty")}
+              </div>
+            ) : (
+              <SkeletonList rows={2} data-testid="bots-loading" />
+            )
           ) : (
             <div className="flex flex-col gap-4">
               {bots.map((bot) => (
@@ -277,7 +284,7 @@ function BotForm({
       setSavedBot(saved);
       // Stored server-side now; blanks must mean "keep" on any further save.
       setCredentials({});
-      showToast(t("botsPage.saved"));
+      showToast({ severity: "error", title: t("botsPage.saved") });
       onSaved();
     } catch (e) {
       setError((e as Error).message);

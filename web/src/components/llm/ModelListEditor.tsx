@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { updateProvider, clientModelFamilyMeta, type ModelEntryInput } from "@platform/core";
 
 interface Props {
@@ -77,7 +77,7 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
           ...(r.maxTokens ? { maxTokens: r.maxTokens } : {}),
         })),
       });
-      showToast(t("modelsPage.settingsUpdated"));
+      showToast({ severity: "error", title: t("modelsPage.settingsUpdated") });
       onSaved();
     } catch (e) {
       setError((e as Error).message);

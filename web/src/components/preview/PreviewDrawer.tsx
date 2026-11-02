@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Download, FolderPlus, Loader2, X } from "lucide-react";
 import { saveErrorKey, saveResource, useChatStore } from "@platform/core";
 import { Markdown } from "@/components/Markdown";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { usePreviewStore, type PreviewTarget } from "@/hooks/usePreviewStore";
 import { baseName, kindOf } from "@/lib/file-preview";
 
@@ -46,16 +46,14 @@ export default function PreviewDrawer() {
         path: ref.rel,
         sessionId: useChatStore.getState().currentSessionId,
       });
-      showToast(inserted ? t("resources.save.saved") : t("resources.save.exists"));
+      showToast({ severity: "error", title: inserted ? t("resources.save.saved") : t("resources.save.exists") });
     } catch (err) {
       // A known refusal gets the LOCALIZED reason; an unknown one falls back to
       // the server's own text rather than swallowing it.
       const key = saveErrorKey(err);
-      showToast(
-        key
+      showToast({ severity: "error", title: key
           ? t(`resources.save.errors.${key}`)
-          : t("resources.save.failed", { message: (err as Error).message }),
-      );
+          : t("resources.save.failed", { message: (err as Error).message }), });
     } finally {
       setSaving(false);
     }

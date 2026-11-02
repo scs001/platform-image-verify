@@ -8,6 +8,8 @@
 // call) acts on the roster; posting is itself a take-over.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Skeleton } from "@/components/ui/states-kit";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -98,6 +100,8 @@ export function ZhiyuRoomPage() {
   const { roomId = "" } = useParams();
   const navigate = useNavigate();
   const [room, setRoom] = useState<RoomDetail | null>(null);
+  const [streamOpen, setStreamOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
   const [rows, setRows] = useState<StreamRow[]>([]);
@@ -234,6 +238,7 @@ export function ZhiyuRoomPage() {
   useEffect(() => {
     if (!roomId) return;
     const es = new EventSource(`/api/zhiyu/rooms/${roomId}/events`);
+    es.onopen = () => setStreamOpen(true);
     es.onmessage = (ev) => {
       try {
         const row = JSON.parse(ev.data) as StreamRow;
@@ -271,7 +276,10 @@ export function ZhiyuRoomPage() {
         }
       } catch { /* malformed overlay */ }
     });
-    return () => es.close();
+    return () => {
+      es.close();
+      setStreamOpen(false);
+    };
   }, [roomId, load]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: rows/overlays are intentional re-scroll triggers, not values the effect body reads
@@ -421,6 +429,13 @@ export function ZhiyuRoomPage() {
         {error && <div className="mx-4 mt-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3" data-testid="zhiyu-stream">
+          {!streamOpen && visibleRows.length === 0 && (
+            <div className="flex flex-col gap-2 py-4" data-testid="zhiyu-stream-loading">
+              <Skeleton className="h-10 w-3/5" />
+              <Skeleton className="ml-auto h-10 w-2/5" />
+              <Skeleton className="h-10 w-1/2" />
+            </div>
+          )}
           {visibleRows.map((row) => {
             if (row.kind === "system" || row.kind === "event") {
               const key = String(row.meta?.event ?? "");
@@ -714,19 +729,24 @@ export function ZhiyuRoomPage() {
               >
                 {t("zhiyu.settings.save")}
               </Button>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  void (async () => {
-                    if (window.confirm(t("zhiyu.settings.endConfirm"))) {
-                      await act(`/api/zhiyu/rooms/${roomId}/end`);
-                      navigate("/zhiyu");
-                    }
-                  })();
-                }}
-              >
+              <Button variant="destructive" onClick={() => setEndOpen(true)}>
                 {t("zhiyu.settings.end")}
               </Button>
+              <ConfirmDialog
+                open={endOpen}
+                onOpenChange={setEndOpen}
+                title={t("zhiyu.settings.end")}
+                description={t("zhiyu.settings.endConfirm")}
+                confirmLabel={t("zhiyu.settings.end")}
+                cancelLabel={t("common.cancel")}
+                variant="danger"
+                onConfirm={() => {
+                  void (async () => {
+                    await act(`/api/zhiyu/rooms/${roomId}/end`);
+                    navigate("/zhiyu");
+                  })();
+                }}
+              />
             </div>
 
             {/* Website embed (add-zhiyu-website-embed). Owner-only surface; the

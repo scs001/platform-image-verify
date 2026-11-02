@@ -8,7 +8,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { syncProvider } from "@platform/core";
 
 interface Props {
@@ -27,10 +27,10 @@ export function SyncModelsButton({ providerId, onDone }: Props) {
       const statuses = Object.values(r.statuses);
       const serving = statuses.filter((s) => s.status === "serving").length;
       const flagged = statuses.length - serving;
-      showToast(t("modelsPage.syncSummary", { added: r.added?.length ?? 0, serving, flagged }));
+      showToast({ severity: "error", title: t("modelsPage.syncSummary", { added: r.added?.length ?? 0, serving, flagged }) });
       onDone();
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     } finally {
       setRunning(false);
     }

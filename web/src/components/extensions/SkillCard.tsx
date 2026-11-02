@@ -1,7 +1,9 @@
 // SkillCard.tsx
 // Card component for displaying an installed skill.
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Skill, CustomSkill } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Switch } from "@/components/ui/switch";
@@ -34,9 +36,9 @@ export function SkillCard({ skill, customSkill, onEdit, onUpdate }: SkillCardPro
     }
   };
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const handleDelete = async () => {
     if (!isCustom) return;
-    if (!confirm(t("extensions.skills.confirmDelete", { name: skill.name }))) return;
     try {
       await removeCustomSkill(skill.name);
     } catch (err) {
@@ -91,13 +93,23 @@ export function SkillCard({ skill, customSkill, onEdit, onUpdate }: SkillCardPro
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="icon" aria-label={t("common.delete")} onClick={handleDelete}>
+              <Button variant="ghost" size="icon" aria-label={t("common.delete")} onClick={() => setDeleteOpen(true)}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("common.delete")}
+        description={t("extensions.skills.confirmDelete", { name: skill.name })}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        variant="danger"
+        onConfirm={() => void handleDelete()}
+      />
     </div>
   );
 }

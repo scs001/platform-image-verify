@@ -22,7 +22,7 @@ import {
 import { ProviderCard } from "@/components/llm/ProviderCard";
 import { ProviderForm, type ProviderFormValue } from "@/components/llm/ProviderForm";
 import { VoiceCard } from "@/components/llm/VoiceCard";
-import { showToast } from "@/components/Toast";
+import { showToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/hooks/useAuth";
 import {
   listProviders,
@@ -60,7 +60,7 @@ export function ModelsPage() {
       setProviders(list);
       setDefaultModelId(def.modelId);
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   }, []);
 
@@ -95,13 +95,13 @@ export function ModelsPage() {
         await updateProvider(form.provider.id, payload);
       }
       setForm({ mode: "closed" });
-      showToast(t("modelsPage.settingsUpdated"));
+      showToast({ severity: "error", title: t("modelsPage.settingsUpdated") });
       await refresh();
     } catch (e) {
       const msg = (e as Error).message;
       setFormError(msg);
       if ((e as { status?: number }).status === 409 && msg.includes("another edit")) {
-        showToast(t("modelsPage.anotherEditInProgress"));
+        showToast({ severity: "error", title: t("modelsPage.anotherEditInProgress") });
       }
     } finally {
       setSaving(false);
@@ -113,10 +113,10 @@ export function ModelsPage() {
     try {
       await deleteProvider(toDelete.id);
       setToDelete(null);
-      showToast(t("modelsPage.settingsUpdated"));
+      showToast({ severity: "error", title: t("modelsPage.settingsUpdated") });
       await refresh();
     } catch (e) {
-      showToast((e as Error).message);
+      showToast({ severity: "error", title: (e as Error).message });
     }
   };
 

@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- **供给注释层（三类对象同构）**：每 MCP server / tool / skill 一份注释——`human`（zh 主轨通俗名+一句话+何时用；en/ja/es/fr 副轨）+ `canonical`（面向智能体的精准 brief，本单只存不注入）。注释真源三处按优先级合并：registry metadata（已有 display_name/description）> 仓库内供给目录（扩展 `market-catalog.json` 形状）> 上游原文；**读时投影、不改源行**。
+- **供给注释层（三类对象同构）**：每 MCP server / tool / skill 一份注释——`human`（zh 主轨通俗名+一句话+何时用；en/ja/es/fr 副轨）+ `canonical`（面向智能体的精准 brief，本单只存不注入）。注释真源四处按优先级合并：registry 行 metadata（已有 display_name/description）> 仓库注释源 `market-annotations.json`（2026-11-02 finddata 需求书折入：registry 64KB metadata 上限装不下大工具面条目，DB 行不可评审）> 仓库内供给目录（扩展 `market-catalog.json` 形状）> 上游原文；**读时投影、不改源行**。
 - **缺省如实渲染**：无注释的对象照旧渲染上游原文（沿 facet「缺字段如实渲染、不发明」既律）；locale 缺失一律回落 zh，zh 也缺（未注释）回落原文。
 - **壹座展示面接入**：MCP 已装卡/市场卡渲染注释（display 名+通俗描述替代裸显 server.name 与 command 原文，原文折叠进高级区）；聊天工具块在注释存在时于原始 tool 名旁渲染 localized 通俗标签（原名永不替换）；三桶规格书工具桶列 server 注释名。
 - **pack manifest 覆盖块扩容**：`LOCALE_OVERLAY_KEYS` 增 `mcpServers`（逐条按声明 name 覆盖 description；registryName 等运行时标识不动），沿 `pack-locale-tracks` 既有校验规则。
@@ -27,10 +27,11 @@
 
 ## Impact
 
-- **Server（壹座）**：`extension-store.js` 合并投影（读时叠加注释，不改 DB 源行）；仓库目录 `market-catalog.json` 形状扩展（human/canonical/locales）；`server/routes/extensions.js` 读面透出注释；`server/skills.js` / registry skill 读面同规则。
+- **Server（壹座）**：`extension-store.js` 合并投影（读时叠加注释，不改 DB 源行）；仓库目录 `market-catalog.json` 形状扩展（human/canonical/locales）；**新增仓库注释源 `market-annotations.json`（根文件）+ 零依赖叶 loader `lib/market-annotations.js` + `registry-bridge.js` `mapServer()` 一处合并（registry DB 压过仓库注释源，桥快照同喂壹座与 facet 两平面）**；`server/routes/extensions.js` 读面透出注释；`server/skills.js` / registry skill 读面同规则。
 - **lib**：`lib/pack-manifest.js`（LOCALE_OVERLAY_KEYS 增 mcpServers + 校验规则复用既有 i18n 块逻辑）；`lib/pack-locale.js` 零改（解析优先级复用）。
 - **Web（壹座）**：`McpServerCard`、`McpMarketCard`、`ToolBlock`、`AgentSpecSheet` 注释渲染；i18n 五语言（注释来自数据，chrome 文案照常走 bundle）。
 - **Facet**：`registry-bridge.js` mapper 透传注释字段、`mcp-catalog.js` 端点接 `?locale=`、facet/web 目录页渲染。
 - **Registry（外部）**：`/api/servers` metadata 增注释块（display_name 语义保留，注释块为超集）；无 registry 侧改码时经 metadata JSON 透传。
 - **Docs**：`docs/pack-i18n-requirements.md` §3 记口径推翻。
+- **出片**：`Dockerfile` 加一行 COPY `market-annotations.json`（沿 `market-catalog.json` 同法）；`dist-opensource/` 白名单同步核查；缺文件 = 空表降级不启动失败。
 - **协调面**：`add-agent-builder-hub` 供给区三柜渲染经本单注释增强（两单对表）；`add-tool-description-enrichment` 消费本单 canonical 字段（数据形状在本单一次定稿）。

@@ -1,6 +1,6 @@
 ## Purpose
 
-供给注释层：给 MCP server、MCP tool、skill 三类供给对象一份同构注释（human 五语言轨 + canonical brief + provenance），三源合并、读时投影、零源行改写。human 轨让普通人看得懂（zh 主轨通俗名+一句话+何时用），canonical 轨面向智能体（运行时消费归 `add-tool-description-enrichment`）。缺注释的对象如实渲染原文，永不发明。
+供给注释层：给 MCP server、MCP tool、skill 三类供给对象一份同构注释（human 五语言轨 + canonical brief + provenance），四源合并、读时投影、零源行改写。human 轨让普通人看得懂（zh 主轨通俗名+一句话+何时用），canonical 轨面向智能体（运行时消费归 `add-tool-description-enrichment`）。缺注释的对象如实渲染原文，永不发明。
 
 ## ADDED Requirements
 
@@ -23,9 +23,9 @@
 - **WHEN** 一条注释只有 en 内容、无 zh 主轨
 - **THEN** 注释被拒并指明 zh 主轨必填
 
-### Requirement: 三源合并与读时投影
+### Requirement: 四源合并与读时投影
 
-注释投影 SHALL 按优先级合并三源：registry metadata > 仓库内供给目录 > 上游原文；高优先级源的字段逐字段覆盖低优先级源。投影 SHALL 发生在读面（目录读、卡片读、规格书读），MUST NOT 改写任何源行（extensions DB 行、registry 条目、仓库目录文件）。投影结果 SHALL 原样透出合并后的字段与 provenance。
+注释投影 SHALL 按优先级合并四源：registry 行 metadata > 仓库注释源（`market-annotations.json`）> 仓库内供给目录（`market-catalog.json`）> 上游原文；高优先级源的字段逐字段覆盖低优先级源。投影 SHALL 发生在读面（目录读、卡片读、规格书读），MUST NOT 改写任何源行（extensions DB 行、registry 条目、仓库文件）。投影结果 SHALL 原样透出合并后的字段与 provenance。
 
 #### Scenario: registry 覆盖仓库目录
 
@@ -34,8 +34,27 @@
 
 #### Scenario: 无注释如实原文
 
-- **WHEN** 一台 server 三源均无注释
+- **WHEN** 一台 server 四源均无注释
 - **THEN** 该对象的渲染与未引入注释层前逐字节一致（上游原文）
+
+### Requirement: 仓库注释源对 registry 条目生效
+
+对 registry 来源的目录条目，仓库根 `market-annotations.json`（键 = registry 条目 name，即 `pathToName` 结果，无前导斜杠；值形状同本契约）SHALL 作为 registry 行 metadata 之外的第二注释真源，在与桥快照合并点（唯一一处）逐字段并入条目注释：registry metadata 压过仓库注释源，仓库注释源补 registry 缺失字段；`tools` 按 leaf 合并，provenance 跟随胜者。深度视图的工具行集合 SHALL 恒以 registry `tool_list` 为准——注释只装饰既有行，MUST NOT 凭文件新增工具行。bundled 条目的注释键路径 SHALL 零改。条目缺失/损坏的注释 SHALL 被丢弃并告警，MUST NOT 抛错。registry 行 metadata 与仓库注释源皆空的条目 SHALL 维持无注释渲染。
+
+#### Scenario: registry 压过仓库注释源
+
+- **WHEN** 同名条目的 `human.en` 同时存在于 registry metadata 与仓库注释源且内容不同，文件另有 `human.ja`
+- **THEN** 英文渲染取 registry 值，`human.ja` 仍来自仓库注释源
+
+#### Scenario: 文件缺失降级为空表
+
+- **WHEN** 镜像内无 `market-annotations.json`（或文件损坏）
+- **THEN** 服务正常启动，全部条目按 registry metadata > 仓库目录 > 原文链渲染，与今天一致
+
+#### Scenario: 注释不发明工具行
+
+- **WHEN** 仓库注释源的 `tools` 含某 leaf 而该 leaf 不在条目 registry `tool_list` 中
+- **THEN** 深度视图工具列表不因此新增行（注释存在与否不改变行集合）
 
 ### Requirement: locale 解析与 zh 唯一回落
 

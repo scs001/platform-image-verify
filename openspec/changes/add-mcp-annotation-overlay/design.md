@@ -39,6 +39,14 @@
 `mcpServers` 进 `LOCALE_OVERLAY_KEYS`，逐条按声明 registryName 覆盖 `description`，校验/长度 parity/回落全走既有 `pack-manifest.js` i18n 块逻辑，不写第二套。
 - **为什么**：`pack-locale-tracks` 兼容性不变量（同一校验器、无双规则漂移）是既律。
 
+### D7: 仓库注释源 `market-annotations.json`——registry 条目的第二真源（2026-11-02 finddata 需求书折入）
+registry 行 `metadata.annotations` 有 64KB 上限（161 工具的五语工具级注释序列化约 99KB 塞不进），且在册 28 条 registry 条目注释全空、DB 行不可评审不可版本化。故加仓库根文件 `market-annotations.json`：一条零依赖叶 loader（`lib/market-annotations.js`，进程内缓存，缺文件/非法条目 → 空表/弃条 + warn，沿 `readJsonOr` 降级）+ `mapServer()` 一处合并（registry DB 逐字段压过文件，`mergeAnnotations` 复用，形状/校验器/投影规则零改）。
+- **为什么合并点选桥而非 extension-store 读面**：桥快照同喂两平面（壹座 `mergedMarketCatalog` 与 facet 目录直读条目 `annotations`），共用对象一处合并两平面齐得；快照是内存读对象，源行零写，不违 D2。文件随镜像静态，TTL 刷新自然带新版本。
+- **为什么不塞 `market-catalog.json`**：同名 bundled 条目会条级遮蔽 registry 条目（endpoint/tool_list 漂移风险）；注释文件只带注释不遮蔽条目。bundled 10 条与 registry 名集不相交，其 `annotation` 键路径零动。
+- **需求书「registry 未声明的 leaf 不被新增」定谳**：注释合并按既有 `mergeAnnotations` 语义容纳文件侧 leaf，但深度视图工具行集合恒以 registry `tool_list` 为准——注释只装饰行，不发明行。
+- **优先级链**：registry DB > 仓库注释源 > bundled 目录 > 原文。
+- **备选**：只走 registry metadata 并提高上限（拒：跨服务改码+DB 塞策展文本无 diff 无评审）；注释进 DB 分表（拒：facet 读不到即两平面分叉，同 D1 拒因）。
+
 ## Risks / Trade-offs
 
 - [registry metadata 透传被下游复制时注释块膨胀] → metadata.annotations 有尺寸上限（沿 manifest PACK_LIMITS 风格），校验在投影读面拒超限。

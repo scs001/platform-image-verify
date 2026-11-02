@@ -19,6 +19,8 @@
 // optional local registry-groups.json mapping file.
 import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
+import { mergeAnnotations } from "./lib/supply-annotations.js";
+import { getRepoAnnotation, loadRepoAnnotations } from "./lib/market-annotations.js";
 
 const REGISTRY_URL = (
   process.env.MARKET_REGISTRY_URL ||
@@ -197,11 +199,18 @@ function mapServer(s) {
     // (add-facet-market-credentials D4): entries may carry
     // metadata.credential_ref naming the 壹座-side credentialRef installs
     // must wire and require (default "registry" — the incumbent behavior).
-    // Supply annotation (add-mcp-annotation-overlay D1): the curated
-    // human/canonical annotation rides registry row metadata.annotations
-    // verbatim — extension-store merges it (registry > repo catalog) and
-    // facets project it per locale. Absent → null (raw upstream rendering).
-    annotations: plainMetadataAnnotations(s.metadata?.annotations),
+    // Supply annotation (add-mcp-annotation-overlay D1/D7): two curated
+    // sources merge field-wise right here — the registry row's
+    // metadata.annotations wins over the repo file market-annotations.json
+    // entry (missing fields backfilled), which exists because registry
+    // metadata is 64KB-capped and DB rows are not GitOps-reviewable. The
+    // snapshot feeds both planes (extension-store merges further with the
+    // bundled catalog's annotation key; facet projects per locale). Both
+    // sources absent → null (raw upstream rendering, byte-identical).
+    annotations: mergeAnnotations({
+      registry: plainMetadataAnnotations(s.metadata?.annotations),
+      catalog: getRepoAnnotation(name),
+    }),
     credentialRef:
       typeof s.metadata?.credential_ref === "string" && s.metadata.credential_ref
         ? s.metadata.credential_ref
@@ -341,6 +350,10 @@ function mapAgent(a) {
 
 async function doRefresh() {
   loadGroups();
+  // Repo annotation source (D7): re-stat the file once per refresh tick (the
+  // loader caches by mtime); mapServer reads the map per entry. Missing or
+  // corrupt file → empty table → entries render unannotated, never a failure.
+  loadRepoAnnotations(bundledJson("market-annotations.json"));
   // All three are paginated reads — see fetchAllPages. /api/agents used to be
   // read bare here, which silently capped the agent catalog at the default
   // page size (live: 23 entries, 20 returned).

@@ -259,10 +259,13 @@ COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,
 # bundle-manifest.js, chat-history.js, documents.js, mcp-bridge.js, …) + the
-# root JSON data files extension-store.js reads at runtime (market-catalog*.json)
+# root JSON data files read at runtime (market-catalog*.json;
+# market-annotations.json — the repo annotation source, add-mcp-annotation-overlay
+# D7: if this line is dropped the loader degrades to an empty table, so the
+# image still boots and every entry renders raw upstream text)
 # + the dirs the supervisor/launcher need at runtime.
 COPY --chown=node:node --from=builder /app/package.json /app/platform.bundle.json /app/mcp.example.json /app/agents.json ./
-COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json ./
+COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json /app/market-annotations.json ./
 # The chart replay allowlist (openspec: add-chart-data-binding): read at boot by
 # dsh-profile.js, which copies it into $DSH_HOME/profiles/<name> for the
 # chart-bind bridge, and by chart-bindings.js as the replay gate. It is JSON, so

@@ -30,3 +30,11 @@
 - [ ] 5.1 普通人可读性走查：未注释（原文照旧）vs 注释后（通俗可读）对照；验证：走查记录入台账（含「internal 词汇不再靠删 server 遮蔽」的验证注记）
 - [ ] 5.2 兼容性回归：旧客户端（不感知注释字段）读面响应逐字节等价；验证：升级前后响应 diff 为空
 - [ ] 5.3 出片走查 + 台账；验证：生产 sha 面上眼见注释渲染 + 闭包闸键零变化断言
+
+## 6. 仓库注释源（finddata 需求书 mcp-annotation-source-requirements · 2026-11-02 折入）
+
+- [x] 6.1 `lib/market-annotations.js` loader：零依赖叶模块（网关与 facet 两进程共 import），读文件 → 逐条 `validateAnnotation()`（非法条目丢弃并 warn，不抛错）→ 按 name 索引 → 进程内缓存；文件缺失/损坏返回空表（沿 `readJsonOr` 降级纪律，MUST NOT 启动失败）；验证：单测三例（合法条目入表/非法条目被弃且其余保留/缺文件空表）
+- [x] 6.2 `registry-bridge.js` `mapServer()` 唯一新合并点（约 204 行）：`annotations = mergeAnnotations({ registry: plainMetadataAnnotations(s.metadata?.annotations), catalog: 仓库源条目 })`，复用既有语义（registry 逐字段压过、tools 按 leaf、provenance 跟胜者、双空 null），形状/校验器/投影规则零改；skills 侧（约 301 行）不动；验证：合并优先级单测（registry 独有字段胜、文件独有轨保留、双空仍 null 不新增键）
+- [x] 6.3 根 `market-annotations.json` v1：样例 `fd-quant` 一条（zh 主轨必填、en 必填、ja/es/fr 齐全、tools 按 leaf，`provenance.source=finddata-supply-annotations`）；键 = `pathToName` 结果不带前导斜杠；批量条目由 finddata 侧汇总脚本按需求书 §3 对表口径供给，缺条目 = 原文渲染不报错；验证：全文件过 `validateAnnotation` + 键格式断言
+- [x] 6.4 出片：`Dockerfile` 沿 265 行同法加一行 COPY `market-annotations.json`；`dist-opensource/` 通道核查（若按白名单拷贝根 JSON 则同步纳入该文件，对照既有 `dist-opensource/platform/market-catalog.json`）；验证：容器内缺该文件时服务正常启动且行为与今天一致
+- [x] 6.5 需求书 §E 四不变量回归测试：① 未注释条目（如 `/fd-health-config`）`/api/extensions/market` 与 `/api/mcp-catalog` 响应升级前后逐字节一致（含键集合）② registry 压仓库源（en 取 registry、文件独有 ja 保留）③ tool 级按 leaf 合并、深度页工具行集合恒以 registry `tool_list` 为准 ④ `?locale=de` 回落 zh、未注释回落原文（`pack-locale` 零改）；验证：四例绿；与 5.2 同班执行、5.3 出片时一并眼见注释渲染

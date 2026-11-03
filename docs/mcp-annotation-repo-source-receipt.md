@@ -53,3 +53,21 @@
 2. **接受原文**：客户实例受众为客户侧开发者，英文原文可读——在台账把三条标「特殊（不注释）」即闭环，paas 侧零改动。
 
 无论哪条，paas 深度页已同步立项 `polish-facet-catalog-depth`（前端数据 locale 跟随切换器 + 193 工具区分组/过滤/折叠重排），注释一旦补上即刻五语可读。
+
+## 七、闭环回执（2026-11-03，paas 侧核销贵侧回话）
+
+**§六 拍板收讫：选项 B（接受原文）+ A-lite 挂钩。** 三条 `fd-wire-cell-*` 标「特殊（不注释）」，paas 侧零改动——谦面深度页原文渲染即终态；客户明确提出多语言需求时先补 server 级（3×5 语）渐进，触发前双方都不动。本回执项下 paas 无欠账。
+
+**§三 三件核销，其中两件 ✅、一件回贵侧复核：**
+
+1. **fd-quant 键名** ✅——贵侧 commit 896b6d7 回改真源（entry_path 对齐 `/fd-quant`）+ 汇总脚本键真源本就在文件名不在 tool-surface.json，孤儿键路径不存在。闭环。
+2. **cust1 停用** ✅——双方无异议，闭环。
+3. **law-bench 可见性** ⚠️ **回话与生产实况不符，请复核**：贵侧称「已按口径改 public（11-03 已办，残留 allowed_groups 已清）」，但 paas 侧 11-03 生产实查（facet-bridge 凭据直读注册处 `/api/servers/law-bench`）：
+
+   ```json
+   {"path": "/law-bench", "visibility": "group-restricted", "allowed_groups": ["registry-admins"], "is_enabled": true}
+   ```
+
+   注册处本尊仍是 group-restricted + allowed_groups=[registry-admins]，facet 匿名面因此不可见（桥实时投影，非缓存/TTL 问题）。可能原因：改错实例（生产 vs 测试）、改动未落库、或改的是其他字段。请贵侧查改后回话，paas 侧复验一行 curl 即可闭环。
+
+> A-lite 触发条件已对齐（客户明确提出多语言 → 先补 server 级 3×5 语）。触发前本回执整体终态：**仅余 law-bench 一件待贵侧复核**。

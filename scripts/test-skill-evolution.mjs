@@ -240,3 +240,17 @@ test("MCP child: skill_propose is the only tool (no evaluate/promote/reject verb
     assert.equal(new RegExp(`name: "${verb}"`).test(src), false, `toolset must not carry ${verb}`);
   }
 });
+
+// ── 8.1 回链：sourceDocId 透传与诚实缺席 ─────────────────────────────────────
+test("8.1 back-link: studio proposals carry sourceDocId; MCP-cell proposals stay null", async () => {
+  const withDoc = await call("POST", "/api/skill-evolution/propose", GOOD({ name: "doc-linked", sourceDocId: "bp_doc_link_1" }));
+  assert.equal(withDoc.status, 201);
+  assert.equal(withDoc.body.candidate.sourceDocId, "bp_doc_link_1", "studio proposal rides the source doc");
+  const noDoc = await call("POST", "/api/skill-evolution/propose", GOOD({ name: "doc-absent" }));
+  assert.equal(noDoc.status, 201);
+  assert.equal(noDoc.body.candidate.sourceDocId ?? null, null, "cell MCP proposal = honest absence");
+  // blank string is not a lineage — normalized to null
+  const blank = await call("POST", "/api/skill-evolution/propose", GOOD({ name: "doc-blank", sourceDocId: "   " }));
+  assert.equal(blank.status, 201);
+  assert.equal(blank.body.candidate.sourceDocId ?? null, null, "blank normalizes to null");
+});

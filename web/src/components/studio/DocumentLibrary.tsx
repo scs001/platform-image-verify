@@ -5,12 +5,13 @@
 // shared StatusPill (statusTokens; color never speaks alone).
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Search } from "lucide-react";
+import { LayoutTemplate, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { StatusKind } from "@/lib/statusTokens";
 import type { BlueprintSummary } from "@/lib/blueprint-api";
+import { fetchStarterSeed, listOfficialStarters, type StarterSummary } from "@/lib/starter-seed";
 import { cn } from "@/lib/utils";
 
 // The three blueprint statuses mapped onto the design system's semantic
@@ -27,16 +28,50 @@ export function DocumentLibrary({
   activeId,
   onOpen,
   onNew,
+  onNewFromStarter,
   busy,
 }: {
   docs: BlueprintSummary[];
   activeId: string | null;
   onOpen: (id: string) => void;
   onNew: (kind: "agent" | "team") => void;
+  onNewFromStarter: (seed: Awaited<ReturnType<typeof fetchStarterSeed>>) => void;
   busy: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
+  // 8.2: the official starter picker lives in the EMPTY state — the moment the
+  // owner has documents, the blank-page affordances are noise. Picking a
+  // starter fetches its market manifest and hands the projected seed to the
+  // page (same createBlueprint lane as any other document).
+  const [starters, setStarters] = useState<StarterSummary[] | null>(null);
+  const [starterBusy, setStarterBusy] = useState<string | null>(null);
+  const [starterError, setStarterError] = useState<string | null>(null);
+
+  const openStarters = async () => {
+    if (starters) {
+      setStarters(null);
+      return;
+    }
+    setStarterError(null);
+    const list = await listOfficialStarters();
+    setStarters(list);
+  };
+
+  const adoptStarter = async (s: StarterSummary) => {
+    setStarterBusy(s.id);
+    setStarterError(null);
+    try {
+      const seed = await fetchStarterSeed(s.id);
+      if (!seed) {
+        setStarterError(t("studio.workspace.library.starterUnavailable"));
+        return;
+      }
+      onNewFromStarter(seed);
+    } finally {
+      setStarterBusy(null);
+    }
+  };
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -89,6 +124,40 @@ export function DocumentLibrary({
               <li>{t("studio.workspace.library.guideAi")}</li>
               <li>{t("studio.workspace.library.guideMarket")}</li>
             </ul>
+            {/* 8.2: seed from the official starter shelf (the SAME list the
+                market showcases — no second roster). */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => void openStarters()}
+              data-testid="ws-library-starters-toggle"
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" /> {t("studio.workspace.library.starters")}
+            </Button>
+            {starters ? (
+              starters.length > 0 ? (
+                <ul className="space-y-1" data-testid="ws-library-starters">
+                  {starters.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className="w-full rounded-md px-2 py-1 text-left hover:bg-muted/60"
+                        disabled={starterBusy !== null}
+                        onClick={() => void adoptStarter(s)}
+                        data-testid={`ws-starter-${s.id}`}
+                      >
+                        <span className="block truncate font-medium">{starterBusy === s.id ? "…" : s.name}</span>
+                        {s.description ? <span className="block truncate text-[10px]">{s.description}</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p data-testid="ws-library-starters-empty">{t("studio.workspace.library.startersEmpty")}</p>
+              )
+            ) : null}
+            {starterError && <p className="text-destructive" data-testid="ws-library-starters-error">{starterError}</p>}
           </div>
         )}
       </div>

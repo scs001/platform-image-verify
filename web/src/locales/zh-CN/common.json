@@ -2276,7 +2276,11 @@
         "guideAi": "AI 起草——描述你要的智能体，逐字段评审后采用。",
         "guideMarket": "从市场克隆——把任一已装功能包复制成新文档。",
         "newAgent": "新建智能体",
-        "newTeam": "新建团队"
+        "newTeam": "新建团队",
+        "starters": "从官方模板开始",
+        "startersEmpty": "货架暂无官方模板",
+        "starterUnavailable": "该模板暂不可用",
+        "starterCreated": "已从「{name}」模板创建文档"
       },
       "ribbon": {
         "stage": {
@@ -2325,7 +2329,10 @@
       },
       "deployTeam": "部署团队",
       "deployOk": "团队已建队（出生暂停）",
-      "deployFailed": "部署失败"
+      "deployFailed": "部署失败",
+      "sourceDoc": "来源文档",
+      "softLock": "该文档在另一个窗口中也打开了——保存会以服务端 409 冲突提示兜底",
+      "softLockDismiss": "知道了"
     },
     "errors": {
       "name_too_long": "名称需非空且不超过 80 字符（中文按双倍宽度计）",

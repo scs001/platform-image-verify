@@ -2276,7 +2276,11 @@
         "guideAi": "Boceto con IA — describe el agente, revisa campo por campo y adopta lo que quieras.",
         "guideMarket": "Duplicar del mercado — copia cualquier paquete instalado en un documento nuevo.",
         "newAgent": "Nuevo agente",
-        "newTeam": "Nuevo equipo"
+        "newTeam": "Nuevo equipo",
+        "starters": "Empezar de una plantilla oficial",
+        "startersEmpty": "Aún no hay plantillas oficiales",
+        "starterUnavailable": "Esa plantilla no está disponible",
+        "starterCreated": "Documento creado desde «{name}»"
       },
       "ribbon": {
         "stage": {
@@ -2325,7 +2329,10 @@
       },
       "deployTeam": "Desplegar equipo",
       "deployOk": "Equipo aprovisionado (nace en pausa)",
-      "deployFailed": "Fallo al desplegar"
+      "deployFailed": "Fallo al desplegar",
+      "sourceDoc": "Doc fuente",
+      "softLock": "Este documento también está abierto en otra ventana — las guardas siguen protegidas por el aviso de conflicto 409",
+      "softLockDismiss": "Entendido"
     },
     "errors": {
       "name_too_long": "El nombre debe ser no vacío y de 80 caracteres como máximo (el CJK cuenta doble)",

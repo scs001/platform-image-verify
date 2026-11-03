@@ -223,3 +223,14 @@ test("persona eval: amended best passes; current best refuses; tie passes", asyn
   assert.equal(typeof report.passed, "boolean");
   assert.equal(report.arms.length, 2);
 });
+
+// ── 8.1 回链：sourceDocId 透传与诚实缺席 ─────────────────────────────────────
+test("8.1 back-link: studio amendments carry sourceDocId; cell proposals stay null", async () => {
+  const base = { targetKind: "preset", targetRef: "user.test", amendedPersona: "你是测试岗（8.1 回链腿）：修订后的岗位设定文本。", evidence: EVIDENCE };
+  const withDoc = store.createCandidate({ ...base, proposedBy: "owner@local", sourceDocId: "bp_doc_link_2" });
+  assert.ok(!withDoc.error, withDoc.error ?? "");
+  assert.equal(withDoc.candidate.sourceDocId, "bp_doc_link_2", "studio amendment rides the source doc");
+  const noDoc = store.createCandidate({ ...base, proposedBy: "owner@local" });
+  assert.ok(!noDoc.error, noDoc.error ?? "");
+  assert.equal(noDoc.candidate.sourceDocId ?? null, null, "cell MCP amendment = honest absence");
+});

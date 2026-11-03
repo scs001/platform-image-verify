@@ -2276,7 +2276,11 @@
         "guideAi": "AI draft — describe the agent, review field by field, adopt what you like.",
         "guideMarket": "Fork from the market — clone any installed pack into a new document.",
         "newAgent": "New agent",
-        "newTeam": "New team"
+        "newTeam": "New team",
+        "starters": "Start from an official template",
+        "startersEmpty": "No official templates on the shelf yet",
+        "starterUnavailable": "That template is unavailable",
+        "starterCreated": "Document created from “{name}”"
       },
       "ribbon": {
         "stage": {
@@ -2325,7 +2329,10 @@
       },
       "deployTeam": "Deploy team",
       "deployOk": "Team provisioned (born paused)",
-      "deployFailed": "Deploy failed"
+      "deployFailed": "Deploy failed",
+      "sourceDoc": "Source doc",
+      "softLock": "This document is also open in another window — saves are still guarded by the 409 conflict notice",
+      "softLockDismiss": "Got it"
     },
     "errors": {
       "name_too_long": "The name must be non-empty and at most 80 characters (CJK counts double)",

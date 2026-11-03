@@ -1052,6 +1052,16 @@ const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_persona_candidates_target ON persona_candidates(target_kind, target_ref, agent_id)`,
     ],
   },
+  {
+    // add-agent-builder-workspace 8.1：候选→来源工作区文档回链。提案主要来自
+    // cell 内 agent（MCP skill_propose/persona_propose），那边天然没有 studio
+    // 文档上下文——列可空，只有 studio 发起的提案才带（诚实缺席=零芯片）。
+    version: 113,
+    statements: [
+      `ALTER TABLE skill_candidates ADD COLUMN source_doc_id TEXT`,
+      `ALTER TABLE persona_candidates ADD COLUMN source_doc_id TEXT`,
+    ],
+  },
 ];
 
 function nowIso() {

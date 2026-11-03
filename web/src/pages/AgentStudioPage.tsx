@@ -44,6 +44,8 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { showToast } from "@/components/ui/toast";
+import { useDocSoftLock } from "@/lib/workspace-soft-lock";
+import { recordStudioMetric } from "@/lib/studio-metrics";
 import { cn } from "@/lib/utils";
 
 // 6.1: the writable team graph rides the SHARED FleetCanvas — lazy-loaded so
@@ -95,6 +97,8 @@ export function AgentStudioPage() {
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "conflict">("clean");
   const [conflict, setConflict] = useState<{ serverVersion: number } | null>(null);
   const [overwriteOpen, setOverwriteOpen] = useState(false);
+  // 8.3 多标签软锁：同文档他窗打开只提示不接管（数据面仍由 409 横幅兜底）。
+  const softLock = useDocSoftLock(doc?.id ?? null);
   const [verdict, setVerdict] = useState<ValidationVerdict | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -158,6 +162,9 @@ export function AgentStudioPage() {
     try {
       const v = await bp.validateBlueprint(id);
       setVerdict(v);
+      // 8.4: the error-resolution funnel — every verdict that lands with errors
+      // marks the START of a resolution attempt (jumps are counted separately).
+      if (v && v.errors?.length > 0) recordStudioMetric({ type: "validation_error_seen", at: Date.now(), docId: id, count: v.errors.length });
       return v;
     } catch {
       setVerdict(null);
@@ -262,6 +269,7 @@ export function AgentStudioPage() {
         : bp.skeletonContent(t("studio.blueprint.untitled"));
       const { blueprint } = await bp.createBlueprint(seed);
       await refreshDocs();
+      recordStudioMetric({ type: "doc_created", at: Date.now(), docId: blueprint.id, kind });
       focusNameRef.current = true;
       await openDoc(blueprint.id);
       return blueprint.id;
@@ -272,6 +280,27 @@ export function AgentStudioPage() {
       setBusy(null);
     }
   }, [openDoc, refreshDocs, t]);
+
+  // 8.2: starter-seeded document — the manifest projection rides the SAME
+  // createBlueprint lane (validation, autosave, lifecycle all identical); the
+  // only difference is the seed's provenance.
+  const createFromSeed = useCallback(async (seed: BlueprintContent): Promise<string | null> => {
+    setBusy("create");
+    try {
+      const { blueprint } = await bp.createBlueprint(seed);
+      await refreshDocs();
+      await openDoc(blueprint.id);
+      // Same URL contract as the fork seed: the address carries the doc id.
+      navigate(`/studio?doc=${encodeURIComponent(blueprint.id)}`, { replace: true });
+      showToast({ severity: "success", title: t("studio.workspace.library.starterCreated", { name: seed.boundary?.name ?? "" }) });
+      return blueprint.id;
+    } catch (err) {
+      showToast({ severity: "error", title: t("studio.workspace.createFailed"), description: (err as Error).message });
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }, [openDoc, refreshDocs, navigate, t]);
 
   // Focus the scene name right after a fresh document opens (one click to edit).
   useEffect(() => {
@@ -362,6 +391,7 @@ export function AgentStudioPage() {
           const { blueprint, cast } = await bp.castBlueprint(doc.id);
           applyBlueprint(blueprint);
           void refreshDocs();
+          recordStudioMetric({ type: "cast", at: Date.now(), docId: doc.id, packId: cast.packId ?? blueprint.castPackId ?? null });
           showToast({ severity: "success", title: t("studio.workspace.castOk", { packId: cast.packId ?? blueprint.castPackId ?? "?", version: cast.version ?? blueprint.castPackVersion ?? "?" }) });
         });
       } else if (a === "trial") {
@@ -489,6 +519,7 @@ export function AgentStudioPage() {
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error || `deploy failed (${r.status})`);
       const fleetId: string | undefined = body?.fleet?.id ?? body?.id;
+      recordStudioMetric({ type: "deploy", at: Date.now(), docId: doc.id, fleetId: fleetId ?? null });
       showToast({ severity: "success", title: t("studio.workspace.deployOk") });
       if (fleetId) navigate(`/fleets/${encodeURIComponent(fleetId)}`);
     } catch (err) {
@@ -519,6 +550,7 @@ export function AgentStudioPage() {
         mcpServers: mcp.map((m) => m.registryName),
         mcpTools: Object.fromEntries(mcp.filter((m) => m.allowTools?.length).map((m) => [m.registryName, m.allowTools!])),
       });
+      if (doc) recordStudioMetric({ type: "emit", at: Date.now(), docId: doc.id, emit: "preset" });
       showToast({ severity: "success", title: t("studio.emit.presetOk", { name: selectedAgent.name || selectedAgent.id }) });
     } catch (err) {
       showToast({ severity: "error", title: t("studio.emit.failed", { message: (err as Error).message }) });
@@ -550,6 +582,7 @@ export function AgentStudioPage() {
           ...(prov ? { provenance: prov } : {}),
         },
       });
+      if (doc) recordStudioMetric({ type: "emit", at: Date.now(), docId: doc.id, emit: "draft" });
       showToast({ severity: "success", title: t("studio.emit.draftOk") });
       navigate("/agents?tab=market");
     } catch (err) {
@@ -683,6 +716,16 @@ export function AgentStudioPage() {
         </button>
       </div>
 
+      {/* ── Multi-tab notice (8.3): another window has this doc open. Notice
+             only — no read-only takeover; the 409 banner still guards writes. ── */}
+      {softLock.otherOpen && doc && (
+        <div className="flex items-center justify-between gap-2 border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs" data-testid="ws-soft-lock-banner">
+          <span className="min-w-0 flex-1">{t("studio.workspace.softLock")}</span>
+          <button type="button" className="rounded px-2 py-0.5 text-muted-foreground hover:bg-muted" onClick={softLock.dismiss} data-testid="ws-soft-lock-dismiss">
+            {t("studio.workspace.softLockDismiss")}
+          </button>
+        </div>
+      )}
       {/* ── Conflict banner (409): the user decides, nothing silent ── */}
       {conflict && doc && (
         <div className="flex items-center justify-between gap-2 border-b border-destructive/40 bg-destructive/5 px-3 py-2 text-xs" data-testid="ws-conflict-banner">
@@ -719,7 +762,7 @@ export function AgentStudioPage() {
       />
 
       <div className="flex min-h-0 flex-1">
-        {showLibrary && <DocumentLibrary docs={docs} activeId={doc?.id ?? null} onOpen={(id) => void openDoc(id)} onNew={(kind) => void createDoc(kind)} busy={busy !== null} />}
+        {showLibrary && <DocumentLibrary docs={docs} activeId={doc?.id ?? null} onOpen={(id) => void openDoc(id)} onNew={(kind) => void createDoc(kind)} busy={busy !== null} onNewFromStarter={(seed) => { if (seed) void createFromSeed(seed); }} />}
 
         {/* ── Canvas ── */}
         <main className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="ws-canvas">
@@ -1021,7 +1064,7 @@ export function AgentStudioPage() {
                   skills={null}
                   mcp={((content?.mcpServers ?? []) as PackManifestMcp[]).map((m) => ({ ...m, totalTools: totalTools(m.registryName) }))}
                 />
-                <ValidationPanel verdict={verdict} verifying={verifying} />
+                <ValidationPanel verdict={verdict} verifying={verifying} docId={doc?.id ?? null} />
                 <div className="space-y-2 border-t border-border pt-3" data-testid="ws-emit">
                   <p className="text-xs font-medium text-muted-foreground">{t("studio.workspace.emit.section")}</p>
                   <Tooltip content={docValid ? "" : t("studio.workspace.emit.needGreen")}>

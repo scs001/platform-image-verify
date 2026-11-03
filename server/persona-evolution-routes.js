@@ -63,7 +63,9 @@ export function createPersonaEvolutionRoutes(app, ctx = null) {
   router.post("/propose", (req, res) => {
     const user = requireUser(req, res);
     if (!user) return;
-    const { targetKind, targetRef, agentId, amendedPersona, evidence } = req.body ?? {};
+    // sourceDocId 可选：studio 工作区发起的提案带来源文档（8.1 回链）；
+    // cell 内 MCP 提案不带——缺席诚实，评审面零芯片。
+    const { targetKind, targetRef, agentId, amendedPersona, evidence, sourceDocId } = req.body ?? {};
     if (targetKind !== "preset" && targetKind !== "pack") {
       return res.status(400).json({ error: "targetKind must be 'preset' or 'pack'" });
     }
@@ -86,7 +88,7 @@ export function createPersonaEvolutionRoutes(app, ctx = null) {
     if (current.error) return res.status(400).json({ error: current.error });
     const gate = store.proposeGate({ targetKind, targetRef, agentId });
     if (!gate.ok) return res.status(429).json({ error: gate.error, code: gate.code });
-    const out = store.createCandidate({ targetKind, targetRef, agentId, amendedPersona, evidence, proposedBy: user.email });
+    const out = store.createCandidate({ targetKind, targetRef, agentId, amendedPersona, evidence, proposedBy: user.email, sourceDocId });
     if (out.error) return res.status(400).json({ error: out.error });
     res.status(201).json({ ok: true, candidate: out.candidate });
   });

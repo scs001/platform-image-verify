@@ -27,7 +27,9 @@ export const PROPOSAL_DAILY_CAP = () => Number(process.env.SKILL_PROPOSE_DAILY_C
 export const STORE_CAP = () => Number(process.env.SKILL_CANDIDATE_STORE_CAP || 200);
 export const DEBOUNCE_HOURS = () => Number(process.env.SKILL_PROPOSE_DEBOUNCE_HOURS || 24);
 
-const ROW = "id, name, description, body, evidence, supersedes, status, eval_report, proposed_by, created_at, decided_at, decided_by";
+// 8.1 回链：source_doc_id 是 studio 发起提案时带的工作区文档 id（可空——
+// cell 内 MCP 提案没有文档上下文，缺席是常态而非缺数据）。
+const ROW = "id, name, description, body, evidence, supersedes, status, eval_report, proposed_by, created_at, decided_at, decided_by, source_doc_id";
 
 function deserialize(r) {
   if (!r) return null;
@@ -35,7 +37,7 @@ function deserialize(r) {
   let evalReport = null;
   try { evidence = JSON.parse(r.evidence); } catch { /* keep raw */ }
   try { evalReport = r.eval_report ? JSON.parse(r.eval_report) : null; } catch { evalReport = { raw: r.eval_report }; }
-  return { ...r, evidence, evalReport };
+  return { ...r, evidence, evalReport, sourceDocId: r.source_doc_id ?? null };
 }
 
 export function skillEvolutionStore() {
@@ -62,7 +64,7 @@ export function skillEvolutionStore() {
       return { ok: true };
     },
 
-    createCandidate({ name, description, body, evidence, supersedes, proposedBy }) {
+    createCandidate({ name, description, body, evidence, supersedes, proposedBy, sourceDocId }) {
       // supersedes must reference a REAL custom skill (pack-owned rows are
       // refused at the tool face; this is the store-side re-check).
       if (supersedes != null) {
@@ -72,9 +74,9 @@ export function skillEvolutionStore() {
       }
       const id = `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       D().prepare(
-        `INSERT INTO skill_candidates (id, name, description, body, evidence, supersedes, status, proposed_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'candidate', ?, ?)`,
-      ).run(id, String(name).slice(0, 120), String(description).slice(0, 2000), String(body), JSON.stringify(evidence ?? {}), supersedes ?? null, proposedBy ?? "agent", dbModule.nowIso());
+        `INSERT INTO skill_candidates (id, name, description, body, evidence, supersedes, status, proposed_by, created_at, source_doc_id)
+         VALUES (?, ?, ?, ?, ?, ?, 'candidate', ?, ?, ?)`,
+      ).run(id, String(name).slice(0, 120), String(description).slice(0, 2000), String(body), JSON.stringify(evidence ?? {}), supersedes ?? null, proposedBy ?? "agent", dbModule.nowIso(), typeof sourceDocId === "string" && sourceDocId.trim() ? sourceDocId.trim() : null);
       return { candidate: deserialize(D().prepare(`SELECT ${ROW} FROM skill_candidates WHERE id = ?`).get(id)) };
     },
 

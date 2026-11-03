@@ -53,8 +53,8 @@
 
 ## 8. 批 4 · 收尾、防护与度量
 
-- [ ] 8.1 调优区回链：skill/persona 候选评审面显示来源文档芯片 → /studio?doc=（lineage 已有数据）。验证：e2e 回链可达。
-- [ ] 8.2 官方 starter 作文档种子：文档库空态「从模板」接官方 starter 清单（清单与货架侧共定，design Open Question 收口）。验证：新建自模板腿。
-- [ ] 8.3 多标签软锁：BroadcastChannel 同文档他窗打开提示（只提示不接管）。验证：双页 e2e 提示断言。
-- [ ] 8.4 度量埋点：首次发射耗时、校验错消解点击数、cast→部署转化率（取数口设计收口后实施）。验证：本地跑一轮出三数（脚本聚合）。
+- [x] 8.1 调优区回链：skill/persona 候选评审面显示来源文档芯片 → /studio?doc=。（勘误：候选本无文档 lineage——提案出自 cell MCP 无文档上下文；诚实设计=propose 合同可选 sourceDocId（studio 发起才带）+迁移 v113 双列+双视图芯片+诚实缺席；e2e 回链可达+缺失零芯片）
+- [x] 8.2 官方 starter 作文档种子：文档库空态「从模板」接官方 starter 清单（清单=GET /api/packs/official templates 段即货架共定清单收口 Open Question；starter-seed.ts 纯投影 manifest→文档骨架，零新端点零服务端改动；e2e 新建自模板腿+validate 净）
+- [x] 8.3 多标签软锁：BroadcastChannel 同文档他窗打开提示（只提示不接管；ack+seen 去重截断回声，可关、跨文档零渗漏；数据面 409 横幅照旧兜底）。验证：双页 e2e 提示断言。
+- [x] 8.4 度量埋点：首次发射耗时、校验错消解点击数、cast→部署转化率（取数口收口=浏览器本地环 localStorage 上限 2000 与画布位置键同惯例、零出网；七事件点接线+aggregate-studio-metrics.mjs 聚合脚本+金值单测）。验证：本地跑一轮出三数（脚本聚合）。
 - [ ] 8.5 终局走查与归档准备：全量 e2e + 五语真机 + 性能门（/studio 首屏不劣化）+ validate --specs 对齐预演 + 台账终章。验证：三度量对照批 1 基线改善；归档差集纪律预检绿。

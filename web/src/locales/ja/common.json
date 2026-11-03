@@ -2276,7 +2276,11 @@
         "guideAi": "AI ドラフト — エージェントを説明し、フィールドごとにレビューして採用。",
         "guideMarket": "マーケットから複製 — インストール済みパックを新ドキュメントに。",
         "newAgent": "新規エージェント",
-        "newTeam": "新規チーム"
+        "newTeam": "新規チーム",
+        "starters": "公式テンプレートから開始",
+        "startersEmpty": "公式テンプレートはまだありません",
+        "starterUnavailable": "このテンプレートは利用できません",
+        "starterCreated": "「{name}」から文書を作成しました"
       },
       "ribbon": {
         "stage": {
@@ -2325,7 +2329,10 @@
       },
       "deployTeam": "チームを展開",
       "deployOk": "チームをプロビジョニングしました（出生は一時停止）",
-      "deployFailed": "展開に失敗"
+      "deployFailed": "展開に失敗",
+      "sourceDoc": "ソース文書",
+      "softLock": "この文書は別のウィンドウでも開かれています——保存は 409 競合通知で保護されます",
+      "softLockDismiss": "了解"
     },
     "errors": {
       "name_too_long": "名前は空でなく 80 文字以内（全角は 2 文字分）",

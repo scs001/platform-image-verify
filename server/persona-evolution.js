@@ -78,7 +78,8 @@ export function currentPersonaFor({ targetKind, targetRef, agentId }) {
   return { error: `unknown target kind '${targetKind}'` };
 }
 
-const ROW = "id, target_kind, target_ref, agent_id, current_persona, amended_persona, evidence, status, eval_report, proposed_by, created_at, decided_at, decided_by, lineage";
+// 8.1 回链：source_doc_id 只有 studio 发起的提案才带（cell MCP 提案诚实缺席）。
+const ROW = "id, target_kind, target_ref, agent_id, current_persona, amended_persona, evidence, status, eval_report, proposed_by, created_at, decided_at, decided_by, lineage, source_doc_id";
 
 function deserialize(r) {
   if (!r) return null;
@@ -86,7 +87,7 @@ function deserialize(r) {
   let evalReport = null;
   try { evidence = JSON.parse(r.evidence); } catch { /* keep raw */ }
   try { evalReport = r.eval_report ? JSON.parse(r.eval_report) : null; } catch { evalReport = { raw: r.eval_report }; }
-  return { ...r, evidence, evalReport };
+  return { ...r, evidence, evalReport, sourceDocId: r.source_doc_id ?? null };
 }
 
 export function personaEvolutionStore() {
@@ -113,7 +114,7 @@ export function personaEvolutionStore() {
       return { ok: true };
     },
 
-    createCandidate({ targetKind, targetRef, agentId, amendedPersona, evidence, proposedBy }) {
+    createCandidate({ targetKind, targetRef, agentId, amendedPersona, evidence, proposedBy, sourceDocId }) {
       const current = currentPersonaFor({ targetKind, targetRef, agentId });
       if (current.error) return { error: current.error };
       const findings = personaSanityFindings(amendedPersona);
@@ -122,11 +123,12 @@ export function personaEvolutionStore() {
       }
       const id = `pc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       D().prepare(
-        `INSERT INTO persona_candidates (id, target_kind, target_ref, agent_id, current_persona, amended_persona, evidence, status, proposed_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'candidate', ?, ?)`,
+        `INSERT INTO persona_candidates (id, target_kind, target_ref, agent_id, current_persona, amended_persona, evidence, status, proposed_by, created_at, source_doc_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'candidate', ?, ?, ?)`,
       ).run(
         id, String(targetKind), String(targetRef), agentId ?? null,
         current.persona ?? "", String(amendedPersona), JSON.stringify(evidence ?? {}), proposedBy ?? "agent", dbModule.nowIso(),
+        typeof sourceDocId === "string" && sourceDocId.trim() ? sourceDocId.trim() : null,
       );
       return { candidate: deserialize(D().prepare(`SELECT ${ROW} FROM persona_candidates WHERE id = ?`).get(id)) };
     },

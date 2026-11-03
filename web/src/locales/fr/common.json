@@ -2276,7 +2276,11 @@
         "guideAi": "Brouillon IA — décrivez l'agent, champ par champ, puis adoptez.",
         "guideMarket": "Dupliquer depuis la marketplace — copiez un paquet installé dans un nouveau document.",
         "newAgent": "Nouvel agent",
-        "newTeam": "Nouvelle équipe"
+        "newTeam": "Nouvelle équipe",
+        "starters": "Partir d'un modèle officiel",
+        "startersEmpty": "Aucun modèle officiel au catalogue",
+        "starterUnavailable": "Modèle indisponible",
+        "starterCreated": "Document créé depuis « {name} »"
       },
       "ribbon": {
         "stage": {
@@ -2325,7 +2329,10 @@
       },
       "deployTeam": "Déployer l'équipe",
       "deployOk": "Équipe provisionnée (née en pause)",
-      "deployFailed": "Échec du déploiement"
+      "deployFailed": "Échec du déploiement",
+      "sourceDoc": "Doc source",
+      "softLock": "Ce document est aussi ouvert dans une autre fenêtre — les sauvegardes restent protégées par l'avis de conflit 409",
+      "softLockDismiss": "Compris"
     },
     "errors": {
       "name_too_long": "Le nom doit être non vide et faire au plus 80 caractères (le CJK compte double)",

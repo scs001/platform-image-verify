@@ -110,3 +110,24 @@ test.describe("agents page hub areas", () => {
     await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", "mcp");
   });
 });
+
+test("8.1 back-link: a studio-sourced skill candidate shows the source-doc chip that reaches the workspace", async ({ page }) => {
+  await pinLocaleEn(page);
+  // Seed a candidate WITH a source doc id (the studio proposal path) and one
+  // WITHOUT (the cell MCP path — honest absence, no chip) directly via the API.
+  const base = { description: "8.1 back-link leg", body: "1. 读取上期口径。\n2. 与本期对齐。\n3. 差异单独列示（回链验证腿）。", evidence: { source: "turn e2e#1", solved: "口径漂移", boundary: "周报" } };
+  const linked = await page.request.post("/api/skill-evolution/propose", { data: { ...base, name: `doclink-${Date.now()}`, sourceDocId: "bp_e2e_backlink_probe" } });
+  const bare = await page.request.post("/api/skill-evolution/propose", { data: { ...base, name: `nodoc-${Date.now()}` } });
+  const linkedId = (await linked.json()).candidate.id;
+  const bareId = (await bare.json()).candidate.id;
+  await page.goto("/agents?tab=tuning");
+  await expect(page.getByTestId(`skill-candidate-source-doc-${linkedId}`)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId(`skill-candidate-source-doc-${bareId}`)).toHaveCount(0);
+  // The chip is a real route into the workspace.
+  await page.getByTestId(`skill-candidate-source-doc-${linkedId}`).click();
+  await expect(page).toHaveURL(/\/studio\?doc=bp_e2e_backlink_probe$/);
+  // Cleanup: reject both so the review face stays clean for the next run.
+  for (const id of [linkedId, bareId]) {
+    await page.request.post(`/api/skill-evolution/candidates/${id}/reject`, { data: { reason: "e2e cleanup" } });
+  }
+});

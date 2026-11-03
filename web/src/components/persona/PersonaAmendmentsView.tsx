@@ -10,6 +10,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import { Blocks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Amendment {
@@ -26,6 +28,7 @@ interface Amendment {
   evalReport: { passed?: boolean; reason?: string; error?: string; verdict?: { best: string; reasoning: string }; lane?: { model: string } } | null;
   proposed_by: string;
   created_at: string;
+  source_doc_id?: string | null;
 }
 
 const STATUS_ORDER: Record<string, number> = { evaluated: 0, candidate: 1, promoted: 2, rejected: 3 };
@@ -122,6 +125,17 @@ export function PersonaAmendmentsView() {
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t("personaEvo.evidence", { source: c.evidence.source, fixed: c.evidence.fixed ?? "" })}
                 </p>
+              ) : null}
+              {/* 8.1 回链：studio 发起的提案带来源文档芯片；cell MCP 提案缺席=诚实不显。 */}
+              {c.source_doc_id ? (
+                <Link
+                  to={`/studio?doc=${encodeURIComponent(c.source_doc_id)}`}
+                  className="mt-1 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                  data-testid={`persona-amendment-source-doc-${c.id}`}
+                >
+                  <Blocks className="h-3 w-3" />
+                  {t("studio.workspace.sourceDoc")}
+                </Link>
               ) : null}
               {c.evalReport?.reason && (
                 <p className="mt-1 text-xs" data-testid={`persona-amendment-verdict-${c.id}`}>

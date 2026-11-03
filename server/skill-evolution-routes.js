@@ -54,7 +54,9 @@ export function createSkillEvolutionRoutes(app, ctx = null) {
   router.post("/propose", async (req, res) => {
     const user = requireUser(req, res);
     if (!user) return;
-    const { name, description, body, evidence, supersedes } = req.body ?? {};
+    // sourceDocId 可选：studio 工作区发起的提案带来源文档（8.1 回链）；
+    // cell 内 MCP 提案不带——缺席诚实，评审面零芯片。
+    const { name, description, body, evidence, supersedes, sourceDocId } = req.body ?? {};
     if (typeof name !== "string" || !/^[A-Za-z0-9._-]{1,64}$/.test(name)) {
       return res.status(400).json({ error: "name must match [A-Za-z0-9._-]{1,64}" });
     }
@@ -69,7 +71,7 @@ export function createSkillEvolutionRoutes(app, ctx = null) {
     }
     const gate = store.proposeGate({ name });
     if (!gate.ok) return res.status(429).json({ error: gate.error, code: gate.code });
-    const out = store.createCandidate({ name, description, body, evidence, supersedes, proposedBy: user.email });
+    const out = store.createCandidate({ name, description, body, evidence, supersedes, proposedBy: user.email, sourceDocId });
     if (out.error) return res.status(400).json({ error: out.error });
     res.status(201).json({ ok: true, candidate: out.candidate });
   });

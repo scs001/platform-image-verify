@@ -10,6 +10,7 @@ import { Copy, MapPin, TriangleAlert } from "lucide-react";
 import { showToast } from "@/components/ui/toast";
 import type { ValidationVerdict } from "@/lib/blueprint-api";
 import { codeSummaryKey } from "@/lib/error-codes";
+import { recordStudioMetric } from "@/lib/studio-metrics";
 import { cn } from "@/lib/utils";
 
 // Entry-less manifest errors whose field is unambiguous on this surface:
@@ -49,7 +50,7 @@ export function jumpToAnchor(anchor: string): boolean {
   return true;
 }
 
-export function ValidationPanel({ verdict, verifying }: { verdict: ValidationVerdict | null; verifying: boolean }) {
+export function ValidationPanel({ verdict, verifying, docId }: { verdict: ValidationVerdict | null; verifying: boolean; docId?: string | null }) {
   const { t } = useTranslation();
 
   const copy = async (text: string) => {
@@ -104,6 +105,8 @@ export function ValidationPanel({ verdict, verifying }: { verdict: ValidationVer
                     data-testid={`ws-validation-jump-${i}`}
                     className={cn("shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground")}
                     onClick={() => {
+                      // 8.4: the click that starts a resolution attempt.
+                      if (docId) recordStudioMetric({ type: "validation_jump", at: Date.now(), docId });
                       if (!jumpToAnchor(anchor!)) {
                         showToast({ severity: "info", title: t("studio.workspace.validation.jumpMiss") });
                       }

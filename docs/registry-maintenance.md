@@ -7200,3 +7200,17 @@ facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端�
 **⑤ 验证账**：workspace-canvas 4/4、blueprint-kind/error-codes/studio 合同 39/39、e2e graph 4/4（直行合并/放弃零污染/环拒绝回滚锚定 expect.poll 终态/诚实失败）、fleet-templates 20/20（含新回链钉）、姊妹回归 54/54（fleet-core/ops-canvas/blueprints）、biome 零告警。三门 CI 一次绿×2（热修一/二）。
 
 **⑥ 挂账**：7.3 真机「起草采用腿」未过——生产判据车道 `BLUEPRINT_JUDGE_MODEL=mimo-v2.6-flash` 上游**稳定 400**（三次重试同签名，非抖动；502 如实包装、零假绿），车道属外部域归车道主；批 4（8.x 调优区回链/starter 种子/多标签软锁/度量埋点）未实施；别班历史「走查钉库试跑」舰队一支仍 active 不动（他班件不强清）。
+
+## §9 发布记录：add-turn-mandate-lane 上产+真机走查（事件唤醒授权链+人优先槽位，2026-11-03）
+
+**① 内容（15 文件 1385 行）**：事件唤醒授权链——`server/fleet-turn-mandate.js`（信号源策略面：准入表三轴/强度 explicit-inferred/影子档 off-observe-auto/mandate 冻结记账含策略版本戳 hash/恢复重校验/入站去向账每 bot 有界环 200 防抖落盘）+唤醒缝织入（gate→cap→mandate→建任务+auto 规则路由，无路由器=非边准入必须规则 rule.target 兼任路由）+task-engine 双缝（`setMandateGate` 挂 enqueueExecution 单缝 fail-open+`humanPriority` 字段）+worker 池人优先槽（cap 外 1 槽仅人唤醒、humanExtraOut 同步簿记防 spawn→run 竞态、新工单永不占用、reap 释放触发 scheduleNext）+拍板送达 execute-now 三处盖章（已被并行件 89de096f 扫走入库，主笔不重复）。红线=默认策略下现行唤醒行为逐字节不变（测试钉 prompt 信封/origin 两段/cap O1 行原样）。设计宪章 `docs/agent-domain-design-charter.md`（dsh-superagent 调研合流：八铁律+冲突裁决+拒绝清单+质量门）同笔入库。
+
+**② 出片（双轨全绿）**：verify 线 `scs001/platform-image-verify`（快照 a59a042，免费 T1 smoke）；真出片走池 `testaction005/build-pool`（源 1c5e92a1，快照 6e1e9a66，**tag=sha-6e1e9a6 七位**——8 位查询假阴性，在册律应验）；relay 手动补单 OK 20s；**ccr skopeo 硬门 digest 69f55346 实证**。GitOps bump 451e0fa 双清单（platform.yaml+platform-demo.yaml），祖先律核过（365db00c ⊇ 1c5e92a1；7d4a0536 ⊇ 1c5e92a1，facet 面不滚归市场班）；ArgoCD hard-refresh→双 rollout 绿→pod imageID 实证 `sha-6e1e9a6`+pod 内特征串（fleet-turn-mandate.js 在位/setMandateGate×2）。
+
+**③ 真机四证据（aloadtree 铸 cookie，webhook bot「durability-验收-一次性」注入）**：A) 一次性舰队绑事件边→注入→**任务记录携带冻结 mandate**（explicit/via=edge/row/cell/策略戳 pv_c166cd08e408/trigger 四元组）+去向账 admitted/edge_hit 行（带 taskId）+无边消息 filtered/off_mode 诚实空账行；B) 摘边+observe 策略（pod 本地 signal-sources.json）→注入两条→**would_accept（observe_would_accept，ruleId r1）零唤醒**+no_rule_match 如实行，唤醒任务数 0；C) cap 活线减损改单测钉（生产主链 31 连发会踩 preset 切换重启桥——31 次重启不可接受），test-fleet-turn-mandate 9/9；D) 人优先槽生产 TASK_WORKER_MAX=0=休眠逐字节一致（env 实证），五态单测钉。清理：舰队 DELETE 200、策略文件摘除恢复默认。
+
+**④ 两新坑在册**：⑴ **tag 位数二犯**——8 位查询零命中假阴性（runbook「7 位」律第三次应验，skopeo 先行即可自证）；⑵ **reconcile 孤儿清扫吃排队中的事件唤醒任务**（P3 观察，预存交互非本案引入：事件唤醒任务因 origin.fleet→sourceTag 被「无节奏孤儿」清扫波及，fleet PATCH 触发 reconcile 即扫——走查任务在排队期被 Phase B 摘边 PATCH 清掉，O1 行零、模型成本零）。**走查取证窗口律**：取证（读 mandate/去向账）要在下一个 fleet PATCH 之前做。
+
+**⑤ 验证账**：mandate 9/9、worker-pool 8/8（三遍稳定）、基线 event-wake/orchestration/bots 26+task-engine 51、全量 3364/3365（唯一红 plaza-browser=打生产站浏览器验收、并行在途区、与本案零引用交集；supervisor-ports=在册环境挂点排除）。validate --strict 绿，tasks 15/16。
+
+**⑥ 挂账**：cap 活线点火（等自然 cap 事件或专项窗）；autoc档接受规则 UI 面（v1 文件配置）；宪章 §7 质量门工具化（docs 门/model-surface 预算门）独立小案；observe→auto 的放量节奏归运营拍板。

@@ -131,6 +131,61 @@ const server = createServer((req, res) => {
             ],
             metadata: { surface: { commercial_tools: ["read", "search", "purge"], tools_commercial: 3, tools_total: 3 } },
           },
+          // Third entry (polish-facet-catalog-depth): the depth-view e2e
+          // seed — a grouped tool surface (two prefixes with siblings, a
+          // single-member prefix, an underscore-free name), a long
+          // multi-line description for the clamp/expand affordance, and a
+          // zh+en supply annotation on server AND one tool so the locale-
+          // switch refetch test observes the DATA language flip, not just
+          // chrome. metadata.annotations rides verbatim (registry-bridge
+          // merges it; facet projects per request locale).
+          {
+            path: "/e2e-catalog-depth-mcp",
+            display_name: "E2E Catalog Depth MCP",
+            description: "Registry entry served by the e2e stub",
+            is_enabled: true,
+            health_status: "healthy",
+            status: "active",
+            tags: ["e2e"],
+            license: "Apache-2.0",
+            provider_organization: "e2e-org",
+            deployment: "remote",
+            num_tools: 7,
+            tool_list: [
+              { name: "alpha_one", description: "Alpha one short." },
+              { name: "alpha_two", description: "Alpha two short." },
+              { name: "beta_one", description: "Beta one short." },
+              { name: "beta_two", description: "Beta two short." },
+              { name: "loner_tool", description: "A lone tool without prefix siblings." },
+              { name: "annotated_tool", description: "Raw fallback text never shown while annotation exists." },
+              {
+                name: "long_tool",
+                description:
+                  "First line of a deliberately long multi-line description.\nSecond line carries DSL-ish detail.\nThird line keeps going past the preview constraint.\nFourth line still here.\nFifth line only visible after expand.",
+              },
+            ],
+            metadata: {
+              surface: {
+                commercial_tools: ["alpha_one", "alpha_two", "beta_one", "beta_two", "loner_tool", "annotated_tool", "long_tool"],
+                tools_commercial: 7,
+                tools_total: 7,
+              },
+              annotations: {
+                human: {
+                  zh: { name: "目录深度注释服务器", summary: "深度视图 e2e 的中文摘要。" },
+                  en: { name: "Annotated Depth Server", summary: "English summary for the depth-view e2e." },
+                },
+                tools: {
+                  annotated_tool: {
+                    human: {
+                      zh: { name: "注解工具", summary: "工具级中文摘要。" },
+                      en: { name: "Annotated Tool", summary: "Tool-level English summary." },
+                    },
+                  },
+                },
+              },
+            },
+          },
           // Second entry (add-persona-resource-sets): pack manifests need TWO
           // installable registry references for the declared-subset e2e — one
           // the declaration keeps, one it drops.

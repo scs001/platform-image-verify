@@ -2550,7 +2550,12 @@
       "notDeclared": "no declarado",
       "tools": "Herramientas",
       "toolCount": "{{count}} declaradas",
-      "toolsMissing": "Aún no se ha capturado una instantánea de herramientas para este servidor — la entrada del registro es anterior a una actualización."
+      "toolsMissing": "Aún no se ha capturado una instantánea de herramientas para este servidor — la entrada del registro es anterior a una actualización.",
+      "groupOther": "Otros",
+      "filterPlaceholder": "Filtrar herramientas…",
+      "expand": "Expandir",
+      "collapse": "Contraer",
+      "noResults": "Ninguna herramienta coincide."
     },
     "skills": {
       "empty": "No hay skills visibles para esta identidad (inicia sesión para ver más).",

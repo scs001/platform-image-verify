@@ -2550,7 +2550,12 @@
       "notDeclared": "未标注",
       "tools": "工具清单",
       "toolCount": "共 {{count}} 个",
-      "toolsMissing": "该服务尚未捕获工具快照——注册处条目早于最近一次工具清单刷新。"
+      "toolsMissing": "该服务尚未捕获工具快照——注册处条目早于最近一次工具清单刷新。",
+      "groupOther": "其他",
+      "filterPlaceholder": "过滤工具…",
+      "expand": "展开",
+      "collapse": "收起",
+      "noResults": "没有匹配的工具。"
     },
     "skills": {
       "empty": "当前身份下没有可见的技能（登录后可见更多）。",

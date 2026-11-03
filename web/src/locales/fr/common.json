@@ -2550,7 +2550,12 @@
       "notDeclared": "non déclaré",
       "tools": "Outils",
       "toolCount": "{{count}} déclarés",
-      "toolsMissing": "Aucun instantané d'outils capturé pour ce serveur — l'entrée du registre précède une actualisation."
+      "toolsMissing": "Aucun instantané d'outils capturé pour ce serveur — l'entrée du registre précède une actualisation.",
+      "groupOther": "Autres",
+      "filterPlaceholder": "Filtrer les outils…",
+      "expand": "Déplier",
+      "collapse": "Replier",
+      "noResults": "Aucun outil correspondant."
     },
     "skills": {
       "empty": "Aucune skill visible pour cette identité (connectez-vous pour en voir plus).",

@@ -5,7 +5,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/packs/Badge";
+import { useLanguage } from "@/i18n/useLanguage";
 import { useTranslation } from "react-i18next";
+import { descriptionExceedsPreview, filterTools, groupToolsByPrefix } from "./mcpDepthTools";
 
 // Supply annotation (add-mcp-annotation-overlay): projected server-side to the
 // request locale (zh 唯一回落); absent for unannotated entries — raw rendering.
@@ -82,16 +84,19 @@ export function McpCatalog() {
 
 function ServersSection() {
   const { t } = useTranslation();
+  // polish-facet-catalog-depth: the data face follows the surface's own locale
+  // selection (not merely Accept-Language); a switch refetches via deps.
+  const { locale } = useLanguage();
   const [cards, setCards] = useState<McpCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/mcp-catalog")
+    fetch(`/api/mcp-catalog?locale=${locale}`)
       .then((r) => r.json())
       .then((d) => setCards(Array.isArray(d?.servers) ? d.servers : []))
       .catch((e) => setError(String(e)));
-  }, []);
+  }, [locale]);
 
   if (selected) return <ServerDepth name={selected} onBack={() => setSelected(null)} />;
 
@@ -150,21 +155,22 @@ function CardsSkeleton() {
 
 function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
   const { t } = useTranslation();
+  const { locale } = useLanguage();
   const [doc, setDoc] = useState<McpDepth | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/mcp-catalog/${encodeURIComponent(name)}`)
+    fetch(`/api/mcp-catalog/${encodeURIComponent(name)}?locale=${locale}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then(setDoc)
       .catch((e) => setError((e as Error).message));
-  }, [name]);
+  }, [name, locale]);
 
   return (
-    <div className="space-y-4" data-testid={`mcp-depth-${name}`}>
+    <div className="mx-auto max-w-6xl space-y-4" data-testid={`mcp-depth-${name}`}>
       <button type="button" onClick={onBack} className="text-sm text-primary hover:underline" data-testid="mcp-depth-back">
         ← {t("mcp.depth.back")}
       </button>
@@ -203,28 +209,11 @@ function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
               {t("mcp.depth.tools")}
               {doc.toolCount != null && <span className="ml-2 text-xs text-muted-foreground">{t("mcp.depth.toolCount", { count: doc.toolCount })}</span>}
             </h3>
-            {doc.tools === null ? (
-              <p className="text-sm text-muted-foreground" data-testid="mcp-depth-tools-missing">{t("mcp.depth.toolsMissing")}</p>
-            ) : (
-              <ul className="space-y-2">
-                {doc.tools.map((tool) => (
-                  <li key={tool.name} className="border border-border rounded-md p-3" data-testid={`mcp-tool-${tool.name}`}>
-                    {/* add-mcp-annotation-overlay: the human label leads, the
-                        raw callable name stays visible (never replaced). */}
-                    <div className="flex items-baseline gap-2">
-                      {tool.annotation?.name && <span className="text-xs font-medium text-foreground">{tool.annotation.name}</span>}
-                      <span className="font-mono text-xs text-muted-foreground">{tool.name}</span>
-                    </div>
-                    {tool.annotation?.summary && (
-                      <p className="text-xs text-foreground mt-1 whitespace-pre-wrap leading-5">{tool.annotation.summary}</p>
-                    )}
-                    {tool.description && (
-                      <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-5">{tool.description}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+          {doc.tools === null ? (
+            <p className="text-sm text-muted-foreground" data-testid="mcp-depth-tools-missing">{t("mcp.depth.toolsMissing")}</p>
+          ) : (
+            <ToolSurface tools={doc.tools} />
+          )}
           </section>
         </>
       )}
@@ -232,19 +221,99 @@ function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
   );
 }
 
+/**
+ * Depth-view tool surface (polish-facet-catalog-depth 2.x): prefix grouping +
+ * client-side filter + responsive multi-column grid + clamp-to-preview
+ * descriptions. Scanability governs density (impeccable Operate): the raw
+ * callable name always stays visible (never replaced — spec contract), the
+ * localized human label and summary lead when present.
+ */
+function ToolSurface({ tools }: { tools: NonNullable<McpDepth["tools"]> }) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const filtered = filterTools(tools, query);
+  const groups = groupToolsByPrefix(filtered);
+
+  return (
+    <div className="space-y-4" data-testid="mcp-depth-tools-list">
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t("mcp.depth.filterPlaceholder")}
+        data-testid="mcp-depth-tools-filter"
+        className="w-full sm:max-w-md px-3 py-2 rounded-lg border border-border bg-background text-sm"
+      />
+      {groups.length === 0 ? (
+        <p className="text-sm text-muted-foreground" data-testid="mcp-depth-tools-empty">{t("mcp.depth.noResults")}</p>
+      ) : (
+        groups.map((group) => (
+          <section key={group.prefix ?? "__other__"} data-testid={`mcp-tool-group-${group.prefix ?? "other"}`}>
+            <h4 className="flex items-baseline gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+              <span>{group.prefix ?? t("mcp.depth.groupOther")}</span>
+              <span className="tabular-nums">{group.tools.length}</span>
+            </h4>
+            {/* 对齐技能区既有范式（sm:grid-cols-2），xl 下三列扫读。 */}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {group.tools.map((tool) => {
+                // 注释 summary 优先、原文兜底（design D2）——clamp 作用于
+                // 这一段展示文本；无注释工具原文渲染逐字节不变。
+                const summary = tool.annotation?.summary ?? "";
+                const text = summary || tool.description;
+                const over = !!text && descriptionExceedsPreview(text);
+                const open = !!expanded[tool.name];
+                return (
+                  <div key={tool.name} className="border border-border rounded-md p-3 flex flex-col" data-testid={`mcp-tool-${tool.name}`}>
+                    {/* add-mcp-annotation-overlay: the human label leads, the
+                        raw callable name stays visible (never replaced). */}
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      {tool.annotation?.name && <span className="text-xs font-medium text-foreground">{tool.annotation.name}</span>}
+                      <span className="font-mono text-xs text-muted-foreground break-all">{tool.name}</span>
+                    </div>
+                    {text && (
+                      <p
+                        data-testid={`mcp-tool-summary-${tool.name}`}
+                        className={`text-xs mt-1 leading-5 whitespace-pre-wrap ${summary ? "text-foreground" : "text-muted-foreground"} ${over && !open ? "line-clamp-4" : ""}`}
+                      >
+                        {text}
+                      </p>
+                    )}
+                    {over && (
+                      <button
+                        type="button"
+                        onClick={() => setExpanded((prev) => ({ ...prev, [tool.name]: !prev[tool.name] }))}
+                        data-testid={`mcp-tool-toggle-${tool.name}`}
+                        className="text-xs text-primary hover:underline mt-1 self-start"
+                      >
+                        {open ? t("mcp.depth.collapse") : t("mcp.depth.expand")}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
 function SkillsSection() {
   const { t } = useTranslation();
+  const { locale } = useLanguage();
   const [rows, setRows] = useState<SkillRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    fetch("/api/skills-catalog")
+    fetch(`/api/skills-catalog?locale=${locale}`)
       .then((r) => r.json())
       .then((d) => setRows(Array.isArray(d?.skills) ? d.skills : []))
       .catch((e) => setError(String(e)));
-  }, []);
+  }, [locale]);
 
   const filter = useCallback(
     (list: SkillRow[]) => {

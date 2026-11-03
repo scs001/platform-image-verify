@@ -621,3 +621,101 @@ test("coverage board on the curation face: per-pack n/m badges, gap paths, gap-o
   await expect(page.getByTestId("facet-curate-row-facet-shell-v2")).toBeVisible();
   await expect(page.getByTestId("facet-curate-row-facet-shell-smoke")).toHaveCount(0);
 });
+
+// MCP catalog locale refetch (polish-facet-catalog-depth 1.1/3.1): the
+// catalog's data face follows the shell's locale selection — switching the
+// header switcher refetches /api/mcp-catalog (and the open depth view) with
+// ?locale=, so annotated cards and annotated tools flip their DATA language
+// together with chrome. This is the browser half; the wiring (fetch params +
+// deps) is pinned on source by scripts/test-mcp-depth-tools.mjs.
+test("mcp catalog refetches data when the locale switches, cards and depth tools alike", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/mcp`);
+  const card = page.getByTestId("mcp-card-e2e-catalog-depth-mcp");
+  await expect(card).toBeVisible();
+  // zh: the annotation's human track leads (not the raw display_name).
+  await expect(card).toContainText("目录深度注释服务器");
+
+  // Switch zh→en: the list silently refetches WITH ?locale=en — pin the
+  // request itself, then the card's flipped data language.
+  const refetch = page.waitForRequest((r) => r.url().includes("/api/mcp-catalog?locale=en"));
+  await page.getByTestId("facet-locale-switcher").selectOption("en");
+  await refetch;
+  await expect(card).toContainText("Annotated Depth Server");
+
+  // The open depth view refetches in the new locale too — the annotated
+  // tool's human label flips, while the raw callable name never goes away.
+  await card.click();
+  const depth = page.getByTestId("mcp-depth-e2e-catalog-depth-mcp");
+  await expect(depth).toBeVisible();
+  await expect(page.getByTestId("mcp-tool-annotated_tool")).toContainText("Annotated Tool");
+  await expect(page.getByTestId("mcp-tool-annotated_tool")).toContainText("annotated_tool"); // raw name stays
+  // Back to zh: the depth view refetches again and the tool label flips back.
+  const depthRefetch = page.waitForRequest((r) => r.url().includes("/api/mcp-catalog/e2e-catalog-depth-mcp?locale=zh"));
+  await page.getByTestId("facet-locale-switcher").selectOption("zh-CN");
+  await depthRefetch;
+  await expect(page.getByTestId("mcp-tool-annotated_tool")).toContainText("注解工具");
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});
+
+// Depth tool surface (polish-facet-catalog-depth 2.1-2.3): grouping by tool
+// name prefix with the 其他 tail bucket, a client-side filter that narrows
+// across groups, clamp-to-preview descriptions with a per-tool expand
+// affordance, and the raw mono name always present. Pure-function halves
+// (grouping/filter/preview heuristic) pinned by
+// scripts/test-mcp-depth-tools.mjs; this leg pins the rendered surface.
+test("depth tools group by prefix, filter across groups, and fold long descriptions", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/#/mcp`);
+  await page.getByTestId("mcp-card-e2e-catalog-depth-mcp").click();
+  const tools = page.getByTestId("mcp-depth-tools-list");
+  await expect(tools).toBeVisible();
+
+  // Grouping: alpha/beta carry siblings (groups with counts); loner_tool and
+  // bare names fold into the 其他 tail bucket together with annotated_tool
+  // and long_tool (no underscore prefix).
+  await expect(page.getByTestId("mcp-tool-group-alpha")).toContainText("2");
+  await expect(page.getByTestId("mcp-tool-group-beta")).toContainText("2");
+  const other = page.getByTestId("mcp-tool-group-other");
+  await expect(other).toContainText("其他");
+  await expect(other).toContainText("3");
+
+  // Clamp: line-clamp is CSS truncation — the full text always sits in the
+  // DOM, so the fold state is pinned on the clamp class (and the raw name
+  // rides the card throughout).
+  const longSummary = page.getByTestId("mcp-tool-summary-long_tool");
+  await expect(page.getByTestId("mcp-tool-long_tool")).toContainText("long_tool"); // raw name visible while folded
+  await expect(longSummary).toHaveClass(/line-clamp-4/);
+  await page.getByTestId("mcp-tool-toggle-long_tool").click();
+  await expect(longSummary).not.toHaveClass(/line-clamp-4/);
+  await expect(page.getByTestId("mcp-tool-long_tool")).toContainText("Fifth line only visible after expand.");
+  await page.getByTestId("mcp-tool-toggle-long_tool").click();
+  await expect(longSummary).toHaveClass(/line-clamp-4/);
+
+  // Filter: narrows across groups (raw name hit in alpha); annotation label
+  // hit; miss shows the empty state; clearing restores every group.
+  await page.getByTestId("mcp-depth-tools-filter").fill("alpha_two");
+  await expect(page.getByTestId("mcp-tool-alpha_one")).toHaveCount(0);
+  await expect(page.getByTestId("mcp-tool-alpha_two")).toBeVisible();
+  await expect(page.getByTestId("mcp-tool-group-beta")).toHaveCount(0);
+
+  await page.getByTestId("mcp-depth-tools-filter").fill("注解工具"); // annotation label matches
+  await expect(page.getByTestId("mcp-tool-annotated_tool")).toBeVisible();
+
+  await page.getByTestId("mcp-depth-tools-filter").fill("zzz-no-match");
+  await expect(page.getByTestId("mcp-depth-tools-empty")).toBeVisible();
+
+  await page.getByTestId("mcp-depth-tools-filter").fill("");
+  await expect(page.getByTestId("mcp-tool-group-alpha")).toBeVisible();
+  await expect(page.getByTestId("mcp-tool-group-beta")).toBeVisible();
+  await expect(page.getByTestId("mcp-tool-group-other")).toBeVisible();
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});

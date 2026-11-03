@@ -2550,7 +2550,12 @@
       "notDeclared": "not declared",
       "tools": "Tools",
       "toolCount": "{{count}} declared",
-      "toolsMissing": "No tool snapshot captured for this server yet — the registry entry predates a tool-list refresh."
+      "toolsMissing": "No tool snapshot captured for this server yet — the registry entry predates a tool-list refresh.",
+      "groupOther": "Other",
+      "filterPlaceholder": "Filter tools…",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "noResults": "No matching tools."
     },
     "skills": {
       "empty": "No skills visible to this identity (sign in to see more).",

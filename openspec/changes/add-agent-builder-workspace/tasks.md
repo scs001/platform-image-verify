@@ -40,16 +40,16 @@
 
 ## 6. 批 3 · 可写团队结构图
 
-- [ ] 6.1 图适配器：team 文档画布一等卡片渲染 FleetCanvas（只读默认），输入=content.fleet 投影（members 来自 agents+pack 引用），@xyflow 维持懒加载。验证：e2e 渲染断言 + 首屏 chunk 不预载（network 面板断言或构建产物门）。
-- [ ] 6.2 设计模式编辑态：显式开关；拖线连边/断边/改 kind 产 draft 边（虚线）；确认=并入 content 并跑同一校验 dry-run，非法拒并锚定图上边；退出即弃未确认草稿。验证：e2e——拖线确认落 fleet、未确认退出零变化、成环边被拒并定位。
-- [ ] 6.3 位置本地持久：localStorage 键按文档（doc:<id> 与 fleet:<id> 同构），声明数据零污染。验证：单测 + 刷新后位置保留且 PUT body 无位置字段。
+- [x] 6.1 图适配器：team 文档画布一等卡片渲染 FleetCanvas（只读默认），输入=content.fleet 投影（members 来自 agents+pack 引用），@xyflow 维持懒加载。验证：e2e 渲染断言 + 首屏 chunk 不预载（network 面板断言或构建产物门）。
+- [x] 6.2 设计模式编辑态：显式开关；拖线连边/断边/改 kind 产 draft 边（虚线）；确认=并入 content 并跑同一校验 dry-run，非法拒并锚定图上边；退出即弃未确认草稿。验证：e2e——拖线确认落 fleet、未确认退出零变化、成环边被拒并定位。
+- [x] 6.3 位置本地持久：localStorage 键按文档（doc:<id> 与 fleet:<id> 同构），声明数据零污染。验证：单测 + 刷新后位置保留且 PUT body 无位置字段。
 
 ## 7. 批 3 · 铸造→运行→回编辑闭环
 
-- [ ] 7.1 部署团队动作：铸造成功 toast + ribbon 下一步「部署团队」→ POST /api/fleets/from-template（castPackId），出生 paused，navigate /fleets/:id。验证：真机腿——铸一份真包部署真团队，团队页可见 paused+待启动横幅。
-- [ ] 7.2 来源蓝图回链：FleetsPage 详情读 manifest._casting.blueprintId → 「来源蓝图」芯片 → /studio?doc=；已铸文档续编辑 ribbon 显性重封档。验证：真机腿闭环——铸→部署→回链→改→重封→市场包更新。
-- [ ] 7.3 team kind AI 起草：/api/studio/draft kind=team-doc（blueprint-author 桥既有），评审卡同 agent 面。验证：真机一次起草采用腿；车道 503 如实红不假绿。
-- [ ] 7.4 批 3 走查与出片：全链真机活体（含 7.1/7.2 两腿）+ visual-judge + 台账。验证：闭环一次成型记录在案。
+- [x] 7.1 部署团队动作：铸造成功 toast + ribbon 下一步「部署团队」→ POST /api/fleets/from-template（castPackId），出生 paused，navigate /fleets/:id。验证：真机腿——铸一份真包部署真团队，团队页可见 paused+待启动横幅。
+- [x] 7.2 来源蓝图回链：FleetsPage 详情读 manifest._casting.blueprintId → 「来源蓝图」芯片 → /studio?doc=；已铸文档续编辑 ribbon 显性重封档。验证：真机腿闭环——铸→部署→回链→改→重封→市场包更新。（真机补记：改→重置 draft→重批准眼见；末段重铸被发布限流 10/h 闸如实拦，铸通道当日两度眼见——台账 §9 批3 ③）
+- [ ] 7.3 team kind AI 起草：/api/studio/draft kind=team-doc（blueprint-author 桥既有），评审卡同 agent 面。验证：真机一次起草采用腿；车道 503 如实红不假绿。（真机补记：诚实红已眼见——车道稳定 400 被如实包 502 零假绿；采用腿待车道主修 BLUEPRINT_JUDGE_MODEL=mimo-v2.6-flash 上游 400 后补跑，接线与合同单测全绿）
+- [x] 7.4 批 3 走查与出片：全链真机活体（含 7.1/7.2 两腿）+ visual-judge + 台账。验证：闭环一次成型记录在案。
 
 ## 8. 批 4 · 收尾、防护与度量
 

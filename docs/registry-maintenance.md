@@ -7186,3 +7186,17 @@ facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端�
 **挂账（本批未动）**：静态广场重导出/上车（agent.finddatatech.cloud）——site-plaza 工作树正被并行班
 占用（generated 179 件+test-plaza-export 在途），强跑即扫走他班未提交件；数据已在 facet 目录，
 下次导出（该班或净树时）自动带上 10 条。广场站点上车道（scripts/deploy-plaza.sh）配方不变。
+
+## §9 发布记录：智能体构建器批3 上产+两热修（add-agent-builder-workspace 6.x/7.x，2026-11-03）
+
+**① 内容（6 任务码面，批 3 全链）**：可写团队结构图——`web/src/lib/workspace-canvas.ts` 纯投影（文档模板→共享 FleetCanvas 词汇：unborn 岗位 status=paused、TARGET_KIND_TO_MEMBER_KIND 同 provisioner 表、agent 名填裸 title）；设计模式显式开关（拖线=handoff 草稿/点声明边=起草删除/确认=纯函数合并 orchestration.edges 走普通自动保存+发布门链，非法合并去重幂等）；位置 doc:<id> 键与 fleet:<id> 同构、声明数据零污染（@xyflow 维持懒加载零首屏 chunk）。铸→部署→回链闭环——cast 态「部署团队」按钮→from-template 出生暂停→navigate /fleets/:id；详情「来源蓝图」芯片读 manifest._casting.blueprintId 回链 /studio?doc=；team 文档 AI 起草走既有 blueprint 桥（kind 白名单留位即用）。**contentRef 双向同步律新坑**：React state 异步 commit vs 同步 ref——confirmGraphDesign 的合并写入与拒绝回滚**都必须同步 contentRef.current**，否则排队保存复活已拒绝的合并（两处踩平，环拒绝 e2e 钉住）。
+
+**② 出片三列车（公开免费线 scs001/platform-image-verify，均一次全绿）**：批 3 主体 `sha-7e70b18`（源 89de096f，digest 9f2d64a6，三门一次绿——批 1+2 五轮教训后本地预跑全关联门生效）。热修一 `sha-10f7971`（源 af67ae88）：**生产真机腿首跑逮闭环缺口**——cast 走市场发布而 from-template 只认已装包，部署按钮 400 "pack not installed"；deployTeam 补前置 ensure-installed（POST /api/mypacks/install，reused 短路幂等；本 owner 刚铸的包购买闸不可达 402）。热修二 `sha-96b3c88`（源 365db00c）：**芯片腿生产不现真凶=投影挂错读面**——blueprintId 只加在 GET /:id，而详情面板实际拉 GET /:id/cockpit；提取 sourceBlueprintId 单 helper 双读面同钉，新测试三面（cockpit/裸详情/无模板 null 诚实缺席），**kill-test 实证摘投影即红**。bump：3b3f3b7 双清单（platform.yaml:54+platform-demo.yaml:71）双远端同点；祖先律两轮核过（af67ae88 ⊇ 89de096f、365db00c ⊇ af67ae88）；ArgoCD hard-refresh→双 rollout→**双 pod imageID `0e489e3e` 逐字全等**。
+
+**③ 真机活体（aloadtree 铸 cookie，截图 gui-test-screenshots/ws3-1..4）**：部署链网络序列眼见 `POST /api/mypacks/install(200)→POST /api/fleets/from-template(201)→fleet_1793669259711_dfg6s6`；舰队页 Paused 徽章+born-paused 横幅（"assembled from the template (all paused) — review, then start"）+**Source blueprint 芯片现**（热修二后）→点击回链 /studio?doc=bp_1793666962103_80n9bc 文档 Cast 态 ribbon 全绿+Deploy team 按钮在位——闭环成链四腿全过。清理：舰队 DELETE 200（archived）、包卸载 removed 回执（余 0）、文档 DELETE **409 如实拒**（cast 文档以市场包为记录，闸正确工作不强删）。闭环续腿（7.2「改→重封→市场包更新」）：PUT 编辑（expectVersion 乐观锁，首试 400 如实要版本→补 200）→**状态自动重置 draft v2**→approve 200（approvedBy=aloadtree）→重铸被**发布限流闸如实拦**（"Too many publishes"，10/h 窗口——本班首铸×2 已耗额度；铸通道本身当日两度眼见，限流=既有闸正确工作非缺陷）。platform pod 启动一次 OOMKilled（1536Mi 限 boot 峰值，harden-platform-memory-carrier 在册；本班纯前端+两行投影，非回归，Ready=true 稳定）。
+
+**④ 事故一笔（cwd 劫持二演）**：Bash 工作目录被重置回主仓后，快照目录内的 `git push --force origin main` 静默落到 fd-craw-private origin——本地陈旧 main（ca6a7b4a）把远端 main 从 db000a70 **回退**；秒级发现（push 输出 To 行与预期镜像仓不符）、`git push --force origin db000a70:main` 复位、双远端 ls-remote 复核零丢失。根因=make-public-snapshot.mjs **不带 --init 重跑会清掉快照 .git**，目录内 git 命令穿透父仓。律升级：**快照推送前必 `git rev-parse --show-toplevel` 自证在快照树 + `git remote -v` 核 mirror 指向**（分号事故律「push 前自证 toplevel」第三次应验变体）。
+
+**⑤ 验证账**：workspace-canvas 4/4、blueprint-kind/error-codes/studio 合同 39/39、e2e graph 4/4（直行合并/放弃零污染/环拒绝回滚锚定 expect.poll 终态/诚实失败）、fleet-templates 20/20（含新回链钉）、姊妹回归 54/54（fleet-core/ops-canvas/blueprints）、biome 零告警。三门 CI 一次绿×2（热修一/二）。
+
+**⑥ 挂账**：7.3 真机「起草采用腿」未过——生产判据车道 `BLUEPRINT_JUDGE_MODEL=mimo-v2.6-flash` 上游**稳定 400**（三次重试同签名，非抖动；502 如实包装、零假绿），车道属外部域归车道主；批 4（8.x 调优区回链/starter 种子/多标签软锁/度量埋点）未实施；别班历史「走查钉库试跑」舰队一支仍 active 不动（他班件不强清）。

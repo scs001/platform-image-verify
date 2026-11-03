@@ -294,6 +294,31 @@ test("reconcile: cadence edit rewrites the SAME task (no orphan); withdrawal rem
   assert.equal(fleetTasks(fleet.id).length, 0);
 });
 
+test("reconcile: the orphan sweep spares one-shot manual turns (event wakes survive)", async () => {
+  // Production walk 2026-11-03: a queued event-wake task (trigger=manual,
+  // origin.fleet → sourceTag) was swept as a "cadence-withdrawn orphan" by the
+  // next fleet PATCH — the sweep manages materialized rhythm tasks only.
+  const fleet = fixtureFleet(fleetDb);
+  const member = fixtureMember(fleetDb, fleet.id, { title: "事件岗", cadence: null });
+  const resolver = makeResolver({ "persona-a": {} });
+
+  // A one-shot manual turn tagged to the fleet (the event-wake shape).
+  const wake = engine.createManualTask({
+    prompt: "【事件唤醒】外部信号源 bot:helper 收到来自「走查」的消息",
+    persona: "r-persona-a",
+    sessionTitle: "事件 · 事件岗",
+    origin: { fleet: { fleetId: fleet.id, memberId: member.id, depth: 0 }, event: { botId: "helper", chatKey: "c" } },
+  });
+
+  const out = await reconcileFleet({ fleetId: fleet.id, db: fleetDb, cronApi: cron, resolveTarget: resolver, rosterPresetId: rosterFn });
+  assert.deepEqual(out.removed, [], "a queued one-shot manual turn is not an orphan");
+  assert.equal(engine.getTask(wake.id).state !== undefined, true, "the wake task survives reconcile");
+  assert.equal(fleetTasks(fleet.id).some((t) => t.id === wake.id), true);
+
+  // The rhythm side keeps its own semantics: a passive post materializes nothing.
+  assert.deepEqual(out.created, []);
+});
+
 test("reconcile: passive posts never materialize", async () => {
   const fleet = fixtureFleet(fleetDb);
   fixtureMember(fleetDb, fleet.id, { title: "助理岗", cadence: null });

@@ -147,7 +147,11 @@ export async function reconcileFleet({
 
   const members = db.listMembers(fleetId);
   const memberById = new Map(members.map((m) => [m.id, m]));
-  const tagged = cronApi.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId);
+  // The sweep manages MATERIALIZED RHYTHM tasks only — one-shot manual turns
+  // (event wakes, execute-now, delegation) carry the same sourceTag but are
+  // nobody's cadence object; sweeping them as "orphans" ate queued event
+  // wakes on the next fleet PATCH (production walk 2026-11-03, P3).
+  const tagged = cronApi.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId && j.trigger === "schedule");
   const taskByMember = new Map(tagged.map((j) => [j.sourceTag.memberId, j]));
 
   const out = { created: [], updated: [], paused: [], resumed: [], removed: [] };

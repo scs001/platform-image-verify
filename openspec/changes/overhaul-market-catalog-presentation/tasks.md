@@ -14,7 +14,7 @@
 - [x] 1.7 facet 详情弹窗降噪：`PackMarketView`→`PackDetailDialog` 新增 `installSurface`（默认 true），facet 壳传 false 跳过 deployments/billing 三探针；验证：facet 壳 e2e 通过且弹窗仍正常
 - [x] 1.8 新增 `scripts/test-market-locale-refetch.mjs`：线标签投影矩阵 / 跨轨道搜索 / 未覆盖 locale 回落 / en-US 主子回落 / 纯 zh 包在 en 下命中；验证：`node --test` 8/8
 - [x] 1.9 `e2e/facet-shell.spec.js` 增加切语言用例（真 facet 服务 + 真 SQLite 种子 + src 构建的壳）：zh 卡 → 切 en 卡与 chip 同变 → 跨轨搜索命中 → 详情开着切回 zh；同文件把陈旧断言 `My packs` 更新为已合入的 `My agents`（词表改名，HEAD 已落地、spec 未跟）；验证：该 spec 9/9
-- [ ] 1.10 出片验证：生产 `search=strategy&locale=en` > 0、en 下线 chip 为英文、切语言无手动刷新即变身；台账记录
+- [x] 1.10 出片验证：生产 `search=strategy&locale=en` > 0、en 下线 chip 为英文、切语言无手动刷新即变身；台账记录
 
 ## 2. P1 · 分类骨架：声明的两轴分面
 
@@ -27,7 +27,7 @@
 - [x] 2.7 `CurateView`：领域改词表多选选择器（写 `domains` 列），去掉自由 slug 输入；存量词表外取值显式标示不合法且发布被阻（与 P3 校验器联动，先落 UI 与存储）；验证：选择器只列词表项、保存后 facets 计数变化
 - [x] 2.8 迁移脚本 `scripts/migrate-pack-domains.mjs`：按 category 归位批量回填 75 条的 `domains` 列，先 dry-run 打印清单，人工过目后落盘，输出审计清单；验证：回填后 facets 计数与手算一致、`category` 列逐字节不变
 - [x] 2.9 线/领域标签住服务端词表（非 web locales），五语完备性由 `scripts/test-pack-taxonomy.mjs` 钉（每线×五语、每域×五语断言）；新增 UI chrome 键（packs.market.domains/lineEmpty、facetCurate.* 八键）走 `check-locales` 门绿
-- [ ] 2.10 出片验证：生产分面恒 5 线带计数、en 标签、裸 slug 零出现；台账记录
+- [x] 2.10 出片验证：生产分面恒 5 线带计数、en 标签、裸 slug 零出现；台账记录
 
 ## 3. P2 · 卡片与详情的信息架构（不依赖 v2 字段）
 
@@ -41,7 +41,7 @@
 - [x] 3.7 `facet/web/DESIGN.md` 登记：新印章字号、新增任意值（若有）、入场动效（rise-in stagger ≤200ms）；`design-lint` 门绿
   > 印章尺寸沿用既有登记（SiteMark 例外 §1/§2 零新增）；stagger 公式单点住 PackCard（§3 登记）；新微标「已复制」入 §1 白名单。design-lint 无新违例（P2 顺带还清了 P0 欠的 3 处 amber 命名色，基线 −9）。
 - [x] 3.8 e2e：卡片五槽位、详情七段、facet 壳 `#/packs` 无 Router 回归用例；`npm run test:e2e` 绿
-- [ ] 3.9 出片验证：生产卡片五槽位眼见、详情七段眼见、壹座 Store 面同步回归；台账记录
+- [x] 3.9 出片验证：生产卡片五槽位眼见、详情七段眼见、壹座 Store 面同步回归；台账记录
 
 ## 4. P3 · 显示格式 v2 + 作者端翻译工作台
 
@@ -56,7 +56,7 @@
 - [x] 4.9 发布前分级提示：官方阻断（列出缺项+跳转工作台）、社区非阻断；服务端错误如实透出（服务端是真值）；验证：两身份各一条 e2e
 - [x] 4.10 外部投影：`facet/marketplace-repo.js` 增加 `facet.json` sidecar 纯透传 + README 首行优先 promise；`marketplace.json`/`plugin.json` 结构零变化；验证：`scripts/test-facet-marketplace-repo.mjs` 增三用例（sidecar 逐字节、清单结构不变、README 首行）
 - [x] 4.11 覆盖度仪表组件（分母=组织面，缺项精确到字段路径）；详情"边界与诚实声明"段接入；验证：社区条目 0/m 与 m/m 两态 e2e
-- [ ] 4.12 `npm run check:locales` + `design-lint` + `npm run test:unit` 全绿；出片走查（老包渲染逐字节回归 + 新字段包眼见）
+- [x] 4.12 `npm run check:locales` + `design-lint` + `npm run test:unit` 全绿；出片走查（老包渲染逐字节回归 + 新字段包眼见）
 
 ## 5. P4 · 内容迁移与覆盖门
 
@@ -65,5 +65,5 @@
 - [ ] 5.3 标签归一：`柏讯`/`wire` 同义双写合并为受控 slug；自由标签单语化（进 `i18n.tags` 轨道）；验证：生产 en 下列表标签零中文残留
 - [x] 5.4 覆盖度看板进策展板：全部在架条目的 n/m 覆盖与缺项列表（运营巡检入口）；验证：策展板 e2e
 - [ ] 5.5 官方发布门开启前检查：在架官方 71 条覆盖 100%，门常绿一周后再视为稳定；验证：审计脚本连续 7 次运行零缺项
-- [ ] 5.6 生产走查全链：en 全程（浏览/分面/搜索/详情/示例可点/覆盖标记）+ zh 逐字节回归（列表投影 diff=0）+ facet 与壹座双宿主；台账 §9 发布记录
+- [x] 5.6 生产走查全链：en 全程（浏览/分面/搜索/详情/示例可点/覆盖标记）+ zh 逐字节回归（列表投影 diff=0）+ facet 与壹座双宿主；台账 §9 发布记录
 - [ ] 5.7 OpenSpec 归档准备：主 spec 同步核对（pack-marketplace / pack-locale-tracks / pack-category-line-mapping / official-locale-coverage / pack-authoring 的 MODIFIED delta 带全量既有场景），`openspec validate --specs` 全绿

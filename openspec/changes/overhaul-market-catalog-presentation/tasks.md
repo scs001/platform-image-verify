@@ -64,6 +64,6 @@
 - [x] 5.2 内容作业：23 条 zh 泄漏逐条补 en（技能 61 条、agent 名 8 个、guide 按包计），按审计缺项清单逐条消项；验证：审计转绿（0 缺项）
 - [x] 5.3 标签归一：`柏讯`/`wire` 同义双写合并为受控 slug；自由标签单语化（进 `i18n.tags` 轨道）；验证：生产 en 下列表标签零中文残留
 - [x] 5.4 覆盖度看板进策展板：全部在架条目的 n/m 覆盖与缺项列表（运营巡检入口）；验证：策展板 e2e
-- [ ] 5.5 官方发布门开启前检查：在架官方 71 条覆盖 100%，门常绿一周后再视为稳定；验证：审计脚本连续 7 次运行零缺项
+- [x] 5.5 官方发布门开启前检查：在架官方 71 条覆盖 100%，门常绿一周后再视为稳定；验证：审计脚本连续 7 次运行零缺项
 - [x] 5.6 生产走查全链：en 全程（浏览/分面/搜索/详情/示例可点/覆盖标记）+ zh 逐字节回归（列表投影 diff=0）+ facet 与壹座双宿主；台账 §9 发布记录
 - [x] 5.7 OpenSpec 归档准备：主 spec 同步核对（pack-marketplace / pack-locale-tracks / pack-category-line-mapping / official-locale-coverage / pack-authoring 的 MODIFIED delta 带全量既有场景），`openspec validate --specs` 全绿

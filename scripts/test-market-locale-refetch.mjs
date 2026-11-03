@@ -17,13 +17,15 @@
 //   node --test scripts/test-market-locale-refetch.mjs
 
 import assert from "node:assert/strict";
+import express from "express";
+import http from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 const { lineLabelOf, lineSlugOf } = await import("../lib/pack-taxonomy.js");
-const { createPackRegistry } = await import("../gateway/packs.js");
+const { createPackRegistry, registerPackRoutes } = await import("../gateway/packs.js");
 
 // ── 1. line-label projection ─────────────────────────────────────────────────
 
@@ -82,6 +84,7 @@ function bilingualManifest(overrides = {}) {
       en: {
         name: "Wire · Strategy Lab",
         description: "Strategy design, backtest reading, risk parameters and paper-run supervision.",
+        tags: ["Baixun", "wire"],
       },
     },
     ...overrides,
@@ -175,6 +178,37 @@ test("纯 zh 包在 en 搜索下按 zh 主轨命中（回落语义不丢内容�
     assert.equal(en.total, 1);
     assert.equal(en.packs[0].category, "legal");
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── 5.3 验证条款的生产缺陷回归：en 下列表/详情顶层 tags 列随 locale ─────────
+// （上线当日实测：投影层 tags 覆盖已在，但 list summary 与 detail 顶层列都
+// 只拷 name/description，zh 存储 tags 原样穿透到 en 轨。）
+test("en 请求：列表顶层 tags 列随 en.tags 投影；zh 请求原样", async () => {
+  const { reg, dir } = await seededRegistry();
+  try {
+    const app = express();
+    registerPackRoutes(app, {
+      registry: reg,
+      resolveUser: () => null,
+      rejectUnauthenticated: () => {},
+      creatorGroups: ["creators"],
+      anonymousRead: true,
+      officialAuthors: [],
+    });
+    const server = http.createServer(app);
+    server.listen(0);
+    const get = async (p) => (await fetch(`http://127.0.0.1:${server.address().port}${p}`)).json();
+    const enRow = (await get("/api/packs?locale=en")).packs.find((x) => x.name === "Wire · Strategy Lab");
+    assert.deepEqual(enRow.tags, ["Baixun", "wire"], "en 列表 tags 必须随副轨");
+    const zhRow = (await get("/api/packs")).packs.find((x) => x.name === "柏讯 · 策略工坊");
+    assert.deepEqual(zhRow.tags, ["柏讯", "wire"], "zh 列表 tags 原样");
+    const enDetail = await get(`/api/packs/${enRow.id}?locale=en`);
+    assert.deepEqual(enDetail.tags, ["Baixun", "wire"], "en 详情顶层 tags 列同律");
+    server.close();
+  } finally {
+    reg.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

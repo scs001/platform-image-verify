@@ -1904,6 +1904,8 @@ export function registerPackRoutes(app, {
       const projected = projectManifestForLocale(pack.manifest, displayLocale);
       if (typeof projected.name === "string" && projected.name.trim()) pack.name = projected.name;
       if (typeof projected.description === "string") pack.description = projected.description;
+      // 标签列随 locale（5.3 验证条款）——与 list 面 applyLocaleToSummary 同律。
+      if (Array.isArray(projected.tags) && projected.tags !== pack.manifest.tags) pack.tags = projected.tags;
       pack.manifest = projected;
     }
     // Read projection (add-packaged-skills D4): the detail payload carries the

@@ -66,4 +66,4 @@
 - [x] 5.4 覆盖度看板进策展板：全部在架条目的 n/m 覆盖与缺项列表（运营巡检入口）；验证：策展板 e2e
 - [ ] 5.5 官方发布门开启前检查：在架官方 71 条覆盖 100%，门常绿一周后再视为稳定；验证：审计脚本连续 7 次运行零缺项
 - [x] 5.6 生产走查全链：en 全程（浏览/分面/搜索/详情/示例可点/覆盖标记）+ zh 逐字节回归（列表投影 diff=0）+ facet 与壹座双宿主；台账 §9 发布记录
-- [ ] 5.7 OpenSpec 归档准备：主 spec 同步核对（pack-marketplace / pack-locale-tracks / pack-category-line-mapping / official-locale-coverage / pack-authoring 的 MODIFIED delta 带全量既有场景），`openspec validate --specs` 全绿
+- [x] 5.7 OpenSpec 归档准备：主 spec 同步核对（pack-marketplace / pack-locale-tracks / pack-category-line-mapping / official-locale-coverage / pack-authoring 的 MODIFIED delta 带全量既有场景），`openspec validate --specs` 全绿

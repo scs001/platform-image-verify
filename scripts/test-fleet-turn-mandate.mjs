@@ -123,7 +123,11 @@ test("default policy: edge wake byte-identical, mandate recorded, dispositions w
   assert.equal(mandate.policyVersion, policyVersionOf(defaultSignalPolicy()));
   assert.equal(mandate.trigger.botId, "helper");
   assert.equal(mandate.trigger.sender, "张三");
-  assert.throws(() => { "use strict" && (mandate.strength = "inferred"); }, TypeError, "the mandate is frozen");
+  // ESM 本身即严格模式（noRedundantUseStrict）——无指令直接赋值，冻结对象
+  // 在严格模式下抛 TypeError，这正是被钉的行为。
+  assert.throws(() => {
+    mandate.strength = "inferred";
+  }, TypeError, "the mandate is frozen");
 
   // The dispositions: the wake admitted, and (a second call with no edge
   // change would hit the same edge, so check the no-edge case via another bot).

@@ -469,6 +469,18 @@ export function AgentStudioPage() {
     if (!doc?.castPackId) return;
     setBusy("deploy-team");
     try {
+      // from-template provisions from the INSTALLED pack — a fresh cast only
+      // published it. Ensure-installed first (reused short-circuits); the
+      // purchase gate cannot fire for the pack this same owner just cast.
+      const ins = await fetch("/api/mypacks/install", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ packId: doc.castPackId, version: doc.castPackVersion ?? undefined }),
+      });
+      if (!ins.ok && ins.status !== 409) {
+        const body = await ins.json().catch(() => ({}));
+        throw new Error(body.error || `install failed (${ins.status})`);
+      }
       const r = await fetch("/api/fleets/from-template", {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -2305,6 +2305,7 @@ export function createFleetRoutes(app, ctx = null) {
             persona: rosterPresetId(member.targetId),
             sessionTitle: `拍板送达 · ${member.title}`,
             origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+            humanPriority: true, // the owner's execute-now IS the human wake (worker pool's extra slot)
           });
           return res.json({ executing: true, taskId: manual.id, manual: true });
         }
@@ -2314,6 +2315,7 @@ export function createFleetRoutes(app, ctx = null) {
             agent: member.targetId,
             sessionTitle: `拍板送达 · ${member.title}`,
             origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+            humanPriority: true, // the owner's execute-now IS the human wake (worker pool's extra slot)
           });
           return res.json({ executing: true, taskId: manual.id, manual: true });
         }
@@ -2330,6 +2332,7 @@ export function createFleetRoutes(app, ctx = null) {
             tool: member.targetId,
             sessionTitle: `拍板送达 · ${member.title}`,
             origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+            humanPriority: true, // the owner's execute-now IS the human wake (worker pool's extra slot)
           });
           return res.json({ executing: true, taskId: manual.id, manual: true });
         }
@@ -2577,6 +2580,19 @@ export function createFleetRoutes(app, ctx = null) {
         statusCounts,
         openDecisions: db.countOpenDecisions(owned.fleet.id),
         decisionPolicy: owned.fleet.decisionPolicy,
+        // add-agent-builder-workspace 7.2（D7 回链）：来源蓝图 id 从已装包的
+        // 铸造追溯读出——只读投影，非新数据形状；无来源包时缺席。
+        blueprintId: (() => {
+          const packId = owned.fleet.sourceTemplate?.packId;
+          if (!packId) return null;
+          try {
+            const installed = dbModule.getInstalledPack(packId);
+            const cast = installed?.manifest?._casting;
+            return typeof cast?.blueprintId === "string" ? cast.blueprintId : null;
+          } catch {
+            return null;
+          }
+        })(),
       });
     } catch (err) {
       console.error("[fleets] detail error:", err.message);

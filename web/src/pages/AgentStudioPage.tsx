@@ -16,10 +16,10 @@
 // skills bucket is not editable here yet (assembleManifest carries none — a
 // bucket that silently drops at cast would be a false green).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Blocks, PanelLeft, PanelRight, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Blocks, PanelLeft, PanelRight, Pencil, Plus, Sparkles, X } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import { useAuthStore } from "@/hooks/useAuth";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
@@ -34,8 +34,9 @@ import { DocumentLibrary, DOC_STATUS_TONE } from "@/components/studio/DocumentLi
 import { LifecycleRibbon } from "@/components/studio/LifecycleRibbon";
 import { ValidationPanel } from "@/components/studio/ValidationPanel";
 import { AiDraftOverlay, type DraftField } from "@/components/studio/AiDraftOverlay";
-import { FleetGraph, type GraphEdge, type GraphMember } from "@/components/FleetGraph";
+import { FleetGraph } from "@/components/FleetGraph";
 import { teamRibbon } from "@/lib/workspace-lifecycle";
+import { projectFleetDocCanvas, applyDraftEdgesToFleet, edgeKeyOf, type DraftEdgeOp } from "@/lib/workspace-canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,6 +45,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { showToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+
+// 6.1: the writable team graph rides the SHARED FleetCanvas — lazy-loaded so
+// the @xyflow chunk never enters the workspace's first paint (same seam the
+// fleets page uses; the risk note in design D6 keeps this a hard gate).
+const FleetCanvas = lazy(() => import("@/components/fleet/FleetCanvas").then((m) => ({ default: m.FleetCanvas })));
 
 function SectionCard({ title, children, testid, anchor }: { title: string; children: React.ReactNode; testid: string; anchor?: string }) {
   return (
@@ -94,6 +100,16 @@ export function AgentStudioPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [trialRunning, setTrialRunning] = useState(false);
 
+  // ── writable team graph (6.2, design D6) ──────────────────────────────────
+  // Explicit design toggle; the draft lives in component state only — exit
+  // discards, confirm merges into content and rides the ordinary autosave +
+  // publish-gate validation (a fleet-section rejection rolls the merge back).
+  const [graphDesign, setGraphDesign] = useState(false);
+  const [draftAdded, setDraftAdded] = useState<DraftEdgeOp[]>([]);
+  const [draftRemovedKeys, setDraftRemovedKeys] = useState<string[]>([]);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [graphApplying, setGraphApplying] = useState(false);
+
   // ── AI drafting (overlay) ─────────────────────────────────────────────────
   const [aiOpen, setAiOpen] = useState(false);
   const [ai, setAi] = useState<{ prompt: string; busy: boolean; draft: Record<string, unknown> | null; error: string | null }>({
@@ -137,12 +153,15 @@ export function AgentStudioPage() {
       .catch(() => setCollections([]));
   }, [load, refreshDocs]);
 
-  const runValidate = useCallback(async (id: string) => {
+  const runValidate = useCallback(async (id: string): Promise<bp.ValidationVerdict | null> => {
     setVerifying(true);
     try {
-      setVerdict(await bp.validateBlueprint(id));
+      const v = await bp.validateBlueprint(id);
+      setVerdict(v);
+      return v;
     } catch {
       setVerdict(null);
+      return null;
     } finally {
       setVerifying(false);
     }
@@ -180,13 +199,13 @@ export function AgentStudioPage() {
   // (the dual-track discipline rides this: JSON edits land through the same
   // PUT, and validation always speaks of what the server holds — never of an
   // unsaved local guess.)
-  const saveNow = useCallback(async () => {
+  const saveNow = useCallback(async (): Promise<bp.ValidationVerdict | null> => {
     const d = docRef.current;
     const c = contentRef.current;
-    if (!d || !c) return;
+    if (!d || !c) return null;
     if (savingRef.current) {
       queuedRef.current = true;
-      return;
+      return null;
     }
     savingRef.current = true;
     setSaveState("saving");
@@ -196,8 +215,9 @@ export function AgentStudioPage() {
       dirtyRef.current = false;
       setSaveState("clean");
       setConflict(null);
-      await runValidate(blueprint.id);
+      const v = await runValidate(blueprint.id);
       void refreshDocs();
+      return v;
     } catch (err) {
       if (err instanceof bp.BlueprintApiError && err.status === 409) {
         // Server holds a newer version — the user decides, nothing silent.
@@ -209,6 +229,7 @@ export function AgentStudioPage() {
         dirtyRef.current = true;
         showToast({ severity: "error", title: t("studio.workspace.saveFailed"), description: (err as Error).message });
       }
+      return null;
     } finally {
       savingRef.current = false;
       if (queuedRef.current) {
@@ -375,13 +396,101 @@ export function AgentStudioPage() {
     [doc, act, applyBlueprint, runValidate, refreshDocs, t],
   );
 
+  // 4.1/4.4: kind 从持久正文读（缺省 team——存量文档零感知）。
+  const docKind: "agent" | "team" = content?.kind === "agent" ? "agent" : "team";
+  // 6.1: the document's fleet template projected into the SHARED canvas
+  // vocabulary (unborn posts, declared edges). null = nothing to draw.
+  const canvasProj = useMemo(() => (docKind === "team" ? projectFleetDocCanvas(content) : null), [content, docKind]);
+  const canvasEdges = useMemo(() => {
+    if (!canvasProj) return [];
+    // Design mode draws declared-minus-removals + dashed additions; read mode
+    // draws the declaration verbatim.
+    if (!graphDesign) return canvasProj.edges;
+    const removed = (e: { kind?: string; from?: string; to?: string; targets?: string[] }) => draftRemovedKeys.includes(edgeKeyOf(e));
+    return canvasProj.edges.filter((e) => !removed(e));
+  }, [canvasProj, graphDesign, draftRemovedKeys]);
+
+  // ── writable graph confirm/discard (6.2) ──────────────────────────────────
+  // Confirm merges the draft into content and rides the ORDINARY autosave +
+  // publish-gate chain (D6: dry-run 即 validate 端点). A fleet-section rejection
+  // rolls the merge back from the pre-merge snapshot and anchors the error on
+  // the graph card — the document is never left holding an illegal merge.
+  const hasGraphDraft = draftAdded.length > 0 || draftRemovedKeys.length > 0;
+  const confirmGraphDesign = useCallback(async () => {
+    if (!content || !canvasProj) return;
+    if (!hasGraphDraft) {
+      setGraphDesign(false);
+      return;
+    }
+    setGraphApplying(true);
+    setDesignError(null);
+    try {
+      const snapshot = contentRef.current;
+      const mergedFleet = applyDraftEdgesToFleet(content.fleet as Record<string, unknown>, draftAdded, draftRemovedKeys);
+      // contentRef is what saveNow reads and React state commits async — sync
+      // the ref HERE or the confirm PUT races the debounce and carries the
+      // pre-merge content.
+      const mergedContent = { ...content, fleet: mergedFleet };
+      contentRef.current = mergedContent;
+      patchContent({ fleet: mergedFleet });
+      const verdictAfter = await saveNow();
+      const fleetErrs = (verdictAfter?.errors ?? []).filter((e) => e.entry === "fleet" || e.error.startsWith("fleet."));
+      if (fleetErrs.length > 0) {
+        if (snapshot) {
+          contentRef.current = snapshot; // rollback syncs the ref too — the queued save must not resurrect the rejected merge
+          patchContent({ fleet: snapshot.fleet });
+        }
+        await saveNow();
+        setDesignError(fleetErrs.map((e) => e.error).join("; "));
+        showToast({ severity: "error", title: t("studio.workspace.graph.rejected"), description: fleetErrs[0]?.error ?? "" });
+        return;
+      }
+      setDraftAdded([]);
+      setDraftRemovedKeys([]);
+      setGraphDesign(false);
+      showToast({ severity: "success", title: t("studio.workspace.graph.applied") });
+    } finally {
+      setGraphApplying(false);
+    }
+  }, [content, canvasProj, hasGraphDraft, draftAdded, draftRemovedKeys, patchContent, saveNow, t]);
+
+  const discardGraphDesign = useCallback(() => {
+    setDraftAdded([]);
+    setDraftRemovedKeys([]);
+    setDesignError(null);
+    setGraphDesign(false);
+  }, []);
+
+  // ── deploy the cast team (7.1, design D7) ─────────────────────────────────
+  // The ribbon's cast stage leaves the document cast; THIS is the walk-out-the-
+  // door action: POST /api/fleets/from-template (existing provisioning, born
+  // paused) then navigate to the live fleet. No new endpoint, no new field.
+  const deployTeam = useCallback(async () => {
+    if (!doc?.castPackId) return;
+    setBusy("deploy-team");
+    try {
+      const r = await fetch("/api/fleets/from-template", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ packId: doc.castPackId }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `deploy failed (${r.status})`);
+      const fleetId: string | undefined = body?.fleet?.id ?? body?.id;
+      showToast({ severity: "success", title: t("studio.workspace.deployOk") });
+      if (fleetId) navigate(`/fleets/${encodeURIComponent(fleetId)}`);
+    } catch (err) {
+      showToast({ severity: "error", title: t("studio.workspace.deployFailed"), description: (err as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  }, [doc, navigate, t]);
+
   // ── emit ports (never mutate the document; re-validate at emit) ──────────
   const selectedAgent = useMemo(
     () => ((content?.agents ?? []) as PackManifestAgent[]).find((a) => a.id === selectedAgentId) ?? null,
     [content?.agents, selectedAgentId],
   );
-  // 4.1/4.4: kind 从持久正文读（缺省 team——存量文档零感知）。
-  const docKind: "agent" | "team" = content?.kind === "agent" ? "agent" : "team";
   const docValid = verdict?.ok === true;
 
   const emitPreset = async () => {
@@ -445,7 +554,9 @@ export function AgentStudioPage() {
       const r = await fetch("/api/studio/draft", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "agent-doc", prompt: ai.prompt }),
+        // 7.3: team documents ride the EXISTING blueprint drafting lane (same
+        // bridge, same whitelist — the kind param was left open for this).
+        body: JSON.stringify({ kind: docKind === "agent" ? "agent-doc" : "blueprint", prompt: ai.prompt }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || `draft failed (${r.status})`);
@@ -468,6 +579,9 @@ export function AgentStudioPage() {
       if (agents[idx]) agents[idx] = { ...agents[idx], persona: draft.persona };
       else agents.push({ id: "agent-1", name: "", persona: draft.persona });
       next.agents = agents;
+    }
+    if (picked.has("fleet") && draft.fleet && typeof draft.fleet === "object") {
+      next.fleet = draft.fleet as Record<string, unknown>;
     }
     if (picked.has("mcpServers") && Array.isArray(draft.mcpServers) && draft.mcpServers.length) {
       const incoming = (draft.mcpServers as PackManifestMcp[]).filter((m) => m && typeof m.registryName === "string");
@@ -499,15 +613,6 @@ export function AgentStudioPage() {
   }, [doc, docValid, userEmail, saveState, busy]);
 
   const totalTools = (registryName: string) => marketCatalog?.mcpServers?.find((s) => s.name === registryName)?.toolList?.length ?? null;
-
-  const fleetMembers = useMemo<GraphMember[]>(() => {
-    const fleet = content?.fleet as { members?: GraphMember[] } | undefined;
-    return Array.isArray(fleet?.members) ? fleet!.members : [];
-  }, [content?.fleet]);
-  const fleetEdges = useMemo<GraphEdge[]>(() => {
-    const fleet = content?.fleet as { orchestration?: { edges?: GraphEdge[] } } | undefined;
-    return Array.isArray(fleet?.orchestration?.edges) ? fleet!.orchestration.edges : [];
-  }, [content?.fleet]);
 
   const saveStateLabel =
     saveState === "clean" ? t("studio.workspace.saved", { version: doc?.version ?? 0 })
@@ -688,8 +793,76 @@ export function AgentStudioPage() {
                   {docKind === "team" && (
                     <>
                       <SectionCard title={t("studio.team.tab")} testid="ws-graph" anchor="fleet">
-                        <FleetGraph members={fleetMembers} edges={fleetEdges} kindLabels={{}} emptyLabel={t("studio.team.empty")} />
-                        <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.team.readOnlyHint")}</p>
+                        {canvasProj ? (
+                          <div className="space-y-2">
+                            {/* 6.1/6.2: the writable team graph = the SHARED
+                                FleetCanvas in its document projection. Positions
+                                persist under the doc:<id> key (6.3, same
+                                storage contract as fleet:<id>); design mode is
+                                an explicit toggle with a draft-merge confirm. */}
+                            <div className="flex items-center justify-between gap-2">
+                              {graphDesign ? (
+                                <>
+                                  <span className="text-[11px] text-muted-foreground">{t("studio.workspace.graph.designHint")}</span>
+                                  <div className="flex shrink-0 gap-1">
+                                    <Button size="sm" onClick={() => void confirmGraphDesign()} disabled={graphApplying} data-testid="ws-graph-confirm">
+                                      {graphApplying ? t("studio.workspace.graph.applying") : t("studio.workspace.graph.confirm")}
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={discardGraphDesign} data-testid="ws-graph-discard">
+                                      <X className="h-3.5 w-3.5" /> {t("studio.workspace.graph.discard")}
+                                    </Button>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[11px] text-muted-foreground">{t("studio.workspace.graph.readHint")}</span>
+                                  <Button size="sm" variant="outline" onClick={() => setGraphDesign(true)} data-testid="ws-graph-design">
+                                    <Pencil className="h-3.5 w-3.5" /> {t("studio.workspace.graph.edit")}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                            {designError && (
+                              <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs text-destructive" data-testid="ws-graph-design-error">
+                                {designError}
+                              </p>
+                            )}
+                            <div className="h-72 overflow-hidden rounded-md border border-border" data-testid="ws-graph-canvas">
+                              <Suspense fallback={<p className="py-8 text-center text-xs text-muted-foreground" data-testid="ws-graph-loading">{t("studio.workspace.graph.loading")}</p>}>
+                                <FleetCanvas
+                                  fleetId={`doc:${doc.id}`}
+                                  members={canvasProj.members}
+                                  edges={canvasEdges}
+                                  traffic={[]}
+                                  liveTurns={[]}
+                                  designMode={graphDesign}
+                                  draftEdges={draftAdded.map((d) => ({ kind: d.kind, from: d.from, to: d.to }))}
+                                  removedEdgeKeys={draftRemovedKeys}
+                                  onConnectEdge={(from, to) => {
+                                    setDesignError(null);
+                                    setDraftAdded((prev) =>
+                                      prev.some((e) => e.from === from && e.to === to && e.kind === "handoff")
+                                        ? prev
+                                        : [...prev, { kind: "handoff", from, to }],
+                                    );
+                                  }}
+                                  onDraftEdgeRemove={(from, to, kind) => setDraftAdded((prev) => prev.filter((e) => !(e.from === from && e.to === to && e.kind === kind)))}
+                                  onEdgeSelect={(e) => {
+                                    if (graphDesign && e.kind !== "fanout" && typeof e.from === "string" && typeof e.to === "string") {
+                                      // Design mode: clicking a DECLARED edge drafts its removal.
+                                      setDraftRemovedKeys((prev) => (prev.includes(edgeKeyOf(e)) ? prev : [...prev, edgeKeyOf(e)]));
+                                    }
+                                  }}
+                                />
+                              </Suspense>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <FleetGraph members={[]} edges={[]} kindLabels={{}} emptyLabel={t("studio.team.empty")} />
+                            <p className="mt-2 text-[11px] text-muted-foreground">{t("studio.workspace.graph.emptyHint")}</p>
+                          </>
+                        )}
                       </SectionCard>
 
                       <SectionCard title={t("studio.blueprint.judge")} testid="ws-judge" anchor="judgeModel">
@@ -808,6 +981,13 @@ export function AgentStudioPage() {
         {showInspector && (
           <aside className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-3" data-testid="ws-inspector">
             {doc && docKind === "team" && ribbonView && <LifecycleRibbon view={ribbonView} onAction={onRibbonAction} busy={busy !== null} trialRunning={trialRunning} />}
+            {/* 7.1: the cast stage's walk-out-the-door action — provision the
+                live fleet from the cast pack (born paused), then land on it. */}
+            {doc && docKind === "team" && doc.status === "cast" && doc.castPackId && (
+              <Button size="sm" className="w-full" onClick={() => void deployTeam()} disabled={busy !== null} data-testid="ws-deploy-team">
+                <Blocks className="h-3.5 w-3.5" /> {t("studio.workspace.deployTeam")}
+              </Button>
+            )}
             {doc && docKind === "agent" && (
               // 4.4: agent 文档没有团队档位——始终草稿 + 两发射口常驻（服务端
               // approve/cast 409 同源），此处只如实说明，不画假进度。

@@ -2264,7 +2264,8 @@
           "description": "一句话描述",
           "persona": "人设",
           "mcpServers": "工具（MCP）",
-          "skills": "技能"
+          "skills": "技能",
+          "fleet": "团队结构（fleet）"
         },
         "skillsNote": "AI 起草的技能暂不支持直接采用——请在文档的技能桶里编辑。"
       },
@@ -2309,7 +2310,22 @@
       "agent": {
         "description": "一句话描述",
         "hint": "岗位文档始终是草稿：用下面的发射口产出预设（本机可用）或市场草稿（团队/市场可见）。它不参与批准/铸造/试跑。"
-      }
+      },
+      "graph": {
+        "edit": "编辑编排",
+        "confirm": "确认并入",
+        "discard": "放弃",
+        "applying": "并入中…",
+        "designHint": "拖线连边；点已声明边起草删除；确认后并入文档并过同一校验链。",
+        "readHint": "已声明编排（节点位置只存本浏览器）。",
+        "emptyHint": "尚未声明成员——图会随 fleet 段自动生成。",
+        "loading": "图加载中…",
+        "rejected": "并入被校验拒绝",
+        "applied": "编排已并入文档"
+      },
+      "deployTeam": "部署团队",
+      "deployOk": "团队已建队（出生暂停）",
+      "deployFailed": "部署失败"
     },
     "errors": {
       "name_too_long": "名称需非空且不超过 80 字符（中文按双倍宽度计）",
@@ -3220,7 +3236,8 @@
       "proposalSubmit": "提交拍板",
       "proposalQueued": "已落入拍板队列 — 批准后经市场发新版",
       "retry": "重试"
-    }
+    },
+    "sourceBlueprint": "来源蓝图"
   },
   "facetCurate": {
     "title": "策展板",

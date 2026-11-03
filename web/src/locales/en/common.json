@@ -2264,7 +2264,8 @@
           "description": "Description",
           "persona": "Persona",
           "mcpServers": "Tools (MCP)",
-          "skills": "Skills"
+          "skills": "Skills",
+          "fleet": "Team structure (fleet)"
         },
         "skillsNote": "Skills from AI drafting can't be adopted yet — edit them in the document's skills bucket."
       },
@@ -2309,7 +2310,22 @@
       "agent": {
         "description": "One-line description",
         "hint": "An agent document stays a draft: emit a preset (usable on this machine) or a market draft (visible to the team/market) from the ports below. It has no approve/cast/trial lane."
-      }
+      },
+      "graph": {
+        "edit": "Edit orchestration",
+        "confirm": "Confirm merge",
+        "discard": "Discard",
+        "applying": "Applying…",
+        "designHint": "Drag to connect; click a declared edge to draft its removal; confirm merges into the document.",
+        "readHint": "Declared orchestration (positions stay local to this browser).",
+        "emptyHint": "No members declared yet — the graph draws itself from the fleet section.",
+        "loading": "Loading graph…",
+        "rejected": "Merge rejected by validation",
+        "applied": "Orchestration merged into the document"
+      },
+      "deployTeam": "Deploy team",
+      "deployOk": "Team provisioned (born paused)",
+      "deployFailed": "Deploy failed"
     },
     "errors": {
       "name_too_long": "The name must be non-empty and at most 80 characters (CJK counts double)",
@@ -3220,7 +3236,8 @@
       "proposalSubmit": "Submit to queue",
       "proposalQueued": "Queued for sign-off — approved ships a new market version",
       "retry": "Retry"
-    }
+    },
+    "sourceBlueprint": "Source blueprint"
   },
   "facetCurate": {
     "title": "Curation board",

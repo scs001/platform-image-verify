@@ -10,8 +10,9 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Blocks } from "lucide-react";
 import { Skeleton } from "@/components/ui/states-kit";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useCronStore, useChatStore } from "@platform/core";
 import { useFleetStore } from "@/store/fleet-store";
 import { useListCache } from "@/hooks/useListCache";
@@ -138,6 +139,9 @@ interface FleetDetail {
   members: MemberView[];
   statusCounts: Record<string, number>;
   openDecisions?: number;
+  // Source-blueprint back-link (add-agent-builder-workspace 7.2): read from the
+  // installed pack's casting provenance server-side; null when absent.
+  blueprintId?: string | null;
   // Cockpit aggregate (agent-fleet-templates): the rest of the one-round-trip.
   decisions?: DecisionItem[];
   stream?: { memberId: string; title: string; status: MemberView["status"]; latestReport: LatestReport | null }[];
@@ -901,6 +905,18 @@ export function FleetsPage() {
                     {t("fleets.tpl.start")}
                   </Button>
                 </div>
+              ) : null}
+              {/* 7.2: source-blueprint chip — back to the workspace document the
+                  pack was cast from (D7 回链; rides the casting provenance). */}
+              {detail.blueprintId ? (
+                <Link
+                  to={`/studio?doc=${encodeURIComponent(detail.blueprintId)}`}
+                  className="mt-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                  data-testid="fleet-source-blueprint"
+                >
+                  <Blocks className="h-3.5 w-3.5" />
+                  {t("fleets.sourceBlueprint")}
+                </Link>
               ) : null}
               {detail.template?.updateAvailable ? (
                 <p className="mt-2 text-xs text-warning" data-testid="fleet-template-newer">

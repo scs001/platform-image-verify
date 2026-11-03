@@ -2264,7 +2264,8 @@
           "description": "Descripción",
           "persona": "Persona",
           "mcpServers": "Herramientas (MCP)",
-          "skills": "Habilidades"
+          "skills": "Habilidades",
+          "fleet": "Estructura de equipo (fleet)"
         },
         "skillsNote": "Las habilidades del boceto con IA aún no se pueden adoptar: edítalas en el cubo de habilidades del documento."
       },
@@ -2309,7 +2310,22 @@
       "agent": {
         "description": "Descripción de una línea",
         "hint": "Un documento de agente sigue siendo borrador: emite un preset (usable aquí) o un borrador de mercado desde los puertos de abajo. No tiene aprobación/fundición/prueba."
-      }
+      },
+      "graph": {
+        "edit": "Editar orquestación",
+        "confirm": "Confirmar fusión",
+        "discard": "Descartar",
+        "applying": "Aplicando…",
+        "designHint": "Arrastra para conectar; pulsa una arista declarada para eliminarla; confirmar fusiona en el documento.",
+        "readHint": "Orquestación declarada (las posiciones solo viven en este navegador).",
+        "emptyHint": "Aún no hay miembros: el grafo se dibuja desde la sección fleet.",
+        "loading": "Cargando grafo…",
+        "rejected": "Fusión rechazada por la validación",
+        "applied": "Orquestación fusionada en el documento"
+      },
+      "deployTeam": "Desplegar equipo",
+      "deployOk": "Equipo aprovisionado (nace en pausa)",
+      "deployFailed": "Fallo al desplegar"
     },
     "errors": {
       "name_too_long": "El nombre debe ser no vacío y de 80 caracteres como máximo (el CJK cuenta doble)",
@@ -3220,7 +3236,8 @@
       "retry": "Reintentar",
       "title": "Mis equipos",
       "turnsLine": "{{turns}} turnos·{{runs}} ejecuciones"
-    }
+    },
+    "sourceBlueprint": "Blueprint de origen"
   },
   "facetCurate": {
     "title": "Panel de curaduría",

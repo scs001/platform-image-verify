@@ -2264,7 +2264,8 @@
           "description": "Description",
           "persona": "Persona",
           "mcpServers": "Outils (MCP)",
-          "skills": "Compétences"
+          "skills": "Compétences",
+          "fleet": "Structure d'équipe (fleet)"
         },
         "skillsNote": "Les compétences du brouillon IA ne peuvent pas encore être adoptées — éditez-les dans le compartiment compétences du document."
       },
@@ -2309,7 +2310,22 @@
       "agent": {
         "description": "Description en une ligne",
         "hint": "Un document d'agent reste un brouillon : émettez un preset (utilisable ici) ou un brouillon de marché depuis les ports ci-dessous. Pas d'approbation/fusion/essai."
-      }
+      },
+      "graph": {
+        "edit": "Modifier l'orchestration",
+        "confirm": "Confirmer la fusion",
+        "discard": "Abandonner",
+        "applying": "Application…",
+        "designHint": "Tirez pour connecter ; cliquez une arête déclarée pour la retirer ; confirmer fusionne dans le document.",
+        "readHint": "Orchestration déclarée (les positions restent locales à ce navigateur).",
+        "emptyHint": "Aucun membre déclaré — le graphe se dessine depuis la section fleet.",
+        "loading": "Chargement du graphe…",
+        "rejected": "Fusion refusée par la validation",
+        "applied": "Orchestration fusionnée dans le document"
+      },
+      "deployTeam": "Déployer l'équipe",
+      "deployOk": "Équipe provisionnée (née en pause)",
+      "deployFailed": "Échec du déploiement"
     },
     "errors": {
       "name_too_long": "Le nom doit être non vide et faire au plus 80 caractères (le CJK compte double)",
@@ -3220,7 +3236,8 @@
       "retry": "Réessayer",
       "title": "Mes équipes",
       "turnsLine": "{{turns}} tours·{{runs}} exécutions"
-    }
+    },
+    "sourceBlueprint": "Document source"
   },
   "facetCurate": {
     "title": "Panneau de curation",

@@ -14,7 +14,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface DraftField {
-  key: "name" | "description" | "persona" | "mcpServers" | "skills";
+  key: "name" | "description" | "persona" | "mcpServers" | "skills" | "fleet";
   labelKey: string;
   preview: string;
   enabled: boolean;
@@ -65,6 +65,16 @@ export function AiDraftOverlay({
               enabled: true,
             }
           : null,
+        (() => {
+          const f = draft.fleet as { members?: unknown[]; name?: string } | undefined;
+          if (!f || typeof f !== "object" || !Array.isArray(f.members)) return null;
+          return {
+            key: "fleet" as const,
+            labelKey: "studio.workspace.draft.field.fleet",
+            preview: `${f.members.length} × ${(f as { name?: string }).name ?? "fleet"}`,
+            enabled: true,
+          };
+        })(),
         Array.isArray(draft.skills) && draft.skills.length
           ? {
               key: "skills",

@@ -53,7 +53,10 @@ test("3. the drafting lane is isolated from the emit mouths; per-field adoption 
   assert.match(req, /\/api\/studio\/draft/, "the draft request hits the drafting bridge");
   assert.ok(!/emitPreset|emitDraft|createCustomPreset|createPackDraft/.test(req), "drafting never calls an emit path");
   // The draft request body carries no emit-shaped fields — it is a prompt only.
-  assert.match(req, /kind: "agent-doc", prompt: ai\.prompt/, "the draft request is a prompt, not a document");
+  // 7.3: the kind follows the document kind — agent docs ride the agent-doc
+  // lane, team docs ride the EXISTING blueprint drafting lane (same whitelist).
+  assert.match(req, /kind: docKind === "agent" \? "agent-doc" : "blueprint", prompt: ai\.prompt/, "the draft request is a prompt, not a document");
+  assert.match(read("server/routes/studio-draft.js"), /DRAFT_KINDS = \["agent-doc", "blueprint"\]/, "…and both kinds sit inside the bridge's existing whitelist");
   // Adoption is a separate explicit gesture: only PICKED fields are written.
   const adopt = page.slice(page.indexOf("const adoptAi ="), page.indexOf("// ── ribbon projection"));
   assert.match(adopt, /patchContent\(next\)/, "adopt is the write gate");

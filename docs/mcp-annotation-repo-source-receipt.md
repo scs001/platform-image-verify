@@ -44,3 +44,12 @@
 
 ---
 *证据链：paas 台账 `docs/registry-maintenance.md` §15.124（上产+走查全录）；change 归档 `openspec/changes/archive/2026-11-02-add-mcp-annotation-overlay/`（validate --specs 237/0 当班绿）。*
+
+## 六、补记（2026-11-03）：wire cell 注释数据请拍板
+
+`fd-wire-cell-drillcust001/pgauto001/wiretester2` 三条（各 193 工具）不在 23 条交付内，谦面深度页如实回退原文渲染（机制正常，纯数据缺口）。请贵侧二选一：
+
+1. **补策展**：三条 × 193 工具 × 5 语 ≈ 2,895 条工具级注释（server 级另计）——体量大，可先只做 server 级注释（每条 1×5 语），工具级按曝光频次渐进；
+2. **接受原文**：客户实例受众为客户侧开发者，英文原文可读——在台账把三条标「特殊（不注释）」即闭环，paas 侧零改动。
+
+无论哪条，paas 深度页已同步立项 `polish-facet-catalog-depth`（前端数据 locale 跟随切换器 + 193 工具区分组/过滤/折叠重排），注释一旦补上即刻五语可读。

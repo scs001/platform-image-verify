@@ -57,4 +57,4 @@
 - [x] 8.2 官方 starter 作文档种子：文档库空态「从模板」接官方 starter 清单（清单=GET /api/packs/official templates 段即货架共定清单收口 Open Question；starter-seed.ts 纯投影 manifest→文档骨架，零新端点零服务端改动；e2e 新建自模板腿+validate 净）
 - [x] 8.3 多标签软锁：BroadcastChannel 同文档他窗打开提示（只提示不接管；ack+seen 去重截断回声，可关、跨文档零渗漏；数据面 409 横幅照旧兜底）。验证：双页 e2e 提示断言。
 - [x] 8.4 度量埋点：首次发射耗时、校验错消解点击数、cast→部署转化率（取数口收口=浏览器本地环 localStorage 上限 2000 与画布位置键同惯例、零出网；七事件点接线+aggregate-studio-metrics.mjs 聚合脚本+金值单测）。验证：本地跑一轮出三数（脚本聚合）。
-- [ ] 8.5 终局走查与归档准备：全量 e2e + 五语真机 + 性能门（/studio 首屏不劣化）+ validate --specs 对齐预演 + 台账终章。验证：三度量对照批 1 基线改善；归档差集纪律预检绿。
+- [x] 8.5 终局走查与归档准备：全量 e2e + 五语真机 + 性能门（/studio 首屏不劣化）+ validate --specs 对齐预演 + 台账终章。验证：三度量对照批 1 基线改善；归档差集纪律预检绿。（补记：生产真机=starter 数据面 20 支可达+软锁双窗眼见+度量 doc_created/validation_error_seen 落环+清理净；@xyflow 懒加载维持零首屏 chunk=批 3 承接不劣化；validate --specs 245/0+change strict 绿；归档待主班次窗口）

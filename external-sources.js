@@ -581,11 +581,15 @@ export function parseGitTreeUrl(url) {
 
 // ── Source registry ───────────────────────────────────────────────────────────
 
-export function createExternalSourceRegistry({ env = process.env, cache, fetchImpl } = {}) {
+export function createExternalSourceRegistry({ env = process.env, cache, fetchImpl, extraAdapters = [] } = {}) {
   const snapshot = cache ?? createSnapshotCache();
+  // extraAdapters: 调用方注入的源（lib/curated-sources.js 的钉定精选源）。
+  // 用注入而不是在这里 import，是为了让本模块保持叶子——精选源要复用本文件的
+  // github 取树与 parsePackage，反向 import 会成环。
   const all = [
     createSkillhubAdapter({ fetchImpl }),
     createSmitheryAdapter({ fetchImpl }),
+    ...extraAdapters,
   ];
   const knownIds = all.map((a) => a.id);
   const enabledIds = parseSourceSelection(env.EXTERNAL_SKILL_SOURCES, knownIds);

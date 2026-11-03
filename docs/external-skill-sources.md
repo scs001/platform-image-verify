@@ -26,6 +26,32 @@
 |---|---|---|---|---|
 | `skillhub` | 腾讯 SkillHub（skillhub.cn） | 免鉴权 | unknown（API 无 license 字段） | search 无游标无 total，limit 即上限 |
 | `smithery` | Smithery（api.smithery.ai） | 免鉴权 | unknown（许可证在上游仓库） | gitUrl 即 originUrl；~25k 条 |
+| `anthropic-skills` | `anthropics/skills`（GitHub，人工钉定） | 可选 `GITHUB_TOKEN` | unknown（原文由许可门读） | 13 条 Apache-2.0，pin 到 commit sha；见下节 |
+
+### 精选钉定源（`anthropic-skills`，2026-11-03）
+
+前两个源是**搜索引擎**：条目会漂移、会 404、许可证恒 unknown。精选钉定源是相反姿态——**人工挑条目、钉死 commit、零正文**：
+
+- 清单 `lib/curated-sources.js`：只写 slug / 上游路径 / 中文用途 / 标签；正文一律运行时从 pin 的 sha 取，因此不存在「清单与正文脱节」。
+- `originUrl` = `https://github.com/anthropics/skills/tree/<sha>/skills/<slug>`。这一条 URL 让转正的 `resolvePinnedRevision` 走 sha 快路径、让许可门能定位技能目录里的 LICENSE，同时给人工复核一个"点开就是那一刻"的锚点。
+- **结构性排除**（不是靠运行时门挡，是根本不入口）：`pdf` / `docx` / `pptx` / `xlsx` 四条上游许可是 Proprietary（"may not create derivative works" / "may not distribute"）；`doc-coauthoring` 无 LICENSE 且 frontmatter 无 license；`claude-api` 许可合法但上游 60+ 辅助文件超过 `maxAuxFiles(64)`，装不进包边界。
+- 结构由测试守卫：上述 slug 出现在清单里即红。
+
+审计与转正一条命令：
+
+```bash
+GITHUB_TOKEN=$(gh auth token) node scripts/adopt-curated-skills.mjs           # 只读裁决表
+GITHUB_TOKEN=$(gh auth token) node scripts/adopt-curated-skills.mjs --json    # 机器台账
+GITHUB_TOKEN=$(gh auth token) node scripts/adopt-curated-skills.mjs \
+  --emit <dir> --operator <id> --reviewer <id>                                # 产出转正 manifest + provenance
+```
+
+任一条被卡即退出码 1（fail-closed）。`GITHUB_TOKEN` 可选，但匿名 60 次/小时在 13 条上必撞墙（实测第 6 条起 403）。
+
+### 许可门的三态与 `proprietary` 轴
+
+`lib/license-gate.js` 输出 `admitted` / `rejected` / `not-declared`。2026-11-03 新增 `proprietary` 轴：一段"© … All rights reserved. may not distribute / create derivative works"的许可文件是**声明了、且声明的是不给**，旧实现把它归进 `not-declared`，拒绝理由反而写成「上游未声明许可」。新轴只在**既无宽松也无已知禁止**时生效，因此宽松许可里常见的 "All rights reserved" 样板文字不会把准入变成拒绝。
+
 
 ### env 开关
 

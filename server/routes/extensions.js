@@ -5,6 +5,7 @@ import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
 import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
+import { createCuratedAdapters } from "../../lib/curated-sources.js";
 import { previewInstall, performInstall, previewUpdate, performUpdate } from "../../external-install.js";
 import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
 import { resolveLocale } from "../../lib/pack-locale.js";
@@ -22,7 +23,9 @@ export function registerExtensionRoutes(ctx) {
   // SERVER-SIDE (a direct API call without `confirm` is refused — the UI
   // panel is the explanation, not the enforcement). `ctx.externalSources` is
   // a test seam; production leaves it unset and the registry builds from env.
-  const externalSources = ctx.externalSources ?? createExternalSourceRegistry({ env: process.env });
+  const externalSources =
+    ctx.externalSources ??
+    createExternalSourceRegistry({ env: process.env, extraAdapters: createCuratedAdapters() });
   const pageSize = () => requestedPageSize(process.env.EXTERNAL_SOURCE_PAGE_SIZE);
 
   // Map an install/preview failure's `.code` to an HTTP status; anything

@@ -7236,7 +7236,7 @@ facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端�
 
 **⑤ 新坑在册**：⑴ **line-clamp 是 CSS 截断、DOM 文本仍在**——e2e 断言折叠态不能 `not.toContainText`（必假红），钉 `toHaveClass(/line-clamp-4/)`；⑵ **GHA 同池 concurrency 高优取消**——同池并行出片时先到的 run 会被后到的取消，出片前 `gh run list -R <pool>` 看一眼在途，被取消的班次核对方源提交祖先律后可直接采用代出镜像。
 
-**⑥ 挂账（当日清零）**：fd-wire-cell 三条拍板归 finddata → **当日回话：选项 B（接受原文）+ A-lite 挂钩**（客户明确提出多语言先补 server 级 3×5 语，触发前双方不动）——paas 面原文渲染即终态，零改动。回执 §七 闭环核销入册。wire cell 走查时 en chrome 下「其他」桶标 label 随 chrome 语言走（一致性正确非缺陷，记录在案）。**唯一余项**：law-bench 可见性——finddata 侧已落库 public（00:00:40），但 **paas 生产注册处（mcp-registry on cheap-8）仍旧态**（group-restricted+allowed_groups=[registry-admins]，updated_at 10-10 18:58）——**两实例同步未达**，非代码缺陷。finddata 侧同步链路确认后自愈；paas 侧只需等投影收敛，无需改代码。
+**⑥ 挂账（当日清零）**：fd-wire-cell 三条拍板归 finddata → **当日回话：选项 B（接受原文）+ A-lite 挂钩**（客户明确提出多语言先补 server 级 3×5 语，触发前双方不动）——paas 面原文渲染即终态，零改动。回执 §七 闭环核销入册。wire cell 走查时 en chrome 下「其他」桶标 label 随 chrome 语言走（一致性正确非缺陷，记录在案）。**唯一余项**：law-bench 可见性——finddata 侧已落库 public（00:00:40）；**2026-11-03 晚间复查已闭环**——查因：此前观察取自**旧 compose 栈**（mcp.finddatatech.cloud 反代曾漂回 100.64.0.11:18080，19 条陈行、law-bench updated_at 10-10 18:58），同日反代已归位 k8s 活栈（cheap-1 Caddyfile `reverse_proxy 100.64.0.15:18080`，注记「repointed back to k8s live stack」）。实证：活栈 Mongo 行 + 活栈 HTTP API `GET /api/servers` 两侧同值 `visibility=public / allowed_groups=None / updated_at=2026-11-03T00:00:40`；公网 `mcp.finddatatech.cloud` 401 门在岗。**结论：非双实例不同步，是反代漂移的观察窗口**，paas 侧零改动。
 
 ## §9 发布记录：智能体构建器批4 上产+两事故终判（add-agent-builder-workspace 8.x，2026-11-03）
 

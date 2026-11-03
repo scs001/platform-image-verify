@@ -7214,3 +7214,17 @@ facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端�
 **⑤ 验证账**：mandate 9/9、worker-pool 8/8（三遍稳定）、基线 event-wake/orchestration/bots 26+task-engine 51、全量 3364/3365（唯一红 plaza-browser=打生产站浏览器验收、并行在途区、与本案零引用交集；supervisor-ports=在册环境挂点排除）。validate --strict 绿，tasks 15/16。
 
 **⑥ 挂账**：cap 活线点火（等自然 cap 事件或专项窗）；autoc档接受规则 UI 面（v1 文件配置）；宪章 §7 质量门工具化（docs 门/model-surface 预算门）独立小案；observe→auto 的放量节奏归运营拍板。
+
+## §9 发布记录：polish-facet-catalog-depth 上产+真机走查（谦面目录数据 locale 跟随切换器+193 工具深度页重排，2026-11-03）
+
+**① 内容（11 文件 +522/-36，commit 619e0c06）**：①`McpCatalog.tsx` 三处 fetch（列表/深度/skills）带 `?locale=`（取 `useLanguage().locale`）且 locale 入 useEffect deps——切换器从「只翻 chrome」变 chrome+数据同变（修 zh 浏览器切 EN 注释仍中文的半截接线真缺陷，后端投影 add-mcp-annotation-overlay 时已备、纯前端缺口）；②深度页工具区重排：新纯函数模块 `facet/web/src/mcpDepthTools.ts`（前缀分组：`_` 前首段归组、单成员并「其他」尾桶、组标题带计数；客户端过滤 name+annotation.name+summary includes 大小写不敏感跨组收窄；preview 启发式 >160 字符或 >4 硬换行）+`ToolSurface` 组件（sm:grid-cols-2 xl:grid-cols-3 响应式网格对齐技能区范式+line-clamp-4 折叠+per-tool 展开/收起，raw name 恒显 mono 不替换；深度页内容列 max-w-6xl 收口）；③五语新键 5 枚齐上（mcp.depth.groupOther/filterPlaceholder/expand/collapse/noResults）。
+
+**② 出片（一轨直出）**：真出片走池 `testaction005/build-pool`（源 5fe497e2，快照 f0c9345，tag=sha-f0c9345 七位）；本班 run 41576862138 被并行班次高优先级取消（GHA concurrency 同池排队），**并行班 run 41576985687 同池同 image 变量代出同源后代 sha-f0c9345**——核祖先律后直接采用（619e0c06 ⊆ 5fe497e2 ⊇ 8276ea0e ⊇ 7d4a0536，不回退市场班/mandate 班）；ccr skopeo 硬门 digest ad680572 实证；GitOps bump 70d6c2e（facet.yaml 单面，platform/platform-demo 不动）；ArgoCD hard-refresh→Synced→rollout 绿→pod `sha-f0c9345` 健康连锁全过。随批带 5fe497e2（市场 tags 列 en 投影修，并行班次生产缺陷修复）。
+
+**③ 真机眼见（生产 facet.finddatatech.cloud，Playwright 铸真访问+截图入档 `gui-test-screenshots/polish-facet-catalog-depth/` 10 张）**：A) locale 三态翻转——zh→en 列表卡注释数据同翻（法律检索→Legal search，钉真请求 `/api/mcp-catalog?locale=en` 重取发生）、ja 抽检 ja 轨命中（法令検索）、无轨条目按契约回落 zh 主轨/原文如实；深度页注释工具双语翻转（检索法规目录↔Search statute titles），raw name 恒显。B) 193 工具（fd-wire-cell-drillcust001）分组九组眼见：alerts 10/composite 16/cron 13/customer 32/daas 87/dashboard 11/gateway 7/research 9/workflow 8（合计 193，命名全带前缀零「其他」桶）；过滤 "series" 跨组收窄 13 工具（alerts 3+customer 2+Other 1），组计数随滤更新；clamp+展开折叠真机两态。C) impeccable Operate 批次验收：桌面 1440+窄幅 700 两档一轮截图（本地桩 7 张+生产 10 张），对齐/密度/层级/一致性逐项过，零缺陷单（visual-judge 供应商缺位改自检在案）。
+
+**④ 验证账**：单测 test-mcp-depth-tools.mjs 8/8（分组/过滤/preview 启发纯函数+源契约钉三处 fetch locale+五语键门）；e2e facet-shell 3/3（locale 重取真浏览器腿+分组/过滤/展开/清空还原腿+既有冒烟无回归；registry-stub 加第三条目 e2e-catalog-depth-mcp 供分组/注释播种）；facet/web tsc 零新错+vite build 绿（line-clamp-4/grid-cols-3 入产物 CSS 核过）。
+
+**⑤ 新坑在册**：⑴ **line-clamp 是 CSS 截断、DOM 文本仍在**——e2e 断言折叠态不能 `not.toContainText`（必假红），钉 `toHaveClass(/line-clamp-4/)`；⑵ **GHA 同池 concurrency 高优取消**——同池并行出片时先到的 run 会被后到的取消，出片前 `gh run list -R <pool>` 看一眼在途，被取消的班次核对方源提交祖先律后可直接采用代出镜像。
+
+**⑥ 挂账**：fd-wire-cell 三条 193×3 注释数据拍板归 finddata（回执 §六两选项在案，paas 面已就绪注释即五语可读）；wire cell 走查时 en chrome 下「其他」桶标 label 随 chrome 语言走（一致性正确非缺陷，记录在案）。

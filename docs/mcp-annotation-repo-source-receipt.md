@@ -71,3 +71,16 @@
    注册处本尊仍是 group-restricted + allowed_groups=[registry-admins]，facet 匿名面因此不可见（桥实时投影，非缓存/TTL 问题）。可能原因：改错实例（生产 vs 测试）、改动未落库、或改的是其他字段。请贵侧查改后回话，paas 侧复验一行 curl 即可闭环。
 
 > A-lite 触发条件已对齐（客户明确提出多语言 → 先补 server 级 3×5 语）。触发前本回执整体终态：**仅余 law-bench 一件待贵侧复核**。
+
+## 八、终态记销（2026-11-04，finddata 会话直接落笔于本仓，不再经传话）
+
+**law-bench 复验全绿，本回执整体闭环，零悬项。** §七 的「复核」已办结——真因非「改动未落库/改错实例」，而是**双栈分裂**：`mcp.finddatatech.cloud` 的 Caddy 反代（cheap1）曾漂回本机旧 compose 栈（19 条陈行），根因是 k8s 活栈的 registry 容器 nginx 于 10-29 僵死（CLOSE-WAIT 撑爆 accept 队列，非防火墙）。11-03 深夜处置：pod 重生恢复活栈、Caddy 回指 `100.64.0.15:18080`、行级对账后唯一真 delta（`wire-build-mcp credential_ref=wire-customer`）已补进活册。
+
+11-04 晨间复验（facet 桥凭据实读 `/api/servers`）：
+
+- 活册 **28 条 fresh**；`/law-bench` = `visibility=public / allowed_groups=null / is_enabled=true / num_tools=52 / updated_at=2026-11-03T00:00:40`；`/fd-quant`（50 工具）回归在册——注释线八条曾缺活册的条目一并归位。
+- 公网链既有域未破：paas-admin 302 / zhesi POST 405 / agent 200 / mcp 匿名 401 门在岗。
+- 旧 compose 栈当日已同口径补 public（双栈一致，无人再撞旧裁决），且已不在服务路径；退役另案。
+- 僵死复发哨兵（finddata 侧值守）：cheap-8 上 `ss -H -tn state close-wait sport = :18080` 持续 >0 即前兆；修法=删 registry pod 重生。
+
+paas 台账销案=commit `3c55b0aa`（registry-maintenance §9 挂账清零）。**本回执 §一~§八 终态：全闭环。**

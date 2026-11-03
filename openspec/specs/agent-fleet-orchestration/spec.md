@@ -6,7 +6,6 @@
 
 ## Requirements
 
-
 ### Requirement: 舰队以 orchestration 声明段描述编导边与约束
 
 舰队对象 SHALL 支持可选 `orchestration` 段:`edges`(边集)与 `constraints`(spanMax / budgetPerEdgeMin / maxChainDepth,均可缺省取默认)。边 SHALL 为六种之一:`trigger`(cron 触发某岗,= 既有节奏物化的图形态,行为不变)、`report`(报数上行,= 既有报数通道,行为不变)、`dispatch`(运行期由岗位发起的派活许可)、`handoff`(上游岗回合完成后接棒下游岗)、`fanout`(上游岗回合完成后并行扇出至多岗并按聚合式汇流)、`event`(外部信号源唤醒某岗)。每条边 SHALL 显式引用本舰岗位 ref(event 边的 from SHALL 为 `bot:<botId>` 形式的外部信号源名,存在性由运行期如实判定);系统 SHALL NOT 按建队顺序或任何隐式规则推断边。写面 SHALL 全量校验:边引用的岗位存在、handoff 子图无环、每条 handoff 链长 ≤ maxChainDepth、span ≤ spanMax(警告级)。event 边的 to SHALL 为 persona/a2a 岗(cluster 无 manual 车道、tool 的参数是逐跳 args,均结构化拒绝);event 边 SHALL NOT 参与 DAG 环检测。未声明 orchestration 段或声明为 `schedule` 模式时,系统行为 SHALL 与现状逐字节一致。
@@ -47,9 +46,10 @@
 
 - **WHEN** 两支结构相同的舰队，一支的 orchestration 来自模板下发、一支由主人手写
 - **THEN** 二者的边展开、派发许可、接棒与唤醒行为完全一致
+
 ### Requirement: dispatch 边使能同舰队岗位间派活
 
-持有 dispatch 许可(显式 dispatch 边或 supervisor/pipeline 模式展开)的岗位回合 SHALL 获得 `dispatch_post` 工具:按岗位 ref 派活给同舰队岗位,brief 为自包含任务说明;派发 SHALL 走既有 delegation 车道创建 manual 任务(证据 `origin.fleet` 指名目标岗、initiator 为派发岗会话),结果 SHALL 异步送达——派发立即返回,目标岗回合摘要经聚合器在派发岗下一回合注入,系统 SHALL NOT 挂起派发回合等待。护栏 SHALL 结构化拒绝:跨舰队目标、自派、目标岗回合深度已达 1、每岗每回合派发超上限(默认 3)、舰队每小时派发超上限(默认 30,均可 env 配置)。派发目标域 SHALL 为 persona、a2a 与 tool 岗(cluster 岗无 manual 车道,SHALL 结构化拒绝)。派发与被派发回合 SHALL 经既有回合收口自动产出 O1 事件,不新增记录路径。
+持有 dispatch 许可(显式 dispatch 边、supervisor 模式展开、或**声明 handoff 边的成对双向授权**)的岗位回合 SHALL 获得 `dispatch_post` 工具:按岗位 ref 派活给同舰队岗位,brief 为自包含任务说明;派发 SHALL 走既有 delegation 车道创建 manual 任务(证据 `origin.fleet` 指名目标岗、initiator 为派发岗会话),结果 SHALL 异步送达——派发立即返回,目标岗回合摘要经聚合器在派发岗下一回合注入,系统 SHALL NOT 挂起派发回合等待。护栏 SHALL 结构化拒绝:跨舰队目标、自派、目标岗回合深度已达 1、每岗每回合派发超上限(默认 3)、舰队每小时派发超上限(默认 30,均可 env 配置)。派发目标域 SHALL 为 persona、a2a 与 tool 岗(cluster 岗无 manual 车道,SHALL 结构化拒绝)。派发与被派发回合 SHALL 经既有回合收口自动产出 O1 事件,不新增记录路径。**成对双向授权**：舰队编排声明了 handoff 边的两岗之间,dispatch 许可双向成立——上游→下游为移交、下游→上游为退回;该许可只作用于该边的两端点之间,系统 SHALL NOT 借此扩展到任何其他岗位对;许可为读时判定,系统 SHALL NOT 派生落盘的隐式边。
 
 #### Scenario: 主管派活闭环
 
@@ -60,6 +60,22 @@
 
 - **WHEN** 派发目标在另一舰队、或目标为本岗、或目标回合深度已 1、或超频次上限
 - **THEN** 工具以结构化错误拒绝并指明原因,不创建任务
+
+#### Scenario: handoff 正向移交
+
+- **WHEN** 舰队声明 handoff 边 建模岗→校验岗,建模岗回合内 dispatch_post(校验岗 ref, brief)
+- **THEN** 许可成立,校验岗起 manual 回合——建模岗无需另声明 dispatch 边
+
+#### Scenario: handoff 反向退回
+
+- **WHEN** 同上舰队,校验岗回合内 dispatch_post(建模岗 ref, 拦截件退回 brief)
+- **THEN** 许可成立(同一声明边的反向),建模岗起 manual 回合收到拦截件
+
+#### Scenario: 未声明对仍拒
+
+- **WHEN** 舰队仅声明 handoff 边 盘账→建模,建模岗 dispatch_post(无关的第三岗 ref)
+- **THEN** 结构化拒绝:成对授权只覆盖声明边的两端点
+
 ### Requirement: handoff 边在上游回合完成后接棒下游
 
 上游岗回合结束(成功或失败均如实)时,系统 SHALL 在回合收口处检查该岗出边:每条 handoff 边 SHALL 为下游岗创建 manual 回合(persona、a2a 与 tool 岗可达;cluster 岗无 manual 车道,跳过),证据 `origin.fleet` 指名下游岗,深度按链位递增且不超过声明链长,每跳时长上限取 budgetPerEdgeMin;整链 SHALL 逐跳产出 O1 事件,链上各跳花费合计记入发起回合的证据链。上游失败时下游 SHALL 照常接棒并收到失败上下文(如实转述,不自动重试)。

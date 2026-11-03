@@ -7160,3 +7160,29 @@ preStop 排水+bot 死窗边缘受理——另单。单② add-desktop-in-app-up
 **⑤ 补记（同日策展板生产 UI 走查）**：facet 宿主直连 `GET /api/packs/curation/coverage` 带 paas_session 401=**按设计**（转发身份 x-facet-token/x-facet-user 只在平台侧 facet-proxy 通道注入，公网 facet 走自身 Logto 登录流——直连 API≠生产 UI 通道）；UI 走查：facet 登录（aloadtree）→ 策展板全渲染，「仅看 en 缺项」筛选在位，**91 条覆盖徽标全部渲染**（facet-curate-coverage-* ×91，首行「外部好货 · 数据速览 en 5/5」），截图 /tmp/roll-evidence/curate-authed.png。任务账 44/48→45/48（5.7 归档准备勾：MODIFIED delta 超集对齐全绿+validate --specs 241/0；archive 动作待 5.2/5.3 完）。
 
 **⑥ 挂账**：⑴5.2 余量在途（10/62 已上，续跑环推进；**9 条服务账号包 platform-test 4/aloadtree@finddatatech 2/admin 2/publisher 1 按「管理员不能代发他人版本」只列不强发，审计零缺项须待所有者协调**）；⑵5.3 tags 归一化（柏讯/wire 同义双写+自由标签单语化，生产数据）；⑶5.5 官方门开启（须审计连续 7 次零缺项+稳定一周）；⑷5.7 归档（主 spec 六 delta 同步：pack-marketplace/pack-locale-tracks/pack-category-line-mapping/official-locale-coverage/pack-display-format/pack-authoring）；⑸domains 轴暂空=零包声明 v2 domain（作者侧随 5.2 后续声明填充）。
+
+## 9 补记：外部热门内容批次（adopt-curated-external-skills + cast-dev-review-team，2026-11-03）
+
+**市场 14 枚上产（facet packs，作者 aloadtree@gmail.com 名在册→official:true）**：
+anthropics/skills Apache 子集 13 条 official-adopted 包（中文门面+i18n.en 回原值，provenance 三轴齐：
+upstream=pin `ca45fc49` 的 tree URL / license=Apache-2.0 逐技能实读 / revision=40hex；默认 chat 面）+
+研发评审小队 `jwDL7dSY…`（VoltAgent 八岗改铸，MIT @ `ed74d115`）。通道=**内网 port-forward facet:3200 +
+publish_pack.py（x-facet-token/x-facet-user）**——边缘 WAF 拦含代码 manifest 既有判定；
+groups=creators,platform → `isAdmin` **免发布限流**（gateway/packs.js:1661 实锤，限流只约束普通创作者）。
+逐份 `validatePackManifest` 零错才 POST；14/14 一次过门。packId 台账=fleet-packs `adopted/LEDGER.md`（f27a5bb1/8dafac76 随批）。
+**排除项写死**：pdf/docx/pptx/xlsx（Proprietary 永久拒）、doc-coauthoring（无许可）、claude-api（60+ 辅助文件超包边界）。
+
+**注册处 10 条 eco-* 入库（materials 广场的源端）**：`POST /api/skills`（admin JWT 自签 HS256、
+`token_kind:"user"` 必带否则边缘 403——§1 配方沿用；SECRET_KEY 经 auth-server env 现取不落盘不回显）。
+md_url=pin 提交 raw URL（免疫漂移自动停用），license=Apache-2.0，tags=[ecosystem,anthropics]，
+metadata.extra.provenance=ecosystem。两单 504=安全扫描晚于响应完成（本体 enabled/active 已直查证实）。
+facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端点 serving 正常（9612B 实取）。
+旧 3 条 eco-* 的 md_url 仍指可变的 /main/——**重钉版留待再审**，本批未动。
+
+**两真缺陷随批修（f27a5bb1）**：① 许可门把「All rights reserved+may not distribute」误归 not-declared
+（拒绝理由与事实相反）→ 新增 `proprietary` 轴；② 上游 frontmatter 只剩 name+description 时
+`Object.keys(null)` 整条崩（skill-creator 首撞）→ `sanitizeFrontmatter ?? {}`。
+
+**挂账（本批未动）**：静态广场重导出/上车（agent.finddatatech.cloud）——site-plaza 工作树正被并行班
+占用（generated 179 件+test-plaza-export 在途），强跑即扫走他班未提交件；数据已在 facet 目录，
+下次导出（该班或净树时）自动带上 10 条。广场站点上车道（scripts/deploy-plaza.sh）配方不变。

@@ -104,3 +104,18 @@
 - 许可证: 逐条——**无 LICENSE 即拒（硬门）**
 - 状态: 考察中（精选 ~10 条待逐条定）
 - 审校: S1 逐条 Q1 逐条 Q2✓；这是无证条目渗入的高危面
+
+### anthropics/skills（Apache 子集）— 入库执行 2026-11-03
+- 上游: anthropics/skills，**逐技能读 LICENSE.txt**（仓库级 None 不可采信）；pin `ca45fc496a3436251f191354091d557da31c15b5`
+- 入库: 10 条新 eco-*（frontend-design / web-artifacts-builder / webapp-testing / theme-factory / algorithmic-art / slack-gif-creator / internal-comms / brand-guidelines / academy-guide / discernment-nudge），既有 3 条（skill-creator / mcp-builder / canvas-design）不动——其 md_url 仍指 /main/（可变），重钉版留待再审批
+- 形态: `POST /api/skills`（admin JWT 自签 HS256+token_kind=user 走边缘 auth_request；两单 504=扫描完成晚于响应，本体均已 enabled/active；扫描未完不上市场列表=预期行为）；md_url=pin 的 raw 提交 URL（不可变，免疫漂移自动停用）；license=Apache-2.0；tags=[ecosystem,anthropics]；metadata.extra 记 provenance=ecosystem+pinned_revision
+- 排除: **pdf/docx/pptx/xlsx=Proprietary（"may not distribute/create derivative works"）永久拒**；doc-coauthoring=无许可声明拒；claude-api=许可合法但 60+ 辅助文件超包边界，不列
+- 双面上产: 同 13 条已作 **official-adopted 功能集**发市场（facet packs，中文门面+en 覆盖层，packId 台账见 fleet-packs `adopted/LEDGER.md`）；注册处目录=材料广场源（facet catalog 207，eco 13 全见）
+- 审校: S1✓ Q1✓ Q2✓ S5 逐条（正文即上游快照）；许可门逐技能原文留证（`/tmp/curated-raw/*/provenance.json`+audit.json）
+
+### obra/superpowers — 状态改判 2026-11-03
+- 考察中→**本批不入库**：15 条技能正文以执行能力为前提（跑测试/建分支类指令），装进 handless 转正产物即谎报触手；改铸需逐条改写执行段=创作工作量，另立项再议
+
+### VoltAgent/awesome-claude-code-subagents — 改铸上市场 2026-11-03
+- 许可证: MIT（仓库 LICENSE 实读）；pin `ed74d115b7fb7026a22a4f816a8e3250f425e3b4`
+- 处置: 不走注册处单条入库，**8 岗「读—判—说」改铸**成一支官方 pack「研发评审小队」（`jwDL7dSYKjp7_NnQpk7DPA` v1，persona-only/chat 面，逐岗 persona 留上游文件出处+钉版）；176 角色中的"动手型"一律规避

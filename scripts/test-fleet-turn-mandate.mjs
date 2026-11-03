@@ -266,6 +266,22 @@ test("revalidation refuses the resume and records the disposition", async () => 
   void engineOnly;
 });
 
+test("cap refusal: the disposition row and the honest O1 row frame the same refusal", () => {
+  makeFleet("f_cap", "capbot");
+  const prev = process.env.FLEET_EVENT_WAKE_HOURLY_CAP;
+  process.env.FLEET_EVENT_WAKE_HOURLY_CAP = "1";
+  try {
+    assert.equal(wake("capbot", { chatKey: "c", senderName: "张三", text: "第一条" }).length, 1);
+    assert.equal(wake("capbot", { chatKey: "c", senderName: "张三", text: "第二条" }).length, 0, "over the cap: no task");
+    const rows = readDispositions("capbot");
+    assert.ok(rows.some((r) => r.fate === "cap_refused" && r.reason === "hourly_cap"), "the unified account records the refusal");
+    assert.ok(rows.some((r) => r.fate === "admitted" && r.taskId), "and the admitted row before it");
+  } finally {
+    if (prev === undefined) delete process.env.FLEET_EVENT_WAKE_HOURLY_CAP;
+    else process.env.FLEET_EVENT_WAKE_HOURLY_CAP = prev;
+  }
+});
+
 // ── The disposition ring ─────────────────────────────────────────────────────
 
 test("disposition ring: bounded, flips oldest; the off switch stops writes", () => {

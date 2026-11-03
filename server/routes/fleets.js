@@ -404,6 +404,23 @@ function templateNotice(fleet) {
   };
 }
 
+// add-agent-builder-workspace 7.2 (D7 回链): the source blueprint id, read from
+// the casting provenance of the pack the fleet was instantiated from. Read-only
+// projection — absent (null) when the fleet has no template origin or the pack
+// carries no _casting. Both the cockpit read face (what the page fetches) and
+// the bare detail route expose it; keeping ONE helper means neither can drift.
+function sourceBlueprintId(fleet) {
+  const packId = fleet?.sourceTemplate?.packId;
+  if (!packId) return null;
+  try {
+    const installed = dbModule.getInstalledPack(packId);
+    const cast = installed?.manifest?._casting;
+    return typeof cast?.blueprintId === "string" ? cast.blueprintId : null;
+  } catch {
+    return null;
+  }
+}
+
 // One timeline row (drawer): value snapshot, blockers, the source-session
 // jump link, and the self/derived provenance badge.
 function reportTimelineEntry(report) {
@@ -1454,6 +1471,10 @@ export function createFleetRoutes(app, ctx = null) {
           total: members.length,
         },
         template: templateNotice(owned.fleet),
+        // 7.2 回链: the page's detail pane fetches THIS route (cockpit), so the
+        // source-blueprint projection must ride it too — not only the bare
+        // /:id detail (caught by the production walkthrough, 2026-11-03).
+        blueprintId: sourceBlueprintId(owned.fleet),
       });
     } catch (err) {
       console.error("[fleets] cockpit error:", err.message);
@@ -2582,17 +2603,7 @@ export function createFleetRoutes(app, ctx = null) {
         decisionPolicy: owned.fleet.decisionPolicy,
         // add-agent-builder-workspace 7.2（D7 回链）：来源蓝图 id 从已装包的
         // 铸造追溯读出——只读投影，非新数据形状；无来源包时缺席。
-        blueprintId: (() => {
-          const packId = owned.fleet.sourceTemplate?.packId;
-          if (!packId) return null;
-          try {
-            const installed = dbModule.getInstalledPack(packId);
-            const cast = installed?.manifest?._casting;
-            return typeof cast?.blueprintId === "string" ? cast.blueprintId : null;
-          } catch {
-            return null;
-          }
-        })(),
+        blueprintId: sourceBlueprintId(owned.fleet),
       });
     } catch (err) {
       console.error("[fleets] detail error:", err.message);

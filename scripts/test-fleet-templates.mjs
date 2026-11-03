@@ -850,3 +850,48 @@ test("route: from-template resolves bot targets through resolveTarget's bots-sto
     server.close();
   }
 });
+
+// ── 7.2 回链投影：来源蓝图 id 必须同时出现在两个读面 ────────────────────────
+// 生产走查实录（2026-11-03）：投影最初只挂在 GET /:id，而舰队详情面板实际拉
+// GET /:id/cockpit——芯片永远不现。两读面同钉，投影漂移当场红。
+test("7.2 back-link: blueprintId rides BOTH cockpit and bare detail", async () => {
+  const m = goodManifest();
+  seedInstalledPack("pack_cast", "1.0.0", {
+    ...m,
+    _casting: { source: "fleet-blueprint-studio", blueprintId: "bp_cast_42", approvedBy: "owner@test" },
+  });
+  const app = express();
+  app.use(express.json());
+  const ctx = { authEnabled: false, cellUserEmail: "owner@test", fleetTargetResolver: ALIVE, currentPreset: null };
+  createFleetRoutes(app, ctx);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const get = (p) => fetch(`${base}${p}`).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+  try {
+    const created = await fetch(`${base}/api/fleets/from-template`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packId: "pack_cast" }),
+    }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+    assert.equal(created.status, 201);
+    const id = created.body.fleet.id;
+    assert.equal(created.body.fleet.sourceTemplate.packId, "pack_cast");
+
+    const cockpit = await get(`/api/fleets/${id}/cockpit`);
+    assert.equal(cockpit.status, 200);
+    assert.equal(cockpit.body.blueprintId, "bp_cast_42", "the page's ACTUAL read face carries the projection");
+
+    const detail = await get(`/api/fleets/${id}`);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.body.blueprintId, "bp_cast_42", "the bare detail agrees");
+
+    // Honest absence: a fleet with no template origin projects null.
+    const plain = fleetDb.createFleet({ id: "fleet_plain_cast", name: "手建", ownerEmail: "owner@test" });
+    const plainCockpit = await get(`/api/fleets/${plain.id}/cockpit`);
+    assert.equal(plainCockpit.status, 200);
+    assert.equal(plainCockpit.body.blueprintId, null, "no template → null, not undefined-key drift");
+  } finally {
+    server.close();
+  }
+});

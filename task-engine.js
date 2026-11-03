@@ -112,6 +112,10 @@ function saveTasks() {
       initiator: t.initiator ?? null,
       initiatorPreset: t.initiatorPreset ?? null,
       origin: t.origin ?? null,
+      // Human-priority wake (add-turn-mandate-lane): stamped by the human
+      // seams (owner execute-now actions); the worker pool's extra slot
+      // serves these. Event/cron/delegation tasks never carry it.
+      humanPriority: t.humanPriority === true,
       // Owning front-end tag (agent-fleet-core: { fleetId, memberId }). An
       // opaque passthrough on every surface — the engine never interprets it;
       // the fleet reconcile layer locates its materialized tasks by it.
@@ -269,7 +273,7 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null, carrier = null, packId = null }) {
+function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null, carrier = null, packId = null, humanPriority = false }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // Exactly one target flavor: a cell persona, a market a2a agent, or a tool
@@ -312,6 +316,9 @@ function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiato
     // Creating front-end tag (the MC bridge's idempotency key); persisted,
     // never exposed on the wire.
     origin: origin ?? null,
+    // Human-priority wake (add-turn-mandate-lane): the worker pool's extra
+    // slot serves these; absent (false) is every pre-existing lane.
+    humanPriority: humanPriority === true,
   });
   const enq = enqueueExecution(id);
   if (!enq.ok) throw new Error(enq.error);
@@ -424,6 +431,19 @@ function enqueueExecution(id) {
   if (t.state === "queued" || t.state === "running") {
     return { ok: true, already: true, state: t.state };
   }
+  // Mandate revalidation (add-turn-mandate-lane): a mandate-carrying task
+  // re-executing revalidates FIRST — a failed check refuses the resume
+  // (honest error, the gate records the disposition). Tasks without a
+  // mandate are untouched; a broken gate fails open (legacy tolerance).
+  if (t.origin?.mandate && mandateGateFn) {
+    let verdict = null;
+    try {
+      verdict = mandateGateFn(t);
+    } catch { /* fail open */ }
+    if (verdict && verdict.ok === false) {
+      return { ok: false, error: `mandate revoked: ${verdict.reason ?? "revalidation failed"}`, mandateRevoked: true };
+    }
+  }
   t.state = "queued";
   // Turn metering (add-turn-metering D1/D3): the enqueue stamp feeds
   // queue_wait_ms (dequeue time − this). One stamp point — run-now and cron
@@ -450,6 +470,17 @@ function enqueueExecution(id) {
 let slotDispatcherFn = null;
 function setSlotDispatcher(fn) {
   slotDispatcherFn = typeof fn === "function" ? fn : null;
+}
+
+// Mandate revalidation gate (add-turn-mandate-lane): a task carrying an
+// immutable mandate (origin.mandate, the event-wake lane) revalidates it
+// against the CURRENT signal-source policy before an execution re-arms. The
+// gate is wired by server.js (it owns the fleet db + the policy reader);
+// unset = no mandates exist anywhere, zero disturbance. Refusal shape:
+// { ok: false, reason } — the gate records the honest disposition row.
+let mandateGateFn = null;
+function setMandateGate(fn) {
+  mandateGateFn = typeof fn === "function" ? fn : null;
 }
 function dispatch(id) {
   if (slotDispatcherFn) {
@@ -794,6 +825,7 @@ export {
   chainTurn,
   addOnFinished,
   setSlotDispatcher,
+  setMandateGate,
   beginExecution,
   runOnPrimary,
   broadcastStatus,

@@ -58,9 +58,14 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   }
   console.log(`[worker-pool] active, TASK_WORKER_MAX=${cap}`);
 
-  const workers = new Set(); // { id, persona, bridge, busy, collectors, activeTurns, lastUsedAt, inFlight }
+  const workers = new Set(); // { id, persona, bridge, busy, collectors, activeTurns, lastUsedAt, inFlight, humanPriority }
   const waiting = []; // task ids FIFO, pool-owned queue
   let workerSeq = 0;
+  // The human-priority extra slot (add-turn-mandate-lane): ONE worker may
+  // exist beyond cap, spawned only for a humanPriority task and reserved for
+  // human wakes while it lives — normal tasks never claim it, and a second
+  // human wake queues while it is busy (the extra slot is one).
+  let humanExtraOut = false;
   let reapTimer = null;
 
   const emitPoolState = () => {
@@ -97,6 +102,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       activeTurns: new Map(),
       lastUsedAt: Date.now(),
       inFlight: null,
+      humanPriority: false,
     };
     worker.bridge = construct({
       ...ctx.workerSpawnParams,
@@ -188,15 +194,22 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         if (!persona) return false;
         const fleetId = t.sourceTag?.fleetId ?? null;
         if (fleetId && fleetInFlight(fleetId) >= fleetCap) return false; // admission gate: stay queued
-        if ([...workers].some((w) => !w.busy && w.persona === persona)) return true;
-        return workers.size + spawning < cap;
+        const human = t.humanPriority === true;
+        // Idle match: a human wake may take the idle human-priority worker
+        // (the extra slot); normal tasks never do — it stays reserved.
+        if ([...workers].some((w) => !w.busy && w.persona === persona && (!w.humanPriority || human))) return true;
+        // Spawn room: within cap as before; the ONE extra slot beyond cap
+        // exists only for a human wake while none is outstanding.
+        if (workers.size + spawning < cap) return true;
+        return human && !humanExtraOut;
       });
       if (idx === -1) return;
       const id = waiting.splice(idx, 1)[0];
       const task = engine.getRecord(id);
       if (!task) continue;
       const persona = task.preset;
-      const idle = [...workers].find((w) => !w.busy && w.persona === persona);
+      const human = task.humanPriority === true;
+      const idle = [...workers].find((w) => !w.busy && w.persona === persona && (!w.humanPriority || human));
       if (idle) {
         const idleFleetId = task.sourceTag?.fleetId ?? null;
         if (idleFleetId) pendingFleets.set(idleFleetId, (pendingFleets.get(idleFleetId) ?? 0) + 1);
@@ -209,12 +222,20 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         void p;
         continue;
       }
+      // The extra slot: computed BEFORE the spawning increment — at/beyond
+      // cap, only a human wake with no extra outstanding may spawn. The
+      // claim books SYNCHRONOUSLY here (the spawn→run gap is async — the
+      // same class of race pendingFleets bridges); the .then only pins the
+      // worker's flag once it exists.
+      const beyondCap = workers.size + spawning >= cap;
+      if (beyondCap) humanExtraOut = true;
       spawning++;
       const spawnFleetId = task.sourceTag?.fleetId ?? null;
       if (spawnFleetId) pendingFleets.set(spawnFleetId, (pendingFleets.get(spawnFleetId) ?? 0) + 1);
       spawnWorker(persona)
         .then((w) => {
           spawning--;
+          if (beyondCap) w.humanPriority = true;
           const p = runTaskOn(w, id);
           if (spawnFleetId) {
             const left = (pendingFleets.get(spawnFleetId) ?? 1) - 1;
@@ -225,6 +246,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         })
         .catch((err) => {
           spawning--;
+          if (beyondCap) humanExtraOut = false; // the extra spawn never landed
           console.error(`[worker-pool] spawn for ${persona} failed: ${err.message}; task ${id} falls back to the primary slot`);
           engine.runOnPrimary(id);
         });
@@ -262,12 +284,18 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       if (w.busy) continue;
       if (Date.now() - w.lastUsedAt > idleReapMs) {
         workers.delete(w);
+        if (w.humanPriority) humanExtraOut = false; // the extra slot frees with its worker
         changed = true;
         stopBridge(w.bridge);
         console.log(`[worker-pool] reaped ${w.id} (persona ${w.persona}, idle)`);
       }
     }
-    if (changed) emitPoolState();
+    if (changed) {
+      emitPoolState();
+      // Freed capacity re-opens the waiting queue — a reap must dispatch, or
+      // queued tasks starve until the next turn's finally.
+      scheduleNext();
+    }
   }, Math.min(REAP_SCAN_MS, Math.max(200, idleReapMs)));
   reapTimer.unref?.();
 

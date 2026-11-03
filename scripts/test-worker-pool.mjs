@@ -188,3 +188,144 @@ test("spawn failure falls back to the primary chain", async () => {
   assert.equal(engine.getTask(a.id).state, "done");
   engine.setSlotDispatcher(null);
 });
+
+// ── Human-priority extra slot (add-turn-mandate-lane) ────────────────────────
+// Semantics under test: ONE worker may exist beyond cap; it is spawned only
+// for a humanPriority task; while it exists a second human wake queues (the
+// extra slot is singular) and normal tasks never claim it — not even idle.
+// The reservation pins run with the DEFAULT reap window (no reap can fire
+// mid-test); the reap-frees-slot behavior gets its own test with a short
+// window. Tests that end with queued leftovers document it: a detached pool
+// never drains them, and no later test asserts global task counts.
+
+const waitFor = async (fn, ms = 4000) => {
+  const t0 = Date.now();
+  while (!fn()) {
+    if (Date.now() - t0 > ms) return false;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return true;
+};
+
+test("a human wake uses the extra slot at full cap; the slot is singular and human-only", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  try {
+    const ctx = makeCtx([]);
+    const pool = attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    assert.ok(await waitFor(() => engine.getTask(a.id).state === "running"), "cap slot fills");
+
+    // A human wake at full cap: spawns the ONE extra worker beyond cap.
+    const h = engine.createManualTask({ prompt: "H", persona: "minimal", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(h.id).state === "running"), "the human wake runs on the extra slot");
+
+    // A normal task queues: within-cap is full, the extra slot is not for it.
+    const b = engine.createManualTask({ prompt: "B", persona: "minimal", initiator: "s1" });
+    // A second human wake queues too — the extra slot is singular.
+    const h2 = engine.createManualTask({ prompt: "H2", persona: "cordis", initiator: "s1", humanPriority: true });
+    await settle();
+    assert.equal(engine.getTask(b.id).state, "queued", "a normal task never takes the extra slot");
+    assert.equal(engine.getTask(h2.id).state, "queued", "the extra slot is singular");
+
+    FakeBridge.byPersona.get("minimal").release(); // h done; the extra goes idle
+    assert.ok(await waitFor(() => engine.getTask(h.id).state === "done"));
+    await settle();
+    assert.equal(engine.getTask(b.id).state, "queued", "an idle extra worker stays reserved for humans");
+    assert.equal(engine.getTask(h2.id).state, "queued", "a second human wake queues while the extra worker exists");
+
+    FakeBridge.byPersona.get("code").release(); // a done — a within-cap slot frees
+    assert.ok(await waitFor(() => engine.getTask(a.id).state === "done"));
+    await settle();
+    // Still queued: the freed within-cap worker is persona code (no affinity
+    // for b/h2), and spawning beyond cap stays blocked for a normal task and
+    // for a second human wake while the extra worker exists.
+    assert.equal(engine.getTask(b.id).state, "queued", "no within-cap room, no spawn for a normal task");
+    assert.equal(engine.getTask(h2.id).state, "queued", "no second extra while the first lives");
+    pool.shutdown();
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    process.env.TASK_WORKER_MAX = "2";
+  }
+});
+
+test("reaping the idle extra frees the slot for the next human wake", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  try {
+    const ctx = makeCtx([]);
+    attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p), idleReapMs: 60 });
+
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    assert.ok(await waitFor(() => engine.getTask(a.id).state === "running"));
+    const h = engine.createManualTask({ prompt: "H", persona: "minimal", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(h.id).state === "running"));
+    const h2 = engine.createManualTask({ prompt: "H2", persona: "cordis", initiator: "s1", humanPriority: true });
+    await settle();
+    assert.equal(engine.getTask(h2.id).state, "queued", "queued while the extra worker exists");
+
+    FakeBridge.byPersona.get("minimal").release(); // extra goes idle → reaps (60ms)
+    assert.ok(await waitFor(() => engine.getTask(h2.id).state === "running"), "h2 spawns once the extra slot frees");
+    FakeBridge.byPersona.get("cordis").release();
+    assert.ok(await waitFor(() => engine.getTask(h2.id).state === "done"));
+    FakeBridge.byPersona.get("code").release();
+    assert.ok(await waitFor(() => engine.getTask(a.id).state === "done"));
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    process.env.TASK_WORKER_MAX = "2";
+  }
+});
+
+test("a human wake reuses an idle extra worker; a normal task waits it out", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  try {
+    const ctx = makeCtx([]);
+    const pool = attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+    const filler = engine.createManualTask({ prompt: "F", persona: "code", initiator: "s1" });
+    assert.ok(await waitFor(() => engine.getTask(filler.id).state === "running"));
+    const h = engine.createManualTask({ prompt: "H", persona: "minimal", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(h.id).state === "running"), "the extra worker serves the human wake");
+    FakeBridge.byPersona.get("minimal").release();
+    assert.ok(await waitFor(() => engine.getTask(h.id).state === "done"));
+
+    // The idle extra is reserved: a normal same-persona task must not claim it.
+    const b = engine.createManualTask({ prompt: "B", persona: "minimal", initiator: "s1" });
+    await settle();
+    assert.equal(engine.getTask(b.id).state, "queued", "idle extra worker stays reserved for humans");
+
+    // A human wake reuses the idle extra worker immediately.
+    const h2 = engine.createManualTask({ prompt: "H2", persona: "minimal", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(h2.id).state === "running"), "a human wake reuses the idle extra worker");
+    FakeBridge.byPersona.get("minimal").release();
+    assert.ok(await waitFor(() => engine.getTask(h2.id).state === "done"));
+    // Leftover: b stays queued while the extra worker lives (default reap
+    // window) — documented, see the file-header note.
+    pool.shutdown();
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    process.env.TASK_WORKER_MAX = "2";
+  }
+});
+
+test("cap 0: humanPriority is inert (the pool never registers)", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "0";
+  try {
+    const ctx = makeCtx([]);
+    const pool = attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+    assert.equal(pool.cap, 0);
+    assert.equal(ctx.workerPool, null);
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(a.id).state === "done"), "the primary chain runs it, byte-identical");
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    process.env.TASK_WORKER_MAX = "2";
+  }
+});

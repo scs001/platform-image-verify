@@ -86,6 +86,7 @@ import { createFleetTurnLedger } from "./server/fleet-runs.js";
 import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "./server/fleet-memory.js";
 import { igniteFleetEdges } from "./server/fleet-handoffs.js";
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
+import { readSignalPolicy, revalidateMandate, recordDisposition } from "./server/fleet-turn-mandate.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { runDueDeputyDigests } from "./server/fleet-delegation-digest.js";
@@ -1592,6 +1593,49 @@ attachDelegationAggregator(ctx).rearm();
 // Attached after the engine so the slot dispatcher registers against the
 // initialized engine; ctx.workerPool feeds the aggregator's drain gate.
 ctx.workerPool = attachWorkerPool(ctx);
+// Mandate revalidation gate (add-turn-mandate-lane): a mandate-carrying
+// event-wake task re-executing revalidates against the CURRENT signal-source
+// policy. ok+stampChanged → an honest disposition row (the resumed turn
+// writes its own O1 row); refusal → the resume is refused and the row says
+// why. Fail-open catch: a broken gate must not wedge re-runs.
+engine.setMandateGate((task) => {
+  try {
+    const mandate = task.origin?.mandate;
+    const botId = task.origin?.event?.botId;
+    if (!mandate || !botId) return { ok: true };
+    const policy = readSignalPolicy(botId);
+    const verdict = revalidateMandate(mandate, policy);
+    if (verdict.ok && verdict.stampChanged) {
+      recordDisposition(botId, {
+        fate: "admitted",
+        reason: "revalidated_stamp_drift",
+        taskId: task.id,
+        sender: mandate.trigger?.sender ?? null,
+        policyVersion: mandate.policyVersion,
+      });
+    }
+    if (!verdict.ok) {
+      recordDisposition(botId, {
+        fate: "filtered",
+        reason: `revalidate_${verdict.reason}`,
+        taskId: task.id,
+        sender: mandate.trigger?.sender ?? null,
+        policyVersion: mandate.policyVersion,
+      });
+    }
+    return verdict;
+  } catch (e) {
+    console.warn(`[fleets] mandate revalidation failed open for ${task?.id}: ${e?.message || e}`);
+    return { ok: true };
+  }
+});
+// Inbound disposition seam for bots.js guard drops (size/rate) — fire-and-
+// forget, failure never touches the chat path.
+ctx.recordSignalDisposition = (botId, entry) => {
+  try {
+    recordDisposition(botId, entry);
+  } catch { /* observation only */ }
+};
 // MC console bridge (mission-control-bridge): opt-in via env, outbound-only,
 // never boot-blocking. Inert without MC_BRIDGE=1 + MC_URL + MC_API_KEY.
 ctx.mcBridge = attachMcBridge(ctx);

@@ -546,11 +546,13 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
 
   if (!text || text.length > MAX_MESSAGE_CHARS) {
     console.warn(`[bots] "${bot.name}" dropped an oversized/empty message from a chat`);
+    state.ctx?.recordSignalDisposition?.(botId, { fate: "filtered", reason: text ? "size_guard" : "empty_message", chatKey: chatKey ?? null });
     return;
   }
   recordChat(bot, botId, chatKey, senderName);
   if (!takeToken(botId, chatKey)) {
     console.warn(`[bots] "${bot.name}" rate limit hit for a chat; message dropped`);
+    state.ctx?.recordSignalDisposition?.(botId, { fate: "filtered", reason: "rate_limited", chatKey: chatKey ?? null, sender: senderName ?? null });
     return;
   }
 
@@ -558,8 +560,12 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
   // inbound message into a post's manual turn. Optional-chained — no fleet
   // face (or old deployment) means zero disturbance. The bot's own turn below
   // is untouched: the dual-turn is the edge owner's declared choice.
+  // add-turn-mandate-lane: `addressed` is the v1 mention heuristic (the bot's
+  // name appears in the text) — only the admission table's non-edge rows read
+  // it; edge hits are unaffected.
   try {
-    const woken = state.ctx?.triggerFleetEventWake?.(botId, { chatKey, senderName, text });
+    const addressed = Boolean(bot.name) && text.toLowerCase().includes(String(bot.name).toLowerCase());
+    const woken = state.ctx?.triggerFleetEventWake?.(botId, { chatKey, senderName, text, addressed });
     if (Array.isArray(woken) && woken.length) {
       console.log(`[bots] "${bot.name}" message woke ${woken.length} fleet post(s): ${woken.map((w) => w.memberId).join(",")}`);
     }

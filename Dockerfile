@@ -250,11 +250,13 @@ COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # is the MCP Registry server.json projection (add-marketplace-projection-fanout)
 # and credential-pattern.js is the credential shape it scans with — a facet
 # import NOT on this list crashloops the facet role only (the platform-role
-# smoke gate cannot catch it); cli/ is deliberately NOT shipped — it is the
+# smoke gate cannot catch it); supply-catalog.js is the unified supply catalog
+# reader facet/index.js inits at boot (add-supply-catalog-unification W1);
+# cli/ is deliberately NOT shipped — it is the
 # npm-published @finddata/facet package, not part of the runtime. That last rule
 # is why credential-pattern.js exists: marketplace-repo.js (the offline exporter,
 # NOT shipped) imports facet/cli/, so the runtime needed the pattern without it.
-COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js /app/facet/publish-gate.js /app/facet/mcp-registry-json.js /app/facet/credential-pattern.js ./facet/
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/supply-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js /app/facet/publish-gate.js /app/facet/mcp-registry-json.js /app/facet/credential-pattern.js ./facet/
 COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,
@@ -265,7 +267,7 @@ COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 # image still boots and every entry renders raw upstream text)
 # + the dirs the supervisor/launcher need at runtime.
 COPY --chown=node:node --from=builder /app/package.json /app/platform.bundle.json /app/mcp.example.json /app/agents.json ./
-COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json /app/market-annotations.json ./
+COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json /app/market-starters.json /app/market-starters-skills.json /app/market-annotations.json ./
 # The chart replay allowlist (openspec: add-chart-data-binding): read at boot by
 # dsh-profile.js, which copies it into $DSH_HOME/profiles/<name> for the
 # chart-bind bridge, and by chart-bindings.js as the replay gate. It is JSON, so

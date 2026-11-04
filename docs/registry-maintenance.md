@@ -7343,3 +7343,13 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 ④**4.1 未竟双真回合对照的精确阻因**（非缺陷，是环境）：a) demo 注册面（actions/persona-evolution 等 8 server）**全无 canonical brief**→agent 路由 bash→无可增强工具；b) 唯一有效增强面 1da519d4 被结构性超卖 OOM 阻（§15.125 B 线挂账，本会话唤醒连撞 6 次 OOMKill，exec 进的 node 被 cgroup killer 挑中）；c) D2 关开关活体演练：机制单测已钉（writer null 清件+组装门读 `ctx.db.getPreference("tool.description.enrichment") !== false`），但活体 preset-switch 在 demo 子进程未切成功（current 没变，撞重启守卫）。待静窗/稳定增强面补「同一任务开/关双真回合 + D2 活体翻闸」。
 
 ⑤**走查班累计清账**（§15.128 盘点的 ~17 项走查尾款）：tool-desc 3.3/4.2/4.3/2.3 ✓、persona 4.2/4.3/4.4 ✓（单 14/14 收官）、skill-evo 4.4 ✓、starter-teams 4.2（并行班归档时核销）、外聊车道 2.4/3.3/4.2 待出片后。**剩尾款**：skill-evo 4.3 真回合链（工具面 skill_propose 桥本就活，待轻载窗）、tool-desc 4.1 双真回合（本批挂账）。随车两真缺陷根修（桥注册 535ee55a / demo judge env b1ef3a0+0750867）+ 成本账目改造（usage 捕获 3f61ccfc）皆已提交。
+
+## §15.132 走查班收官：skill-evo 4.3 真回合全链（2026-11-04）
+
+走查班（§15.128 盘点的尾款清偿）最后一件可做项收口——add-skill-self-evolution 4.3 真机全链，**skill-evo 单 13/13 全勾**。
+
+**真回合全链（demo pod，skill_propose 桥本就活、无 persona 之缺）**：真任务（客户反馈三段式整理+计数）→ agent 真调 `mcp__skill-evolution__skill_propose` 一次成功（isError=false，候选 `sc_1793799253950_b2o1uy`，name=customer-feedback-triage，真 SKILL.md 形状 body+evidence 引本回合拆条/计数/solved 固化流程）→ 真 judge-lane A/B（28.2s，control vs candidate 双臂）**passed:true「candidate ranked best」**（judge reasoning 认可统计口径+缺陷/功能区分+可执行性——不劣于门真放行了一版更优技能，与 §15.130 persona 过保守被拦成双向对照）→ owner promote 200（物化 custom_skills 表）→ **下回合工具面见新技能实锤**：`/api/extensions/skills` 名册 7 条含 customer-feedback-triage `status=user`（名册即工具面读源）。
+
+**走查班总账**（§15.128「~17 项走查尾款」清偿结果）：tool-desc 2.3/3.3/4.2/4.3 ✓（4.1 部分收口，双真回合精确挂账 §15.131）、persona 4.2/4.3/4.4 ✓（单 14/14 收官）、skill-evo 4.3/4.4 ✓（单 13/13 收官）、starter-teams 4.2 ✓（并行班归档核销）；外聊车道 2.4/3.3/4.2 待出片后复测（代码未全上产，非纯尾款）。**随车三真缺陷根修**：persona_amend 生产 401（桥漏注册，535ee55a 根修+双桥收紧）、demo judge env 缺失（b1ef3a0/0750867）、成本账目 usage 捕获改造（3f61ccfc）。**生产影响如实记**：唤醒 parked 大 cell 1da519d4 连撞 6 次 OOMKill（§15.125 结构性超卖 B 线，exec 进的 node 被 cgroup killer 挑中）——走查重腿转 demo pod 后生产 pod 已稳定 Running/ready，近窗无新崩溃；`fd-open-data-mcp ImagePullBackOff` 系另一条线服务（非本班）。
+
+**剩精确挂账**：tool-desc 4.1 双真回合对照（稳定增强面）、skill-evo supersedes lineage 可见（需一个 supersedes 候选）、外聊车道三件（待出片）、persona 4.2 完整绿链第六环（待真正更优修订自然过门）。

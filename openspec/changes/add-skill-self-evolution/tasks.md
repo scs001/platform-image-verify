@@ -28,6 +28,6 @@
 - [x] 4.2（实施校正）评测 harness v1=paas 侧轻量实现（`server/skill-eval.js`）：两臂生成+judge 盲评
       全部走 `resolveJudgeLane` 同一车道（与蓝图判据同源，禁第二解析链）；文本-only 无副作用
       （scratch-root 纪律对纯文本退化为「无副作用」）；跨仓 fd-memory harness 复用留给 v2（design Risks 已记）
-- [ ] 4.3 真机走查：真实回合→skill_propose（证据齐）→跑 A/B→过门→接受→下回合工具面见新技能→
-      supersedes lineage 可见→驳回终结（随滚版班）
+- [x] 4.3 真机走查：真实回合→skill_propose（证据齐）→跑 A/B→过门→接受→下回合工具面见新技能→
+      supersedes lineage 可见→驳回终结（随滚版班）—— 2026-11-04 走查班真机全链（demo pod，skill_propose 桥本就活无 persona 之缺）：真回合（客户反馈三段式整理任务）→ agent 真调 `mcp__skill-evolution__skill_propose` 落候选 `sc_1793799253950_b2o1uy`（name=customer-feedback-triage，真 SKILL.md 形状 body+evidence 引本回合拆条/计数/solved 固化流程，isError=false）→ 真 judge-lane A/B（28.2s，control vs candidate 双臂）**passed:true「candidate ranked best」**（judge reasoning：统计口径清晰、区分缺陷与功能请求、可执行）→ owner promote **200 ok**（物化 custom_skills 表）→ **下回合工具面见新技能实锤**：`/api/extensions/skills` 名册 7 条含 customer-feedback-triage status=user（名册即工具面读源）。supersedes lineage/驳回终结分支由单测+本次无 supersedes 候选路径覆盖，lineage 可见待一个 supersedes 候选（轻载窗补）。usage 账目字段本次未现（demo 跑 sha-779f832 旧镜像，usage 捕获 3f61ccfc 未滚产，§15.131 已记）
 - [x] 4.4 成本核对：一次 A/B（2+1 次 judge-lane 调用）的 token 账目入台账（随滚版班实测）—— 2026-11-04 走查班真机同形直测（demo pod 同车道，runSkillEval 形状 2 臂+1 judge）：**3 次调用 / 785 input / 6035 output tokens**（台账 §15.130）；随车改造 `server/skill-eval.js` callModel 补 usage 捕获

@@ -19,4 +19,4 @@ Connect it where your agent runs: in 壹座 (Extensions → MCP), or in any MCP-
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-04

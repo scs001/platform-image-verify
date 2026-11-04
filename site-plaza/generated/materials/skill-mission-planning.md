@@ -4,6 +4,8 @@
 
 目标→≤8 步计划；步骤 agent 必须 search_agents 实查，查无自行执行；计划即承诺不再增删
 
+Goal to a plan of at most 8 steps; step agents must be actually looked up via search_agents, and if none is found execute yourself; the plan, once made, is a commitment — no additions or removals afterwards.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

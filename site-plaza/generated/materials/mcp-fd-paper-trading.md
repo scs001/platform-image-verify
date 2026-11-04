@@ -13,10 +13,10 @@ Accounts, orders, and positions on paper, with market reads and strategy replay;
 
 MCP servers are connected, not installed. The public endpoint:
 
-    http://cheap6.mesh.finddata.cn:31894/mcp/
+    https://mcp.finddatatech.cloud/fd-paper-trading/mcp
 
 Connect it where your agent runs: in 壹座 (Extensions → MCP), or in any MCP-capable editor's config. The endpoint speaks the Model Context Protocol over streamable HTTP.
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-04

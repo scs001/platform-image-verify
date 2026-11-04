@@ -4,6 +4,8 @@
 
 中文合同审查:风险维度系统审查商事合同条款,输出结构化报告与可直接使用的修改条款
 
+Chinese contract review: systematically reviews commercial contract clauses across risk dimensions and outputs a structured report with ready-to-use revised clauses.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

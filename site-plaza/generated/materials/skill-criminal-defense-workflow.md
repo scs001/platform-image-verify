@@ -2,7 +2,9 @@
 
 ## What this is
 
-刑事辩护全流程总控（识律刑事辩护套件入口技能）。当用户提出刑事案件材料（起诉意见书/起诉书/卷宗/判决书）、要求刑事阅卷分析、辩点梳理、辩护策略路径选择、定性或量刑方向判断时使用。按审查起诉—一审的阶段推进（侦查阶段不在本技能主流程内，见阶段 1 说明），调度套件内「认罪认罚/不起诉论证」与「庭审发问提纲」两个原子技能，并统一承担法条锚定、类案检索与红线校验。
+刑事辩护全流程。当用户要为刑事案件辩护、分析罪名构成与量刑、梳理证据与程序瑕疵、准备辩护意见或庭审发问提纲时使用。走裁判文书库 + 指导案例库 + 法规库检索，逐条溯源。
+
+End-to-end controller for the criminal defense process (entry skill of the 识律 criminal defense suite). Use when the user provides criminal case materials (police prosecution recommendation/indictment/case file/judgment) or asks for case-file analysis, mapping of defense arguments, choice of defense strategy paths, or judgment on offense characterization or sentencing direction. Progresses through stages from review-for-prosecution to first instance (the investigation stage is outside this skill's main flow — see the stage 1 notes), dispatches the suite's two atomic skills, 'plea leniency / non-prosecution argumentation' and 'court examination outline', and centrally handles statute anchoring, similar-case retrieval, and red-line checks.
 
 - Species: skill (plaza category enum v1)
 - Official: no
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

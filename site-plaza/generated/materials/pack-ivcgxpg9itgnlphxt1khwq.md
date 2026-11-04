@@ -31,4 +31,4 @@ MCP server references (4): fd-info, wire-ops, wire-build-mcp, fd-sentiment
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04

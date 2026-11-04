@@ -4,6 +4,8 @@
 
 剧本相似段落检索与比较：以参考文本找语义相近的其他段落，做跨剧比较与母题溯源。数据经 fd-text-core 引擎（预设 similar，纯向量通道）。
 
+Script similar-passage search and comparison: uses a reference text to find semantically similar passages elsewhere, for cross-play comparison and motif tracing. Data via the fd-text-core engine (preset: similar, pure vector channel).
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

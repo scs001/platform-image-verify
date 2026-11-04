@@ -4,6 +4,8 @@
 
 剧本角色检索与分析：查某角色的台词、出场段落与形象特征（台词聚合、语言特征、关系网络）。数据经 fd-text-core 引擎（预设 character）。
 
+Script character search and analysis: looks up a character's lines, appearance passages, and characterization features (dialogue aggregation, linguistic features, relationship networks). Data via the fd-text-core engine (preset: character).
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

@@ -4,6 +4,8 @@
 
 给出一段简短的财报口径提示
 
+Provides a brief note on earnings-report framing.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-11-02",
+  "generatedAt": "2026-11-04",
   "stale": false,
-  "packs": 75,
-  "skills": 197,
-  "mcpServers": 13,
-  "tools": 649,
+  "packs": 80,
+  "skills": 268,
+  "mcpServers": 22,
+  "tools": 793,
   "byCategory": [
     {
       "category": "pack",
-      "count": 26
+      "count": 29
     },
     {
       "category": "skill",
-      "count": 197
+      "count": 268
     },
     {
       "category": "mcp",
-      "count": 13
+      "count": 22
     },
     {
       "category": "facade",
-      "count": 46
+      "count": 48
     },
     {
       "category": "official-data",

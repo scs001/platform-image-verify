@@ -4,6 +4,8 @@
 
 中国法律检索与论证:法条检索时效校验+构成要件匹配+对抗性论证,民商事劳动公司领域
 
+Chinese legal research and argumentation: statute retrieval with validity verification, matching of constitutive elements, and adversarial argumentation, covering civil, commercial, labor, and corporate fields.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

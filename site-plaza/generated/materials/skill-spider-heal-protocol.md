@@ -4,6 +4,8 @@
 
 对外工单协议（SUBMIT/STATUS/QUEUE）、inbox 状态文件、去重与单写者规则
 
+External ticket protocol (SUBMIT/STATUS/QUEUE), inbox status file, deduplication and single-writer rules.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

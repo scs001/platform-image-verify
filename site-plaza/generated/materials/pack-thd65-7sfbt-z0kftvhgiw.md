@@ -1,8 +1,10 @@
-# 外部好货 · 简报快写
+# External Finds · Quick Brief / 外部好货 · 简报快写
 
 ## What this is
 
 M4③ 套装验收——第二件外作者绿地带货
+
+M4③ bundle acceptance — item two: greenfield merchandising by an external author
 
 - Species: facade (plaza category enum v1)
 - Official: yes — curated by FindData
@@ -11,7 +13,7 @@ M4③ 套装验收——第二件外作者绿地带货
 
 Three paths, all landing the same frozen version snapshot:
 
-1. In 壹座 (Yizuo): open the market tab, search "外部好货 · 简报快写", subscribe and install.
+1. In 壹座 (Yizuo): open the market tab, search "External Finds · Quick Brief", subscribe and install.
 2. In a CLI-capable editor (Claude Code, Cursor, Codex, Gemini CLI, ZCode):
 
        npx @finddatatechnology/facet install tHd65-7SfBT_z0KfTvHGIw
@@ -20,4 +22,4 @@ Three paths, all landing the same frozen version snapshot:
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04

@@ -29,4 +29,4 @@ MCP server references (1): fd-info
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04

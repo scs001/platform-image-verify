@@ -4,6 +4,8 @@
 
 步骤串行执行与状态回写；窗口/预算/重试纪律；委派不可用转自执行
 
+Serial execution of steps with status write-back; window/budget/retry discipline; fall back to self-execution when delegation is unavailable.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

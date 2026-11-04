@@ -4,6 +4,8 @@
 
 上市公司财报分析:三表联动+比率分析+财务粉饰红旗识别,输出买方视角研究报告
 
+Listed-company financial statement analysis: links the three statements, performs ratio analysis and identifies red flags of financial window dressing, producing a buy-side research report.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

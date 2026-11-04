@@ -70,14 +70,17 @@ function goodResponses() {
           status: "active",
         },
         {
-          // Live-probed shape: list entries carry an (often null) mcp_endpoint
-          // plus tags; an explicit endpoint must win over the derived URL.
+          // Live-probed shape: list entries carry an (often null) mcp_endpoint.
+          // standardize-mcp-public-endpoints: the endpoint fields are upstream
+          // addressing — even a populated one must NOT become the consumer URL;
+          // mapServer derives {REGISTRY_URL}/{path}/mcp unconditionally.
           path: "/explicit-endpoint",
           display_name: "Explicit",
           description: "declares its own endpoint",
           is_enabled: true,
           tags: ["Data"],
           mcp_endpoint: "https://elsewhere.example/custom",
+          proxy_pass_url: "http://cheap6.mesh.finddata.cn:31893/mcp",
           // Depth-view fields (add-facet-infra-pages): the live shape carries
           // license/provider_organization/tool_list (objects with descriptions).
           license: "MIT",
@@ -181,7 +184,12 @@ test("mapping: servers/skills/agents → market + catalog shapes", async () => {
 
   const explicit = market.mcpServers[1];
   assert.equal(explicit.name, "explicit-endpoint");
-  assert.equal(explicit.configTemplate.url, "https://elsewhere.example/custom");
+  // standardize-mcp-public-endpoints: gateway URL only — the registry's
+  // mcp_endpoint/proxy_pass_url never reach the consumer surface.
+  assert.equal(
+    explicit.configTemplate.url,
+    "https://registry.example.test/explicit-endpoint/mcp",
+  );
   assert.equal(explicit.category, "Data");
   // Depth-view fields (add-facet-infra-pages): provenance + tool details ride
   // the snapshot; names-only toolList stays the pack editor's contract.
@@ -489,5 +497,51 @@ test("catalog: agents.json beats registry on collision; registry roles gate visi
   assert.ok(
     catalogMod.getCatalogFor(null).agents.some((a) => a.id === "registry-agents-weather"),
     "role-less agent visible with auth off",
+  );
+});
+
+// ── standardize-mcp-public-endpoints: consumer-endpoint guard ────────────────
+
+test("endpoint guard: internal-form URLs blocked at the assembly exit", () => {
+  const cases = [
+    "http://cheap6.mesh.finddata.cn:31893/mcp",
+    "https://CHEAP6.MESH.FINDDATA.CN:31893/mcp",
+    "http://sub.mesh.finddata.cn/mcp",
+    "http://100.64.0.11:8090/mcp",
+    "http://100.127.0.1/mcp",
+    "http://10.1.2.3:8000/mcp",
+    "http://192.168.1.5/mcp",
+    "http://172.16.0.9/mcp",
+    "http://172.31.255.1/mcp",
+    "http://127.0.0.1:7860/mcp",
+    "http://localhost:8003/mcp",
+  ];
+  for (const bad of cases) {
+    assert.equal(
+      bridge.isInternalFormUrl(bad),
+      true,
+      `expected internal-form: ${bad}`,
+    );
+    assert.equal(
+      bridge.consumerEndpointFor("some-server", bad),
+      "https://registry.example.test/some-server/mcp",
+      `guard must derive gateway URL for: ${bad}`,
+    );
+  }
+});
+
+test("endpoint guard: public URLs pass through; falsy falls back to derived", () => {
+  assert.equal(bridge.isInternalFormUrl("https://mcp.vendor.example/mcp"), false);
+  assert.equal(
+    bridge.consumerEndpointFor("some-server", "https://mcp.vendor.example/mcp"),
+    "https://mcp.vendor.example/mcp",
+  );
+  assert.equal(
+    bridge.consumerEndpointFor("some-server", ""),
+    "https://registry.example.test/some-server/mcp",
+  );
+  assert.equal(
+    bridge.consumerEndpointFor("some-server", null),
+    "https://registry.example.test/some-server/mcp",
   );
 });

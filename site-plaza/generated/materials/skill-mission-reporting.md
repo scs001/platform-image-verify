@@ -4,6 +4,8 @@
 
 终态报告（完整/部分交付）与 bot_notify 通知纪律
 
+Final-state reports (complete/partial delivery) and bot_notify notification discipline.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

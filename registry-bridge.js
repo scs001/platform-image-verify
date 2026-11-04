@@ -155,15 +155,38 @@ function plainMetadataAnnotations(v) {
 // "needs config" and the setup form asks for the token at install time.
 // Live-probed note: mcp_endpoint is currently null on list responses; the
 // derived {REGISTRY_URL}/{path}/mcp URL is confirmed working (registry's own
-// test-mcp-client.sh uses the same shape). Prefer mcp_endpoint if the registry
-// ever starts populating it.
+// test-mcp-client.sh uses the same shape). The registry's own mcp_endpoint /
+// proxy_pass_url are upstream addressing — NEVER client-visible (they point at
+// mesh nodes / tailnet IPs). The gateway route {REGISTRY_URL}/{path}/mcp is the
+// only sanctioned consumer URL, so mapServer derives it unconditionally; the
+// guard below rewrites any internal-form URL that somehow reaches an assembly
+// exit (defense in depth for future callers).
+
+// Matches deployment-internal hosts: mesh MagicDNS names, tailnet CGNAT,
+// loopback, and bare-IP:port forms. Anything hit means upstream addressing
+// leaked into a consumer surface — replaced, never rendered.
+const INTERNAL_URL_PATTERN =
+  /^https?:\/\/([^/]*mesh\.finddata\.cn|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|127\.\d+\.\d+\.\d+|localhost)(:\d+)?/i;
+
+function gatewayEndpoint(name) {
+  return `${REGISTRY_URL}/${name}/mcp`;
+}
+
+function consumerEndpoint(name, candidate) {
+  if (typeof candidate !== "string" || !candidate) return gatewayEndpoint(name);
+  if (INTERNAL_URL_PATTERN.test(candidate)) {
+    console.warn(
+      `[registry-bridge] internal-form URL blocked from consumer surface for "${name}"; deriving gateway endpoint instead`,
+    );
+    return gatewayEndpoint(name);
+  }
+  return candidate;
+}
+
 function mapServer(s) {
   if (!s?.path || s.is_enabled === false) return null;
   const name = pathToName(s.path);
-  const endpoint =
-    typeof s.mcp_endpoint === "string" && s.mcp_endpoint
-      ? s.mcp_endpoint
-      : `${REGISTRY_URL}/${name}/mcp`;
+  const endpoint = gatewayEndpoint(name);
   return {
     name,
     displayName: s.display_name || name,
@@ -420,6 +443,17 @@ export function getAgentEntries() {
 // login page. The connect popup needs both; neither is a secret.
 export function getRegistryUrl() {
   return REGISTRY_URL;
+}
+
+// standardize-mcp-public-endpoints: single normalize exit for any surface that
+// re-renders registry-sourced URLs to end customers (plaza generators, install
+// forms, deep views). Blocks internal deployment positions from consumer planes.
+export function consumerEndpointFor(name, candidate) {
+  return consumerEndpoint(name, candidate);
+}
+
+export function isInternalFormUrl(candidate) {
+  return typeof candidate === "string" && INTERNAL_URL_PATTERN.test(candidate);
 }
 
 export function getRegistryLoginPath() {

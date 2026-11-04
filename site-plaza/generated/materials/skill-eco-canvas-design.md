@@ -4,6 +4,8 @@
 
 [生态] 画布/图形设计工作流
 
+[Ecosystem] Canvas/graphics design workflow.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -20,4 +22,4 @@ Source repository: https://github.com/anthropics/skills
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

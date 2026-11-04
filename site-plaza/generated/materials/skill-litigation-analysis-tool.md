@@ -4,6 +4,8 @@
 
 诉讼分析工具 - 支持文件夹批量处理，判决书深度分析，生成上诉/再审决策支持
 
+Litigation analysis tool - supports folder batch processing and deep analysis of judgment documents, producing appeal/retrial decision support.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -20,4 +22,4 @@ Source repository: https://github.com/pa1nrui1/legal-skills
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

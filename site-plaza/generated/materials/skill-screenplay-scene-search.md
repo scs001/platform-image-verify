@@ -4,6 +4,8 @@
 
 剧本场景检索与细读：按场景描述定位并细读整场内容（场景功能、调度特征、戏剧张力）。数据经 fd-text-core 引擎（预设 scene）。
 
+Script scene search and close reading: locates scenes by description and closely reads the full scene (scene function, staging features, dramatic tension). Data via the fd-text-core engine (preset: scene).
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

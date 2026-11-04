@@ -4,6 +4,8 @@
 
 把视频发布到 6 平台（抖音/小红书/B站/快手/视频号/YouTube），vendored social-auto-upload + patchright，发布前人工确认
 
+Publish videos to 6 platforms (Douyin/Xiaohongshu/Bilibili/Kuaishou/WeChat Channels/YouTube); vendored social-auto-upload + patchright; manual confirmation before publishing.
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

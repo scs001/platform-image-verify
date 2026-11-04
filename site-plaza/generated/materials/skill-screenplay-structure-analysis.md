@@ -4,6 +4,8 @@
 
 剧本结构分析：公版经典戏剧的幕场/折出骨架与情节推进梳理。数据经 fd-text-core 引擎的剧本语料实时检索（预设 structure）。
 
+Script structure analysis: maps the act/scene (zhe/chu) skeleton and plot progression of public-domain classic dramas. Data is retrieved in real time from the fd-text-core engine's script corpus (preset: structure).
+
 - Species: skill (plaza category enum v1)
 - Official: no
 
@@ -18,4 +20,4 @@
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

@@ -20,4 +20,4 @@ Source repository: https://gitee.com/FindDataTechnology/finddata-skills/tree/mas
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04

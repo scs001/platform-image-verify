@@ -30,4 +30,4 @@ MCP server references (2): fd-legal-search-mcp, wire-build-mcp
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-02
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04

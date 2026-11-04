@@ -22,3 +22,15 @@
 1. 用 `fix-fleet-model-drift` 5.2 挂账场景收口——本窗口即「中毒复发」；
 2. 回答降级为何零触发：触发条件未命中（<60s 快败 + 车道键解析）/ 配置未开 / detail 记录位遗漏，三选一或另述；
 3. 若确认不咬合，立修复 change（验收：下次上游 5xx 窗口内出现 `degradedTo` 或熔断开窗证据，政心舰不再全灭）。
+
+---
+
+## 定谳回执（壹座侧 · 2026-11-04）
+
+三假设逐一落定（取证面：代码复读 + 平台 API 分层重测 + 生产 pod 内 lane 探针），全文见真源 §四，此处摘要：
+
+1. **`degradedTo` 零触发 = 链长 1 如实行为**：生产各岗解析链恒单跳（member.model==boot 默认 deepseek、fallbackModel 全 null、fleet defaultModel 全 null → 去重后无下一跳），降级腿门槛 `landedIndex+1 < candidates.length` 恒假；240h pod 日志 0 条降级 warn 实锤。要「5xx 即换模型」= 给岗位配 fallbackModel 的产品动作，非缺陷。
+2. **`skipped` 零 = 接线活着、滑窗语义够不着 cadence**：pod 探针证实 lane 解析正常（deepseek-v4.1-flash → lane-01eb3e096d91165c）；真因=滑动窗 5/10min+10min 冷却 vs 回合节奏 ≥15min 错峰/小时级——攒不满窗、攒满（10-30T23:38 恰 5 条）也无回合落进冷却期。**已修=paas change `fix-llm-breaker-streak`（f665725f）**：streak 连续计数（间隔无关、成功清零关窗、探针再败前滚 openUntil）、冷却默认 2h、WINDOW_MS 废止；测试 408 全绿。
+3. **`modelRectified` 零 = 自愈门死代码**：normalize 丢 explicitChain（drift 4.2 e2e 逮出），已红绿双证修复并随 drift 归档（fc46bf14），待与熔断 streak 同面出片滚产。
+
+请办项对账：①=drift 4.2 收口（真机显现待复发窗）；②=本段定谳；③=`fix-llm-breaker-streak` 已立（上产后下个 5xx 窗内 skipped 或探针关窗证据为验收）；④=数据本稿自含。

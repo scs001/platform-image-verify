@@ -18,7 +18,7 @@
 ## 4. 试验 & 上线
 
 - [x] 4.1 单元 + 情景：投毒 child 会话链模型为 qwen → 下一阵走 assert 自动恢复深寻；不知名失败不重试；无显式链路径不变。
-- [ ] 4.2 e2e 一情景：dispatch 回合走 mock 致 400 model_not_available → 自愈走第二次成功，trace header.model 恢复（第二阵地断言行）。
+- [x] 4.2 e2e 一情景：dispatch 回合走 mock 致 400 model_not_available → 自愈走第二次成功，trace header.model 恢复（第二阵地断言行）。——2026-11-04 落地 `scripts/test-fleet-drift-self-heal.mjs`（真 runPersonaTurn+真 ledger end+桩桥，五断言全过），**且 e2e 逮出真缺陷：normalizeModelForJob 返回缺 explicitChain 字段致自愈门恒不开=自愈重试自上线即死代码（9f4434ef 原样）**——补 normalize 返回透传 explicitChain（红→绿双证：摘补丁 e2e 红、还原后绿），runPersonaTurn 导出供测。
 - [x] 4.3 FLEET_MODEL_ASSERT_SOFT=1 回滚路径留灵。
 
 ## 5. 出片与验收

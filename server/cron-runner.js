@@ -451,6 +451,11 @@ async function normalizeModelForJob(ctx, preset) {
     candidates: plan.candidates.map((hop) => hop.model),
     landedIndex,
     landed,
+    // fix-fleet-model-drift: the self-heal gate in runPersonaTurn reads
+    // modeled.explicitChain — without it the not-available retry was dead
+    // code from day one (the plan carries the flag; the normalized shape
+    // dropped it). Ride the plan's verdict through.
+    explicitChain: plan.explicitChain === true,
   };
 }
 
@@ -590,7 +595,9 @@ export async function awaitRuntimeReadyForJob(ctx, job, {
   return { ok: true };
 }
 
-async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
+// Exported for the drift self-heal e2e (fix-fleet-model-drift 4.2): the gate
+// and its retry ride this exact function — a seam-level test cannot see them.
+export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
   let contextBudget = null;
   // Unattended fleet rounds land on cold cells: the platform boots its dsh
   // child in the background, so a 09:00 cron can fire before the runtime is

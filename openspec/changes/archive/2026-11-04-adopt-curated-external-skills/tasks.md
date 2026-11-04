@@ -33,6 +33,6 @@
 
 ## 6. 未做（对外动作，需另行确认）
 
-- [ ] 6.1 把 13 条转正产物发布到市场（`gateway/packs.js` 发布门 / 管理员身份）
-- [ ] 6.2 注册进注册处技能目录以进入材料广场（`/api/skills`，见 `docs/ecosystem-curation.md` 的入库轴）
-- [ ] 6.3 批次 B：研发小队 pack（VoltAgent 8 岗 review/advisory 型 + superpowers 方法论技能）
+- [x] 6.1 把 13 条转正产物发布到市场（`gateway/packs.js` 发布门 / 管理员身份）——已核实：台账 §9 补记 2026-11-03，14 枚（13 curated+评审小队）经内网 port-forward facet:3200 publish_pack.py 一次过门；2026-11-04 市场 API 复验 adopted 包活体可见（作者 aloadtree@gmail.com→official:true）
+- [x] 6.2 注册进注册处技能目录以进入材料广场（`/api/skills`，见 `docs/ecosystem-curation.md` 的入库轴）——已核实：10 条 eco-* 入库，facet catalog 复验 207 条、eco 13 全见（3 旧+10 新），内容端点 serving 9612B 实取（台账 §9 补记）
+- [x] 6.3 批次 B：研发小队 pack（VoltAgent 8 岗 review/advisory 型 + superpowers 方法论技能）——已核实：研发评审小队 `jwDL7dSY…`（VoltAgent 八岗改铸，MIT @ ed74d115）随 14 枚批次上市场（台账 §9 补记；f27a5bb1/8dafac76 随批）

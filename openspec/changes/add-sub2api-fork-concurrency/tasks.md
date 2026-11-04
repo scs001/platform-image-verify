@@ -1,0 +1,10 @@
+- [x] 1.1 立项（前置裁决：fork 源码归属=本仓维护，2026-11-04 授权代拍）
+- [ ] 2.1 上游代码：per-account 有界信号量 + queue bound + 429 快速拒
+- [ ] 2.2 上游代码：AIMD 状态机（success/5xx/timeout/open/half-open/recover 全转移）
+- [ ] 2.3 上游代码：三 metrics 暴露 + channel_monitor aimd_state 哨兵收编
+- [ ] 2.4 docs/sub2api-fork-patches/ 补丁文档 + upstream-pr-candidates 登记
+- [ ] 3.1 单测：AIMD 状态机全转移覆盖
+- [ ] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时
+- [ ] 3.3 回归：既有 lane 测试全绿
+- [ ] 4.1 出片滚产（fd-build-channel 通道）+ GitOps bump
+- [ ] 4.2 生产七日观察：queue_rejected < 1%、零 relay 锁拖死复发 → 归档

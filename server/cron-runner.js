@@ -258,6 +258,14 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         if (text || toolBlocks.length) {
           chatHistory.recordMessage(mirrorSessionId, "assistant", text, persistBlocks);
         }
+      } else if (ev.type === "turn/end") {
+        // 空回合免单 (F3.3 remainder, fix-error-turn-billing): the UNKNOWN_MODEL
+        // silent empty return never emits a platform/stream error finish — its
+        // ONLY failure signature is turn/end reason=error. Capture it here so
+        // the attempt settles failed instead of riding ok:true into billing.
+        if (ev.data?.reason?.kind === "error" && !error) {
+          error = ev.data.reason.error?.message || "LLM request failed";
+        }
       } else if (ev.type === "tool/call") {
         toolBlocks.push({
           kind: "tool",
@@ -743,6 +751,13 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
     try {
       await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
       const out = await collected;
+      // 空回合免单 (F3.3 remainder): a turn whose collector captured an error
+      // (turn/end reason=error with no stream finish — the UNKNOWN_MODEL
+      // silent empty return) must settle FAILED, not ride ok:true with an
+      // error field into billing. error wins over the collected payload.
+      if (out?.error) {
+        return { ok: false, error: out.error, interrupted: false, detail: null, metering };
+      }
       // ttft (add-turn-metering): first assistant event − attempt start. The
       // attempt START is the prompt call's wall clock, not the seam's
       // startedAt (model-normalize time is not latency to first token).

@@ -7310,3 +7310,8 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 **上产**：T1 公开快照线——本侧快照 c3d7527e（⊇ fd-wire 会话 f665725f 熔断+fc46bf14 drift 归档，两会同车；其间 fd-wire 会话快照 CI 红抓出 extension-store 错挂 biome-ignore，c3d7527e 顺手修 14/14 绿）→ image run 41791265401 success → relay 15:25:22 过岸 → skopeo 硬门 sha-1d3ebf6 EXISTS（digest 3ff3d4f1）→ fd-infra-deploy 0aca14d bump platform+demo 双清单 → ArgoCD refresh 注解强拉（rev 0aca14d）→ 双 deployment rolled out。**上产当日 pod 内实机冒烟**：间隔 3h×5 连击第 5 次开窗、openUntil=+2h、成功清零关闸全对（真环境行为验证）；skipped 回合行的生产显现待下一个真实 5xx 窗（tasks 5.2 如实挂观察）。
 
 **协作注记**：fd-wire 会话与本会话同工作树并发——镜像通道出现双快照竞争（fd-wire dfeb371 强推后被本侧 c3d75/lane-repair 顶替，fd-wire 会话撤出竞争改监控），教训=出片判路（fd-build-channel）之外还应先查 verify 仓近 10 分钟 run 再推。
+
+### 老工程债收口（同日续）
+- **F3.3 空回合免单（剩余半）**：`collectTurn` 补吃 `turn/end reason=error`（UNKNOWN_MODEL 静默空返的唯一失败面——`platform/stream` error finish 从不发射），`attempt` 采集 error 即翻 `ok:false`（不再骑 ok:true 入账）。4 测试钉死（`scripts/test-empty-turn-billing.mjs`：采集器捕获/stream 帧 first-wins/端到端免单/健康回合零回归）。10-13 修的 JSON-RPC error 半与本修合璧，F3.3 计费缺陷全案关账。
+- **sub2api fork 并发改造立项**：`add-sub2api-fork-concurrency`（strict 绿）——有界排队+429 快速拒/AIMD 自适应并发/熔断联动/三 metrics；前置「fork 源码归属」用户 11-04 授权代拍=本仓维护，归属问题关闭。
+- **全量单测判红**：2948✔/3✖——supervisor-ports 两红（120s 超时，spawn 型环境用例，本机多会话占端口，记忆在册）+ plaza-browser（需浏览器环境）。零新增红，本轮 cron-runner 两处补丁零回归（drift-self-heal 1/1+model-drift 5/5+empty-turn 4/4+bots/durability 全绿）。

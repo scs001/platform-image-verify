@@ -7329,3 +7329,17 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 ④**成本账目（4.3/4.4 同班核，共用 judge-lane 车道，demo pod 同形直测 runPersonaEval/runSkillEval 精确消息形状 2 臂+1 judge）**：**persona 一次 A/B = 3 次调用 / 2365 input / 11926 output tokens**；**skill 一次 A/B = 3 次调用 / 785 input / 6035 output tokens**（judge 判旧技能胜——新技能「待补」纪律致只提一项未满足「三个行动项」，闸如实拦双向活体）。随车改造 `server/persona-eval.js`/`server/skill-eval.js` callModel 补 usage 捕获（eval report 自此自带 usage 字段，后续 A/B 自动入账），孪生套件回归 9/9、10/10。
 
 ⑤**挂账**：skill-evo 4.3 真回合链（与 persona 同构，工具面 skill_propose 桥本就活，待下一轻载窗）；tool-desc 4.1 A/B 开关对比+2.3 parked 注记（重腿，需 enrichment 开/关双真回合）；persona 4.2 第六环完整绿链待一个真正更优修订自然过门；prod judge mimo 503 断供换型（demo 已钉 v4.1，prod 另行裁决）；demo GitOps repo-server 缓存卡 0750867（kubectl set env 同值旁路已对齐，网络愈后 GitOps 自动收敛）。
+
+## §15.131 走查班第三批：tool-desc 4.1 部分收口+2.3 parked 注记（2026-11-04）
+
+承接 §15.130。add-tool-description-enrichment 本批勾 2.3（parked 注记），4.1 部分收口（数据入台账✓，双真回合对照留精确挂账）。
+
+①**token 增量/描述长度=真测**：demo 全量增强面（594 工具，桥快照新鲜时）overlay 实读——附加文本 **80513 字符 ≈ 23k token 上限**（588 源 `finddata-supply-annotations` + 6 源 `catalog`，单条 brief 最长 294 字）；per-回合实际增量受工具懒加载子集约束（builder 班一真回合实测 +805 in）。生产面增强随桥快照波动：OOM 重启后降级到 6 工具/363 字符（「组装再生」活体，§15.130）。
+
+②**工具调用成功率=增强面活体已见**：本会话 1da519d4/standard 多真回合（矛盾表核对/persona_amend 链）工具调用全 `isError=false`，增强描述随注册进模型面。
+
+③**2.3 parked 注记**：overlay 消费端逐次注册读文件（platform-tool-description.js:52-54「per-read keeps an HMR'd composition from serving a stale brief」）——进行中回合注册已过=描述固化，后续注释更新只在下个组装周期再生落，不侵入进行中回合；真机旁证=生产 16 个无 overlay cell 含 parked 陈旧 profile（420a3344 组装 10-26 早于增强上产，唤醒重组装才补）。discovery 索引=模型面由构造保证（2.2 单测在位）。
+
+④**4.1 未竟双真回合对照的精确阻因**（非缺陷，是环境）：a) demo 注册面（actions/persona-evolution 等 8 server）**全无 canonical brief**→agent 路由 bash→无可增强工具；b) 唯一有效增强面 1da519d4 被结构性超卖 OOM 阻（§15.125 B 线挂账，本会话唤醒连撞 6 次 OOMKill，exec 进的 node 被 cgroup killer 挑中）；c) D2 关开关活体演练：机制单测已钉（writer null 清件+组装门读 `ctx.db.getPreference("tool.description.enrichment") !== false`），但活体 preset-switch 在 demo 子进程未切成功（current 没变，撞重启守卫）。待静窗/稳定增强面补「同一任务开/关双真回合 + D2 活体翻闸」。
+
+⑤**走查班累计清账**（§15.128 盘点的 ~17 项走查尾款）：tool-desc 3.3/4.2/4.3/2.3 ✓、persona 4.2/4.3/4.4 ✓（单 14/14 收官）、skill-evo 4.4 ✓、starter-teams 4.2（并行班归档时核销）、外聊车道 2.4/3.3/4.2 待出片后。**剩尾款**：skill-evo 4.3 真回合链（工具面 skill_propose 桥本就活，待轻载窗）、tool-desc 4.1 双真回合（本批挂账）。随车两真缺陷根修（桥注册 535ee55a / demo judge env b1ef3a0+0750867）+ 成本账目改造（usage 捕获 3f61ccfc）皆已提交。

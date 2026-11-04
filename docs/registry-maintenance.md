@@ -7285,7 +7285,7 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 ### 小修小配
 1. **biome.json 推荐配置迁移**：`"preset": "recommended"` → `"recommended": true`（适配 Biome 2.x+，弃用警告清零）。
 2. **品牌串注释更新**：`web/src/lib/appCatalog.ts` 注释 `壹座·Packs` → `壹座·智能体基础设施`（落地页品牌串同步见对侧仓）。
-3. **PACK_OFFICIAL_EN_GATE=1 待配置**：5.5 门条件已满（审计 86/0+en 轨中文 tag 零残留），需在 fd-prod ConfigMap 置 `PACK_OFFICIAL_EN_GATE=1`，七日观察起算。
+3. **PACK_OFFICIAL_EN_GATE=1 勘误：早已在产**——11-03 854ab84/2e8e479 已落 GitOps（facet.yaml+platform.yaml），生产 pod 实读 env=1（11-04 复核，pod 3h40m 新生代）。七日观察起算锚=2026-11-03 18:42，**2026-11-10 期满**；期满后 en 轨零残留维持即可走 5.5 归档。
 4. **旧 eco-* md_url 重钉**：3 条仍指 `/main/`，需改为 pinned raw URL（免疫漂移），归档前再审。
 5. **wire-presets/vaas-presets docs 入 git**：两仓 docs/ 裸目录无版本保护，建议入 git（本班已快照 3+1 枚入 fleet-packs）。
 6. **biome 推荐迁移**：已完成（preset → recommended: true）。

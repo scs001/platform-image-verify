@@ -18,7 +18,7 @@
 //   node --test scripts/test-cell-wake-admission.mjs
 
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -44,6 +44,28 @@ server.listen(port, "127.0.0.1");
 process.on("SIGTERM", () => process.exit(0));
 `;
 
+// Same stub, listening after a delay — holds a wake's reservation window open
+// so a second ensure() can race it deterministically (add-wake-budget-admission).
+function STUB_SLOW(delayMs) {
+  return `import http from "node:http";
+import { existsSync } from "node:fs";
+import path from "node:path";
+const port = Number(process.env.PORT || 0);
+const releaseDir = process.env.CELL_RELEASE_DIR;
+const email = process.env.CELL_USER_EMAIL || "";
+const deadline = Date.now() + ${delayMs};
+while (releaseDir && email && !existsSync(path.join(releaseDir, "release-" + email)) && Date.now() < deadline) {
+  await new Promise((r) => setTimeout(r, 50));
+}
+const server = http.createServer((req, res) => {
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify({ pid: process.pid, port }));
+});
+server.listen(port, "127.0.0.1");
+process.on("SIGTERM", () => process.exit(0));
+`;
+}
+
 // Model sampler: container used is a FUNCTION OF PARKED TRUTH — a cell's
 // contribution counts only while its registry row is resident, so an eviction
 // that parks a row frees its (calibrated) share on the next sample, the same
@@ -62,8 +84,8 @@ function makeModelSampler({ regDb, limitBytes = LIMIT } = {}) {
       const totalScan = cells.reduce((s, c) => s + c.totalBytes, 0) + GATEWAY_RSS;
       return { available: true, sampledAt: Date.now(), cells, gateway: { totalBytes: GATEWAY_RSS, processes: [] }, ungrouped: { totalBytes: 0, processes: [] }, container: { available: true, usedBytes: Math.round(used), limitBytes } };
     },
-    admission(threshold, { projectedBytes = null } = {}) {
-      return evaluateAdmission({ container: this.sample().container, threshold, projectedBytes });
+    admission(threshold, { projectedBytes = null, inflightBytes = null } = {}) {
+      return evaluateAdmission({ container: this.sample().container, threshold, projectedBytes, inflightBytes });
     },
   };
   return { sampler, state };
@@ -82,12 +104,18 @@ function expectedFootprint(state, cellId) {
   return Math.round(cellRow.totalBytes * ratio);
 }
 
-function makeHarness({ idleReapSecs = 3600, floor = FLOOR } = {}) {
+function makeHarness({ idleReapSecs = 3600, floor = FLOOR, stubDelayMs = 0, wakeDefaultFootprintMb = null, releaseHoldMs = 0 } = {}) {
   const harness = {};
   harness.ready = (async () => {
     const root = await realpath(await mkdtemp(path.join(tmpdir(), "cell-wake-adm-")));
     const stub = path.join(root, "stub-cell.mjs");
-    await writeFile(stub, STUB);
+    let releaseDir = null;
+    if (releaseHoldMs > 0) {
+      releaseDir = path.join(root, "releases");
+      await mkdir(releaseDir, { recursive: true });
+      harness.releaseDir = releaseDir;
+    }
+    await writeFile(stub, (stubDelayMs > 0 || releaseHoldMs > 0) ? STUB_SLOW(Math.max(stubDelayMs, releaseHoldMs)) : STUB);
     harness.root = root;
     harness.regDb = createCellRegistryDb({ file: path.join(root, "cells-registry.db") });
     const { sampler, state } = makeModelSampler({ regDb: harness.regDb });
@@ -99,10 +127,11 @@ function makeHarness({ idleReapSecs = 3600, floor = FLOOR } = {}) {
       startTimeoutMs: 15_000,
       idleReapSecs,
       serverEntry: stub,
-      env: { ...process.env },
+      env: { ...process.env, ...(releaseDir ? { CELL_RELEASE_DIR: releaseDir } : {}) },
       registryDb: harness.regDb,
       procMemory: sampler,
       memoryFloor: floor,
+      ...(wakeDefaultFootprintMb != null ? { wakeDefaultFootprintMb } : {}),
     });
     return harness;
   })();
@@ -124,6 +153,12 @@ const idB = userIdFor(userB.email);
 // Seed a parked waker with an archived footprint (deterministic T2-T8 setup).
 function seedParkedWaker(harness, footprintBytes) {
   const row = { ...newRegistryRow({ cellId: idA, ownerEmail: userA.email }), state: "suspended", lastFootprintBytes: footprintBytes };
+  harness.regDb.put(row);
+}
+// Same, for an arbitrary user (5.x reservation tests wake several cells).
+function seedParked(harness, user, footprintBytes) {
+  const cellId = userIdFor(user.email);
+  const row = { ...newRegistryRow({ cellId, ownerEmail: user.email }), state: "suspended", lastFootprintBytes: footprintBytes };
   harness.regDb.put(row);
 }
 
@@ -300,5 +335,194 @@ test("2.3 sampler trouble fails open and admits", async (t) => {
   seedParkedWaker(harness, 900_000_000);
   harness.sampler.admission = () => { throw new Error("sampler exploded"); };
   const cell = await harness.registry.ensure(userA);
+  assert.equal(cell.state, "running");
+});
+
+// ── 5.x In-flight wake reservations (add-wake-budget-admission) ─────────────
+// The ledger: concurrent wakes inside one sampling window judge
+// current + Σ(others' reservations) + own. A slow stub holds the first wake's
+// reservation window open so a second ensure() races it deterministically.
+
+// Numbers: current base = CACHE 50MB + GATEWAY 200MB×0.6 = 170MB; the floor
+// line = 0.85 × 1536Mi ≈ 1369MB.
+const FP_A = 500_000_000; // A's archive; alone: 170+500=670MB fits
+const FP_B = 750_000_000; // B's archive; alone: 170+750=920MB fits
+const FP_C = 1_250_000_000; // refuses on its own (170+1250=1420 > line)
+
+test("5.1 concurrent wakes book each other: second refused BEFORE materialization, first admits", async (t) => {
+  const harness = makeHarness({ stubDelayMs: 1200 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  seedParkedWaker(harness, FP_A);
+  // A wakes with the slow stub — its reservation (FP_A) is registered
+  // synchronously and held until its spawn settles.
+  const wakeA = harness.registry.ensure(userA);
+  // B arrives inside A's window: alone it fits, with A's reservation it doesn't.
+  seedParked(harness, userB, FP_B);
+  await assert.rejects(
+    () => harness.registry.ensure(userB),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.footprintBytes, FP_B);
+      assert.equal(err.memory.inflightBytes, FP_A, "evidence carries the other wake's reservation");
+      assert.equal(err.memory.projectedBytes, 170_000_000 + FP_A + FP_B);
+      assert.equal(err.memory.defaultFootprintApplied, undefined);
+      return true;
+    },
+  );
+  // A was never blocked by B's refusal and materializes.
+  const cellA = await wakeA;
+  assert.equal(cellA.state, "running");
+  // B retries after A settled: reservation released → B now admits.
+  const cellB = await harness.registry.ensure(userB);
+  assert.equal(cellB.state, "running");
+});
+
+test("5.2 a refused wake releases its own reservation (no residue on retry)", async (t) => {
+  const harness = makeHarness({ stubDelayMs: 1200 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  seedParkedWaker(harness, FP_A);
+  const wakeA = harness.registry.ensure(userA); // holds FP_A
+  seedParked(harness, userB, FP_B);
+  const first = await assert.rejects(
+    () => harness.registry.ensure(userB),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.projectedBytes, 170_000_000 + FP_A + FP_B);
+      return true;
+    },
+  );
+  void first;
+  // B retries while A is still in flight: its first-attempt booking must have
+  // been released — otherwise the projection would stack a second FP_B.
+  await assert.rejects(
+    () => harness.registry.ensure(userB),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.inflightBytes, FP_A, "only A's reservation counts, B's own released");
+      assert.equal(err.memory.projectedBytes, 170_000_000 + FP_A + FP_B);
+      return true;
+    },
+  );
+  await wakeA;
+});
+
+test("5.3 no archive → conservative default footprint booked; graceful park archives take over", async (t) => {
+  const harness = makeHarness({ wakeDefaultFootprintMb: 1300 }); // 170+1300 > line
+  t.after(cleanup(harness));
+  await harness.ready;
+  await assert.rejects(
+    () => harness.registry.ensure(userA),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.defaultFootprintApplied, true);
+      assert.equal(err.memory.footprintBytes, undefined, "no archive — evidence must not fake one");
+      assert.equal(err.memory.projectedBytes, 170_000_000 + 1300 * 1024 * 1024);
+      return true;
+    },
+  );
+  // Escape hatch: default disabled → legacy current-only judgment admits.
+  const legacy = makeHarness({ wakeDefaultFootprintMb: 0 });
+  t.after(cleanup(legacy));
+  await legacy.ready;
+  const cell = await legacy.registry.ensure(userA);
+  assert.equal(cell.state, "running");
+  // Takeover: with a fitting default (1000MB), the wake materializes, parks
+  // gracefully, and the REAL archive — not the default — judges the next wake.
+  const takeover = makeHarness({ wakeDefaultFootprintMb: 1000 }); // 170+1000 fits
+  t.after(cleanup(takeover));
+  await takeover.ready;
+  const woken = await takeover.registry.ensure(userA);
+  assert.equal(woken.state, "running");
+  takeover.state.cellTotals.set(idA, 2_000_000_000); // simulate the cell's resident processes
+  takeover.registry.stop(idA, "test park");
+  await new Promise((r) => setTimeout(r, 300));
+  const archive = takeover.regDb.get(idA).lastFootprintBytes;
+  assert.ok(archive > 0 && archive < 2_000_000_000, "graceful park archived a calibrated footprint");
+  // Next wake: current + REAL archive over the line → refused on the archive,
+  // not the default (170 + ~1245 > line; default would have admitted).
+  await assert.rejects(
+    () => takeover.registry.ensure(userA),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.footprintBytes, archive);
+      assert.equal(err.memory.defaultFootprintApplied, undefined);
+      assert.ok(err.memory.projectedBytes > LIMIT * (1 - FLOOR), "archive-based projection over the line");
+      return true;
+    },
+  );
+});
+
+test("5.4 eviction re-projections count other wakes' reservations", async (t) => {
+  const harness = makeHarness({ releaseHoldMs: 12_000 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  // A is HELD in flight (no release file) — its reservation stays booked.
+  seedParked(harness, userA, FP_A);
+  const wakeA = harness.registry.ensure(userA);
+  // Resident B: released immediately, running, idle past the reap window.
+  harness.state.cellTotals.set(idB, 200_000_000);
+  await writeFile(path.join(harness.releaseDir, "release-" + userB.email), "go");
+  await harness.registry.ensure(userB);
+  harness.registry.cells.get(idB).lastTraffic = Date.now() - 7200_000;
+  harness.regDb.put({ ...harness.regDb.get(idB), lastUserTrafficAt: Date.now() - 7200_000 });
+  // C arrives: even after evicting B (frees its 120MB calibrated share), the
+  // projection with A's reservation stays over the line → refuse, B evicted.
+  const userC = { email: "third@example.com" };
+  seedParked(harness, userC, 1_100_000_000);
+  await assert.rejects(
+    () => harness.registry.ensure(userC),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.deepEqual(err.memory.evictedCellIds, [idB]);
+      assert.equal(err.memory.inflightBytes, FP_A, "re-projection kept A's reservation");
+      return true;
+    },
+  );
+  assert.equal(harness.regDb.get(idB).state, "suspended");
+  await writeFile(path.join(harness.releaseDir, "release-" + userA.email), "go");
+  const cellA = await wakeA;
+  assert.equal(cellA.state, "running");
+});
+
+test("5.5 fail-open and gate-disabled leave no residue", async (t) => {
+  // Fail-open: B admits while the sampler is broken (its booking registered,
+  // then released on settle); A is held in flight, released before C probes.
+  const harness = makeHarness({ releaseHoldMs: 12_000 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  seedParked(harness, userA, FP_A);
+  const wakeA = harness.registry.ensure(userA); // held
+  seedParked(harness, userB, FP_B); // would refuse with A's booking — but fail-open admits
+  await writeFile(path.join(harness.releaseDir, "release-" + userB.email), "go");
+  harness.sampler.admission = () => { throw new Error("sampler exploded"); };
+  const cellB = await harness.registry.ensure(userB);
+  assert.equal(cellB.state, "running");
+  // Settle A cleanly, restore the sampler, then probe with C: the evidence
+  // must carry NO reservation residue — neither A's (settle-released) nor
+  // B's (fail-open booking must have been released, not leaked).
+  harness.sampler.admission = function (threshold, opts) {
+    return evaluateAdmission({ container: this.sample().container, threshold, ...opts });
+  };
+  await writeFile(path.join(harness.releaseDir, "release-" + userA.email), "go");
+  const cellA = await wakeA;
+  assert.equal(cellA.state, "running");
+  const userC = { email: "third@example.com" };
+  seedParked(harness, userC, FP_C);
+  await assert.rejects(
+    () => harness.registry.ensure(userC),
+    (err) => {
+      assert.equal(err.code, "memory_floor");
+      assert.equal(err.memory.inflightBytes, undefined, "fail-open path released its booking");
+      return true;
+    },
+  );
+  // Gate disabled: byte-for-byte legacy — a huge archive admits, nothing booked.
+  const off = makeHarness({ floor: 0 });
+  t.after(cleanup(off));
+  await off.ready;
+  seedParkedWaker(off, FP_C);
+  const cell = await off.registry.ensure(userA);
   assert.equal(cell.state, "running");
 });

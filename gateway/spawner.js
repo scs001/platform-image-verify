@@ -90,6 +90,9 @@ export function createCellRegistry(config) {
     // no gate/face disagreement.
     procMemory = null,
     memoryFloor = 0.15,
+    // add-wake-budget-admission: the contribution booked for a residency with
+    // no archived footprint (MB, 0 disables → legacy current-only degrade).
+    wakeDefaultFootprintMb = 512,
   } = config;
   const cells = new Map();
   // In-flight spawns, keyed by userId. Registered BEFORE spawnCell() is called
@@ -99,6 +102,25 @@ export function createCellRegistry(config) {
   // 2026-10-10 duplicate-spawn defect: two cells for one user, the older one
   // orphaned and never reaped.)
   const inflight = new Map();
+  // Wake reservation ledger (add-wake-budget-admission): cellId → the bytes
+  // its residency admission booked (archived footprint or the conservative
+  // default). Concurrent wakes inside one sampler TTL window must see each
+  // other's contributions, not share one pre-wake snapshot (the 2026-11-04
+  // roll-restart OOM window). Registered BEFORE the verdict, released when
+  // the residency settles (materialized or failed) — never leaks.
+  const inflightWakes = new Map();
+  const defaultFootprintBytes = Math.max(0, Math.round(wakeDefaultFootprintMb * 1024 * 1024));
+  const gateArmed = () => Boolean(procMemory && memoryFloor > 0);
+
+  // Sum of OTHER wakes' reservations (the caller's own entry excluded — it is
+  // fed separately as the wake's own contribution).
+  function inflightBytesExcluding(userId) {
+    let sum = 0;
+    for (const [id, bytes] of inflightWakes) {
+      if (id !== userId) sum += bytes;
+    }
+    return sum;
+  }
   let shuttingDown = false;
   let reaper = null;
 
@@ -385,13 +407,15 @@ export function createCellRegistry(config) {
   // or malformed admit with a warning, never block business. Already-resident
   // cells never see this gate — it runs on the spawn path only, so the gate
   // cannot evict anyone.
-  function recordGateRefusal(cellId, user, verdict, { footprintBytes = null, evictedCellIds = [] } = {}) {
+  function recordGateRefusal(cellId, user, verdict, { footprintBytes = null, evictedCellIds = [], inflightBytes = 0, defaultFootprintApplied = false } = {}) {
     console.warn(
       `[gateway] cell residency refused (memory floor): user=${user.email} ` +
         `used=${verdict.usedBytes} limit=${verdict.limitBytes} ` +
         `headroom=${(verdict.headroomPct * 100).toFixed(1)}% threshold=${(verdict.threshold * 100).toFixed(1)}%` +
         (verdict.projectedBytes != null ? ` projected=${verdict.projectedBytes}` : "") +
         (footprintBytes != null ? ` footprint=${footprintBytes}` : "") +
+        (defaultFootprintApplied ? ` defaultFootprint=true` : "") +
+        (inflightBytes > 0 ? ` inflight=${inflightBytes}` : "") +
         (evictedCellIds.length > 0 ? ` evicted=${evictedCellIds.join(",")}` : ""),
     );
     if (!registryDb) return;
@@ -414,6 +438,8 @@ export function createCellRegistry(config) {
             threshold: verdict.threshold,
             ...(verdict.projectedBytes != null ? { projectedBytes: verdict.projectedBytes } : {}),
             ...(footprintBytes != null ? { footprintBytes } : {}),
+            ...(inflightBytes > 0 ? { inflightBytes } : {}),
+            ...(defaultFootprintApplied ? { defaultFootprintApplied: true } : {}),
             ...(evictedCellIds.length > 0 ? { evictedCellIds } : {}),
             at: Date.now(),
           },
@@ -425,14 +451,17 @@ export function createCellRegistry(config) {
   }
 
   // null = admission granted (or the gate is inert); a refuse verdict otherwise.
-  // footprintBytes (harden-cell-wake-admission): a waking cell's archived
-  // contribution — admission then judges current + footprint (the projected
-  // steady state) instead of current alone.
-  function memoryAdmissionVerdict(footprintBytes = null) {
+  // projectedBytes (harden-cell-wake-admission): this wake's OWN contribution —
+  // its archived footprint, or the conservative default when no archive exists.
+  // inflightBytes (add-wake-budget-admission): OTHER wakes' reservation sum —
+  // the verdict judges current + others + own, so concurrent wakes cannot
+  // overshoot the floor on one shared pre-wake snapshot. `usingDefault` marks
+  // evidence where the conservative default stood in for a missing archive.
+  function memoryAdmissionVerdict({ projectedBytes = null, inflightBytes = 0, usingDefault = false } = {}) {
     if (!procMemory || !(memoryFloor > 0)) return null; // gate disabled → legacy
     let verdict;
     try {
-      verdict = procMemory.admission(memoryFloor, { projectedBytes: footprintBytes });
+      verdict = procMemory.admission(memoryFloor, { projectedBytes, inflightBytes });
     } catch (e) {
       console.warn(`[gateway] memory gate sampler failed; failing open: ${e?.message || e}`);
       return null;
@@ -442,7 +471,7 @@ export function createCellRegistry(config) {
       return null;
     }
     if (verdict.decision === "allow") return null;
-    return verdict;
+    return usingDefault ? { ...verdict, usingDefault } : verdict;
   }
 
   // ── Wake projection (harden-cell-wake-admission 1.2) ──────────────────────
@@ -485,8 +514,10 @@ export function createCellRegistry(config) {
   // policy tier) one at a time — re-projecting after each — until the wake
   // fits. Active residents are never candidates; a candidate that fails to
   // park is skipped, not fatal. The waking cell keeps its parked state until
-  // admission actually grants it.
-  async function evictUntilAdmissible(wakingUserId, footprintBytes) {
+  // admission actually grants it. Re-projections count OTHER wakes' in-flight
+  // reservations (add-wake-budget-admission) — the waking cell's own booking
+  // stays in the ledger throughout and is excluded as its own contribution.
+  async function evictUntilAdmissible(wakingUserId, ownBytes, usingDefault = false) {
     const now = Date.now();
     const candidates = [];
     for (const cell of [...cells.values()]) {
@@ -512,10 +543,21 @@ export function createCellRegistry(config) {
       }
       evicted.push(cell.userId);
       procMemory.clearCache?.(); // post-park water, not a TTL-stale high one
-      const verdict = memoryAdmissionVerdict(footprintBytes);
+      const verdict = memoryAdmissionVerdict({
+        projectedBytes: ownBytes > 0 ? ownBytes : null,
+        inflightBytes: inflightBytesExcluding(wakingUserId),
+        usingDefault,
+      });
       if (!verdict) return { evicted, refusal: null }; // fits (or fail-open admits)
     }
-    return { evicted, refusal: memoryAdmissionVerdict(footprintBytes) };
+    return {
+      evicted,
+      refusal: memoryAdmissionVerdict({
+        projectedBytes: ownBytes > 0 ? ownBytes : null,
+        inflightBytes: inflightBytesExcluding(wakingUserId),
+        usingDefault,
+      }),
+    };
   }
 
   // Concurrent first requests for the same user collapse onto one spawn. The
@@ -555,42 +597,62 @@ export function createCellRegistry(config) {
       return Promise.reject(err);
     }
     // Memory admission gate (harden-cell-wake-admission): a wake with an
-    // archived footprint is judged on the PROJECTED steady state (current +
-    // footprint) — the 2026-11-04 OOM window was invisible to current-only
-    // admission. Projection short → idle residents are evicted (parked, state
+    // archived footprint is judged on the PROJECTED steady state — the
+    // 2026-11-04 OOM window was invisible to current-only admission.
+    // add-wake-budget-admission: the wake's OWN contribution (archive, else
+    // the conservative default) is booked into the reservation ledger BEFORE
+    // the verdict, so concurrent wakes inside one sampling window judge
+    // current + Σ(others' reservations) + own instead of one shared pre-wake
+    // snapshot. Projection short → idle residents are evicted (parked, state
     // on disk) one at a time with a re-projection each; still short → refused
-    // BEFORE any process materializes. No footprint (new cell, first wake
-    // since rollout) degrades to the current-only judgment, byte-for-byte.
-    // Fail-open unchanged: sampler trouble admits with a warning.
+    // BEFORE any process materializes. The reservation is released when the
+    // residency settles (materialized or failed) — never leaks; fail-open and
+    // gate-disabled paths skip the ledger entirely (byte-for-byte legacy).
     // The inflight claim below stays SYNCHRONOUS with the pending check —
     // no await may slip between them (2026-10-10 duplicate-spawn guard).
     const wakeFootprint = (() => {
       const fp = tomb?.lastFootprintBytes;
       return Number.isFinite(fp) && fp > 0 ? fp : null;
     })();
+    const armed = gateArmed();
+    const ownBytes = armed ? (wakeFootprint ?? defaultFootprintBytes) : 0;
+    const usingDefault = armed && wakeFootprint == null && ownBytes > 0;
     const started = (async () => {
-      let refusal = memoryAdmissionVerdict(wakeFootprint);
-      let evicted = [];
-      if (refusal?.decision === "refuse" && wakeFootprint) {
-        ({ evicted, refusal } = await evictUntilAdmissible(userId, wakeFootprint));
+      if (armed && ownBytes > 0) inflightWakes.set(userId, ownBytes);
+      try {
+        let refusal = armed
+          ? memoryAdmissionVerdict({
+              projectedBytes: ownBytes > 0 ? ownBytes : null,
+              inflightBytes: inflightBytesExcluding(userId),
+              usingDefault,
+            })
+          : null;
+        let evicted = [];
+        if (refusal?.decision === "refuse" && ownBytes > 0) {
+          ({ evicted, refusal } = await evictUntilAdmissible(userId, ownBytes, usingDefault));
+        }
+        if (refusal) {
+          recordGateRefusal(userId, user, refusal, { footprintBytes: wakeFootprint, evictedCellIds: evicted, inflightBytes: inflightBytesExcluding(userId), defaultFootprintApplied: usingDefault });
+          const err = new Error("cell residency refused: container memory headroom below floor");
+          err.code = "memory_floor";
+          err.friendly = "服务器内存余量不足，请稍后再试";
+          err.memory = {
+            usedBytes: refusal.usedBytes,
+            limitBytes: refusal.limitBytes,
+            headroomPct: refusal.headroomPct,
+            threshold: refusal.threshold,
+            ...(refusal.projectedBytes != null ? { projectedBytes: refusal.projectedBytes } : {}),
+            ...(wakeFootprint != null ? { footprintBytes: wakeFootprint } : {}),
+            ...(inflightBytesExcluding(userId) > 0 ? { inflightBytes: inflightBytesExcluding(userId) } : {}),
+            ...(usingDefault ? { defaultFootprintApplied: true } : {}),
+            evictedCellIds: evicted,
+          };
+          throw err;
+        }
+        return await spawnCell(user); // await: the finally below must fire on SETTLE, not on return — the reservation covers materialization
+      } finally {
+        if (armed) inflightWakes.delete(userId);
       }
-      if (refusal) {
-        recordGateRefusal(userId, user, refusal, { footprintBytes: wakeFootprint, evictedCellIds: evicted });
-        const err = new Error("cell residency refused: container memory headroom below floor");
-        err.code = "memory_floor";
-        err.friendly = "服务器内存余量不足，请稍后再试";
-        err.memory = {
-          usedBytes: refusal.usedBytes,
-          limitBytes: refusal.limitBytes,
-          headroomPct: refusal.headroomPct,
-          threshold: refusal.threshold,
-          ...(refusal.projectedBytes != null ? { projectedBytes: refusal.projectedBytes } : {}),
-          ...(wakeFootprint != null ? { footprintBytes: wakeFootprint } : {}),
-          evictedCellIds: evicted,
-        };
-        throw err;
-      }
-      return spawnCell(user);
     })().finally(() => {
       inflight.delete(userId);
     });

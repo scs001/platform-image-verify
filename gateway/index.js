@@ -97,6 +97,11 @@ const cellRegistryDb = process.env.CELL_REGISTRY_DISABLE === "1"
 // so what the cockpit ambers against is exactly what the gate enforces. 0
 // disables the gate entirely.
 const CELL_MEMORY_FLOOR = Number(process.env.CELL_MEMORY_ADMISSION_FLOOR ?? 0.15);
+// Default wake footprint (add-wake-budget-admission): the contribution booked
+// for a residency with NO archived footprint (first provision, first wake
+// after a hard kill). 0 disables the default — such wakes degrade to the
+// legacy current-only judgment. Byte-counted in the same ledger as archives.
+const CELL_WAKE_DEFAULT_FOOTPRINT_MB = Number(process.env.CELL_WAKE_DEFAULT_FOOTPRINT_MB ?? 512);
 // One sampler for the whole process: the gate, the read face, and any future
 // reader share one TTL-cached /proc scan (高频请求不放大扫描开销).
 const procMemorySampler = createProcMemorySampler({
@@ -112,6 +117,7 @@ const registry = createCellRegistry({
   // residency below the floor; metrics failure fails open inside the spawner.
   procMemory: procMemorySampler,
   memoryFloor: CELL_MEMORY_FLOOR,
+  wakeDefaultFootprintMb: CELL_WAKE_DEFAULT_FOOTPRINT_MB,
   // Demo-cell bounds (openspec: mp-demo-mode): how many demo cells may run at
   // once, and how idle one may sit before it is stopped AND deleted —
   // independent of the account-cell contract above.

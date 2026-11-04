@@ -308,3 +308,35 @@ test("sampler.admission threads the container read into the verdict", () => {
     rmSync(f.root, { recursive: true, force: true });
   }
 });
+
+test("admission inflightBytes: reservations count into the verdict, zero stays byte-identical (add-wake-budget-admission 1.1)", () => {
+  const threshold = 0.15;
+  const container = { available: true, usedBytes: 1_200_000_000, limitBytes: 2_048_000_000 };
+  // No inflight, no projection → verdict identical to the pre-change call shape.
+  const bare = evaluateAdmission({ container, threshold });
+  const zero = evaluateAdmission({ container, threshold, inflightBytes: 0 });
+  assert.deepEqual(zero, bare);
+  // inflightBytes=0 → byte-identical verdict (legacy equivalence contract).
+  assert.equal(zero.decision, "allow");
+  // Other wakes' reservations push the projection over the floor → refuse,
+  // carrying the projected total (current + inflight) as evidence.
+  const reserved = evaluateAdmission({ container, threshold, inflightBytes: 650_000_000 });
+  assert.equal(reserved.decision, "refuse");
+  assert.equal(reserved.projectedBytes, 1_200_000_000 + 650_000_000);
+  // Reservation + own footprint stack (concurrent big cells: the 11-04 shape).
+  const both = evaluateAdmission({ container, threshold, projectedBytes: 650_000_000, inflightBytes: 650_000_000 });
+  assert.equal(both.decision, "refuse");
+  assert.equal(both.projectedBytes, 1_200_000_000 + 1_300_000_000);
+  // Non-finite/garbage inflight is ignored, not fatal.
+  assert.deepEqual(
+    evaluateAdmission({ container, threshold, inflightBytes: NaN }),
+    bare,
+  );
+  // fail-open path ignores reservations entirely (metrics unavailable wins).
+  const open = evaluateAdmission({
+    container: { available: false, reason: "cgroup_unavailable" },
+    threshold,
+    inflightBytes: 650_000_000,
+  });
+  assert.equal(open.decision, "fail_open");
+});

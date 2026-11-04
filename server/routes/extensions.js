@@ -1,7 +1,7 @@
 // Extensions management API (MCP servers + custom skills).
 
 import { getFileSkills } from "../skills.js";
-import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
+import { getMarketEntries, fetchMarketSkillContent } from "../../registry-bridge.js";
 import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
@@ -520,7 +520,7 @@ export function registerExtensionRoutes(ctx) {
     }
     let raw;
     try {
-      raw = await getSkillContent(entry.contentPath);
+      raw = await fetchMarketSkillContent(entry);
     } catch (err) {
       return res.status(502).json({ error: `Failed to fetch content for "${name}": ${err.message}` });
     }

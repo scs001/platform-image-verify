@@ -149,6 +149,9 @@ export function annotatePack(listingsByLocale, generatedAt, source) {
       whenToUse: byLocale.en?.whenToUse ?? zh.summary?.slice(0, 120) ?? "",
       badges: {
         official: Boolean(anchor.official),
+        // Display-only: a pack may be facade-CAPABLE. The facade SPECIES is no
+        // longer derived here — it comes from the deployments public face
+        // (add-supply-catalog-unification: badge-derived species retired).
         facade: anchor.badge === "facade" || anchor.badge === "assistant",
       },
       provenance: { source, updatedAt: generatedAt },
@@ -157,10 +160,73 @@ export function annotatePack(listingsByLocale, generatedAt, source) {
   return materials;
 }
 
-function mapCategory(pack) {
-  if (pack.badge === "facade" || pack.badge === "assistant") return "facade";
-  if (pack.official && /data|daas|数据/i.test(`${pack.category ?? ""} ${pack.name ?? ""}`)) return "official-data";
+// Packs are packs: the facade / official-data categories are NO LONGER derived
+// from pack badges or name heuristics (add-supply-catalog-unification). Those
+// species admit through their own source faces (annotateFacade / annotateDataAnchor).
+function mapCategory(_pack) {
   return "pack";
+}
+
+// ── facade species — admitted by the serving plane's own public face ─────────
+// Entries come from facet /api/facades-catalog, which projects the deployments
+// public face (万星's own admission rule). The annotation shape is carried from
+// the catalog (zh-fallback synthesized when unannotated); live status is the
+// serving plane's report or an explicit "unknown" — never a defaulted healthy.
+export function annotateFacade(f, generatedAt, source) {
+  if (!f?.id) return null; // malformed — the G1 count gate must see the drop
+  const name = f.name || f.id;
+  const summary = f.description ?? "";
+  const human5 = f.annotation?.human ?? {};
+  const slot = (l) => {
+    const src = human5[l === "zh-CN" ? "zh" : l] ?? human5.zh ?? {};
+    return { name: src.name ?? name, summary: src.summary ?? summary };
+  };
+  return {
+    id: `facade:${f.id}`,
+    slug: speciesSlug("facade", f.id),
+    category: "facade",
+    marketCategory: null,
+    tags: Array.isArray(f.tags) ? f.tags.slice(0, 8) : [],
+    status: f.status ?? "unknown",
+    deployment: f.deployment ?? null,
+    canonical: { brief: (f.annotation?.canonical?.brief ?? summary).slice(0, 300) },
+    human: Object.fromEntries(LOCALES.map((l) => [l, slot(l)])),
+    whenToUse: f.annotation?.whenToUse ?? summary.slice(0, 120) ?? "A deployed agent service.",
+    badges: { official: false, facade: true },
+    provenance: {
+      source: f.annotation?.provenance?.source ?? source,
+      updatedAt: f.annotation?.provenance?.updatedAt ?? generatedAt,
+    },
+  };
+}
+
+// ── data-anchor species — admitted by the DAAS catalog face ──────────────────
+export function annotateDataAnchor(a, generatedAt, source) {
+  if (!a?.id) return null; // malformed — the G1 count gate must see the drop
+  const name = a.name || a.id;
+  const summary = a.summary ?? "";
+  const human5 = a.annotation?.human ?? {};
+  const slot = (l) => {
+    const src = human5[l === "zh-CN" ? "zh" : l] ?? human5.zh ?? {};
+    return { name: src.name ?? name, summary: src.summary ?? summary };
+  };
+  return {
+    id: `anchor:${a.id}`,
+    slug: speciesSlug("official-data", a.id),
+    category: "official-data",
+    marketCategory: null,
+    tags: [],
+    anchorKind: a.kind ?? null,
+    anchorSource: a.source ?? null,
+    canonical: { brief: (a.annotation?.canonical?.brief ?? summary).slice(0, 300) },
+    human: Object.fromEntries(LOCALES.map((l) => [l, slot(l)])),
+    whenToUse: a.annotation?.whenToUse ?? summary.slice(0, 120) ?? "An official data reference point.",
+    badges: { official: true, facade: false },
+    provenance: {
+      source: a.annotation?.provenance?.source ?? "daas-catalog",
+      updatedAt: a.annotation?.provenance?.updatedAt ?? generatedAt,
+    },
+  };
 }
 
 // ── v2: skills species — registry visibility rule already applied upstream
@@ -341,6 +407,24 @@ Connect it where your agent runs: in 壹座 (Extensions → MCP), or in any MCP-
 3. Deployed agent services receive registry skills through the registry supply channel.${repo}
 `;
   }
+  if (m.category === "facade") {
+    return `## How to obtain
+
+A facade is a deployed agent service — it is reached, not installed. Its public
+page and A2A endpoint are served by 万星 (Wanxing); live status as reported by the
+serving plane: **${m.status ?? "unknown"}**.
+
+${m.deployment?.packId ? `Deployed from pack \`${m.deployment.packId}\` (agent \`${m.deployment.agentId}\`).\n` : ""}
+Talk to it through its share page, or call it agent-to-agent through the A2A face.
+`;
+  }
+  if (m.category === "official-data") {
+    return `## How to obtain
+
+An official data anchor is a reference point consumed through the data plane, not
+installed. ${m.anchorSource ? `Native source: \`${m.anchorSource}\`. ` : ""}It reaches agents through the DAAS / business supply surface (the same catalog this entry's provenance names).
+`;
+  }
   const obtainCli = `npx @finddatatechnology/facet install ${m.id.replace("pack:", "")}`;
   const marketUrl = `${base}/#/packs`;
   return `## How to obtain
@@ -389,6 +473,8 @@ ${enSummary ? `\n${enSummary}\n` : ""}
 - Species: ${m.category} (plaza category enum v${CATEGORY_ENUM_VERSION})
 - Official: ${m.badges.official ? "yes — curated by FindData" : "no"}
 ${m.category === "mcp" ? `- Public tools: ${m.toolCount}${m.license ? ` · License: ${m.license}` : ""}${m.provider ? ` · Provider: ${m.provider}` : ""}` : ""}
+${m.category === "facade" ? `- Live status (serving plane): ${m.status ?? "unknown"}${m.deployment?.packId ? ` · deployed from \`${m.deployment.packId}\`` : ""}` : ""}
+${m.category === "official-data" ? `- Anchor kind: ${m.anchorKind ?? "catalog"}${m.anchorSource ? ` · native source: \`${m.anchorSource}\`` : ""}` : ""}
 ${obtainSection(m, base)}${contentsSection(m)}
 ## As of
 
@@ -573,6 +659,31 @@ async function runFresh({ base, siteBase, outDir, whitelist, generatedAt }) {
     }
   }
 
+  // facade + data-anchor species (add-supply-catalog-unification): each admits
+  // through its own source face. A source that is unconfigured or unreachable
+  // yields zero entries for that species — honest absence, never a fabricated
+  // row, and never a build failure for the other species (spec: 源缺席=计数 0).
+  let facades = [];
+  let facadeSourceAbsent = false;
+  try {
+    const fc = await fetchJson(`${base}/api/facades-catalog`);
+    facades = fc?.facades ?? [];
+    facadeSourceAbsent = fc?.source_absent === true;
+  } catch {
+    facades = [];
+    facadeSourceAbsent = true;
+  }
+  let anchors = [];
+  let anchorSourceAbsent = false;
+  try {
+    const ac = await fetchJson(`${base}/api/data-anchors-catalog`);
+    anchors = ac?.anchors ?? [];
+    anchorSourceAbsent = ac?.source_absent === true;
+  } catch {
+    anchors = [];
+    anchorSourceAbsent = true;
+  }
+
   const allListed = listingsByLocale[LOCALES[0]] ?? [];
   const gateViolations = [];
 
@@ -592,7 +703,9 @@ async function runFresh({ base, siteBase, outDir, whitelist, generatedAt }) {
     const listByLocale = Object.fromEntries(LOCALES.map((l) => [l, (mcpByLocale[l] ?? []).find((s) => s.name === name)].filter(Boolean)));
     return annotateMcp(listByLocale, mcpDepths[name], generatedAt, `${base}/api/mcp-catalog`);
   }).filter(Boolean);
-  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials];
+  const facadeMaterials = facades.map((f) => annotateFacade(f, generatedAt, `${base}/api/facades-catalog`)).filter(Boolean);
+  const anchorMaterials = anchors.map((a) => annotateDataAnchor(a, generatedAt, `${base}/api/data-anchors-catalog`)).filter(Boolean);
+  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials, ...facadeMaterials, ...anchorMaterials];
 
   // G1 species set-equality: every ingested id must land in the catalog —
   // catches mapping drops. Count equality catches duplicates.
@@ -608,6 +721,18 @@ async function runFresh({ base, siteBase, outDir, whitelist, generatedAt }) {
   }
   if (mcpMaterials.length !== mcpNames.length) {
     gateViolations.push(`G1 mcp: exported=${mcpMaterials.length}, source=${mcpNames.length}`);
+  }
+  for (const f of facades) {
+    if (!catalogIds.has(`facade:${f.id}`)) gateViolations.push(`G1 facades: "${f.id}" ingested but missing from catalog`);
+  }
+  if (facadeMaterials.length !== facades.length) {
+    gateViolations.push(`G1 facades: exported=${facadeMaterials.length}, source=${facades.length}${facadeSourceAbsent ? " (source absent)" : ""}`);
+  }
+  for (const a of anchors) {
+    if (!catalogIds.has(`anchor:${a.id}`)) gateViolations.push(`G1 data-anchors: "${a.id}" ingested but missing from catalog`);
+  }
+  if (anchorMaterials.length !== anchors.length) {
+    gateViolations.push(`G1 data-anchors: exported=${anchorMaterials.length}, source=${anchors.length}${anchorSourceAbsent ? " (source absent)" : ""}`);
   }
 
   gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
@@ -640,6 +765,8 @@ function runFixture({ fixture, siteBase, outDir, whitelist, generatedAt }) {
   const mcpServers = fx.mcpServers ?? [];
   const mcpByLocale = fx.mcpByLocale ?? { "zh-CN": mcpServers };
   const mcpDepths = fx.mcpDepths ?? {};
+  const facades = fx.facades ?? [];
+  const anchors = fx.dataAnchors ?? [];
   const allListed = listingsByLocale[LOCALES[0]] ?? [];
   const gateViolations = [];
 
@@ -656,13 +783,19 @@ function runFixture({ fixture, siteBase, outDir, whitelist, generatedAt }) {
     );
     return annotateMcp(listByLocale, mcpDepths[s.name] ?? null, generatedAt, "fixture://mcp-catalog");
   }).filter(Boolean);
-  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials];
+  const facadeMaterials = facades.map((f) => annotateFacade(f, generatedAt, "fixture://facades-catalog")).filter(Boolean);
+  const anchorMaterials = anchors.map((a) => annotateDataAnchor(a, generatedAt, "fixture://data-anchors-catalog")).filter(Boolean);
+  const materials = [...packMaterials, ...skillMaterials, ...mcpMaterials, ...facadeMaterials, ...anchorMaterials];
 
   const catalogIds = new Set(materials.map((m) => m.id));
   for (const s of skills) if (!catalogIds.has(`skill:${s.name}`)) gateViolations.push(`G1 skills: "${s.name}" ingested but missing from catalog`);
   if (skillMaterials.length !== skills.length) gateViolations.push(`G1 skills: exported=${skillMaterials.length}, source=${skills.length}`);
   for (const s of mcpServers) if (!catalogIds.has(`mcp:${s.name}`)) gateViolations.push(`G1 mcp: "${s.name}" ingested but missing from catalog`);
   if (mcpMaterials.length !== mcpServers.length) gateViolations.push(`G1 mcp: exported=${mcpMaterials.length}, source=${mcpServers.length}`);
+  for (const f of facades) if (!catalogIds.has(`facade:${f.id}`)) gateViolations.push(`G1 facades: "${f.id}" ingested but missing from catalog`);
+  if (facadeMaterials.length !== facades.length) gateViolations.push(`G1 facades: exported=${facadeMaterials.length}, source=${facades.length}`);
+  for (const a of anchors) if (!catalogIds.has(`anchor:${a.id}`)) gateViolations.push(`G1 data-anchors: "${a.id}" ingested but missing from catalog`);
+  if (anchorMaterials.length !== anchors.length) gateViolations.push(`G1 data-anchors: exported=${anchorMaterials.length}, source=${anchors.length}`);
 
   gateViolations.push(...lintAnnotationShape(materials).map((v) => `G2 ${v}`));
 

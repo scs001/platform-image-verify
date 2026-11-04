@@ -1,3 +1,5 @@
+> 2026-11-05 注记：谦面轨道定位以 `docs/supply-domain-roadmap.md`（供给域伞文档）为准；本文历史记录保留。
+
 # 谦面市场线 Roadmap（开店营业篇）
 
 > 2026-10-12 `/opsx:explore` 定案。伞文档 = `docs/facet-wanxing-roadmap.md`（双星计划）；

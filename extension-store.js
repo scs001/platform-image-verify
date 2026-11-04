@@ -5,12 +5,17 @@
 import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import * as db from "./db.js";
-import { getMarketEntries } from "./registry-bridge.js";
-import { mergeAnnotations, projectAnnotation } from "./lib/supply-annotations.js";
+import { getMarketEntries, getCatalogSource } from "./registry-bridge.js";
+import { projectAnnotation } from "./lib/supply-annotations.js";
 import { getRepoSkillAnnotation } from "./lib/market-annotations.js";
 import { getFileSkills } from "./server/skills.js";
 
 // Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
+// The starter floor is app-shipped product content (stdio servers + built-in
+// skills), appended to every served market; the catalog copy is a GENERATED
+// offline snapshot of the unified supply catalog (add-supply-catalog-unification).
+const starterMcpFile = () => bundledJson("market-starters.json");
+const starterSkillsFile = () => bundledJson("market-starters-skills.json");
 const marketCatalogFile = () => bundledJson("market-catalog.json");
 const marketCatalogSkillsFile = () => bundledJson("market-catalog-skills.json");
 
@@ -124,14 +129,31 @@ export function toggleCustomSkill(name, enabled) {
 
 // ── Market Catalog ───────────────────────────────────────────────────────────
 
+let starterMcpCache = null;
+let starterSkillsCache = null;
 let marketCatalogCache = null;
 let marketCatalogSkillsCache = null;
 
+export async function loadStarters() {
+  if (starterMcpCache) return starterMcpCache;
+  const doc = readJsonOr(starterMcpFile(), null, { label: "extensions" });
+  starterMcpCache = doc?.mcpServers ?? [];
+  return starterMcpCache;
+}
+
+export async function loadStarterSkills() {
+  if (starterSkillsCache) return starterSkillsCache;
+  const doc = readJsonOr(starterSkillsFile(), null, { label: "extensions" });
+  starterSkillsCache = doc?.skills ?? [];
+  return starterSkillsCache;
+}
+
+// The generated offline snapshot (catalog species only) — served when no
+// catalog source is configured. Absent/invalid file degrades to empty (the
+// starter floor still carries the zero-config trio).
 export async function loadMarketCatalog() {
   if (marketCatalogCache) return marketCatalogCache;
   const doc = readJsonOr(marketCatalogFile(), null, { label: "extensions" });
-  // readJsonOr warns on parse errors; a missing/invalid file degrades to the
-  // empty catalog (fresh installs ship without market catalogs).
   marketCatalogCache = doc ?? { mcpServers: [] };
   return marketCatalogCache;
 }
@@ -149,7 +171,8 @@ export async function getMarketCatalog(user = null) {
     ...s,
     requiresConfig: requiresConfig(s.configTemplate),
   }));
-  // sort ready-to-use first, then alphabetical. The JSON file order is a hint, this is the source of truth.
+  // sort ready-to-use first, then alphabetical. The starter floor's stdio
+  // trio surfaces first; gateway entries follow.
   servers.sort((a, b) => {
     if (a.requiresConfig !== b.requiresConfig) return a.requiresConfig ? 1 : -1;
     return a.name.localeCompare(b.name);
@@ -161,45 +184,40 @@ export async function getMarketCatalog(user = null) {
   };
 }
 
-// The merged catalog BEFORE per-user visibility filtering — the install
+// The assembled catalog BEFORE per-user visibility filtering — the install
 // admission check needs an entry's groups even when the requesting user must
 // not see it (that's exactly the bypass it exists to close).
+//
+// Assembly (add-supply-catalog-unification): the app-shipped starter floor
+// plus the catalog species from ONE source — the facet projection / legacy
+// registry snapshot when a source is configured, the generated offline
+// snapshot when not. No bundled-wins merge: a catalog entry sharing a starter
+// name wins (the supply plane is the truth for what a server is); the floor
+// and the catalog are disjoint by construction (stdio vs gateway).
 async function mergedMarketCatalog() {
-  const [mcpServers, skills] = await Promise.all([
-    loadMarketCatalog(),
-    loadMarketCatalogSkills(),
-  ]);
-  // Registry entries (last-good snapshot from registry-bridge) merge behind
-  // the bundled catalog: a bundled entry wins on name collision because it is
-  // curated for this deployment.
-  const registry = getMarketEntries();
-  const bundledMcpNames = new Set((mcpServers.mcpServers || []).map((s) => s.name));
-  const registryServers = registry.mcpServers.filter((s) => !bundledMcpNames.has(s.name));
-  const bundledSkillNames = new Set((skills.skills || []).map((s) => s.name));
-  const registrySkills = registry.skills.filter((s) => !bundledSkillNames.has(s.name));
+  const [starterMcp, starterSkills] = await Promise.all([loadStarters(), loadStarterSkills()]);
+  let catalogMcp, catalogSkills;
+  if (getCatalogSource() === "none") {
+    const [snap, snapSk] = await Promise.all([loadMarketCatalog(), loadMarketCatalogSkills()]);
+    catalogMcp = snap.mcpServers || [];
+    catalogSkills = snap.skills || [];
+  } else {
+    const entries = getMarketEntries();
+    catalogMcp = entries.mcpServers;
+    catalogSkills = entries.skills;
+  }
+  const catalogMcpNames = new Set(catalogMcp.map((s) => s.name));
+  const catalogSkillNames = new Set(catalogSkills.map((s) => s.name));
   const out = {
-    mcpServers: [...(mcpServers.mcpServers || []), ...registryServers],
-    skills: [...(skills.skills || []), ...registrySkills],
+    mcpServers: [...starterMcp.filter((s) => !catalogMcpNames.has(s.name)), ...catalogMcp],
+    skills: [...starterSkills.filter((s) => !catalogSkillNames.has(s.name)), ...catalogSkills],
   };
-  // Supply annotations (add-mcp-annotation-overlay D2): merge READ-TIME — the
-  // registry's metadata.annotations outranks the repo catalog field-by-field
-  // (the entry-level bundled-first rule above governs the ENTRY shape, not the
-  // annotation, whose truth is shared across planes). Unannotated entries get
-  // no annotation key at all — byte-identical to the pre-change payload.
-  const registryMcpAnn = new Map(
-    registry.mcpServers.filter((s) => s.annotations).map((s) => [s.name, s.annotations]),
-  );
-  for (const s of out.mcpServers) {
-    const merged = mergeAnnotations({ registry: registryMcpAnn.get(s.name), catalog: s.annotation });
-    if (merged) s.annotation = merged;
-  }
-  const registrySkillAnn = new Map(
-    registry.skills.filter((s) => s.annotations).map((s) => [s.name, s.annotations]),
-  );
-  for (const s of out.skills) {
-    const merged = mergeAnnotations({ registry: registrySkillAnn.get(s.name), catalog: s.annotation });
-    if (merged) s.annotation = merged;
-  }
+  // Normalize the annotation field to `annotation` (singular — the shape the
+  // read faces and the install path consume). Bridge entries carry the raw
+  // `annotations` object (already merged with the repo annotation source at
+  // ingestion); snapshot/starter entries carry `annotation` directly.
+  for (const s of out.mcpServers) if (s.annotations && !s.annotation) s.annotation = s.annotations;
+  for (const s of out.skills) if (s.annotations && !s.annotation) s.annotation = s.annotations;
   return out;
 }
 
@@ -304,6 +322,8 @@ export function visibleToUser(entry, user) {
 
 // Clear caches (for testing or when catalog files change)
 export function clearMarketCatalogCache() {
+  starterMcpCache = null;
+  starterSkillsCache = null;
   marketCatalogCache = null;
   marketCatalogSkillsCache = null;
 }

@@ -20,6 +20,7 @@
 // byte-identical to the pre-change shape. Raw stored text remains in
 // name/description (never replaced).
 
+import { timingSafeEqual } from "node:crypto";
 import { resolveLocale } from "../lib/pack-locale.js";
 import { projectAnnotation } from "../lib/supply-annotations.js";
 
@@ -34,11 +35,31 @@ export function visibleTo(entry, viewer) {
   return required.length === 0 || required.some((g) => groups.has(g));
 }
 
+// Internal global-read posture (add-supply-catalog-unification): a server-side
+// consumer (壹座's supply-catalog bridge) fetches the FULL set — every entry
+// with its requiredGroups carried through — and computes per-user visibility
+// downstream, exactly as the registry bridge's own service-token model does.
+// The channel is a dedicated header checked against the facet internal
+// credential; it never touches the browser proxy path (x-facet-token /
+// x-facet-user) and never widens what the public domain can see.
+export function internalRead(req, internalToken) {
+  if (!internalToken) return false;
+  const got = String(req.headers["x-facet-internal-token"] || "");
+  if (!got || got.length !== internalToken.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(got), Buffer.from(internalToken));
+  } catch {
+    return false;
+  }
+}
+
 export function registerFacetMcpRoutes(app, {
   resolveUser,
   entriesFn, // injection seam; default reads the registry bridge snapshot
   skillsFn = () => [], // injection seam for the skills catalog
   refreshFn = null, // optional forced refresh before serving (tests inject noop)
+  internalToken = "", // facet internal credential enabling the global-read channel
+  skillContentFn = null, // injection seam for install-time skill content fetch
 }) {
   const requestLocale = (req) =>
     resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
@@ -49,9 +70,12 @@ export function registerFacetMcpRoutes(app, {
     return p ?? undefined;
   };
 
-  const listVisible = (entries, viewer, locale) =>
+  // `full` (internal read) carries the raw annotation object through so the
+  // consumer can merge/inspect it field-by-field; the public face keeps only
+  // the locale projection (byte-identical to the pre-change shape).
+  const listVisible = (entries, viewer, locale, full = false) =>
     entries
-      .filter((e) => visibleTo(e, viewer))
+      .filter((e) => (full ? true : visibleTo(e, viewer)))
       .map((e) => {
         const row = {
           name: e.name,
@@ -62,12 +86,13 @@ export function registerFacetMcpRoutes(app, {
         };
         const ann = projected(e.annotations, locale);
         if (ann) row.annotation = ann;
+        if (full && e.annotations) row.annotations = e.annotations;
         return row;
       });
 
-  const listSkills = (entries, viewer, locale) =>
+  const listSkills = (entries, viewer, locale, full = false) =>
     entries
-      .filter((e) => visibleTo(e, viewer))
+      .filter((e) => (full ? true : visibleTo(e, viewer)))
       .map((e) => {
         const row = {
           name: e.name,
@@ -77,17 +102,20 @@ export function registerFacetMcpRoutes(app, {
           author: e.author ?? null,
           version: e.version ?? null,
           tags: Array.isArray(e.tags) ? e.tags : [],
+          requiredGroups: Array.isArray(e.groups) ? e.groups : [],
         };
         const ann = projected(e.annotations, locale);
         if (ann) row.annotation = ann;
+        if (full && e.annotations) row.annotations = e.annotations;
         return row;
       });
 
   app.get("/api/mcp-catalog", async (req, res) => {
     if (typeof refreshFn === "function") await refreshFn().catch(() => {});
     const viewer = resolveUser(req);
+    const full = internalRead(req, internalToken);
     const entries = entriesFn();
-    res.json({ servers: listVisible(entries, viewer, requestLocale(req)) });
+    res.json({ servers: listVisible(entries, viewer, requestLocale(req), full) });
   });
 
   // Per-server depth view (add-facet-infra-pages): tool surface + provenance.
@@ -133,10 +161,35 @@ export function registerFacetMcpRoutes(app, {
   app.get("/api/skills-catalog", async (req, res) => {
     if (typeof refreshFn === "function") await refreshFn().catch(() => {});
     const viewer = resolveUser(req);
-    res.json({ skills: listSkills(skillsFn(), viewer, requestLocale(req)) });
+    const full = internalRead(req, internalToken);
+    res.json({ skills: listSkills(skillsFn(), viewer, requestLocale(req), full) });
   });
 
-  return { listVisible, listSkills, visibleTo };
+  // Install-time skill content (add-supply-catalog-unification): the registry's
+  // SKILL.md, proxied through the catalog face so a consumer that reads the
+  // unified catalog never needs the registry's own credential. Same visibility
+  // rule — an entry the viewer cannot see answers not-found (the MCP depth-view
+  // posture: existence is not disclosed). The service token stays server-side.
+  app.get("/api/skills-catalog/:name/content", async (req, res) => {
+    if (typeof refreshFn === "function") await refreshFn().catch(() => {});
+    const viewer = resolveUser(req);
+    const full = internalRead(req, internalToken);
+    const entry = skillsFn().find((e) => e.name === req.params.name);
+    if (!entry || (!full && !visibleTo(entry, viewer))) {
+      return res.status(404).json({ error: "Skill not found" });
+    }
+    if (!skillContentFn || !entry.contentPath) {
+      return res.status(503).json({ error: "skill content source not configured" });
+    }
+    try {
+      const content = await skillContentFn(entry.contentPath);
+      res.json({ name: entry.name, content });
+    } catch (err) {
+      res.status(502).json({ error: `skill content fetch failed: ${err.message}` });
+    }
+  });
+
+  return { listVisible, listSkills, visibleTo, internalRead };
 }
 
 // Boot wiring: start the bridge's TTL refresh against the real registry and
@@ -151,5 +204,10 @@ export async function initFacetMcpCatalog(app, { resolveUser }) {
     resolveUser,
     entriesFn: () => bridge.getMarketEntries().mcpServers ?? [],
     skillsFn: () => bridge.getMarketEntries().skills ?? [],
+    // The global-read channel rides the same internal credential the 壹座
+    // proxy uses (facet/index.js FACET_INTERNAL_TOKEN) — one secret, two
+    // server-verified channels; the public domain can never open it.
+    internalToken: (process.env.FACET_INTERNAL_TOKEN || "").trim(),
+    skillContentFn: (contentPath) => bridge.getSkillContent(contentPath),
   });
 }

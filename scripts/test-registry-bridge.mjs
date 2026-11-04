@@ -6,8 +6,11 @@
 //   - market_changed broadcast on change, silence on unchanged refresh
 //   - single-flight: overlapping refreshes share one fetch round
 //   - getSkillContent endpoint transform + content extraction
-//   - market merge: bundled wins on name collision; requiresConfig covers
-//     header placeholders; group visibility (member / non-member / auth off)
+//   - market assembly (add-supply-catalog-unification): the catalog source is
+//     the single truth (offline snapshot ignored when a source is configured);
+//     the app-shipped starter floor is appended, catalog wins on collision;
+//     requiresConfig covers header placeholders; group visibility
+//     (member / non-member / auth off)
 //
 // The registry URL env is set before the dynamic imports (module-scope
 // constants read it); fetch is injected via initRegistryBridge({fetchImpl}).
@@ -371,17 +374,20 @@ test("getSkillContent: /skills prefix stripped, content extracted", async () => 
 
 // ── market merge + visibility (extension-store.getMarketCatalog) ────────────
 
-test("market merge: bundled wins collision; header placeholders require config; groups filter", async () => {
+test("market assembly: catalog source wins, starter floor appended, snapshot ignored; requiresConfig; groups filter", async () => {
   marker = "v4";
-  // Bundled "currenttime" collides with the registry entry of the same name.
+  // The starter floor (app-shipped stdio) — appended beside the catalog.
   fs.writeFileSync(
-    path.join(process.cwd(), "market-catalog.json"),
+    path.join(process.cwd(), "market-starters.json"),
     JSON.stringify({
       mcpServers: [
         {
+          // Collides with the registry entry of the same name: the CATALOG
+          // (registry) wins — the supply plane is the truth for what a server
+          // is; the starter is only a floor.
           name: "currenttime",
-          displayName: "Bundled CurrentTime",
-          description: "bundled",
+          displayName: "Starter CurrentTime",
+          description: "starter",
           category: "Productivity",
           icon: "clock",
           configTemplate: { command: "npx", args: ["-y", "server-time"] },
@@ -406,8 +412,18 @@ test("market merge: bundled wins collision; header placeholders require config; 
     }),
   );
   fs.writeFileSync(
-    path.join(process.cwd(), "market-catalog-skills.json"),
+    path.join(process.cwd(), "market-starters-skills.json"),
     JSON.stringify({ skills: [] }),
+  );
+  // The generated offline snapshot must NOT participate while a catalog
+  // source is configured — its sentinel entry proves the single-source rule.
+  fs.writeFileSync(
+    path.join(process.cwd(), "market-catalog.json"),
+    JSON.stringify({ _meta: { as_of: "2026-01-01T00:00:00Z", source: "supply-catalog" }, mcpServers: [{ name: "snapshot-only", displayName: "Snapshot", description: "s", icon: "box", configTemplate: { url: "https://s.example/mcp" } }] }),
+  );
+  fs.writeFileSync(
+    path.join(process.cwd(), "market-catalog-skills.json"),
+    JSON.stringify({ _meta: { as_of: "2026-01-01T00:00:00Z", source: "supply-catalog" }, skills: [] }),
   );
   fs.writeFileSync(
     path.join(process.cwd(), "registry-groups.json"),
@@ -419,18 +435,20 @@ test("market merge: bundled wins collision; header placeholders require config; 
 
   const anon = await extensionStore.getMarketCatalog(null);
 
-  // Bundled currenttime wins over the registry entry of the same name.
+  // Catalog (registry) wins the collision over the starter floor.
   const ct = anon.mcpServers.find((s) => s.name === "currenttime");
-  assert.equal(ct.displayName, "Bundled CurrentTime");
-  assert.equal(ct.requiresConfig, false, "command template without placeholders is ready-to-use");
+  assert.equal(ct.displayName, "Current Time", "registry entry wins over the starter of the same name");
 
-  // Header placeholder ⇒ needs config; static headers do not.
+  // The offline snapshot is ignored while a source is configured.
+  assert.equal(anon.mcpServers.some((s) => s.name === "snapshot-only"), false, "snapshot file does not merge when a source is active");
+
+  // Starter floor appended; header placeholder ⇒ needs config; static does not.
+  assert.ok(anon.mcpServers.some((s) => s.name === "static-url"), "starter floor appended");
   assert.equal(anon.mcpServers.find((s) => s.name === "gateway-style")?.requiresConfig, true);
   assert.equal(anon.mcpServers.find((s) => s.name === "static-url")?.requiresConfig, false);
 
-  // Bundled entries always visible; the registry skill is gated but auth off
-  // means the machine owner, who sees everything.
-  assert.ok(anon.mcpServers.some((s) => s.name === "static-url"));
+  // The registry skill is gated but auth off means the machine owner, who
+  // sees everything.
   assert.ok(anon.skills.some((s) => s.name === "pdf-processing"), "gated skill visible when auth off (machine owner)");
 
   const member = await extensionStore.getMarketCatalog({ email: "a@b.c", groups: ["team-a"] });

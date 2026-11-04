@@ -31,6 +31,26 @@ const REGISTRY_TOKEN = (process.env.MARKET_REGISTRY_TOKEN || "").trim();
 const TTL_SECS = Number(process.env.MARKET_REGISTRY_TTL_SECS || 300);
 const FETCH_TIMEOUT_MS = 10_000;
 
+// Unified supply catalog channel (add-supply-catalog-unification): when
+// FACET_CATALOG_URL is configured, the market catalog is read from the facet
+// catalog API family (the single supply-catalog read path) instead of the
+// registry directly. FACET_CATALOG_TOKEN rides the facet internal credential
+// (x-facet-internal-token) for the global read — without it the projection is
+// the public subset, which is honest. The direct MARKET_REGISTRY_URL feed
+// stays alive during a deprecation window (loud warning), and when both are
+// configured FACET_CATALOG_URL wins.
+const FACET_CATALOG_URL = (process.env.FACET_CATALOG_URL || "").trim().replace(/\/+$/, "");
+const FACET_CATALOG_TOKEN = (process.env.FACET_CATALOG_TOKEN || "").trim();
+
+// Which catalog source this deployment reads (extension-store branches on it):
+// "facet" — the unified supply catalog; "legacy" — the direct registry feed
+// (deprecation window); "none" — offline (starter floor + generated snapshot).
+export function getCatalogSource() {
+  if (FACET_CATALOG_URL) return "facet";
+  if (REGISTRY_URL) return "legacy";
+  return "none";
+}
+
 // Optional visibility mapping: {servers:{<name>:[groups]}, skills:{...},
 // agents:{...}}. Absent file ⇒ every entry is group-less (visible to all).
 // Resolved at READ time — see catalog.js (cwd overlay may land after boot).
@@ -378,6 +398,84 @@ function mapAgent(a) {
   return entry;
 }
 
+// ── facet catalog mappers (add-supply-catalog-unification) ──────────────────
+
+// facet /api/mcp-catalog row → market MCP entry. The endpoint facet publishes
+// is the gateway URL; the user's gateway token is filled at install time, so
+// the placeholder keeps requiresConfig === true (same posture as mapServer).
+function mapFacetServer(r) {
+  if (!r?.name) return null;
+  return {
+    name: r.name,
+    displayName: r.displayName || r.name,
+    description: r.description || "",
+    category: "Catalog",
+    icon: "box",
+    configTemplate: {
+      url: r.endpoint || gatewayEndpoint(r.name),
+      headers: { Authorization: "Bearer <your_token>" },
+    },
+    installInstructions: "Served through your MCP gateway. Fill in your gateway access token.",
+    origin: "facet-catalog",
+    groups: Array.isArray(r.requiredGroups) ? r.requiredGroups : [],
+    // The global read carries the raw annotation object (facet attaches
+    // `annotations` only for internal reads); the public projection carries
+    // the locale-projected `annotation` only. Absent → null (raw rendering).
+    annotations: plainMetadataAnnotations(r.annotations) ?? null,
+  };
+}
+
+// facet /api/skills-catalog row → market skill entry. Content is fetched at
+// install time through the catalog face by NAME (facet proxies the registry's
+// SKILL.md), so no contentPath rides the entry.
+function mapFacetSkill(r) {
+  if (!r?.name) return null;
+  return {
+    name: r.name,
+    displayName: r.displayName || r.name,
+    description: r.description || "",
+    category: "Catalog",
+    icon: "file-text",
+    origin: "facet-catalog",
+    groups: Array.isArray(r.requiredGroups) ? r.requiredGroups : [],
+    repositoryUrl: r.repositoryUrl ?? null,
+    author: r.author ?? null,
+    version: r.version ?? null,
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    annotations: plainMetadataAnnotations(r.annotations) ?? null,
+  };
+}
+
+async function doFacetRefresh() {
+  const headers = { Accept: "application/json" };
+  if (FACET_CATALOG_TOKEN) headers["x-facet-internal-token"] = FACET_CATALOG_TOKEN;
+  const grab = async (endpoint) => {
+    const res = await fetchImpl(`${FACET_CATALOG_URL}${endpoint}`, {
+      headers,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${endpoint}`);
+    return res.json();
+  };
+  const [mcpDoc, skillDoc] = await Promise.all([
+    grab("/api/mcp-catalog?locale=zh-CN"),
+    grab("/api/skills-catalog?locale=zh-CN"),
+  ]);
+  const mcpServers = (mcpDoc.servers ?? []).map(mapFacetServer).filter(Boolean);
+  const skills = (skillDoc.skills ?? []).map(mapFacetSkill).filter(Boolean);
+  if (mcpServers.length === 0 && skills.length === 0) {
+    // Same last-good posture as the registry channel: an empty answer is not
+    // trusted over a previously good snapshot.
+    throw new Error("facet catalog returned no entries");
+  }
+  marketSnapshot = { mcpServers, skills };
+  const sig = JSON.stringify({ mcpServers, skills });
+  if (sig !== marketSig) {
+    marketSig = sig;
+    broadcastFn?.({ type: "market_changed" });
+  }
+}
+
 // ── refresh ──────────────────────────────────────────────────────────────────
 
 async function doRefresh() {
@@ -412,13 +510,15 @@ async function doRefresh() {
 }
 
 // Single-flight: overlapping TTL ticks and manual refreshes share one fetch.
-// No URL ⇒ permanent no-op (the bridge is disabled, nothing to refresh).
+// Dispatches by the configured source (facet / legacy); "none" is a no-op.
 export function refreshRegistry() {
-  if (!REGISTRY_URL) return Promise.resolve();
+  const source = getCatalogSource();
+  if (source === "none") return Promise.resolve();
   if (inflight) return inflight;
-  inflight = doRefresh()
+  const run = source === "facet" ? doFacetRefresh : doRefresh;
+  inflight = run()
     .catch((err) =>
-      console.warn(`[registry-bridge] fetch failed (keeping last-good): ${err.message}`),
+      console.warn(`[registry-bridge] ${source} fetch failed (keeping last-good): ${err.message}`),
     )
     .finally(() => {
       inflight = null;
@@ -491,6 +591,29 @@ export async function getSkillContent(contentPath) {
   return doc.content;
 }
 
+// Fetch a market skill's raw SKILL.md (frontmatter included), routed by the
+// active catalog source: the facet channel proxies content through the catalog
+// face by NAME (facet holds the registry credential, 壹座 never needs it); the
+// legacy channel fetches from the registry by contentPath. The service token
+// stays server-side either way — the browser never sees it.
+export async function fetchMarketSkillContent(entry) {
+  if (getCatalogSource() === "facet") {
+    const headers = { Accept: "application/json" };
+    if (FACET_CATALOG_TOKEN) headers["x-facet-internal-token"] = FACET_CATALOG_TOKEN;
+    const res = await fetchImpl(
+      `${FACET_CATALOG_URL}/api/skills-catalog/${encodeURIComponent(entry.name)}/content`,
+      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status} for skill content "${entry.name}"`);
+    const doc = await res.json();
+    if (typeof doc?.content !== "string") {
+      throw new Error(`no content returned for ${entry.name}`);
+    }
+    return doc.content;
+  }
+  return getSkillContent(entry.contentPath);
+}
+
 // ── lifecycle ────────────────────────────────────────────────────────────────
 
 export function initRegistryBridge({ broadcast, fetchImpl: impl } = {}) {
@@ -500,11 +623,24 @@ export function initRegistryBridge({ broadcast, fetchImpl: impl } = {}) {
     clearInterval(timer);
     timer = null;
   }
-  if (!REGISTRY_URL) {
-    console.log("[registry-bridge] no MARKET_REGISTRY_URL/REGISTRY_URL; registry source disabled");
+  const source = getCatalogSource();
+  if (source === "none") {
+    console.log("[registry-bridge] no catalog source; market serves the starter floor + generated snapshot");
     return;
   }
-  // Boot readiness never waits on the registry (mirrors catalog's cloud merge):
+  if (source === "facet") {
+    if (REGISTRY_URL) {
+      console.warn(
+        "[registry-bridge] FACET_CATALOG_URL configured — MARKET_REGISTRY_URL/REGISTRY_URL is ignored (deprecated direct feed)",
+      );
+    }
+  } else {
+    // legacy channel only
+    console.warn(
+      "[registry-bridge] MARKET_REGISTRY_URL direct feed is DEPRECATED — set FACET_CATALOG_URL to read the unified supply catalog",
+    );
+  }
+  // Boot readiness never waits on the source (mirrors catalog's cloud merge):
   // first snapshot lands async, then the TTL keeps it warm.
   void refreshRegistry();
   if (TTL_SECS > 0) {

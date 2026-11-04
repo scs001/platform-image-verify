@@ -29,6 +29,7 @@ import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
 import { initFacetMcpCatalog } from "./mcp-catalog.js";
+import { initSupplyCatalog } from "./supply-catalog.js";
 import { registerMcpRegistryJson } from "./mcp-registry-json.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
 import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
@@ -234,6 +235,12 @@ registerMarketplaceJson(app, {
 // via registry-bridge — same env (REGISTRY_URL + MARKET_REGISTRY_TOKEN), same
 // registry-groups visibility mapping, no registry writes ever.
 await initFacetMcpCatalog(app, { resolveUser });
+
+// Unified supply catalog (add-supply-catalog-unification W1): the facade and
+// data-anchor species' own source faces, projected with the production
+// annotation shape. Absent config degrades to an honest empty face — the two
+// TTL sources never block boot and never fabricate rows.
+initSupplyCatalog(app, { resolveUser, registry });
 
 // MCP Registry projection (add-marketplace-projection-fanout): the same public
 // server set, projected to the official server.json format for mcp-publisher.

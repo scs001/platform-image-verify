@@ -12,6 +12,8 @@ import {
   annotatePack,
   annotateSkill,
   annotateMcp,
+  annotateFacade,
+  annotateDataAnchor,
   buildCatalog,
   buildInfrastructurePage,
   buildLlmsTxt,
@@ -232,4 +234,101 @@ test("full export on green fixture writes all artifact kinds with three species"
   const llms = fs.readFileSync(path.join(dir, "gen", "llms.txt"), "utf8");
   assert.ok(llms.includes("## Skills (2)"), "skills section in the index");
   assert.ok(llms.includes("## MCP servers (2 — 3 public tools embedded per page)"), "mcp section with tool total");
+});
+
+// ── five species (add-supply-catalog-unification): facade + data-anchor ─────
+
+const mkFacade = (id, over = {}) => ({
+  id,
+  name: `Facade ${id}`,
+  description: `A deployed agent service ${id}.`,
+  status: "unknown",
+  deployment: null,
+  tags: [],
+  annotation: {
+    canonical: { brief: `A deployed agent service ${id}.` },
+    human: { zh: { name: `分身 ${id}`, summary: `已部署的智能体服务 ${id}。` }, en: { name: `Facade ${id}`, summary: `A deployed agent service ${id}.` }, ja: { name: `分身 ${id}`, summary: `已部署的智能体服务 ${id}。` }, es: { name: `分身 ${id}`, summary: `已部署的智能体服务 ${id}。` }, fr: { name: `分身 ${id}`, summary: `已部署的智能体服务 ${id}。` } },
+    whenToUse: "Talk to a running service.",
+    provenance: { source: "wanxing-facade", updatedAt: genAt },
+  },
+  ...over,
+});
+
+const mkAnchor = (id, over = {}) => ({
+  id,
+  name: `Indicator ${id}`,
+  kind: "indicator",
+  summary: `GDP series ${id}`,
+  source: "nbs",
+  annotation: {
+    canonical: { brief: `GDP series ${id}` },
+    human: { zh: { name: `指标 ${id}`, summary: `GDP 序列 ${id}` }, en: { name: `Indicator ${id}`, summary: `GDP series ${id}` }, ja: { name: `指标 ${id}`, summary: `GDP 序列 ${id}` }, es: { name: `指标 ${id}`, summary: `GDP 序列 ${id}` }, fr: { name: `指标 ${id}`, summary: `GDP 序列 ${id}` } },
+    whenToUse: "Reference a macro indicator.",
+    provenance: { source: "daas-catalog", updatedAt: genAt },
+  },
+  ...over,
+});
+
+test("badge-derived pack is no longer a facade species (category stays pack)", () => {
+  const fx = mkFixture();
+  const packs = annotatePack(listFromFixture(fx), genAt, "fixture://facet");
+  const beta = packs.find((p) => p.id === "beta-facade");
+  assert.equal(beta.category, "pack", "facade badge no longer derives the species");
+  assert.equal(beta.badges.facade, true, "the display badge still rides the pack");
+});
+
+test("facade annotator: honest unknown status, deployment provenance, lint-clean", () => {
+  const m = annotateFacade(mkFacade("law-assistant", { status: "running", deployment: { packId: "law-bench", agentId: "assistant", deployedAt: 1 } }), genAt, "fixture://facades-catalog");
+  assert.equal(m.category, "facade");
+  assert.equal(m.status, "running");
+  assert.equal(m.deployment.packId, "law-bench");
+  assert.equal(m.provenance.source, "wanxing-facade");
+  assert.deepEqual(lintAnnotationShape([m]), []);
+  // status absent → explicit unknown, never a defaulted healthy
+  const noStatus = annotateFacade({ id: "x", name: "X", description: "d" }, genAt, "fixture://facades-catalog");
+  assert.equal(noStatus.status, "unknown");
+});
+
+test("data-anchor annotator: DAAS provenance, lint-clean", () => {
+  const m = annotateDataAnchor(mkAnchor("gdp"), genAt, "fixture://data-anchors-catalog");
+  assert.equal(m.category, "official-data");
+  assert.equal(m.provenance.source, "daas-catalog");
+  assert.equal(m.anchorKind, "indicator");
+  assert.deepEqual(lintAnnotationShape([m]), []);
+});
+
+test("full export spans five species with counts and material pages", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plaza-five-"));
+  const fixture = path.join(dir, "fixture.json");
+  const fx = mkFixture();
+  fx.facades = [mkFacade("law-assistant"), mkFacade("data-bot", { status: "paused" })];
+  fx.dataAnchors = [mkAnchor("gdp"), mkAnchor("cpi"), mkAnchor("cn-region-bj", { kind: "entity", name: "CN11", source: "1" })];
+  fs.writeFileSync(fixture, JSON.stringify(fx));
+  const r = await runExport({ fixture, outDir: path.join(dir, "gen") });
+  // agents bucket = pack + facade + official-data; skills; mcp
+  assert.equal(r.counts.packs, 2 + 2 + 3); // 2 packs + 2 facades + 3 anchors
+  assert.equal(r.counts.skills, 2);
+  assert.equal(r.counts.mcpServers, 2);
+  const cat = JSON.parse(fs.readFileSync(path.join(dir, "gen", "catalog.json"), "utf8"));
+  assert.equal(cat.count, 2 + 2 + 2 + 2 + 3);
+  const byCat = cat.materials.reduce((a, m) => { a[m.category] = (a[m.category] ?? 0) + 1; return a; }, {});
+  assert.equal(byCat.facade, 2);
+  assert.equal(byCat["official-data"], 3);
+  assert.ok(fs.existsSync(path.join(dir, "gen", "materials", "facade-law-assistant.md")));
+  assert.ok(fs.existsSync(path.join(dir, "gen", "materials", "official-data-gdp.md")));
+  const page = fs.readFileSync(path.join(dir, "gen", "materials", "facade-data-bot.md"), "utf8");
+  assert.ok(page.includes("Live status (serving plane): paused"), "facade page states status");
+});
+
+test("G1 facade count mismatch fails the build with zero artifacts", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plaza-g1facade-"));
+  const fixture = path.join(dir, "fixture.json");
+  const fx = mkFixture();
+  fx.facades = [mkFacade("law-assistant"), { name: "no-id", description: "missing id — annotator drops it, G1 sees the mismatch" }];
+  fs.writeFileSync(fixture, JSON.stringify(fx));
+  await assert.rejects(
+    () => runExport({ fixture, outDir: path.join(dir, "gen") }),
+    (err) => err.message.includes("G1 facades"),
+  );
+  assert.equal(fs.existsSync(path.join(dir, "gen", "catalog.json")), false);
 });

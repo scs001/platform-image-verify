@@ -1,467 +1,361 @@
 {
- "mcpServers": [
-  {
-   "name": "fetch",
-   "displayName": "Fetch",
-   "description": "Fetch content from any URL — no configuration needed",
-   "category": "Productivity",
-   "icon": "globe",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-fetch"
-    ]
-   },
-   "installInstructions": "No additional configuration needed",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "网页抓取",
-      "summary": "拉取任意网址的内容并转成可读文本，无需任何配置。",
-      "whenToUse": "需要阅读某个网页或在线文档的内容时。"
-     },
-     "en": {
-      "name": "Web fetch",
-      "summary": "Fetch any URL's content and convert it to readable text; zero configuration.",
-      "whenToUse": "When you need to read a web page or an online document."
-     }
-    },
-    "canonical": {
-     "brief": "Fetches a URL over plain HTTP GET and returns the body as readable text/markdown. Zero configuration. Prefer for reading public pages; not for authenticated or interactive sites."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
+  "_meta": {
+    "as_of": "2026-11-04T15:01:54.367Z",
+    "source": "supply-catalog",
+    "base": "https://facet.finddatatech.cloud"
   },
-  {
-   "name": "time",
-   "displayName": "Time",
-   "description": "Get current time and timezone information — no configuration needed",
-   "category": "Productivity",
-   "icon": "clock",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-time"
-    ]
-   },
-   "installInstructions": "No additional configuration needed",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "时间与时区",
-      "summary": "查询当前时间、做时区换算与日期计算。",
-      "whenToUse": "遇到「现在几点/换算时区/几天后是哪天」一类问题时。"
-     },
-     "en": {
-      "name": "Time & timezone",
-      "summary": "Current time, timezone conversion, and date arithmetic.",
-      "whenToUse": "For 'what time is it now', timezone conversion, or date math."
-     }
-    },
-    "canonical": {
-     "brief": "Returns current time in a requested IANA timezone and converts/computes dates. Deterministic; no network."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "everything",
-   "displayName": "Everything (Demo)",
-   "description": "Demo MCP server for testing — no configuration needed",
-   "category": "Development",
-   "icon": "box",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-everything"
-    ]
-   },
-   "installInstructions": "No additional configuration needed. This is a demo/test server.",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "测试服务器（Everything）",
-      "summary": "官方演示服务器：回显、采样等测试能力，用于验证 MCP 链路本身。",
-      "whenToUse": "调试或验证 MCP 连接是否通时。"
-     },
-     "en": {
-      "name": "Everything (test server)",
-      "summary": "The official demo server: echo/sampling test utilities for verifying the MCP path itself.",
-      "whenToUse": "When debugging or verifying an MCP connection."
-     }
-    },
-    "canonical": {
-     "brief": "Reference test server exercising echo, sampling, and resource primitives. Not for production tasks; useful to prove the transport works."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "sequential-thinking",
-   "displayName": "Sequential Thinking",
-   "description": "Break down complex problems into step-by-step thinking processes",
-   "category": "Productivity",
-   "icon": "list",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-sequential-thinking"
-    ]
-   },
-   "installInstructions": "No additional configuration needed",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "逐步思考",
-      "summary": "提供结构化的分步思考草稿区，把复杂问题拆成小步推进。",
-      "whenToUse": "复杂推理或规划任务需要中途草稿时。"
-     },
-     "en": {
-      "name": "Sequential thinking",
-      "summary": "A structured scratchpad for step-by-step reasoning on complex problems.",
-      "whenToUse": "When a complex plan benefits from explicit intermediate steps."
-     }
-    },
-    "canonical": {
-     "brief": "Maintains a revision-friendly chain-of-thought scratchpad: record a thought, revise or branch it. Purely organizational; emits no side effects."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "memory",
-   "displayName": "Memory",
-   "description": "Persistent memory system for storing and retrieving information across conversations",
-   "category": "Productivity",
-   "icon": "brain",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-memory"
-    ]
-   },
-   "installInstructions": "No additional configuration needed",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "长期记忆",
-      "summary": "本地知识图谱式记忆库：存取实体、关系与事实备忘。",
-      "whenToUse": "需要跨会话记住事实或关系时。"
-     },
-     "en": {
-      "name": "Memory",
-      "summary": "A local knowledge-graph memory: store and recall entities, relations, and facts.",
-      "whenToUse": "When facts must persist across sessions."
-     }
-    },
-    "canonical": {
-     "brief": "Stores entities/relations/observations in a local JSON knowledge graph under the memory dir. Scope is local to this machine."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "puppeteer",
-   "displayName": "Puppeteer",
-   "description": "Browser automation - navigate, screenshot, and interact with web pages",
-   "category": "Browser",
-   "icon": "globe",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-puppeteer"
-    ]
-   },
-   "installInstructions": "No additional configuration needed. Puppeteer will download Chromium automatically.",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "浏览器自动化",
-      "summary": "驱动无头浏览器打开网页、点击与截图。",
-      "whenToUse": "需要看渲染后的页面、截图或做网页操作时。"
-     },
-     "en": {
-      "name": "Browser automation",
-      "summary": "Drive a headless browser: navigate, click, and screenshot.",
-      "whenToUse": "When you need the rendered page or to interact with a site."
-     }
-    },
-    "canonical": {
-     "brief": "Drives headless Chromium: navigate/click/fill/screenshot. Use for JS-rendered pages; slower than fetch and can hit site bot-walls."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "filesystem",
-   "displayName": "Filesystem",
-   "description": "Read, write, and manage files and directories on your local system",
-   "category": "Productivity",
-   "icon": "folder",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-filesystem",
-     "/path/to/allowed/directory"
-    ]
-   },
-   "installInstructions": "Replace '/path/to/allowed/directory' with the directory you want to grant access to",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "本地文件",
-      "summary": "在授权目录内读写、搜索本地文件。",
-      "whenToUse": "需要整理、查找或改写本机文件时。"
-     },
-     "en": {
-      "name": "Local files",
-      "summary": "Read, write, and search files inside the authorized directories.",
-      "whenToUse": "When organizing, finding, or editing local files."
-     }
-    },
-    "canonical": {
-     "brief": "File CRUD and search restricted to the allowed-roots configured at startup. Paths outside the roots are rejected."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    },
-    "tools": {
-     "read_file": {
-      "human": {
-       "zh": {
-        "name": "读文件",
-        "summary": "读取一个文本文件的内容。"
-       },
-       "en": {
-        "name": "Read file",
-        "summary": "Read a text file's content."
-       }
+  "mcpServers": [
+    {
+      "name": "airegistry-tools",
+      "displayName": "AI Registry tools",
+      "description": "Provides tools to discover and list servers, agents, and skills in the AI Registry. Includes intelligent tool finder which uses semantic search to discover the most relevant tools across all registered services.",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/airegistry-tools/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
       },
-      "canonical": {
-       "brief": "Reads a UTF-8 text file inside the allowed roots."
-      }
-     },
-     "write_file": {
-      "human": {
-       "zh": {
-        "name": "写文件",
-        "summary": "把内容写入一个文件（整文件覆盖）。"
-       },
-       "en": {
-        "name": "Write file",
-        "summary": "Write content to a file (full overwrite)."
-       }
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "eco-mcp-fetch",
+      "displayName": "eco-mcp-fetch",
+      "description": "[生态] modelcontextprotocol 官方参考实现（MIT）",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/eco-mcp-fetch/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
       },
-      "canonical": {
-       "brief": "Creates or fully overwrites a file inside the allowed roots."
-      }
-     },
-     "list_directory": {
-      "human": {
-       "zh": {
-        "name": "列目录",
-        "summary": "列出一个目录下的条目。"
-       },
-       "en": {
-        "name": "List directory",
-        "summary": "List entries of a directory."
-       }
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "eco-mcp-time",
+      "displayName": "eco-mcp-time",
+      "description": "[生态] modelcontextprotocol 官方参考实现（MIT）",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/eco-mcp-time/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
       },
-      "canonical": {
-       "brief": "Lists direct children of a directory inside the allowed roots."
-      }
-     }
-    }
-   }
-  },
-  {
-   "name": "sqlite",
-   "displayName": "SQLite",
-   "description": "Query and manage SQLite databases",
-   "category": "Database",
-   "icon": "database",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-sqlite",
-     "--db-path",
-     "/path/to/database.db"
-    ]
-   },
-   "installInstructions": "Replace '/path/to/database.db' with the path to your SQLite database file",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "SQLite 数据库",
-      "summary": "对本地 SQLite 库执行查询与更新。",
-      "whenToUse": "需要查或改本地结构化数据时。"
-     },
-     "en": {
-      "name": "SQLite database",
-      "summary": "Run queries and updates on a local SQLite database.",
-      "whenToUse": "When local structured data needs querying or updating."
-     }
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
     },
-    "canonical": {
-     "brief": "Executes SQL against the configured SQLite file. Schema changes are possible — confirm destructive DDL with the user first."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    }
-   }
-  },
-  {
-   "name": "github",
-   "displayName": "GitHub",
-   "description": "Interact with GitHub repositories, issues, pull requests, and more",
-   "category": "Development",
-   "icon": "github",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-github"
-    ],
-    "env": {
-     "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here"
-    }
-   },
-   "installInstructions": "Create a GitHub personal access token at https://github.com/settings/tokens and replace 'your_token_here'",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "GitHub",
-      "summary": "操作 GitHub：仓库/issue/PR 的查询与创建。",
-      "whenToUse": "需要查仓库状态、建 issue、开 PR 时。"
-     },
-     "en": {
-      "name": "GitHub",
-      "summary": "Work with GitHub: query and create repos, issues, and pull requests.",
-      "whenToUse": "When checking repo state, filing issues, or opening PRs."
-     }
-    },
-    "canonical": {
-     "brief": "GitHub API operations (repos/issues/PRs/files). Honors the configured token's scopes; read calls are safe, write calls create real GitHub content."
-    },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
-    },
-    "tools": {
-     "create_issue": {
-      "human": {
-       "zh": {
-        "name": "建 issue",
-        "summary": "在指定仓库新建一个 issue。"
-       },
-       "en": {
-        "name": "Create issue",
-        "summary": "Open a new issue on a repository."
-       }
+    {
+      "name": "facet-market-mcp",
+      "displayName": "facet-market-mcp",
+      "description": "谦面市场操作 MCP（C1.1-A）：发布/浏览/版本/可见性/策展，facet /api/packs* 六工具，用户委托鉴权（市场 app token）",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/facet-market-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
       },
-      "canonical": {
-       "brief": "Creates a real GitHub issue with title/body on the given repo."
-      }
-     },
-     "list_issues": {
-      "human": {
-       "zh": {
-        "name": "列 issue",
-        "summary": "按条件列出仓库的 issue。"
-       },
-       "en": {
-        "name": "List issues",
-        "summary": "List a repository's issues with filters."
-       }
-      },
-      "canonical": {
-       "brief": "Lists issues (state/labels/filters) for a repo; read-only."
-      }
-     },
-     "create_pull_request": {
-      "human": {
-       "zh": {
-        "name": "建 PR",
-        "summary": "从分支向目标分支发起 pull request。"
-       },
-       "en": {
-        "name": "Create PR",
-        "summary": "Open a pull request from a branch."
-       }
-      },
-      "canonical": {
-       "brief": "Opens a real pull request; requires an existing branch with the changes."
-      }
-     }
-    }
-   }
-  },
-  {
-   "name": "postgres",
-   "displayName": "PostgreSQL",
-   "description": "Query and manage PostgreSQL databases",
-   "category": "Database",
-   "icon": "database",
-   "configTemplate": {
-    "command": "npx",
-    "args": [
-     "-y",
-     "@modelcontextprotocol/server-postgres"
-    ],
-    "env": {
-     "POSTGRES_CONNECTION_STRING": "your_connection_string_here"
-    }
-   },
-   "installInstructions": "Replace the connection string with your PostgreSQL database credentials",
-   "annotation": {
-    "human": {
-     "zh": {
-      "name": "PostgreSQL",
-      "summary": "对 PostgreSQL 数据库做受控查询。",
-      "whenToUse": "需要查库中数据或做受控写操作时。"
-     },
-     "en": {
-      "name": "PostgreSQL",
-      "summary": "Run controlled queries against a PostgreSQL database.",
-      "whenToUse": "When data in the database needs querying or controlled writes."
-     }
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
     },
-    "canonical": {
-     "brief": "Executes SQL against the configured PostgreSQL instance via the connection string. Treat every write as production-affecting."
+    {
+      "name": "facet-ops-mcp",
+      "displayName": "facet-ops-mcp",
+      "description": "谦面市场操作 MCP（五线 AI 操作面 C1）：目录/详情/发布/更新/上下架/查重，用户委托鉴权",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/facet-ops-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
     },
-    "provenance": {
-     "source": "catalog",
-     "updatedAt": "2026-11-01"
+    {
+      "name": "fd-health-config",
+      "displayName": "fd-health-config",
+      "description": "finddata 中央库健康巡检配置(总闸/限流)只读 MCP — fd_open_data.public.health_config",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-health-config/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-info",
+      "displayName": "fd-info",
+      "description": "柏讯信息流索引 MCP：list_since/get_item/search_info/locate_evidence/stream_health 五工具（公告/部委/SSE互动三源）",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-info/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-legal-search-mcp",
+      "displayName": "fd-legal-search-mcp",
+      "description": "识律法律检索 MCP（lex-platform-v1）：法条检索与条级引用解析（law_db 全目录 + Qdrant law_chunks_v2 语义检索）、类案检索（wenshu_db 裁判文书，RustFS zstd 块正文）、指导案例检索、五源法律语料——每个结果携带 provenance 三件套（source/stable_id/as_of），未命中如实返回。识律平台 lex.finddatatech.cloud 对外数据入口，行/次双单位计量。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-legal-search-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-paper-trading",
+      "displayName": "fd-paper-trading",
+      "description": "柏讯模拟交易 MCP（paper-only）：多租户账户/订单/持仓 + 行情（概念族可配） + 策略双轨与回测。调用者身份逐请求委托（进站 Authorization 转发）。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-paper-trading/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-quant",
+      "displayName": "fd-quant",
+      "description": "fd-quant deterministic compute plane + decision ledger (50 commercial tools",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-quant/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-sentiment",
+      "displayName": "fd-sentiment",
+      "description": "柏讯文档情绪打分 MCP：8 工具/5 组全 commercial。evidence_spans 必填且 quote 为原文逐字子串；幂等键 (doc_id, content_hash, prompt_version, model)；聚合视图明确非情绪指数；金标评测含置信度校准。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-sentiment/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-zhengxin-reference",
+      "displayName": "fd-zhengxin-reference",
+      "description": "政心参照系 MCP（lex 第四模块）：政体指标时序（V-Dem v2x_* 聚合指数，国家×年，附口径与 provenance）、思潮坐标（Wikidata+MARPOR 立场）、政治概念（SEP 只链不抄+中国线）、思想关系边、六源状态台账。全只读；空结果必带 reason，逐结果溯源。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-zhengxin-reference/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "lex-ops-mcp",
+      "displayName": "lex-ops-mcp",
+      "description": "识律线操作 MCP（C4）：线全景导览（self-describing）+账户视图（me/usage/billing/quota）+检索凭据生命周期（list/mint/revoke，owner-only 上游判定）；Logto ID token 原样转发",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/lex-ops-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "vaas-wanxing",
+      "displayName": "vaas-wanxing",
+      "description": "VAAS generation plane (Wanxing pilot): voice/image/video/cover generation, asset store, registry discovery. Multi-tenant; assets owner-scoped; publish plane excluded.",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/vaas-wanxing/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "wanxing-ops-mcp",
+      "displayName": "wanxing-ops-mcp",
+      "description": "萬星舰队操作 MCP（C2）：公开目录/AgentCard/允许清单/启停 7 调用型（平台令牌用户委托）+A2A 回合（caller key 计费门）；回执不冒充结果",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/wanxing-ops-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "wire-build-mcp",
+      "displayName": "wire-build-mcp",
+      "description": "柏讯产物构建 MCP：form（录入表单）与 record-view（单记录扫码页）的创建/更新/发布，看板（dashboard）与正文文档（doc）创建，产物与版本读取，数据集列事实与按需建集。写入默认落草稿、发布必须独立显式调用；spec 引用不存在的列时错误文案带该数据集真实列名清单。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/wire-build-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "wire-ops-mcp",
+      "displayName": "wire-ops-mcp",
+      "description": "柏讯客户面操作 MCP（C3）：需求单/数据面读/市场订阅十工具，双轨鉴权透传（Logto ID token / wdk_ key），viewer 只读与合规门上游判定",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/wire-ops-mcp/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "edu-catalog",
+      "displayName": "启材目录",
+      "description": "启材线（教育）目录查询/订阅 MCP：跨论文/播客/课程检索、条目详情（卡层明示未取正文）、许可层概况、订阅盯梢（唯一写面=订阅两工具，只碰订阅表）。空结果与通道故障严格区分（reason 枚举）。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/edu-catalog/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "infra-telemetry",
+      "displayName": "基础设施遥测",
+      "description": "基础设施只读遥测 MCP：五工具闭集（GitOps 漂移/工作负载健康/服务存活/爬取汇总/成本），每返回带 as-of 与逐通道状态，零写面零凭据。",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/infra-telemetry/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-wire-cell-drillcust001",
+      "displayName": "柏讯 cell · drillcust001",
+      "description": "fd-wire cell entry (managed by cell-manager)",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-wire-cell-drillcust001/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-wire-cell-pgauto001",
+      "displayName": "柏讯 cell · pgauto001",
+      "description": "fd-wire cell entry (managed by cell-manager)",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-wire-cell-pgauto001/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
+    },
+    {
+      "name": "fd-wire-cell-wiretester2",
+      "displayName": "柏讯 cell · wiretester2",
+      "description": "fd-wire cell entry (managed by cell-manager)",
+      "category": "Catalog",
+      "icon": "box",
+      "configTemplate": {
+        "url": "https://mcp.finddatatech.cloud/fd-wire-cell-wiretester2/mcp",
+        "headers": {
+          "Authorization": "Bearer <your_token>"
+        }
+      },
+      "installInstructions": "Served through your MCP gateway. Fill in your gateway access token.",
+      "origin": "facet-catalog",
+      "groups": []
     }
-   }
-  }
- ]
+  ]
 }

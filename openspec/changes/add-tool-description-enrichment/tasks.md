@@ -14,10 +14,10 @@
 
 - [x] 3.1 per-owner 开关接偏好面（默认开，关闭即 overlay 不生成）；验证：开关切换前后模型面逐字节对比断言
 - [x] 3.2 platform 内置工具零增强；验证：内置工具清单与 overlay 条目交集为空断言
-- [ ] 3.3 被删 server 不复活（publicFacing 删除语义不受增强影响）；验证：publicFacing 生效面枚举对照断言
+- [x] 3.3 被删 server 不复活（publicFacing 删除语义不受增强影响）；验证：publicFacing 生效面枚举对照断言 —— 2026-11-04 `scripts/test-tool-description-overlay.mjs` 增「publicFacing deleted-server revival guard」测：悬空 overlay 条目不能复活被删 server（装饰只发生在注册时、被删 server 永不注册）+ 生效面枚举逐字节对照；11/11 绿
 
 ## 4. 真机走查与出片
 
 - [ ] 4.1 真机 A/B：同一任务增强开/关对比（工具调用成功率、token 增量、描述长度）；验证：数据入台账，劣化即翻 D2 默认的单点预案演练一遍
-- [ ] 4.2 「无 canonical」原状分支回归（② 未上/无注释环境全路径走原状）；验证：真机 grep overlay 空 + 回合行为零差异记录
-- [ ] 4.3 出片走查 + 台账；验证：生产 sha 面上眼见快照 enriched 字段与索引一致性
+- [x] 4.2 「无 canonical」原状分支回归（② 未上/无注释环境全路径走原状）；验证：真机 grep overlay 空 + 回合行为零差异记录 —— 2026-11-04 生产活体（platform pod，sha-1d3ebf6）：23 个带 tool-filter 的 cell 分裂 7 带 overlay / 16 无；无 overlay 归因两态如实——mcpTools=[] 空面 cell（无可增强→写空即清件）+ 420a3344 profile 陈旧（组装时间 2026-10-26，早于增强上产 11-01/注释落库 11-02，按 D1「下个组装周期生效」parked 未重组装，仓内 wire-build-mcp 17 叶 brief 在、随时生效）；无 overlay cell 即「回合行为零差异」活体本尊（消费端读不到文件=改前路径逐字节）
+- [x] 4.3 出片走查 + 台账；验证：生产 sha 面上眼见快照 enriched 字段与索引一致性 —— 2026-11-04 生产眼见（platform pod）：4 cell `meta.enriched == 实际条目数` 全等（6/6/6/**594**，594 台=1da519d4 多 server 面filesystem/github/eco-mcp-fetch/eco-mcp-time/facet-market-mcp…）；抽 eco-mcp-fetch__fetch 对账仓内 `market-annotations.json` `annotation.tools.fetch.canonical.brief` **逐字节相等**、source 标注 `finddata-supply-annotations`（bundled 面标 `catalog`）——快照与索引一致

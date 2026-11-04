@@ -22,4 +22,4 @@
 - [x] 4.1 构建器调优区 persona 修订分区填实（列表/评测报告/接受/驳回/分流去向说明），i18n 五语言；验证：组件测试 + 五语言完整性门 + 空态契约与 hub 对表
 - [ ] 4.2 【真机走查随滚版班；注入样例已有结构闸+评审面双钥匙兜底，真机复检待行】真机走查全链：真实回合→persona_amend（证据齐）→跑 A/B→过门→接受→新铸会话 persona 生效；验证：走查记录入台账
 - [ ] 4.3 成本核对：一次 A/B 的 token 账目入台账（与 `add-skill-self-evolution` 4.4 同班核，共用 judge-lane 车道）；验证：账目行落台账
-- [ ] 4.4 防中毒复检：注入样例候选在真机全链被闸住且候选态如实标注；验证：走查记录
+- [x] 4.4 防中毒复检：注入样例候选在真机全链被闸住且候选态如实标注；验证：走查记录 —— 2026-11-04 生产真机全链（platform pod 铸 paas_session 走真路由）：①凭据形状投毒（sk- 字面量+api_key= 赋值+.internal.svc 端点）→ `POST /api/persona-evolution/propose` **400 被 sanity 闸拒**，三种 findings 全点名，候选零新增（库中仅原有 2 条真实历史候选）；②注入式文本（无凭据形状，刻意过第一层）→ 201 建候选（status=candidate 诚实）→ 真实 judge-lane A/B（49.8s）→ **passed:false「current persona ranked best — the amendment regresses」**→ 候选态如实标 `gate not passed`（「评测没跑成≠通过」纪律活体眼见）→ owner reject 清理+一次性靶 preset 删除+cookie 样例文件清零。双层闸均真机拦截，闸=内容语义判据非快照相等

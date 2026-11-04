@@ -159,6 +159,41 @@ test("seam: scope allowlist still drops after enrichment (chain order holds)", a
   }
 });
 
+// 3.3 (add-tool-description-enrichment): a publicFacing face DELETES internal
+// servers; its overlay must not revive them. Two layers pinned:
+//   a) the host gate writes null for publicFacing → no stale file survives
+//      (covered by the writer test's null-removal);
+//   b) even a stale file that slipped through (pre-upgrade runtime) cannot
+//      revive a deleted server — decoration happens at registration time and
+//      a deleted server never registers, so its dangling entry is inert and
+//      the kept tools read byte-identical to the enrichment-off baseline
+//      (生效面枚举对照).
+test("seam: publicFacing deleted-server revival guard — dangling entries inert, enumeration byte-identical", async () => {
+  writeOverlay({
+    "wire-ops": { mint_token: { brief: "INTERNAL: mints fleet credentials.", source: "annotations" } },
+  });
+  const { app, inst } = await bootTools();
+  try {
+    installMcpToolRegisterShadow(app);
+    installMcpToolDescriptionOverlay(app);
+    const view = app.extend({});
+    // The publicFacing face's kept tools only — wire-ops was deleted upstream.
+    view.tools.register(mkTool("mcp__github__create_issue", "GitHub API: issues."));
+    view.tools.register(mkTool("bash"));
+    const names = inst.schemas().map((s) => s.name).sort();
+    assert.deepEqual(names, ["bash", "mcp__github__create_issue"]); // wire-ops 不复活
+    // Enumeration parity: kept tools byte-identical to no-overlay (the dangling
+    // entry touches nothing the face doesn't register).
+    assert.equal(
+      inst.schemas().find((s) => s.name === "mcp__github__create_issue").description,
+      "GitHub API: issues.",
+    );
+    assert.equal(inst.schemas().find((s) => s.name === "bash").description, "seam probe bash");
+  } finally {
+    await app.destroy?.();
+  }
+});
+
 test("brief lookup: provenance suffix from the entry's source; blank brief → null", () => {
   writeOverlay({ gh: { a: { brief: "B.", source: "registry" }, b: { brief: "  " } } });
   assert.equal(overlayBriefFor("gh", "a"), "B. [registry]");

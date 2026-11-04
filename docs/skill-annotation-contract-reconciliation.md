@@ -109,3 +109,11 @@ validate.py skill 轨明文「whenToUse 可选，写则 1..{WHEN_MAX}」（≤16
 - 对照面 2/3（壹座扩展页、chat 索引）：paas 2.1/2.2/3.1 已先行落地（工作树未提交），4.2 真机验收时一并过。
 
 > 证据链：finddata 侧 tasks.md 5.3 于本日勾讫（回执落 paas 本仓）；validate.py skill 校验轨（R3）、export.py 跨键空间卫兵（R2）、paas registry-bridge.js mapSkill（0.1）、paas lib/market-annotations.js skill 装载段（2.1）。
+
+## 八、终态记销（2026-11-04，finddata 会话落笔）
+
+**全链闭环，零悬项。** paas 侧 `add-skill-display-annotations` 已按本回执 R1=方案 B 实施并归档（14/14，0.1 订正撤 extra fallback、mapSkill 改 `mergeAnnotations{顶层透传 > skills 键}`，commit c3d7527e 上产）；finddata 侧 `add-skill-supply-annotations` 已由并发会话归档（specs 并入：mcp-supply-annotations / pack-locale-supply）。
+
+- **5.1 线上实证**：facet `/api/skills-catalog?locale=zh|en` 268/268 双语对照过（contract-review → 中文合同审查 / Chinese contract review）。
+- **4.4 后手已办**：DB 272 行 `metadata.extra.annotations` 外科清除（`clear_registry_skill_annotations.py`，272 移除 / 0 异形 / 复验带键 0）——直补通道退役归零，数据真源唯一在 `supply-annotations/`，需要时幂等重灌。
+- **本对账单自此整体终态**：后续注释增量只走 finddata export → 本仓 `market-annotations.json` → 滚版一条路。

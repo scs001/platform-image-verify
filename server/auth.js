@@ -144,8 +144,29 @@ const isInternalBuilderBridges = (req) =>
 // the route's write face is propose-only (evaluate/promote/reject are the
 // owner's REST gestures and still face the full gate from this child's
 // perspective — they require a real user, which the stamp below is not).
+// Scoped to the propose verb AND to credential-less callers: the gateway
+// proxies a real owner's requests over loopback TOO (always carrying
+// x-forwarded-email), so a bare path check would stamp the owner's own
+// evaluate/promote/reject — the absence of identity headers is what tells
+// the child apart from a proxied human.
 const isInternalSkillEvolutionBridge = (req) =>
-  req.path.startsWith("/api/skill-evolution/") && isLoopback(req.socket?.remoteAddress);
+  req.method === "POST" &&
+  req.path === "/api/skill-evolution/propose" &&
+  isLoopback(req.socket?.remoteAddress) &&
+  !req.headers["x-forwarded-email"];
+
+// The persona-evolution bridge (add-persona-self-evolution) — the role-bucket
+// twin of the skill-evolution bridge: the in-cell MCP child landing persona
+// CANDIDATES over /api/persona-evolution. Same credential model: propose is
+// the child's only verb, loopback plus no identity headers (a proxied human
+// always rides the gateway's x-forwarded-email and is NOT stamped, so the
+// owner's evaluate/promote/reject keep their real identity and the
+// human-only verbs never take this door).
+const isInternalPersonaEvolutionBridge = (req) =>
+  req.method === "POST" &&
+  req.path === "/api/persona-evolution/propose" &&
+  isLoopback(req.socket?.remoteAddress) &&
+  !req.headers["x-forwarded-email"];
 
 // The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
 // — the fourth bridge, same credential model: the dsh child's tool ingests
@@ -312,6 +333,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalSkillEvolutionBridge(req)) {
       req.user = { email: "skill-evolution@internal", internal: true };
+      return next();
+    }
+    if (isInternalPersonaEvolutionBridge(req)) {
+      req.user = { email: "persona-evolution@internal", internal: true };
       return next();
     }
     if (isInternalSaveBridge(req)) {

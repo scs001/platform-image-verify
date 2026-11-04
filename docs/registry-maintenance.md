@@ -7300,3 +7300,13 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 3. **model-surface 预算门立案**：新建 change `add-model-surface-budget-gate`，内容：LLM 预算门（宪章 §7 质量门第二刀），采量基线另立案，docs 门已落（8276ea0e），预算门待立案。
 4. **豆包 403 定性**：归因 **上游账户层配额/凭据不可用**（windows 盒子 deepseek-flash alias 账户层耗尽），非模型本身不可用；映射已切 core 组 openrouter-main/new（14/15）承接；豆包车道暂标记 `degraded`，火山控制台查计费/配额/凭据待主处置。
 
+
+## §15.129 车道熔断改连续失败 streak 上产（fix-llm-breaker-streak，2026-11-04）
+
+**定谳缘起**：fd-wire 证据稿（`docs/fd-wire-model-upstream-resilience-evidence.md`，镜像同步）递送的「降级/熔断实弹零咬合」三问，本侧逐一定谳——①`degradedTo` 零触发=生产各岗解析链恒单跳（member.model==boot 默认 deepseek、fallbackModel/fleetDefault 全 null），降级腿无下一跳=如实行为非缺陷；②`skipped` 零=lane 接线活着（server.js:613 buildLaneLookup，pod 探针 deepseek-v4.1-flash→lane-01eb3e096d91165c）但滑动窗 5/10min+10min 冷却对回合 cadence（≥15min 错峰/小时级）结构性无效——10-28→11-04 上游 5xx 风暴 94 条 model_upstream，最密 10 分钟窗仅 10-30T23:38 踩到一次阈值且无回合落进冷却期；③`modelRectified` 零=normalize 丢 explicitChain 自愈门死代码（drift 4.2 已修，fc46bf14）。
+
+**修复**（change `fix-llm-breaker-streak`，f665725f+dd538335）：熔断计数改**连续失败 streak**（与间隔无关、车道任一成功清零关窗、冷却期满探针再败前滚 openUntil 不重凑阈值）、冷却默认 10min→**2h**（覆盖小时级 cadence）、`PLATFORM_LLM_BREAKER_WINDOW_MS` 废止、skip 文案 failures→streak；`breakerState().failures→streak`（全仓消费面仅 cron-runner 文案+测试）。spec=cron-module MODIFIED（明写「MUST NOT 依赖挂钟滑动窗」+「skipped 不喂养计数」两新钉）。测试 408 全绿（attribution 13 含「间隔 3h 连击仍开窗」红→绿靶心、core 46）。
+
+**上产**：T1 公开快照线——本侧快照 c3d7527e（⊇ fd-wire 会话 f665725f 熔断+fc46bf14 drift 归档，两会同车；其间 fd-wire 会话快照 CI 红抓出 extension-store 错挂 biome-ignore，c3d7527e 顺手修 14/14 绿）→ image run 41791265401 success → relay 15:25:22 过岸 → skopeo 硬门 sha-1d3ebf6 EXISTS（digest 3ff3d4f1）→ fd-infra-deploy 0aca14d bump platform+demo 双清单 → ArgoCD refresh 注解强拉（rev 0aca14d）→ 双 deployment rolled out。**上产当日 pod 内实机冒烟**：间隔 3h×5 连击第 5 次开窗、openUntil=+2h、成功清零关闸全对（真环境行为验证）；skipped 回合行的生产显现待下一个真实 5xx 窗（tasks 5.2 如实挂观察）。
+
+**协作注记**：fd-wire 会话与本会话同工作树并发——镜像通道出现双快照竞争（fd-wire dfeb371 强推后被本侧 c3d75/lane-repair 顶替，fd-wire 会话撤出竞争改监控），教训=出片判路（fd-build-channel）之外还应先查 verify 仓近 10 分钟 run 再推。

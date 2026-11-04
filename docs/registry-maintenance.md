@@ -7269,3 +7269,13 @@ facet catalog 复验 **207 条、eco 13 全见**（3 旧+10 新）；内容端�
 GitHub CI 接线：`test:unit`（ci.yml/app-e2e.yml/app-build.yml 三 workflow）全含；2026-11-04 本地复跑
 test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群闲置），验收以真机眼见+CI 双证闭。
 台账归档（5.4）：本节即记录，`openspec archive` 后 validate --specs 绿。
+
+## §15.128 活跃 change 待办盘点：九单 36 未勾的真实构成（2026-11-04）
+
+应「怎么会这么多待办」之问做全量盘点，定谳：**36 个未勾里真开发欠账只有 12 个，其余全是随滚版班挂账的走查/对账尾款**。数量多的主因不是活多，而是勾选纪律本身——代码上产 ≠ 勾任务，4.x 真机走查/成本核对统一「随滚版班」执行，出片前一直在 tasks.md 挂着。
+
+**构成四分**：①**唯一真开发欠账** = `add-skill-display-annotations`（11-03 立案从未提交，12/12 全空；其余七单代码均已上产）；②**随滚版班走查尾款 ≈17 项**（persona×3/技能自进化×2/工具描述增强×5/starter-teams×1/外聊车道×3/模型漂移 e2e×1 等，性质相同=下个滚版班上产后真机眼见+账目核对，**合并一次走查班批量清偿**，不当独立待办看）；③**长周期观察挂账 2 项**（产品介绍 4.3 观察期收尾、模型漂移 5.2 等中毒复发回溯——设计如此，等触发）；④**4 项属 harden-bot-reply-lane**，盘点当时正被并行会话归档搬运（§9 上文），随归档消失——活跃 change 实为 8 单。
+
+**三因入册**：勾选纪律（走查尾款出片前不勾）；归档滞后（搬运靠专门班次，归档前恒算活跃）；账实时差一例（harden-bot-reply-lane 记忆标「归档」实为当日才搬，记忆写终态、目录清理晚一天）。
+
+**随盘点落一动作**：`add-skill-display-annotations` 4.1 契约对账单已开给 finddata 侧——`docs/skill-annotation-contract-reconciliation.md`（对 finddata 协同单 `add-skill-supply-annotations` 任务 5.3，互为镜像）。关键事实：数据已先行（finddata `97afab73` 落 `market-annotations.json` skills 键 278 条=registry 272+yizuo-file 6，五语，已在本分支）；paas 消费面零感知（`mapSkill` 只透传 metadata.annotations，而 registry 序列化器只透 author/version/extra → DB 直补 272 行落 `extra.annotations` 对桥恒不可见，finddata 5.1 验收被此阻塞）。对账单逐字段钉死 skills 键索引名/origin 两域/五语形状与 60/200/160 帽，**R1 二选一推荐方案 B**（统一走 skills 键合并，mapServer 同构；不把 extra.annotations 事故落点铸进读面），R2–R4（两域撞键导出行为/zh 轨 whenToUse 可选性/DB 通道存续）待 finddata 回执——沿 mcp 回执先例对方直接落笔本仓。

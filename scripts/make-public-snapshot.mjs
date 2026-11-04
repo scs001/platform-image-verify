@@ -191,6 +191,10 @@ const EXCLUDE_PATHS = new Set([
   "docs/ecosystem/client-matrix.md",
   "docs/ecosystem/marketplace-landscape.md",
   "docs/ecosystem/skill-market-registration.md",
+  // 跨仓注释交付回执（add-mcp-supply-annotations / add-skill-display-annotations，
+  // 2026-11-04 禁品扫描拦下）：tailnet IP、cheap-8 节点名、双栈分裂取证——同 yongyi/
+  // zhiyu 运维材料一类，真源在私有仓，属内部运维文档，不入公开快照。
+  "docs/mcp-annotation-repo-source-receipt.md",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).

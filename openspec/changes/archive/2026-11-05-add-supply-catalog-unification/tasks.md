@@ -31,4 +31,4 @@
 - [x] 5.1 三面对账：壹座三柜（pack/技能/MCP）× 谦面橱窗 × plaza catalog 同刷新窗逐条对账零漂移（名称/简介/provenance/计数）。验证：对账脚本或逐条清单留痕。
 - [x] 5.2 回归：无配置部署路径（快照兜底）、WS `market_changed`、安装路径组门控（`web-operate-states` 相关 e2e 不回归）。
 - [x] 5.3 伞文档注记：`docs/facet-wanxing-roadmap.md`、`docs/facet-market-roadmap.md` 头部加「谦面轨道定位以 docs/supply-domain-roadmap.md 为准」注记行。验证：两文件头部注记在场。
-- [ ] 5.4 `openspec validate add-supply-catalog-unification --strict` 通过，且归档前 tasks 全勾对账（测试 ↔ 勾选一致）。
+- [x] 5.4 `openspec validate add-supply-catalog-unification --strict` 通过，且归档前 tasks 全勾对账（测试 ↔ 勾选一致）。

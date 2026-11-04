@@ -8,12 +8,23 @@
 
 ### Requirement: 人令牌经 /hook 写入其 namespace，platform 族边界如联邦契约
 
-fleet-memory 服务的人令牌（u/ 族）SHALL 同时被 `/hook` 兼容端点与 MCP 面接受，两者写入同一 namespace 语义（互见）；`platform` 族令牌为纯铸造面（铸造 person 令牌；capture//hook/MCP 全拒），权限矩阵为：deployment=`d/<packId>/<agentId>` 成员读写（agent + 所属 pack Scope）；pod=`d/<packId>` 集群共享区读写；person=`u/` root 读写（MCP+/hook）；runner=任意 `d/` capture-only + 代铸 deployment 与 pod；platform=代铸 person only；local collector 令牌族（fsc_）仅 stats 面，与记忆令牌族互不相通。
+fleet-memory 服务的人令牌（u/ 族）SHALL 同时被 `/hook` 兼容端点与 MCP 面接受，两者写入同一 namespace 语义（互见）；`platform` 族令牌为纯铸造面（铸造 person 令牌 **与 deployment 令牌（add-agent-memory-foundation：绑定 `d/<packId>/<agentId>`，铸造时落 root_owner 绑定记录，供 oversight 判定）**；capture//hook/MCP 全拒），权限矩阵为：deployment=`d/<packId>/<agentId>` 成员读写（agent + 所属 pack Scope）；pod=`d/<packId>` 集群共享区读写；person=`u/` root 读写（MCP+/hook）**＋对自己名下部署根的审计式只读监督（add-agent-memory-foundation：可读监督面列分区/读页/digest 含成员私有分区，零写权，逐读审计；实现契约见 openspec: agent-memory-foundation）**；runner=任意 `d/` capture-only + 代铸 deployment 与 pod；platform=代铸 person 与 deployment only；local collector 令牌族（fsc_）仅 stats 面，与记忆令牌族互不相通。
 
 #### Scenario: 令牌族权限矩阵全覆盖
 
 - **WHEN** 以五种令牌族（deployment、pod、person、runner、platform）分别请求 capture、/hook、MCP、project 读写面、铸造面
 - **THEN** 每格结果与矩阵一致（拒绝均 403 结构化），无越界写入
+
+#### Scenario: owner 监督只读落入矩阵
+
+- **WHEN** person 令牌对自己名下部署根发起列分区与读页请求，并对同一根发起写入
+- **THEN** 读成功且逐次落审计行；写 403 结构化拒绝（矩阵其余格不变）
+
+#### Scenario: platform 代铸 deployment 令牌且绑定 owner
+
+- **WHEN** platform 令牌调用铸造面请求 deployment 令牌（`d/<packId>/<agentId>`），再以该 deployment 令牌写 own 分区
+- **THEN** 铸造成功且 root_owner 绑定落库；写入落该成员私有分区（platform 自身碰数据面仍全拒）
+
 ### Requirement: 记忆按 namespace 寻址且跨 owner 永不共库
 
 记忆条目（页面、观测、交接）SHALL 按 namespace 寻址，寻址单位细化为三类 Scope：`agent`（成员私有，`d/<packId>/<agentId>`）、`pack`（集群共享，`d/<packId>`）、`owner`（部署者名下，`u/<user>`）。同一 pack 的全部成员与共享区 SHALL 共存于同一 store root——`d/<packId>` 一根多 project：每成员一个以 `metadata.agentId` 命名的 project、共享区一个 `shared` project；人的记忆 `u/<user>/p/<project>` 形状不变。不同 owner 的数据 MUST 存于物理隔离的 store root（独立目录树与独立数据库文件），任何 API、查询或派生索引都 MUST NOT 跨 owner 合并数据。`<packId>` 的每部署唯一性由 serving 面结构性保证：registry 部署条目按 packId 单例（重部署覆盖同一部署），因此 `d/<packId>` 永不混入第二个部署者的数据。
@@ -32,6 +43,7 @@ fleet-memory 服务的人令牌（u/ 族）SHALL 同时被 `/hook` 兼容端点�
 
 - **WHEN** 持有 owner A 部署令牌的请求试图以路径或参数指向 owner B 的 namespace
 - **THEN** 请求被拒绝且不返回任何 owner B 的内容
+
 ### Requirement: 令牌两族且每请求鉴权
 
 服务 SHALL 接受五类令牌：**部署令牌**（deployment，绑定 `d/<packId>/<agentId>`）、**pod 令牌**（绑定 `d/<packId>`）、**人令牌**（person，绑定一个 `u/` root）、**runner**（capture-only + 代铸）与 **platform**（纯铸造面）不变。授权 SHALL 由 Grant 表数据表达——`grants(token, scope_kind, scope_ref, mode)`，scope_kind ∈ agent|pack|owner，mode ∈ r|rw（rw 蕴含 r）：铸币时 MUST 写默认授予（成员令牌 = 自己 agent rw + 所属 pack rw；pod 令牌 = pack rw；person 令牌 = owner rw）；既有令牌 MUST 一次性回填默认授予（幂等）。数据面每次访问 MUST 经 Grant 判定，Grant 变更（收紧、撤销、补授）MUST 即时生效（无缓存宽限）。无令牌或无效令牌的请求 MUST 收到结构化拒绝；令牌 MUST 可独立吊销且吊销即时生效。
@@ -60,6 +72,7 @@ fleet-memory 服务的人令牌（u/ 族）SHALL 同时被 `/hook` 兼容端点�
 
 - **WHEN** 撤销某成员令牌的 pack 授予后，该令牌请求共享区读写
 - **THEN** 共享区请求被拒绝，其 agent 私有区读写不受影响
+
 ### Requirement: 交接是类型化且恰被认领一次的协议
 
 `memory_handoff_begin/accept/cancel/list` 工具 SHALL 可用：交接记录含 summary、开放问题、下一步、涉及文件与归属者；`accept` MUST 恰成功一次（重复认领返回已认领状态而非再认领），认领方跨 agent/harness 生效；交接在会话启动时以通知形式可见、不自动消费。
@@ -106,6 +119,7 @@ fleet-memory 服务的人令牌（u/ 族）SHALL 同时被 `/hook` 兼容端点�
 
 - **WHEN** 含 fact / experience 页的 root 执行 reindex 后查询其任务关键词
 - **THEN** 两类页型的 frontmatter（supersedes / sources / generated.by）完整保留并可被检索命中
+
 ### Requirement: 零 LLM 边界
 
 fd-memory 服务进程 MUST NOT 直连任何外部 LLM 或嵌入端点；L0（观测）与 L1（交接 / 笔记）的全部写入、衰减位标记与索引 SHALL 保持确定性零 LLM。捕获内容 MUST NOT 外发到本服务进程之外（备份通道除外，走既有运维面）；唯一例外是 L2 蒸馏——原文仅经既定蒸馏契约（memory-distiller 能力）流向受 pin 的 sidecar 与词元车道，在每 owner 日预算内后台进行，且 L2 停摆 MUST NOT 影响 L0/L1。
@@ -114,6 +128,7 @@ fd-memory 服务进程 MUST NOT 直连任何外部 LLM 或嵌入端点；L0（�
 
 - **WHEN** 服务运行环境无外网出口
 - **THEN** capture、MCP 面、查询、交接全部功能正常；L2 蒸馏暂停并记录缺口，恢复后自动续跑
+
 ### Requirement: MCP 工具面按 namespace 收窄
 
 MCP 面（streamable-http，鉴权头）SHALL 暴露 handoff 四件套与 query/recent/read_page/write_page，并接受可选相对选择器 `target: "own" | "shared"`；线协议 MUST NOT 出现 namespace 名。工具操作范围 MUST 经请求令牌的 Grant 判定：读工具（memory_query / memory_recent / memory_handoff_list）默认返回 own 与 shared 的并集、每条结果携带 `source`（own|shared）与 `layer`（L0 观测 / L1 交接与笔记 / L2 事实与经验，页面按页型推导、观测恒为 L0），L2 条目另携带 `sources[]` 溯源；显式 target 时只返回该侧；写工具（memory_write_page / memory_handoff_begin）默认写 own，`target: "shared"` 写共享区；`memory_handoff_begin` 写共享区时可携带 `to_agent`（agent→agent 交接的定向归属），accept 恰认领一次的协议不变。pod 令牌无 own——默认即 shared，显式 `target: "own"` MUST 拒绝并说明原因。按名字寻址的工具（memory_read_page 按 path、handoff accept/cancel 按 id）MUST 校验目标 project 在该令牌 Grant 覆盖内，越项目 MUST 拒绝。工具面 MUST NOT 暴露跨 namespace 枚举能力。
@@ -147,6 +162,7 @@ MCP 面（streamable-http，鉴权头）SHALL 暴露 handoff 四件套与 query/
 
 - **WHEN** 一个 project 同时含观测、交接与蒸馏产出的经验，成员查询命中多层
 - **THEN** 每条结果带 layer（观测 L0、交接 L1、经验 L2），L2 条目携带 sources[] 指向其产出来源
+
 ### Requirement: v2 磁盘布局与一次性迁移
 
 `d/` 族磁盘布局 SHALL 镜像 `u/` 族的一根多 project 形状：`d/<packId>` 与 `d/<packId>/<agentId>` 都落根 `d-<packId>`，共享区 project 为 `shared`、成员 project 为 `<agentId>`（取部署描述符 metadata.agentId）。既有 v1 布局（每 agent 一根 `d-<packId>--<agentId>`、单 default project）SHALL 经一次性迁移脚本搬家至 v2 并重建派生索引：迁移 MUST 以令牌库登记的 namespace 为坐标源（不从目录名反解 packId 与 agentId）、MUST 幂等（重复执行零改动）、MUST NOT 改写或丢失任何 markdown 真源内容；旧目录 MUST 保留至迁移验收通过后才可清理。

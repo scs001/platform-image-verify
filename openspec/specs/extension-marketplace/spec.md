@@ -65,38 +65,65 @@ The UI SHALL allow users to install an MCP server or skill from the market. Clic
 - **AND** the skill SHALL be available for invocation
 
 ### Requirement: Market catalog is sourced from static JSON or remote registry
-The market catalog SHALL be loaded from the bundled JSON files shipped with the application (`market-catalog.json`, `market-catalog-skills.json`), and additionally from a remote mcp-gateway-registry instance when configured via env vars (`MARKET_REGISTRY_URL` plus `MARKET_REGISTRY_TOKEN`). Registry MCP servers (`GET /api/servers`) and skills (`GET /api/skills`) SHALL be fetched server-side with the service token, merged with the bundled catalog, and cached. On a name collision the bundled entry SHALL win (bundled entries are curated for this deployment). The merged catalog SHALL be re-fetched on a TTL (`MARKET_REGISTRY_TTL_SECS`, default 300) by the background refresh using the service token; when the refreshed content changes, the server SHALL broadcast a `market_changed` event over WebSocket. When the registry fetch fails, the server SHALL keep serving the last successfully fetched registry entries and log a warning. Registry MCP entries SHALL map to a `configTemplate` of `{ url: <gateway endpoint>, headers: { Authorization: "Bearer <your_token>" } }` so the existing `requiresConfig` derivation classifies them as needing user config.
 
-#### Scenario: bundled market catalog
-- **WHEN** no registry URL is configured (`MARKET_REGISTRY_URL` unset)
-- **THEN** the market SHALL load from the bundled `market-catalog.json` / `market-catalog-skills.json`, identical to pre-change behavior
-- **AND** no registry fetch, cache, or refresh SHALL occur
+The market catalog SHALL be loaded from the unified supply catalog projection (openspec: supply-catalog) served by the facet catalog API family, configured via `FACET_CATALOG_URL` (plus optional `FACET_CATALOG_TOKEN` for non-anonymous reads). The server SHALL fetch the projection server-side, cache it, and re-fetch on a TTL (`MARKET_REGISTRY_TTL_SECS` semantics preserved, default 300) via background refresh using the same token; when the refreshed content changes, the server SHALL broadcast a `market_changed` event over WebSocket. When the catalog fetch fails, the server SHALL keep serving the last successfully fetched entries and log a warning.
+
+The hand-curated bundled catalog copy SHALL NOT exist: the bundled `market-catalog.json` / `market-catalog-skills.json` SHALL be generated offline snapshots of the unified catalog (as-of stamped), served only when no catalog source is configured. For the catalog species — remote MCP servers and skills — no merge or collision rule SHALL apply: with a source configured, the online projection is the single truth for those species.
+
+The app-shipped stdio starter servers (a URL-fetch server, a time/date server, and a demo/test server) are product assets, not catalog entries: the market SHALL always append them, online or offline. They carry distinct names that never collide with catalog entries, and their presence SHALL NOT be read as a curation layer.
+
+The legacy `MARKET_REGISTRY_URL` / `MARKET_REGISTRY_TOKEN` direct-registry feed SHALL continue to work during a deprecation window while logging a deprecation warning, and SHALL NOT be combined with `FACET_CATALOG_URL` (the latter wins and a warning names the ignored variable). Registry MCP entries SHALL map to a `configTemplate` of `{ url: <gateway endpoint>, headers: { Authorization: "Bearer <your_token>" } }` so the existing `requiresConfig` derivation classifies them as needing user config.
 
 #### Scenario: remote market catalog
-- **WHEN** the registry is configured via `MARKET_REGISTRY_URL` plus `MARKET_REGISTRY_TOKEN`
-- **THEN** the market SHALL fetch MCP servers and skills from the registry and merge them with the bundled catalog
-- **AND** fall back to the bundled catalog (plus any last-good registry entries) if the fetch fails
 
-#### Scenario: registry entries merge with bundled catalog
-- **WHEN** the registry is configured and reachable
-- **THEN** the market catalog SHALL contain bundled entries plus registry-sourced MCP servers and skills
-- **AND** a registry entry whose name collides with a bundled entry SHALL be dropped in favor of the bundled entry
-
-#### Scenario: registry outage keeps last-good entries
-- **WHEN** the registry becomes unreachable after a successful fetch
-- **THEN** the market SHALL keep serving the last-good registry entries alongside bundled entries and log a warning
+- **WHEN** `FACET_CATALOG_URL` is configured
+- **THEN** the market's catalog species SHALL be the unified supply catalog projection, fetched server-side and cached, with no locally merged or overridden catalog entries
 
 #### Scenario: catalog change propagates to clients
-- **WHEN** a registry refresh produces a changed merged catalog
+
+- **WHEN** a catalog refresh produces a changed catalog
 - **THEN** connected WebSocket clients SHALL receive a `market_changed` event and a subsequent `GET /api/extensions/market` reflects the change
 
+#### Scenario: registry outage keeps last-good entries
+
+- **WHEN** the configured catalog becomes unreachable after a successful fetch
+- **THEN** the market SHALL keep serving the last-good entries and log a warning
+
+#### Scenario: bundled market catalog
+
+- **WHEN** 壹座 starts with neither `FACET_CATALOG_URL` nor legacy registry variables configured
+- **THEN** the market SHALL serve the generated offline snapshot, identical to what the export pipeline produced, with its as-of stamp visible to the operator
+- **AND** no registry fetch, cache, or refresh SHALL occur
+
+#### Scenario: registry entries merge with bundled catalog
+
+- **WHEN** a catalog source is configured
+- **THEN** no catalog entry from the offline snapshot is overlaid or collided away — the market's catalog species are exactly the source's projection — while the app-shipped starter floor is appended regardless
+
+#### Scenario: legacy registry variables deprecate loudly
+
+- **WHEN** `MARKET_REGISTRY_URL` plus `MARKET_REGISTRY_TOKEN` are configured without `FACET_CATALOG_URL`
+- **THEN** the market SHALL load from the legacy registry feed during the deprecation window and every refresh SHALL log a deprecation warning
+
+#### Scenario: both sources configured
+
+- **WHEN** both `FACET_CATALOG_URL` and `MARKET_REGISTRY_URL` are configured
+- **THEN** the unified catalog SHALL be used, the legacy variable SHALL be ignored, and a warning SHALL name the ignored variable
+
 ### Requirement: Market catalog includes zero-config MCP servers
-The bundled market catalog SHALL include at least three MCP servers that require no user-supplied secret or path to connect (derived `requiresConfig === false`): a URL-fetch server, a time/date server, and a demo/test server.
+
+The served market SHALL include at least three MCP servers that require no user-supplied secret or path to connect (derived `requiresConfig === false`): a URL-fetch server, a time/date server, and a demo/test server. These are app-shipped stdio starters appended to every served market — online projection or generated offline snapshot — and are not catalog entries; their presence SHALL NOT depend on any catalog source being configured or reachable.
 
 #### Scenario: catalog contains multiple ready-to-use MCP servers
-- **WHEN** the market catalog is loaded from the bundled JSON
+
+- **WHEN** the market catalog is loaded from the generated offline snapshot
 - **THEN** at least three MCP entries SHALL have `requiresConfig === false`
 - **AND** the set SHALL include a fetch server, a time server, and a demo server distinct from `memory` and `sequential-thinking`
+
+#### Scenario: online market keeps the starter floor
+
+- **WHEN** the market catalog is loaded from the unified catalog projection
+- **THEN** the same three stdio starters are appended with `requiresConfig === false`, beside the projection's gateway-sourced entries
 
 ### Requirement: Registry market entries are group-scoped per user
 `GET /api/extensions/market` SHALL filter registry-sourced entries by group: an entry carrying a non-empty group list SHALL be included only when the requesting user's groups intersect it. Registry entries with empty or absent group metadata SHALL be visible to everyone. Bundled entries SHALL always be visible regardless of the user. When authentication is off, the requester is the machine owner: all entries, gated or not, SHALL be visible — matching the auth-off semantics of administrator gating elsewhere in the platform (a deployment with no identities has no one to exclude).

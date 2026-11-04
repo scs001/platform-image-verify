@@ -18,7 +18,7 @@ import { resolveJudgeLane } from "./blueprint-judge.js";
 const EVAL_TIMEOUT_MS = () => Number(process.env.PERSONA_EVAL_TIMEOUT_MS || 60_000);
 const TRANSCRIPT_KEEP = 1500;
 
-async function callModel(lane, system, user, fetchImpl) {
+async function callModel(lane, system, user, fetchImpl, usageSink = null) {
   const res = await fetchImpl(`${lane.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
@@ -39,6 +39,15 @@ async function callModel(lane, system, user, fetchImpl) {
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content;
   if (typeof text !== "string" || !text.trim()) throw new Error("eval lane returned empty content");
+  // Cost accounting (add-persona-self-evolution 4.3 / add-skill-self-evolution
+  // 4.4): the lane reports token usage per call — fold it into the sink so the
+  // A/B report carries one honest 账目 row (2 arm calls + 1 judge call).
+  const u = data?.usage;
+  if (usageSink && u && typeof u === "object") {
+    usageSink.calls += 1;
+    usageSink.inputTokens += Number(u.prompt_tokens ?? u.inputTokens ?? 0) || 0;
+    usageSink.outputTokens += Number(u.completion_tokens ?? u.outputTokens ?? 0) || 0;
+  }
   return text;
 }
 
@@ -78,8 +87,9 @@ export async function runPersonaEval({ currentPersona, amendedPersona, scenarioP
     { key: "current", persona: currentPersona ?? "" },
     { key: "amended", persona: amendedPersona },
   ];
+  const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
   for (const arm of arms) {
-    arm.transcript = clip(await callModel(lane, executorSystem(arm.persona), task, fetchImpl));
+    arm.transcript = clip(await callModel(lane, executorSystem(arm.persona), task, fetchImpl, usage));
   }
 
   // ── blind ranking (shuffle → 甲/乙 → map back) ─────────────────────────────
@@ -97,7 +107,7 @@ export async function runPersonaEval({ currentPersona, amendedPersona, scenarioP
     "",
     "请比较以上回答，只输出一个 JSON 对象：{\"best\":\"甲|乙|tie\",\"reasoning\":\"≤120字\"}。标准：哪个回答更好地完成了任务（正确性、完整性、符合各自角色定位的可执行性）。不要输出其他内容。",
   ].join("\n");
-  const raw = await callModel(lane, "You are a strict, anonymous evaluator.", judgeUser, fetchImpl);
+  const raw = await callModel(lane, "You are a strict, anonymous evaluator.", judgeUser, fetchImpl, usage);
   const verdict = parseVerdict(raw);
 
   const byLabel = Object.fromEntries(shuffled.map((a) => [a.label, a]));
@@ -121,6 +131,7 @@ export async function runPersonaEval({ currentPersona, amendedPersona, scenarioP
     reason,
     verdict: { best, reasoning: clip(verdict.reasoning, 300) },
     lane: { model: lane.model, laneId: lane.laneId ?? null },
+    usage,
     arms: arms.map((a) => ({ key: a.key, label: a.label, transcript: a.transcript })),
     evaluatedAt: new Date().toISOString(),
   };

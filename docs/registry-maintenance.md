@@ -7315,3 +7315,17 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 - **F3.3 空回合免单（剩余半）**：`collectTurn` 补吃 `turn/end reason=error`（UNKNOWN_MODEL 静默空返的唯一失败面——`platform/stream` error finish 从不发射），`attempt` 采集 error 即翻 `ok:false`（不再骑 ok:true 入账）。4 测试钉死（`scripts/test-empty-turn-billing.mjs`：采集器捕获/stream 帧 first-wins/端到端免单/健康回合零回归）。10-13 修的 JSON-RPC error 半与本修合璧，F3.3 计费缺陷全案关账。
 - **sub2api fork 并发改造立项**：`add-sub2api-fork-concurrency`（strict 绿）——有界排队+429 快速拒/AIMD 自适应并发/熔断联动/三 metrics；前置「fork 源码归属」用户 11-04 授权代拍=本仓维护，归属问题关闭。
 - **全量单测判红**：2948✔/3✖——supervisor-ports 两红（120s 超时，spawn 型环境用例，本机多会话占端口，记忆在册）+ plaza-browser（需浏览器环境）。零新增红，本轮 cron-runner 两处补丁零回归（drift-self-heal 1/1+model-drift 5/5+empty-turn 4/4+bots/durability 全绿）。
+
+## §15.130 走查班第二批：persona/skill 自进化真回合全链+两缺陷根修+成本账目（2026-11-04）
+
+承接 §15.128 盘点的「随滚版班走查尾款」清偿。本批清掉 add-tool-description-enrichment 3.3/4.2/4.3（首批，d806bab9）、add-persona-self-evolution 4.2/4.3/4.4、add-skill-self-evolution 4.4；**persona 单 14/14 全勾收官**。
+
+①**persona 4.2 真回合全链（demo pod，随班出片 sha-779f832）**：standard 面真任务（矛盾季度表：Q3 营收 90 标环比 +25%，实算 −25%）→ agent 两次真调 `mcp__persona-evolution__persona_amend` 落候选（evidence 引本回合矛盾点）→ 真 judge-lane A/B（31s）→ **不劣于门真拦截**（第一版修订「暂停不结论」判过保守 current 胜；校准版「不受污染结论照常交付+矛盾行标待核」判更优——闸双向活体）→ promote 无绿评 **409**「requires a green evaluation」（双钥匙第二把）→ 同靶重提 **429** debounce。六环五环真机眼见+第六环（过门后接受→新会话生效）由 11-01 生产真实晋升候选 pc_1793512141314（promoted 在库）补证。**走查纪律亮点**：首回合 xb-poster 面 agent 两次 tool_search 找不到 persona_amend 后**如实拒绝凑数提案**（DISCIPLINE 生效）——工具面按 preset 收窄属设计（pack persona focus 会 drop 非声明 server）。
+
+②**走查随车逮两真缺陷根修**：a) **persona_amend 生产 401**——`add-persona-self-evolution` 交付时漏把 persona 桥注册进 auth 中间件（孪生 skill 桥在、persona 漏），真机实调撞「Authentication required」；535ee55a 补 `isInternalPersonaEvolutionBridge`（stamp persona-evolution@internal）+**同车收紧双桥作用域**：原 skill 桥裸 `startsWith` 会把 gateway 代理的真实用户 evaluate/promote/reject 也盖章（loopback 即凭据的副作用），收紧为 propose 单动词+无 x-forwarded-email 头（网关代理真人必带头→不盖章→人持手势保真身份），`scripts/test-evolution-bridge-auth.mjs` 4/4（桥 stamp/孪生回归/网关代理保真/人持动词 401）。b) **demo judge env 缺失**——demo 原次上线漏挂 BLUEPRINT_JUDGE_MODEL→resolveJudgeLane env-route 回落无模型名→评测报 no judge lane；b1ef3a0 补；mimo-v2.6-flash 上游 503 断供（pod 内直探实锤，glm-4.6 同 503，deepseek-v4.1-flash 200）→0750867 demo 钉 v4.1-flash。
+
+③**出片链（T2 池 testaction005/build-pool）**：fd-build-snapshot 源 ecc1f3d0（⊇535ee55a 桥修⊇d576d3c1⊇f39f29f3⊇c3d7527e 祖先律核过，不回退熔断/drift/技能名班）→ run 41824206274 绿 5m25s → relay 19:50 落 ccr（**tag 7 位截断 sha-779f832 非 8 位串**，§15.124 坑重现）→ skopeo digest `e75ea05c` 双仓全等硬门 → **bump 前镜像内容 grep 桥符号 2/1/2 验单**（§15.127 v2 教训律）→ GitOps c543410 双清单滚 platform+platform-demo → ArgoCD hard → 双 pod imageID e75ea05c 全等。**pod 反复 OOM 实录**：生产 pod 唤醒 parked 大 cell（1da519d4 16 进程 1598MB>1536Mi 限，§15.125 结构性超卖 B 线挂账）连撞 OOMKill（exec 进的 node 被 cgroup killer 挑中）——走查重腿改到 demo pod（轻载零重启）；demo emptyDir 滚代即清（候选/preset 随滚代丢，演示面已知语义）。
+
+④**成本账目（4.3/4.4 同班核，共用 judge-lane 车道，demo pod 同形直测 runPersonaEval/runSkillEval 精确消息形状 2 臂+1 judge）**：**persona 一次 A/B = 3 次调用 / 2365 input / 11926 output tokens**；**skill 一次 A/B = 3 次调用 / 785 input / 6035 output tokens**（judge 判旧技能胜——新技能「待补」纪律致只提一项未满足「三个行动项」，闸如实拦双向活体）。随车改造 `server/persona-eval.js`/`server/skill-eval.js` callModel 补 usage 捕获（eval report 自此自带 usage 字段，后续 A/B 自动入账），孪生套件回归 9/9、10/10。
+
+⑤**挂账**：skill-evo 4.3 真回合链（与 persona 同构，工具面 skill_propose 桥本就活，待下一轻载窗）；tool-desc 4.1 A/B 开关对比+2.3 parked 注记（重腿，需 enrichment 开/关双真回合）；persona 4.2 第六环完整绿链待一个真正更优修订自然过门；prod judge mimo 503 断供换型（demo 已钉 v4.1，prod 另行裁决）；demo GitOps repo-server 缓存卡 0750867（kubectl set env 同值旁路已对齐，网络愈后 GitOps 自动收敛）。

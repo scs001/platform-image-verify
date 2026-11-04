@@ -30,4 +30,4 @@
       （scratch-root 纪律对纯文本退化为「无副作用」）；跨仓 fd-memory harness 复用留给 v2（design Risks 已记）
 - [ ] 4.3 真机走查：真实回合→skill_propose（证据齐）→跑 A/B→过门→接受→下回合工具面见新技能→
       supersedes lineage 可见→驳回终结（随滚版班）
-- [ ] 4.4 成本核对：一次 A/B（2+1 次 judge-lane 调用）的 token 账目入台账（随滚版班实测）
+- [x] 4.4 成本核对：一次 A/B（2+1 次 judge-lane 调用）的 token 账目入台账（随滚版班实测）—— 2026-11-04 走查班真机同形直测（demo pod 同车道，runSkillEval 形状 2 臂+1 judge）：**3 次调用 / 785 input / 6035 output tokens**（台账 §15.130）；随车改造 `server/skill-eval.js` callModel 补 usage 捕获

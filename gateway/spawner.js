@@ -385,11 +385,14 @@ export function createCellRegistry(config) {
   // or malformed admit with a warning, never block business. Already-resident
   // cells never see this gate — it runs on the spawn path only, so the gate
   // cannot evict anyone.
-  function recordGateRefusal(cellId, user, verdict) {
+  function recordGateRefusal(cellId, user, verdict, { footprintBytes = null, evictedCellIds = [] } = {}) {
     console.warn(
       `[gateway] cell residency refused (memory floor): user=${user.email} ` +
         `used=${verdict.usedBytes} limit=${verdict.limitBytes} ` +
-        `headroom=${(verdict.headroomPct * 100).toFixed(1)}% threshold=${(verdict.threshold * 100).toFixed(1)}%`,
+        `headroom=${(verdict.headroomPct * 100).toFixed(1)}% threshold=${(verdict.threshold * 100).toFixed(1)}%` +
+        (verdict.projectedBytes != null ? ` projected=${verdict.projectedBytes}` : "") +
+        (footprintBytes != null ? ` footprint=${footprintBytes}` : "") +
+        (evictedCellIds.length > 0 ? ` evicted=${evictedCellIds.join(",")}` : ""),
     );
     if (!registryDb) return;
     try {
@@ -409,6 +412,9 @@ export function createCellRegistry(config) {
             limitBytes: verdict.limitBytes,
             headroomPct: verdict.headroomPct,
             threshold: verdict.threshold,
+            ...(verdict.projectedBytes != null ? { projectedBytes: verdict.projectedBytes } : {}),
+            ...(footprintBytes != null ? { footprintBytes } : {}),
+            ...(evictedCellIds.length > 0 ? { evictedCellIds } : {}),
             at: Date.now(),
           },
         });
@@ -419,11 +425,14 @@ export function createCellRegistry(config) {
   }
 
   // null = admission granted (or the gate is inert); a refuse verdict otherwise.
-  function memoryAdmissionVerdict() {
+  // footprintBytes (harden-cell-wake-admission): a waking cell's archived
+  // contribution — admission then judges current + footprint (the projected
+  // steady state) instead of current alone.
+  function memoryAdmissionVerdict(footprintBytes = null) {
     if (!procMemory || !(memoryFloor > 0)) return null; // gate disabled → legacy
     let verdict;
     try {
-      verdict = procMemory.admission(memoryFloor);
+      verdict = procMemory.admission(memoryFloor, { projectedBytes: footprintBytes });
     } catch (e) {
       console.warn(`[gateway] memory gate sampler failed; failing open: ${e?.message || e}`);
       return null;
@@ -434,6 +443,79 @@ export function createCellRegistry(config) {
     }
     if (verdict.decision === "allow") return null;
     return verdict;
+  }
+
+  // ── Wake projection (harden-cell-wake-admission 1.2) ──────────────────────
+  // Archive the cell's memory contribution while its process tree is still
+  // measurable: the per-cell grouped total (RSS-nominal) calibrated into its
+  // cgroup-real contribution by the pod-level RSS→cgroup ratio. A raw nominal
+  // sum would permanently oversell the wake (shared pages count once per
+  // container, once per process); calibration absorbs that gap. No readable
+  // cell group, no container metrics, or a dead process tree → no archive
+  // (the next wake degrades to current-only admission, spec's honest path).
+  function archiveFootprint(userId) {
+    if (!procMemory || !registryDb || typeof procMemory.sample !== "function") return;
+    try {
+      const snap = procMemory.sample();
+      if (!snap?.available) return;
+      const cellRow = (snap.cells ?? []).find((c) => c.cellId === userId);
+      if (!cellRow || !(cellRow.totalBytes > 0)) return; // processes gone — keep any prior archive
+      const container = snap.container;
+      const totalScan =
+        (snap.cells ?? []).reduce((s, c) => s + c.totalBytes, 0) +
+        (snap.gateway?.totalBytes ?? 0) +
+        (snap.ungrouped?.totalBytes ?? 0);
+      let footprint = null;
+      if (container?.available && Number.isFinite(container.usedBytes) && container.usedBytes > 0 && totalScan > 0) {
+        const ratio = Math.min(1, Math.max(0, container.usedBytes / totalScan));
+        footprint = Math.round(cellRow.totalBytes * ratio);
+      }
+      if (!(footprint > 0)) return;
+      const row = registryRowForSafe(userId);
+      if (!row) return;
+      registryDb.put({ ...row, lastFootprintBytes: footprint });
+    } catch (e) {
+      console.warn(`[gateway] footprint archive failed for ${userId}: ${e?.message || e}`);
+    }
+  }
+
+  // ── Eviction chain (harden-cell-wake-admission 3.x) ───────────────────────
+  // A wake whose projection exceeds the floor parks idle residents (the same
+  // cells the reaper would park, chosen by the same idle windows and the same
+  // policy tier) one at a time — re-projecting after each — until the wake
+  // fits. Active residents are never candidates; a candidate that fails to
+  // park is skipped, not fatal. The waking cell keeps its parked state until
+  // admission actually grants it.
+  async function evictUntilAdmissible(wakingUserId, footprintBytes) {
+    const now = Date.now();
+    const candidates = [];
+    for (const cell of [...cells.values()]) {
+      if (cell.state !== "running" || cell.userId === wakingUserId) continue;
+      if (cell.child?.exitCode !== null) continue; // already dying/dead — nothing to free
+      if ((registryRowForSafe(cell.userId)?.policy ?? initialPolicy) === "always") continue;
+      const windowSecs = cell.demo ? demoIdleReapSecs : idleReapSecs;
+      if (!(windowSecs > 0)) continue; // no idle definition on this tier → untouchable
+      const lastActive = Math.max(cell.lastTraffic ?? 0, registryRowForSafe(cell.userId)?.lastUserTrafficAt ?? 0);
+      if (lastActive > now - windowSecs * 1000) continue; // active within the reap window
+      candidates.push({ cell, idleMs: now - lastActive });
+    }
+    candidates.sort((a, b) => b.idleMs - a.idleMs); // idle-most first (spec: 驱逐闲置最久者)
+    const evicted = [];
+    for (const { cell, idleMs } of candidates) {
+      try {
+        console.log(`[gateway] memory admission evicting idle resident ${cell.userId} (idle ${Math.round(idleMs / 1000)}s)`);
+        stop(cell.userId, "memory admission eviction");
+        await terminateChild(cell.child, cell.userId); // exit handler parks the row (durable truth)
+      } catch (e) {
+        console.warn(`[gateway] memory admission eviction failed for ${cell.userId}: ${e?.message || e}`);
+        continue;
+      }
+      evicted.push(cell.userId);
+      procMemory.clearCache?.(); // post-park water, not a TTL-stale high one
+      const verdict = memoryAdmissionVerdict(footprintBytes);
+      if (!verdict) return { evicted, refusal: null }; // fits (or fail-open admits)
+    }
+    return { evicted, refusal: memoryAdmissionVerdict(footprintBytes) };
   }
 
   // Concurrent first requests for the same user collapse onto one spawn. The
@@ -472,20 +554,44 @@ export function createCellRegistry(config) {
       err.friendly = "当前体验人数较多，请稍后再试";
       return Promise.reject(err);
     }
-    // Memory admission gate: below the headroom floor the residency is
-    // refused with a readable four-tuple — no process spawns into the
-    // low-memory window, no lifecycle beat flips the row (spec: the refusal
-    // is evidence, not a transition).
-    const refusal = memoryAdmissionVerdict();
-    if (refusal) {
-      recordGateRefusal(userId, user, refusal);
-      const err = new Error("cell residency refused: container memory headroom below floor");
-      err.code = "memory_floor";
-      err.friendly = "服务器内存余量不足，请稍后再试";
-      err.memory = { usedBytes: refusal.usedBytes, limitBytes: refusal.limitBytes, headroomPct: refusal.headroomPct, threshold: refusal.threshold };
-      return Promise.reject(err);
-    }
-    const started = spawnCell(user).finally(() => {
+    // Memory admission gate (harden-cell-wake-admission): a wake with an
+    // archived footprint is judged on the PROJECTED steady state (current +
+    // footprint) — the 2026-11-04 OOM window was invisible to current-only
+    // admission. Projection short → idle residents are evicted (parked, state
+    // on disk) one at a time with a re-projection each; still short → refused
+    // BEFORE any process materializes. No footprint (new cell, first wake
+    // since rollout) degrades to the current-only judgment, byte-for-byte.
+    // Fail-open unchanged: sampler trouble admits with a warning.
+    // The inflight claim below stays SYNCHRONOUS with the pending check —
+    // no await may slip between them (2026-10-10 duplicate-spawn guard).
+    const wakeFootprint = (() => {
+      const fp = tomb?.lastFootprintBytes;
+      return Number.isFinite(fp) && fp > 0 ? fp : null;
+    })();
+    const started = (async () => {
+      let refusal = memoryAdmissionVerdict(wakeFootprint);
+      let evicted = [];
+      if (refusal?.decision === "refuse" && wakeFootprint) {
+        ({ evicted, refusal } = await evictUntilAdmissible(userId, wakeFootprint));
+      }
+      if (refusal) {
+        recordGateRefusal(userId, user, refusal, { footprintBytes: wakeFootprint, evictedCellIds: evicted });
+        const err = new Error("cell residency refused: container memory headroom below floor");
+        err.code = "memory_floor";
+        err.friendly = "服务器内存余量不足，请稍后再试";
+        err.memory = {
+          usedBytes: refusal.usedBytes,
+          limitBytes: refusal.limitBytes,
+          headroomPct: refusal.headroomPct,
+          threshold: refusal.threshold,
+          ...(refusal.projectedBytes != null ? { projectedBytes: refusal.projectedBytes } : {}),
+          ...(wakeFootprint != null ? { footprintBytes: wakeFootprint } : {}),
+          evictedCellIds: evicted,
+        };
+        throw err;
+      }
+      return spawnCell(user);
+    })().finally(() => {
       inflight.delete(userId);
     });
     inflight.set(userId, started);
@@ -495,6 +601,9 @@ export function createCellRegistry(config) {
   function stop(userId, reason) {
     const cell = cells.get(userId);
     if (!cell) return false;
+    // Footprint archive (harden-cell-wake-admission): sample while the process
+    // tree is still measurable — first stop wins, a dying tree reads as gone.
+    if (cell.state !== "stopping" && cell.child && cell.child.exitCode === null) archiveFootprint(userId);
     cell.state = "stopping";
     cell.child?.kill("SIGTERM");
     // A cell that ignores SIGTERM (wedged dsh child) must not keep the host's

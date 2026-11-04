@@ -43,6 +43,11 @@ export function createCellRegistryDb({ file }) {
   try {
     db.exec(`ALTER TABLE cell_registry ADD COLUMN last_gate_refusal_json TEXT`);
   } catch { /* column already present */ }
+  // Wake-footprint archive (harden-cell-wake-admission): same guarded-add
+  // pattern — the column rides every put, older files just gain it.
+  try {
+    db.exec(`ALTER TABLE cell_registry ADD COLUMN last_footprint_bytes INTEGER`);
+  } catch { /* column already present */ }
 
   const serialize = (row) => ({
     cell_id: row.cellId,
@@ -57,6 +62,7 @@ export function createCellRegistryDb({ file }) {
     destroy_reason: row.destroy?.reason ?? null,
     destroy_at: row.destroy?.at ?? null,
     last_gate_refusal_json: row.lastGateRefusal ? JSON.stringify(row.lastGateRefusal) : null,
+    last_footprint_bytes: Number.isFinite(row.lastFootprintBytes) ? row.lastFootprintBytes : null,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   });
@@ -75,6 +81,7 @@ export function createCellRegistryDb({ file }) {
       lastBoundAt: r.last_bound_at,
       destroy: r.destroy_reason || r.destroy_at ? { reason: r.destroy_reason, at: r.destroy_at } : null,
       lastGateRefusal,
+      lastFootprintBytes: Number.isFinite(r.last_footprint_bytes) ? r.last_footprint_bytes : null,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     })?.row ?? null;
@@ -91,9 +98,9 @@ export function createCellRegistryDb({ file }) {
       const s = serialize({ ...row, schemaVersion: REGISTRY_SCHEMA_VERSION, updatedAt: Date.now() });
       db.prepare(`
         INSERT INTO cell_registry (cell_id, schema_version, owner_email, state, policy, workload_json,
-          last_user_traffic_at, last_duty_run_at, last_bound_at, destroy_reason, destroy_at, last_gate_refusal_json, created_at, updated_at)
+          last_user_traffic_at, last_duty_run_at, last_bound_at, destroy_reason, destroy_at, last_gate_refusal_json, last_footprint_bytes, created_at, updated_at)
         VALUES (@cell_id, @schema_version, @owner_email, @state, @policy, @workload_json,
-          @last_user_traffic_at, @last_duty_run_at, @last_bound_at, @destroy_reason, @destroy_at, @last_gate_refusal_json, @created_at, @updated_at)
+          @last_user_traffic_at, @last_duty_run_at, @last_bound_at, @destroy_reason, @destroy_at, @last_gate_refusal_json, @last_footprint_bytes, @created_at, @updated_at)
         ON CONFLICT(cell_id) DO UPDATE SET
           schema_version=excluded.schema_version, owner_email=COALESCE(excluded.owner_email, cell_registry.owner_email),
           state=excluded.state, policy=excluded.policy, workload_json=excluded.workload_json,
@@ -101,7 +108,7 @@ export function createCellRegistryDb({ file }) {
           last_duty_run_at=COALESCE(excluded.last_duty_run_at, cell_registry.last_duty_run_at),
           last_bound_at=COALESCE(excluded.last_bound_at, cell_registry.last_bound_at),
           destroy_reason=excluded.destroy_reason, destroy_at=excluded.destroy_at,
-          last_gate_refusal_json=excluded.last_gate_refusal_json, updated_at=excluded.updated_at
+          last_gate_refusal_json=excluded.last_gate_refusal_json, last_footprint_bytes=excluded.last_footprint_bytes, updated_at=excluded.updated_at
       `).run(s);
       return this.get(row.cellId);
     },

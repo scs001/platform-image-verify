@@ -7,9 +7,11 @@ pack 显示内容的多语言轨道契约:中文为必填主轨、住在既有�
 ## Requirements
 
 ### Requirement: 显示字段的 zh 主轨与顶层叠加块
-pack manifest 的既有显示字段(name、description、notes、guide.steps、skills[].description、mcpServers[].description、agents[].name、bots[].name/description、cluster、card 文本)SHALL 保持纯字符串形状与既有校验规则不变,其文本即中文(zh)主轨。manifest SHALL 可选携带顶层 `i18n` 对象,形状为 `{ <locale>: { <显示字段覆盖> } }`:locale 键 SHALL 匹配 BCP-47 小写主标签形态且 SHALL NOT 为 `zh`(zh 由基字段承担,双写视为非法);每 locale 块内 SHALL 只出现显示字段白名单内的覆盖;数组型字段 SHALL 按索引对齐覆盖,命名实体(skills/agents/bots/card.skills/mcpServers)SHALL 按其在 manifest 中已声明的名字或 id 覆盖。
+pack manifest 的既有显示字段(name、description、notes、guide.steps、skills[].description、skills[].title、mcpServers[].description、agents[].name、bots[].name/description、cluster、card 文本)SHALL 保持纯字符串形状与既有校验规则不变,其文本即中文(zh)主轨。manifest 的 `skills[]` 条目 SHALL 可选携带 `title`（zh 基轨通俗显示名）；声明 `title` 的技能条目,其显示名按 zh 主轨取 `title`、未声明时回落实名 `name`（slug 身份）——技能 slug 作为运行时身份 SHALL NOT 被任何投影改写。manifest SHALL 可选携带顶层 `i18n` 对象,形状为 `{ <locale>: { <显示字段覆盖> } }`:locale 键 SHALL 匹配 BCP-47 小写主标签形态且 SHALL NOT 为 `zh`(zh 由基字段承担,双写视为非法);每 locale 块内 SHALL 只出现显示字段白名单内的覆盖;数组型字段 SHALL 按索引对齐覆盖,命名实体(skills/agents/bots/card.skills/mcpServers)SHALL 按其在 manifest 中已声明的名字或 id 覆盖。`i18n.skills[<name>]` SHALL 可覆盖 `description` 与 `name`（后者仅当该技能条目声明了 `title`——副轨显示名与 zh 基轨 `title` 对位）。
 
 显示字段白名单 SHALL 同时覆盖结构化的 v2 显示字段:`promise`、`audience`、`outcomes`、`examples`、`domain`、`tags`,以及 `identity.mark.value`。`audience` 与 `domain` 的覆盖 SHALL 是同样长度的数组且逐项对齐基字段;`outcomes` 的覆盖 SHALL 按索引对齐 `title`/`detail`;`examples` 的覆盖 SHALL 按索引对齐 `title`/`prompt`;`tags` 的覆盖 SHALL 是同样长度的字符串数组。结构字段 `identity.accent` 与 `identity.mark.kind` SHALL NOT 进入叠加块——它们是语义而非文案,翻译它们会改变呈现身份。
+
+技能显示名投影 SHALL 与 agents 同构：读时按请求 locale 取 `i18n.skills[<name>].name` 覆盖显示名，覆盖缺失回落 zh 基轨（`title` 声明时）或 slug（未声明时），SHALL NOT 存在经第三语言的回落链；zh 请求与未声明 `title` 的条目 SHALL 逐字节直出。
 
 #### Scenario: 旧式纯字符串 manifest 依旧合法
 
@@ -55,6 +57,21 @@ pack manifest 的既有显示字段(name、description、notes、guide.steps、s
 
 - **WHEN** 一份 manifest 的基字段 `tags` 为 4 个中文标签,`i18n.en.tags` 为同样长度的 4 个英文标签
 - **THEN** 校验通过,英文请求下列表与详情的标签全部呈现英文
+
+#### Scenario: 技能显示名按 locale 投影且 slug 零改
+
+- **WHEN** 某 pack 的技能条目声明 `title`（中文）且 `i18n.en.skills[<name>].name` 为英文,以 `locale=en` 与 `locale=zh` 分别读取已装包技能卡
+- **THEN** 英文请求呈现英文显示名、中文请求呈现 `title`,两种语言下技能 slug 与安装/调用键完全一致
+
+#### Scenario: 技能 name 覆盖无 title 对位被拒
+
+- **WHEN** `i18n.en.skills[<name>].name` 出现而对应技能条目未声明 `title`
+- **THEN** 校验拒绝并指明该技能缺 zh 基轨 `title` 对位
+
+#### Scenario: 未声明 title 的技能投影零改
+
+- **WHEN** 某 pack 的技能条目只有 `name` 与 `description`,以任意 locale 读取其技能卡
+- **THEN** 显示名保持 slug 原文,description 投影行为与变更前一致
 
 ### Requirement: locale 解析优先级与 zh 唯一回落
 

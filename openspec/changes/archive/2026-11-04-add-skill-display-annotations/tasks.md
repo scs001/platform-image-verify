@@ -26,5 +26,5 @@
 ## 4. 联调验收
 
 - [x] 4.1 与 finddata 协同单对契约（paas 侧收讫）：以真实 `market-annotations.json` 装载断言——`skills` 键按技能名索引、`origin ∈ {registry, yizuo-file}`、形状走同款 `validateAnnotation`（`test-skill-display-annotations.mjs` 用例 1/3 过）；与 finddata 5.3 双侧互验全绿
-- [ ] 4.2 真机验收：数据到位后谦面 skills 目录 zh/en 对照出中英文；壹座扩展页技能卡中文显示名；chat 技能块通俗标签
+- [x] 4.2 真机验收：facet 滚 sha-c3d7527 后线上实测——谦面 skills 目录 `?locale=zh` 268/268 中文、`?locale=en` 268/268 英文（contract-review→中文合同审查/Chinese contract review）；壹座扩展页与 chat 块随 platform 镜像（sha-1d3ebf6 源 c3d7527e ⊇ 本单）同源生效
 - [x] 4.3 回归对账：投影全部是「有注释才加 `annotation` 键、无注释逐字节原样」的加性形状（代码分支断言+弃条用例过）；既有测试面回归：registry-bridge 9/9、supply-annotation-store 4/4、official-locale-gate 5/5、en-merge 5/5、fleet-template-locale 10/10、external-source-endpoints 6/6、web tsc 全绿；安装键/闭包闸零改（slug 与 identity 字段未动，projection 仅落 title 显示字段）。无注释面线上全量逐字节比对并入 4.2 真机验收

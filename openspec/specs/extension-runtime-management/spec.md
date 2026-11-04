@@ -56,6 +56,8 @@ The server SHALL expose REST API endpoints to list, add, remove, enable, and dis
 
 The server SHALL expose REST API endpoints to list, add, remove, enable, and disable skills without requiring a server restart. Each listed skill SHALL include its `origin` and `locked` flag. Locked bundled skills SHALL NOT be removable, disable-able, or editable via the API: such requests SHALL return 400. A skill record MAY additionally carry an auxiliary file set (a mapping of relative paths to text contents) and external-origin provenance metadata; a record without them behaves as a single-file skill exactly as before, and every existing record (pre-migration rows) SHALL remain in that single-file shape with unchanged behavior. The list endpoint SHALL expose each skill's auxiliary file inventory (paths only) and its external provenance when present, so clients can distinguish multi-file and externally-installed skills from locally authored ones. The add endpoint SHALL accept, alongside the single-document shape, a package upload parsed under the platform's package contract — path safety, text-only admission, per-file and aggregate bounds, script inventory — rejecting a violating package with a named cause and creating nothing; the update endpoint SHALL replace a skill's auxiliary file set and stored frontmatter wholesale when they are present in the request, leaving them untouched when they are absent.
 
+The list endpoint SHALL accept the shared locale resolution (explicit `locale` parameter > `Accept-Language` first tag > zh) and project supply annotations per request locale: registry-sourced skills via `metadata.annotations`, file skills via the repo annotation source's `skills` key. An unannotated skill's entry SHALL remain byte-identical to the pre-change payload, and annotation projection MUST NOT perform any source writes.
+
 #### Scenario: list skills via API
 
 - **WHEN** client sends GET `/api/extensions/skills`
@@ -97,6 +99,18 @@ The server SHALL expose REST API endpoints to list, add, remove, enable, and dis
 
 - **WHEN** the server starts against a database created before auxiliary files existed
 - **THEN** every existing skill lists with no auxiliary files and no external provenance, and all prior behaviors (list/add/remove/enable/disable) work unchanged
+
+#### Scenario: annotated skill lists localized under its locale
+
+- **WHEN** client sends GET `/api/extensions/skills?locale=zh` for a skill carrying a zh annotation
+- **THEN** the entry carries the projected annotation (localized name and summary) alongside the unchanged slug and description
+- **AND** the same request without the annotation present returns the entry exactly as before this change
+
+#### Scenario: unannotated skill is byte-identical across locales
+
+- **WHEN** client requests the list with `locale=zh` and `locale=en` for a skill with no annotation
+- **THEN** both responses render the raw upstream text, identical to each other and to the pre-change payload
+
 ### Requirement: Extension records carry origin, lock, and permission metadata
 The extensions store SHALL persist for every MCP server and skill record: `origin` (`bundled` | `user`, defaulting to `user` for existing and newly added records), `locked` (default false), `permissions` (nullable JSON holding `allow`/`deny` tool globs), and `requiredGroups` (nullable JSON array of group names, stamped from the market entry's groups at gated-install time; null for ungated installs and all pre-existing rows). Existing rows SHALL migrate to these defaults losslessly. Permission enforcement is a separate capability; this requirement covers storage and API exposure only.
 

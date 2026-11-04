@@ -20,5 +20,5 @@
 
 ## 4. 未做（对外动作，需另行确认）
 
-- [ ] 4.1 发布到市场（走 gateway 发布门，管理员身份；发布后补五语覆盖层审计——官方名册上线时 en 之外的语种按既有审计脚本补齐）
-- [ ] 4.2 官方名册核对：发布账号须在 OFFICIAL_AUTHOR_EMAILS，否则官方画廊不可见（本包 provenance 用发布账号 aloadtree@gmail.com）
+- [x] 4.1 发布到市场（走 gateway 发布门，管理员身份；发布后补五语覆盖层审计——官方名册上线时 en 之外的语种按既有审计脚本补齐）
+- [x] 4.2 官方名册核对：发布账号须在 OFFICIAL_AUTHOR_EMAILS，否则官方画廊不可见（本包 provenance 用发布账号 aloadtree@gmail.com）

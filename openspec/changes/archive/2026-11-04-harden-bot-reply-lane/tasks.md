@@ -22,7 +22,7 @@
 
 ## 5. 出片与生产
 
-- [ ] 5.1 出片（`fd-build-snapshot` 从远端 clone → image workflow 绿 → relay → digest 硬门 → GitOps bump）——验证：ccr digest 与 workflow 产物一致，pod 内 `grep` 到新符号（`allowToolsFor`）
-- [ ] 5.2 生产 env `BOTS_ALLOW_TOOLS` 处置拍板并执行（摘除=全 bot 禁工具；保留=逐 bot 开 `allow_tools`）——验证：`kubectl exec … printenv` 反映最终口径，`GET /api/bots` 各 bot `allowTools` 符合预期
-- [ ] 5.3 真机验收（企业微信群）：①发一条 → 得该 bot 自身的答案（非 `starting up`、非决策队列/运营内容）；②滚版后立刻发一条 → 排队后作答而非兜底——验证：pod 日志出现 `inbound` + `replied`，`bot_chats.last_seen_at` 前移，聊天窗可见真实答案
-- [ ] 5.4 台账 `docs/registry-maintenance.md` 记一条 §（含事故复盘：滚版窗口 + 全局 env 漂移 + 无人格三因叠加）并归档本 change——验证：台账章节可检索到，`openspec archive` 后 `validate --specs` 绿
+- [x] 5.1 出片（`fd-build-snapshot` 从远端 clone → image workflow 绿 → relay → digest 硬门 → GitOps bump）——验证：ccr digest 与 workflow 产物一致，pod 内 `grep` 到新符号（`allowToolsFor`）
+- [x] 5.2 生产 env `BOTS_ALLOW_TOOLS` 处置拍板并执行（摘除=全 bot 禁工具；保留=逐 bot 开 `allow_tools`）——验证：`kubectl exec … printenv` 反映最终口径，`GET /api/bots` 各 bot `allowTools` 符合预期
+- [x] 5.3 真机验收（企业微信群）：①发一条 → 得该 bot 自身的答案（非 `starting up`、非决策队列/运营内容）；②滚版后立刻发一条 → 排队后作答而非兜底——验证：pod 日志出现 `inbound` + `replied`，`bot_chats.last_seen_at` 前移，聊天窗可见真实答案
+- [x] 5.4 台账 `docs/registry-maintenance.md` 记一条 §（含事故复盘：滚版窗口 + 全局 env 漂移 + 无人格三因叠加）并归档本 change——验证：台账章节可检索到，`openspec archive` 后 `validate --specs` 绿

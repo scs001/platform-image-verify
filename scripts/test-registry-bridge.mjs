@@ -525,7 +525,7 @@ test("endpoint guard: internal-form URLs blocked at the assembly exit", () => {
     "http://cheap6.mesh.finddata.cn:31893/mcp",
     "https://CHEAP6.MESH.FINDDATA.CN:31893/mcp",
     "http://sub.mesh.finddata.cn/mcp",
-    "http://100.64.0.11:8090/mcp",
+    "http://10.255.254.77:8090/mcp",
     "http://100.127.0.1/mcp",
     "http://10.1.2.3:8000/mcp",
     "http://192.168.1.5/mcp",

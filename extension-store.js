@@ -8,7 +8,6 @@ import * as db from "./db.js";
 import { getMarketEntries } from "./registry-bridge.js";
 import { mergeAnnotations, projectAnnotation } from "./lib/supply-annotations.js";
 import { getRepoSkillAnnotation } from "./lib/market-annotations.js";
-// biome-ignore lint/correctness/noUnusedImports: used in dynamic import below
 import { getFileSkills } from "./server/skills.js";
 
 // Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
@@ -270,7 +269,6 @@ export async function getSupplyAnnotationIndex(locale) {
   // (origin yizuo-file); absent skills render unchanged.
   const skills = {};
   try {
-    const { getRepoSkillAnnotation } = await import("./lib/market-annotations.js");
     const fileSkills = getFileSkills();
     for (const s of fileSkills) {
       const repo = getRepoSkillAnnotation(s.name);

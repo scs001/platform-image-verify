@@ -100,10 +100,36 @@ export async function runSkillEval({ candidate, scenarioPrompt, fetchImpl = fetc
   }
   const zhLabels = ["甲", "乙", "丙"];
   shuffled.forEach((arm, i) => { arm.label = zhLabels[i]; });
+
+  // ── guidance ground truth (fix-skill-eval-guidance-groundtruth) ───────────
+  // The judge sees the GUIDANCE TEXTS blind-labeled (指导文档一/二), shuffled
+  // independently from the answer labels: a claim grounded in ANY guidance doc
+  // (or the task) is legitimate; a claim in neither is unfounded — applied
+  // symmetrically to every arm. Grounding only settles claim verification;
+  // quality stays task-completion based, so a longer document never wins on
+  // its own. §15.135: without this the judge flagged a policy-bearing
+  // candidate's clauses as 臆造 while the guidance-less control's invented
+  // values escaped the same scrutiny — the supersedes promote leg was
+  // structurally locked for policy-type skills.
+  const guidanceDocs = [{ body: candidate.body }];
+  if (candidate.supersedes && oldSkillBody) guidanceDocs.unshift({ body: oldSkillBody });
+  const docLabels = guidanceDocs.length > 1 ? ["指导文档一", "指导文档二"] : ["指导文档"];
+  const shuffledDocs = [...guidanceDocs];
+  for (let i = shuffledDocs.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledDocs[i], shuffledDocs[j]] = [shuffledDocs[j], shuffledDocs[i]];
+  }
+  const docSections = shuffledDocs.map((d, i) => `【${docLabels[i]}】\n${clip(d.body)}`);
+  const groundingRules =
+    "上述回答的作者完成任务时分别参考了下面的指导文档。真值核验规则（对称适用于全部回答）：回答中的政策/事实性声明，凡与任一指导文档或任务文本一致，视为有据；任何指导文档与任务文本都不含的声明，视为无据（准确性存疑）。有据性只回答『声明是否有出处』，回答的优劣仍按完成任务的程度（正确性、完整性、可执行性）评定，与所引文档的长度无关。";
   const judgeUser = [
     `任务：\n${task}`,
     "",
     ...shuffled.map((a) => `【回答${a.label}】\n${a.transcript}`),
+    "",
+    ...docSections,
+    "",
+    groundingRules,
     "",
     "请比较以上回答，只输出一个 JSON 对象：{\"best\":\"甲|乙|丙|tie\",\"reasoning\":\"≤120字\"}。标准：哪个回答更好地完成了任务（正确性、完整性、可执行性）。不要输出其他内容。",
   ].join("\n");

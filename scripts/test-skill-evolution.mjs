@@ -171,7 +171,7 @@ test("eval gate: interrupted evaluation stays candidate with an honest reason", 
   assert.equal(after.evalReport.error, "evaluation failed");
 });
 
-test("eval anonymity: the judge prompt never carries arm role names", async () => {
+test("eval anonymity: the judge prompt never carries arm role names (guidance docs ride blind labels)", async () => {
   const seen = [];
   const fetchImpl = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -186,7 +186,12 @@ test("eval anonymity: the judge prompt never carries arm role names", async () =
     fetchImpl, lane: { baseUrl: "http://mock", model: "m" },
   });
   assert.equal(seen.length, 1);
-  assert.doesNotMatch(seen[0], /candidate|control|SKILL BODY MARKER/);
+  // fix-skill-eval-guidance-groundtruth: the judge prompt now CARRIES the
+  // guidance doc bodies as blind-labeled 指导文档 sections (ground truth for
+  // claim verification) — but arm ROLE NAMES stay absent: the judge can see
+  // the documents yet never learns which answer belongs to which arm.
+  assert.doesNotMatch(seen[0], /candidate|control/);
+  assert.match(seen[0], /【指导文档】\nSKILL BODY MARKER/);
   assert.match(seen[0], /【回答(甲|乙)】/);
 });
 

@@ -91,7 +91,7 @@ function makeTraceStore() {
   };
 }
 
-function makeCtx(trace, childId) {
+function makeCtx(_trace, childId) {
   const switchCalls = [];
   const promptCalls = [];
   const collectors = new Map();

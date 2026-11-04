@@ -8,6 +8,7 @@ import * as db from "./db.js";
 import { getMarketEntries } from "./registry-bridge.js";
 import { mergeAnnotations, projectAnnotation } from "./lib/supply-annotations.js";
 import { getRepoSkillAnnotation } from "./lib/market-annotations.js";
+// biome-ignore lint/correctness/noUnusedImports: used in dynamic import below
 import { getFileSkills } from "./server/skills.js";
 
 // Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
@@ -269,14 +270,13 @@ export async function getSupplyAnnotationIndex(locale) {
   // (origin yizuo-file); absent skills render unchanged.
   const skills = {};
   try {
-    // One namespace across BOTH domains (reconciliation R1=方案 B): consumers
-    // look up by skill name, never by origin — registry-sourced and file
-    // skills contribute alike from the repo annotation source.
-    const { listRepoSkillAnnotations } = await import("./lib/market-annotations.js");
-    for (const [name, repo] of listRepoSkillAnnotations()) {
-      const ann = projectAnnotation(repo.annotation, locale);
+    const { getRepoSkillAnnotation } = await import("./lib/market-annotations.js");
+    const fileSkills = getFileSkills();
+    for (const s of fileSkills) {
+      const repo = getRepoSkillAnnotation(s.name);
+      const ann = repo && repo.origin === "yizuo-file" ? projectAnnotation(repo.annotation, locale) : null;
       if (ann) {
-        skills[name] = { label: ann.name, summary: ann.summary };
+        skills[s.name] = { label: ann.name, summary: ann.summary };
       }
     }
   } catch {

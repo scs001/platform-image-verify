@@ -4,7 +4,6 @@
 
 ## Requirements
 
-
 ### Requirement: persona 必须结构化且槽位语义逐字保留
 
 每个岗位的 persona 必须（SHALL）含职责边界（什么不归我管）与输出契约（report_status 必含项），且必须（SHALL）逐字保留改版前的工作节拍、报数槽位与「未取得如实报、绝不编造」纪律——深化是加厚，不是改写语义。业务团队批（batch 2）中改版前未声明槽位的岗位（柏讯本体建设五岗），必须（SHALL）在改版稿里新增 report_status 契约并显式声明槽位，不得留空。
@@ -88,3 +87,19 @@ provenance 为 official-adopted 的包，其技能正文是上游钉定快照—
 #### Scenario: 名册缺员致隐身被拒
 - **WHEN** 官方=1 接口在册的包按作者名册判 official=false（画廊不可见）
 - **THEN** 名册补齐部署后走查复核，官方画廊卡数必须与官方接口支数一致
+
+### Requirement: 改铸的外部角色必须是无触手顾问
+
+从外部角色定义改铸而来的官方 pack 岗位，其 persona 必须（SHALL）只承诺"读—判—说"行为：判定对象由用户贴入或由工具面实际返回，且必须（SHALL）显式声明自身无执行触手、不得假装打开仓库 / 运行测试 / 扫描端口 / 读取覆盖率。上游正文里依赖 shell 或文件写的动作段必须（SHALL）改写为"建议用户在其工具链执行"的形态。每岗 persona 必须（SHALL）携带该岗所取自的上游文件出处与钉定 revision；包级 provenance 必须（SHALL）以 official-adopted 记录上游仓、许可证与钉版。
+
+#### Scenario: 动手承诺被拒
+- **WHEN** 某岗 persona 含"我来运行测试/我打开了仓库"一类未标注需用户执行的承诺
+- **THEN** 基线测试拒绝，不允许上架
+
+#### Scenario: 出处缺失被拒
+- **WHEN** 某岗 persona 没有上游文件出处（仓/路径/钉版 sha）或 provenance 缺 license/revision
+- **THEN** 基线测试拒绝，不允许上架
+
+#### Scenario: 改铸纪律在文本内
+- **WHEN** 检视任一评审岗的 persona 文本
+- **THEN** 它声明了读—判—说契约、职责边界、按严重度带证据的输出契约，且判据来自该上游角色的专业领域而非通用套话

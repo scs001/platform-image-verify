@@ -1,0 +1,11 @@
+- [x] 1.1 创建 change 目录结构
+- [ ] 2.1 编写 `server/model-budget.js`（BudgetEngine + SQLite store）
+- [ ] 2.2 接入 `cron-runner.js`：`switchModelTo` / `runPersonaTurn` 前置检查
+- [ ] 2.3 接入 `fleet-reports.js`：`fleetModelFor` 前置检查
+- [ ] 2.4 新增 SQLite 表 `model_budget` + `budget_exhausted_log`（migration）
+- [ ] 2.5 实现 `dailyReset` / `monthlyReset` cron job
+- [ ] 3.1 单测：BudgetEngine 单元测试（检查/消费/重置/超限）
+- [ ] 3.2 单测：集成点前置检查 mock 验证
+- [ ] 3.3 e2e：连续派发触发日上限→自动降级→次日凌晨重置恢复
+- [ ] 4.1 生产部署：env 配置 + 七日观察期
+- [ ] 4.2 七日观察期满 → 归档

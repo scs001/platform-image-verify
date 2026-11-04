@@ -97,7 +97,7 @@ export type ConnectionId =
 // Which connections each card needs, keyed by card id (brand or product).
 // Attribution follows the HOST the connection is minted against, not the
 // brand grouping of the settings connections section: `registry` mints at
-// MARKET_REGISTRY_URL = mcp.finddatatech.cloud, which is the 壹座·Packs card's
+// MARKET_REGISTRY_URL = mcp.finddatatech.cloud, which is the 壹座·智能体基础设施 card's
 // url, so its badge lives there (design.md D3). Cards absent here show no
 // badge. `search` is a platform service, not a product — never mapped.
 export const APP_CONNECTIONS: Record<string, ConnectionId[]> = {

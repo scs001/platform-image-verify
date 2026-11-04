@@ -7279,3 +7279,24 @@ test-bots fail=0、durability+wake 8/8 绿。48h 内企微无自然入站（群�
 **三因入册**：勾选纪律（走查尾款出片前不勾）；归档滞后（搬运靠专门班次，归档前恒算活跃）；账实时差一例（harden-bot-reply-lane 记忆标「归档」实为当日才搬，记忆写终态、目录清理晚一天）。
 
 **随盘点落一动作**：`add-skill-display-annotations` 4.1 契约对账单已开给 finddata 侧——`docs/skill-annotation-contract-reconciliation.md`（对 finddata 协同单 `add-skill-supply-annotations` 任务 5.3，互为镜像）。关键事实：数据已先行（finddata `97afab73` 落 `market-annotations.json` skills 键 278 条=registry 272+yizuo-file 6，五语，已在本分支）；paas 消费面零感知（`mapSkill` 只透传 metadata.annotations，而 registry 序列化器只透 author/version/extra → DB 直补 272 行落 `extra.annotations` 对桥恒不可见，finddata 5.1 验收被此阻塞）。对账单逐字段钉死 skills 键索引名/origin 两域/五语形状与 60/200/160 帽，**R1 二选一推荐方案 B**（统一走 skills 键合并，mapServer 同构；不把 extra.annotations 事故落点铸进读面），R2–R4（两域撞键导出行为/zh 轨 whenToUse 可选性/DB 通道存续）待 finddata 回执——沿 mcp 回执先例对方直接落笔本仓。
+
+## §9 发布记录：小修小配与拍板落账（2026-11-04）
+
+### 小修小配
+1. **biome.json 推荐配置迁移**：`"preset": "recommended"` → `"recommended": true`（适配 Biome 2.x+，弃用警告清零）。
+2. **品牌串注释更新**：`web/src/lib/appCatalog.ts` 注释 `壹座·Packs` → `壹座·智能体基础设施`（落地页品牌串同步见对侧仓）。
+3. **PACK_OFFICIAL_EN_GATE=1 待配置**：5.5 门条件已满（审计 86/0+en 轨中文 tag 零残留），需在 fd-prod ConfigMap 置 `PACK_OFFICIAL_EN_GATE=1`，七日观察起算。
+4. **旧 eco-* md_url 重钉**：3 条仍指 `/main/`，需改为 pinned raw URL（免疫漂移），归档前再审。
+5. **wire-presets/vaas-presets docs 入 git**：两仓 docs/ 裸目录无版本保护，建议入 git（本班已快照 3+1 枚入 fleet-packs）。
+6. **biome 推荐迁移**：已完成（preset → recommended: true）。
+7. **词元站 ops 三小项记账**：
+   - openrouter-main 14 绑坏代理节点 9（待确认）
+   - 硅基 36 RPM 档位与渠道确认
+   - channel_monitor 车道 duration 哨兵（管理台收编，SQL 猜形=假哨兵）
+
+### 拍板裁决
+1. **platform 内存 A/B 线**：裁定 **A 提限**（将 cell memory limit 1536Mi → 2560Mi，即时缓解 RSS 1598Mi 超限；B 拓扑瘦身列入长期规划）。依据：cgroup 闸判定用 cgroup 非 RSS、cell=内存乘数、结构性超卖铁证已存。
+2. **serving runner 独立 deployment**：裁定 **独立 Deployment + 独立 HPA + 独立 resource quota**，与 platform 控制面解耦；nodeSelector 固定 cheap-5/6 GPU 池；ingress 走独立域名 `serving.finddatatech.cloud`。
+3. **model-surface 预算门立案**：新建 change `add-model-surface-budget-gate`，内容：LLM 预算门（宪章 §7 质量门第二刀），采量基线另立案，docs 门已落（8276ea0e），预算门待立案。
+4. **豆包 403 定性**：归因 **上游账户层配额/凭据不可用**（windows 盒子 deepseek-flash alias 账户层耗尽），非模型本身不可用；映射已切 core 组 openrouter-main/new（14/15）承接；豆包车道暂标记 `degraded`，火山控制台查计费/配额/凭据待主处置。
+

@@ -10,6 +10,7 @@ import { previewInstall, performInstall, previewUpdate, performUpdate } from "..
 import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
 import { resolveLocale } from "../../lib/pack-locale.js";
 import { projectAnnotation } from "../../lib/supply-annotations.js";
+import { getRepoSkillAnnotation } from "../../lib/market-annotations.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
@@ -250,11 +251,23 @@ export function registerExtensionRoutes(ctx) {
   // File skills are not DB rows; their extension metadata is derived from the
   // bundle manifest: names in manifest `skills` are "bundled" and take
   // locked/permissions from the manifest's permissions map ("skill:<name>").
-  app.get("/api/extensions/skills", async (_req, res) => {
+  app.get("/api/extensions/skills", async (req, res) => {
+    // add-skill-display-annotations 2.2: the list face projects supply
+    // annotations per request locale (same resolution as /api/extensions/mcp).
+    // File skills read the repo annotation source's `skills` key (origin
+    // yizuo-file); unannotated entries stay byte-identical (no key added).
+    const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+    const project = (ann) => {
+      try {
+        return projectAnnotation(ann, locale) ?? undefined;
+      } catch {
+        return undefined; // corrupt annotation → raw rendering, never a 500
+      }
+    };
     const fileSkills = getFileSkills().map((s) => {
       const bundled = bundle.skills.includes(s.name);
       const policy = bundled ? ctx.splitPolicy(bundle.permissions[`skill:${s.name}`]) : { locked: false, permissions: null };
-      return {
+      const row = {
         name: s.name,
         description: s.description,
         source: "file",
@@ -263,6 +276,11 @@ export function registerExtensionRoutes(ctx) {
         locked: policy.locked,
         permissions: policy.permissions,
       };
+      // R1=方案 B: look up by name only — one namespace across both domains.
+      const repo = getRepoSkillAnnotation(s.name);
+      const ann = repo ? project(repo.annotation) : undefined;
+      if (ann) row.annotation = ann;
+      return row;
     });
     const customSkills = db.isDbReady()
       ? extensionStore.listCustomSkills().map((s) => ({
@@ -280,6 +298,13 @@ export function registerExtensionRoutes(ctx) {
           originMeta: s.originMeta ?? null,
         }))
       : [];
+    // DB custom skills (registry installs land here) project by name from the
+    // same repo source — the name namespace is the two-domain union.
+    for (const row of customSkills) {
+      const repo = getRepoSkillAnnotation(row.name);
+      const ann = repo ? project(repo.annotation) : undefined;
+      if (ann) row.annotation = ann;
+    }
     res.json({ skills: [...fileSkills, ...customSkills] });
   });
 

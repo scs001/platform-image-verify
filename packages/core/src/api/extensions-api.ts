@@ -66,6 +66,15 @@ export interface Skill {
   // from a locally authored single-file skill. Absent for legacy rows.
   files?: string[];
   originMeta?: Record<string, unknown> | null;
+  // Supply annotation (add-skill-display-annotations), projected to the request
+  // locale server-side (zh 唯一回落); absent for unannotated entries — raw name
+  // and description render byte-identical to before.
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
 }
 
 export interface MarketMcpServer {
@@ -105,6 +114,15 @@ export interface MarketSkill {
     content: string;
   };
   origin?: "bundled" | "registry";
+  // Supply annotation (add-skill-display-annotations), projected to the request
+  // locale server-side; absent for unannotated entries — raw displayName and
+  // description render byte-identical to before.
+  annotation?: {
+    name: string | null;
+    summary: string | null;
+    whenToUse: string | null;
+    source: string | null;
+  };
 }
 
 export interface MarketCatalog {
@@ -510,8 +528,8 @@ export async function toggleMcpServer(name: string, enabled: boolean): Promise<M
 
 // ── Skills ───────────────────────────────────────────────────────────────────
 
-export async function fetchSkills(): Promise<Skill[]> {
-  const res = await http(`${BASE_URL}/skills`);
+export async function fetchSkills(locale?: string): Promise<Skill[]> {
+  const res = await http(`${BASE_URL}/skills${localeQuery(locale)}`);
   if (!res.ok) throw new Error(`Failed to fetch skills: ${res.statusText}`);
   const data = await res.json();
   return data.skills || [];

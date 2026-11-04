@@ -105,6 +105,21 @@ test("skills annotate honestly: zh verbatim in all five slots, provenance names 
   assert.ok(m.whenToUse.includes("法律"), "tags inform whenToUse");
 });
 
+test("skill translations: en slot + canonical carry the curated translation, zh keeps source, missing falls back", () => {
+  const fx = mkFixture();
+  const tr = { en: "Contract review in Chinese: systematic risk review of commercial clauses.", es: "Revisión de contratos en chino: revisión sistemática de riesgos.", fr: "Relecture de contrats en chinois : revue systématique des risques.", ja: "中国語契約審査：商務契約条項の体系的リスクレビュー。" };
+  const m = annotateSkill(fx.skills[0], genAt, "fixture://skills-catalog", tr);
+  assert.equal(m.human["zh-CN"].summary, fx.skills[0].description, "zh keeps the registry source verbatim");
+  assert.equal(m.human.en.summary, tr.en);
+  assert.equal(m.human.es.summary, tr.es);
+  assert.equal(m.human.fr.summary, tr.fr);
+  assert.equal(m.human.ja.summary, tr.ja);
+  assert.equal(m.canonical.brief, tr.en, "canonical rides the en translation");
+  const noTr = annotateSkill(fx.skills[0], genAt, "fixture://skills-catalog", null);
+  for (const l of ["en", "es", "fr", "ja"]) assert.equal(noTr.human[l].summary, fx.skills[0].description, "missing translation falls back to zh");
+  assert.equal(noTr.canonical.brief, fx.skills[0].description);
+});
+
 test("MCP annotation projects per locale and the tool surface rides the entry", () => {
   const fx = mkFixture();
   const pick = (loc) => fx.mcpByLocale[loc].find((s) => s.name === "eco-mcp-fetch");

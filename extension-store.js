@@ -7,6 +7,8 @@ import { readJsonOr } from "./lib/persistence.js";
 import * as db from "./db.js";
 import { getMarketEntries } from "./registry-bridge.js";
 import { mergeAnnotations, projectAnnotation } from "./lib/supply-annotations.js";
+import { getRepoSkillAnnotation } from "./lib/market-annotations.js";
+import { getFileSkills } from "./server/skills.js";
 
 // Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
 const marketCatalogFile = () => bundledJson("market-catalog.json");
@@ -261,7 +263,26 @@ export async function getSupplyAnnotationIndex(locale) {
       }
     }
   }
-  return { servers, tools };
+  // add-skill-display-annotations 3.1: skill labels join the index so chat
+  // skill blocks render the localized human label beside the slug. File-skill
+  // annotations come from the repo annotation source's `skills` key
+  // (origin yizuo-file); absent skills render unchanged.
+  const skills = {};
+  try {
+    // One namespace across BOTH domains (reconciliation R1=方案 B): consumers
+    // look up by skill name, never by origin — registry-sourced and file
+    // skills contribute alike from the repo annotation source.
+    const { listRepoSkillAnnotations } = await import("./lib/market-annotations.js");
+    for (const [name, repo] of listRepoSkillAnnotations()) {
+      const ann = projectAnnotation(repo.annotation, locale);
+      if (ann) {
+        skills[name] = { label: ann.name, summary: ann.summary };
+      }
+    }
+  } catch {
+    // index unavailable → skill blocks render unchanged (never a throw)
+  }
+  return { servers, tools, skills };
 }
 
 // Resolve a market MCP entry by name for the install admission check.

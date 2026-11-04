@@ -51,7 +51,15 @@ export function SkillCard({ skill, customSkill, onEdit, onUpdate }: SkillCardPro
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-foreground truncate">{skill.name}</h3>
+            {/* add-skill-display-annotations: the localized human label leads
+                when the skill carries an annotation; the raw slug name stays
+                visible in mono beside it and is never replaced. */}
+            <h3 className="font-medium text-foreground truncate">
+              {skill.annotation?.name || skill.name}
+              {skill.annotation?.name && skill.annotation.name !== skill.name && (
+                <span className="ml-1 font-mono text-[10px] text-muted-foreground" data-testid="skill-slug">{skill.name}</span>
+              )}
+            </h3>
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
               {isCustom ? t("extensions.skills.custom") : t("extensions.skills.builtIn")}
             </span>
@@ -69,8 +77,8 @@ export function SkillCard({ skill, customSkill, onEdit, onUpdate }: SkillCardPro
               </span>
             )}
           </div>
-          {skill.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{skill.description}</p>
+          {(skill.annotation?.summary || skill.description) && (
+            <p className="text-sm text-muted-foreground line-clamp-2">{skill.annotation?.summary || skill.description}</p>
           )}
         </div>
         <div className="flex items-center gap-2">

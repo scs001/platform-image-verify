@@ -63,3 +63,49 @@
 ## 六、回执方式
 
 沿 `mcp-annotation-repo-source-receipt.md` 先例：**finddata 会话直接落笔本仓**，在本文件末尾补「回执」节（R1 选案 + R2/R3/R4 逐条），paas 侧不复函确认。R1=方案 B 且 R2–R4 无异议时，本对账单即终态，paas 侧按此实施（任务 2.x 措辞随 R1 修订）。
+
+
+---
+
+## 七、回执（2026-11-04，finddata 会话直接落笔于本仓，paas 侧不复函）
+
+**本回执即终态：逐字段对账无异议，R1 选方案 B（附合并序红线），R2–R4 逐条裁定如上。对账单即终态，paas 侧按此实施。**
+
+先对勘误——本单对账单写作时点之后，paas 工作树（branch `release/cell-session-persona`，均未提交）已先行落地三件，本单 F4/F5 与「消费通道未实施」表述已过时：
+
+| 对账单表述 | 实况（finddata 侧核证） |
+|---|---|
+| F4「mapSkill 零 skills 感知」 | 任务 0.1 已落：`registry-bridge.js` `mapSkill` 读 `s.metadata?.annotations ?? s.metadata?.extra?.annotations`——**DB 272 行已对谦面可见（待滚版验收）**，5.1 阻塞解除到「滚版即可验」程度 |
+| F5「装载器只有 entries」 | 任务 2.1 已落：`lib/market-annotations.js` 装载 `skills` 键（skillsMap + getRepoSkillAnnotation，origin 两值闸 + 同款 validateAnnotation 门 + 非法弃条 warn，真文件冒烟过） |
+| R1「任务 2.2 分流措辞修订」 | 任务 2.2 已按实测落地（extensions 端点只出文件技能 + DB 自定义技能；registry 来源技能在市场目录走 mapSkill）；**mapSkill × skills 键（registry 域）合并在本任务单中尚无任务——回执要求补一条任务再实施**（见 R1-3） |
+
+逐字段对账（表二）全部核实无异议，finddata 侧不复述。
+
+### R1：方案 B 定案，三条实施口径
+
+1. **合并序钉死**（mapSkill，与 mapServer 同构、唯一合并点）：
+   `metadata.annotations`（透传）> `skills` 键（文件，registry 域按名直查）> 原文。
+2. **唯一红线：`skills` 键必须压过 `metadata.extra.annotations`。** extra 是序列化器事故落点（F3），不得位于真源之上；0.1 已落的 extra 读位在 mapSkill 合并任务落地时按上述顺序重排：撤除（最净，严格 B 原案）或降为 `skills` 键之下垫底（保留渐进窗，零害），归 paas 自裁。两选均满足 finddata 全部义务。
+3. **paas 任务单需补一条：`mapSkill` 增 `skills` 键合并（registry 域）**。0.1 只做了 DB fallback、2.1 只做了装载器——合并任务不落地，谦面就永远吊在 DB 通道上，R4 的「零依赖」前提不成立。
+
+### R2：红，且红在校验层（早于导出）
+
+真源一条目一文件、文件名=键，两域同名在磁盘上不可表达；validate 分域覆盖门对两份快照各验（任务 2.2 实证），撞键必红点名。导出层另有 `skills ∩ entries = ∅` 卫兵（export.py 跨键空间卫兵）。paas 建议的「报错红在导出」由「红在校验、更早」覆盖——导出物不标注，「registry 压 file」选项不适用（单文件真源结构下不存在两域同名条目并存）。
+
+### R3：确认可选
+
+validate.py skill 轨明文「whenToUse 可选，写则 1..{WHEN_MAX}」（≤160），zh 轨必填 = name + summary；proposal/实样/validate 三方一致。paas 投影缺省键零新字段，同意。
+
+### R4：DB 通道停止维护（降格为一次性灌入的派生缓存）
+
+- 存量 272 行**留存不删**（0.1 垫底窗或死数据均零害——文件全覆盖后永不浮出）；
+- **不进 runbook、不随注释更新重灌**；sync 脚本（`scripts/sync_skill_annotations.py`）留仓作配方——registry 自有面将来要注释时幂等重灌；
+- 若 paas 选严格 B（撤 0.1），finddata 侧择机清行（后手，非阻塞）；
+- 「两通道同源」措辞同步退役：**真源 = 注释文件（唯一维护通道）；DB 行 = 历史派生快照，不承诺同源新鲜度。**
+
+### 验收对照面更新
+
+- 对照面 1（谦面 zh/en）：阻塞已因 0.1 + 272 行解除到「滚版即验」；R1 合并任务落地后与 DB 彻底脱钩，此后纯文件通道。
+- 对照面 2/3（壹座扩展页、chat 索引）：paas 2.1/2.2/3.1 已先行落地（工作树未提交），4.2 真机验收时一并过。
+
+> 证据链：finddata 侧 tasks.md 5.3 于本日勾讫（回执落 paas 本仓）；validate.py skill 校验轨（R3）、export.py 跨键空间卫兵（R2）、paas registry-bridge.js mapSkill（0.1）、paas lib/market-annotations.js skill 装载段（2.1）。

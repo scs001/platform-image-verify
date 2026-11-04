@@ -20,7 +20,7 @@
 import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import { mergeAnnotations } from "./lib/supply-annotations.js";
-import { getRepoAnnotation, loadRepoAnnotations } from "./lib/market-annotations.js";
+import { getRepoAnnotation, getRepoSkillAnnotation, loadRepoAnnotations } from "./lib/market-annotations.js";
 
 const REGISTRY_URL = (
   process.env.MARKET_REGISTRY_URL ||
@@ -306,9 +306,18 @@ function mapSkill(s) {
     author: typeof s.author === "string" && s.author ? s.author : null,
     version: typeof s.version === "string" && s.version ? s.version : null,
     tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t)) : [],
-    // Supply annotation passthrough (add-mcp-annotation-overlay) — same rule
-    // as servers: metadata.annotations rides verbatim when object-shaped.
-    annotations: plainMetadataAnnotations(s.metadata?.annotations),
+    // Supply annotation (add-mcp-annotation-overlay / add-skill-display-
+    // annotations R1=方案 B): the SAME merge shape as mapServer — the registry
+    // row's top-level metadata.annotations wins when present, the repo file's
+    // `skills` key backfills (five-language human track per skill name). The
+    // registry serializer's metadata.extra fold is deliberately NOT read:
+    // that landing spot is a serialization accident (SkillMetadata only
+    // passes author/version/extra), and curating through the reviewed repo
+    // file keeps one source of truth. Both absent → null (raw rendering).
+    annotations: mergeAnnotations({
+      registry: plainMetadataAnnotations(s.metadata?.annotations),
+      catalog: getRepoSkillAnnotation(name)?.annotation,
+    }),
   };
 }
 

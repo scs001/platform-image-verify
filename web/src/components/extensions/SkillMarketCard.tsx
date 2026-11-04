@@ -20,7 +20,17 @@ export function SkillMarketCard({ skill, onInstall, installing }: SkillMarketCar
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-foreground truncate">{skill.displayName}</h3>
+            {/* Supply annotation (add-skill-display-annotations): the localized
+                human name replaces the raw displayName when annotated; the slug
+                stays visible beside it, never replaced. */}
+            <h3 className="font-medium text-foreground truncate" data-testid="skill-market-display-name">
+              {skill.annotation?.name || skill.displayName}
+            </h3>
+            {skill.annotation?.name && skill.annotation.name !== skill.displayName && (
+              <span className="font-mono text-[10px] text-muted-foreground shrink-0" data-testid="skill-market-slug">
+                {skill.name}
+              </span>
+            )}
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
               {skill.category}
             </span>
@@ -33,7 +43,9 @@ export function SkillMarketCard({ skill, onInstall, installing }: SkillMarketCar
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground line-clamp-2">{skill.description}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2" data-testid="skill-market-summary">
+            {skill.annotation?.summary || skill.description}
+          </p>
         </div>
         <Button size="sm" onClick={() => onInstall(skill)} disabled={installing}>
           <Download className="h-4 w-4 mr-1" />

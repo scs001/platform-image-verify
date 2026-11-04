@@ -131,7 +131,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
 
   refreshSkills: async () => {
     try {
-      const skills = await api.fetchSkills();
+      const skills = await api.fetchSkills(uiLocale());
       set({ skills });
     } catch (err) {
       set({ error: (err as Error).message });

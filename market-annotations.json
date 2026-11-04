@@ -8078,6 +8078,33 @@
        }
       }
      },
+     "crossborder_merchant_status": {
+      "canonical": {
+       "brief": "查询跨境电商平台连接器的商家授权闸状态；未授权时返回结构化「不可得（未授权）」而非报错或空列表，授权后返回 granted scopes。仅读平台官方 API、不逆向。"
+      },
+      "human": {
+       "en": {
+        "name": "Cross-border merchant status",
+        "summary": "Report merchant-authorization status for a platform connector; unauthorized returns a structured 'unavailable (unauthorized)' response, never an error or an empty list."
+       },
+       "es": {
+        "name": "Estado de comerciante transfronterizo",
+        "summary": "Informa el estado de autorización del comerciante para un conector de plataforma; no autorizado devuelve una respuesta estructurada 'no disponible (no autorizado)', nunca un error o lista vacía."
+       },
+       "fr": {
+        "name": "Statut marchand transfrontalier",
+        "summary": "Renseigne le statut d'autorisation marchand d'un connecteur de plateforme ; non autorisé renvoie une réponse structurée « indisponible (non autorisé) », jamais une erreur ou une liste vide."
+       },
+       "ja": {
+        "name": "越境EC 出店許可状態",
+        "summary": "越境EC プラットフォームコネクタの出品者許可状態を照会。未許可は構造化された「不可（未許可）」を返し、エラーや空値を返さない。"
+       },
+       "zh": {
+        "name": "跨境商家授权状态",
+        "summary": "查询某跨境电商平台连接器的商家授权状态；未授权返回结构化「不可得（未授权）」，绝不报错或静默空值。"
+       }
+      }
+     },
      "data_stats": {
       "canonical": {
        "brief": "Aggregate observation coverage or per-concept detail: concept counts, covered and gap counts, stored rows and per-entity-type rollup."
@@ -19256,28 +19283,23 @@
     "human": {
      "en": {
       "name": "Academy course guide",
-      "summary": "Ecosystem skill pack: recommends the matching academy course when asked how to use Claude.",
-      "whenToUse": "Use when answering questions about how to use Claude and the right course should be recommended."
+      "summary": "Ecosystem skill pack: recommends the matching academy course when asked how to use Claude."
      },
      "es": {
       "name": "Guía de cursos de la academia",
-      "summary": "Habilidad del ecosistema: cuando se pregunta cómo usar Claude, recomienda el curso correspondiente.",
-      "whenToUse": "Úsala cuando se pregunte cómo usar Claude y convenga recomendar el curso adecuado."
+      "summary": "Habilidad del ecosistema: cuando se pregunta cómo usar Claude, recomienda el curso correspondiente."
      },
      "fr": {
       "name": "Guide des cours de l'académie",
-      "summary": "Compétence de l'écosystème : recommande le cours adapté quand on demande comment utiliser Claude.",
-      "whenToUse": "À utiliser quand on demande comment utiliser Claude et qu'un cours doit être recommandé."
+      "summary": "Compétence de l'écosystème : recommande le cours adapté quand on demande comment utiliser Claude."
      },
      "ja": {
       "name": "アカデミー講座案内",
-      "summary": "エコシステム系スキル。「Claude の使い方」を問う質問に、対応する講座を勧める。",
-      "whenToUse": "Claude の使い方を問う質問に、対応する講座を勧めるときに使用。"
+      "summary": "エコシステム系スキル。「Claude の使い方」を問う質問に、対応する講座を勧める。"
      },
      "zh": {
       "name": "学院课程指南",
-      "summary": "生态技能包：回答「Claude 怎么用」时，推荐对应的学院课程。",
-      "whenToUse": "回答「Claude 怎么用」类问题、需要给出课程推荐时使用。"
+      "summary": "生态技能包：回答「Claude 怎么用」时，推荐对应的学院课程。"
      }
     },
     "provenance": {
@@ -19385,28 +19407,23 @@
     "human": {
      "en": {
       "name": "Verification reminder before delivery",
-      "summary": "Ecosystem skill pack: before handing over an actionable conclusion, adds a note on what still needs personal verification.",
-      "whenToUse": "Use just before handing over an actionable conclusion, to point out what to verify personally."
+      "summary": "Ecosystem skill pack: before handing over an actionable conclusion, adds a note on what still needs personal verification."
      },
      "es": {
       "name": "Aviso de verificación previo a la entrega",
-      "summary": "Habilidad del ecosistema: antes de entregar una conclusión accionable, añade qué conviene verificar por cuenta propia.",
-      "whenToUse": "Úsala justo antes de entregar una conclusión accionable, para señalar qué verificar."
+      "summary": "Habilidad del ecosistema: antes de entregar una conclusión accionable, añade qué conviene verificar por cuenta propia."
      },
      "fr": {
       "name": "Rappel de vérification avant livraison",
-      "summary": "Compétence de l'écosystème : avant de livrer une conclusion exploitable, ajoute une note sur ce qu'il faut vérifier soi-même.",
-      "whenToUse": "À utiliser juste avant de livrer une conclusion exploitable, pour signaler les points à vérifier."
+      "summary": "Compétence de l'écosystème : avant de livrer une conclusion exploitable, ajoute une note sur ce qu'il faut vérifier soi-même."
      },
      "ja": {
       "name": "提出前の見極めリマインド",
-      "summary": "エコシステム系スキル。実行可能な結論を渡す前に、「自分で確認すべき点」を一言添える。",
-      "whenToUse": "実行可能な結論を差し出す直前に、自己確認点を促すために使用。"
+      "summary": "エコシステム系スキル。実行可能な結論を渡す前に、「自分で確認すべき点」を一言添える。"
      },
      "zh": {
       "name": "交付前甄别提醒",
-      "summary": "生态技能包：交出可执行结论前，补一句「哪些地方该自行核实」。",
-      "whenToUse": "即将交出可执行结论、需要提示自行核实要点时使用。"
+      "summary": "生态技能包：交出可执行结论前，补一句「哪些地方该自行核实」。"
      }
     },
     "provenance": {
@@ -19421,28 +19438,23 @@
     "human": {
      "en": {
       "name": "Front-end visual design",
-      "summary": "Ecosystem skill pack: gives visual direction, font and layout judgment for new or revised interfaces.",
-      "whenToUse": "Use for new interfaces or redesigns that need visual direction, font and layout judgment."
+      "summary": "Ecosystem skill pack: gives visual direction, font and layout judgment for new or revised interfaces."
      },
      "es": {
       "name": "Diseño visual de interfaces",
-      "summary": "Habilidad del ecosistema: aporta criterio visual, tipográfico y de maquetación en interfaces nuevas o rediseños.",
-      "whenToUse": "Úsala en interfaces nuevas o rediseños que pidan criterio visual, tipográfico y de maquetación."
+      "summary": "Habilidad del ecosistema: aporta criterio visual, tipográfico y de maquetación en interfaces nuevas o rediseños."
      },
      "fr": {
       "name": "Conception visuelle d'interfaces",
-      "summary": "Compétence de l'écosystème : donne un avis visuel, typographique et de mise en page pour interfaces neuves ou refondues.",
-      "whenToUse": "À utiliser pour une interface nouvelle ou refondue nécessitant un avis visuel, typo et mise en page."
+      "summary": "Compétence de l'écosystème : donne un avis visuel, typographique et de mise en page pour interfaces neuves ou refondues."
      },
      "ja": {
       "name": "フロントエンド視覚デザイン",
-      "summary": "エコシステム系スキル。画面の新規作成や改版時に、視覚方針・フォント・レイアウトの判断を示す。",
-      "whenToUse": "画面の新規作成や改版で、視覚方針・フォント・レイアウトの判断が必要なときに使用。"
+      "summary": "エコシステム系スキル。画面の新規作成や改版時に、視覚方針・フォント・レイアウトの判断を示す。"
      },
      "zh": {
       "name": "前端视觉设计",
-      "summary": "生态技能包：新界面或改版时，给出视觉方向、字体与版式判断。",
-      "whenToUse": "新建界面或改版，需要视觉方向、字体与版式判断时使用。"
+      "summary": "生态技能包：新界面或改版时，给出视觉方向、字体与版式判断。"
      }
     },
     "provenance": {

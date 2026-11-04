@@ -26,11 +26,11 @@
 ## 5. 回归与 e2e
 
 - [x] 5.1 既有回归全绿：carrier 闸 8/8、三层读面单测、cell 生命周期套件不回潮；验证：`npm test` 相关套件零失败
-- [ ] 5.2 e2e（demo pod）：park 带 14 卫星的大 cell → 压水位 → 唤醒三路（投影放行/驱逐后放行/拒绝于物化前）各验一例；验证：e2e 断言三路证据 JSON + 无 OOMKill
-- [ ] 5.3 生产验收锚：1da519d4（16 进程 ≈900MB 名义足迹）出片后复唤醒不触发 OOMKill，首批投影/驱逐证据入册可读；验证：`cells-registry.db` 证据行 + pod restarts 不增
+- [ ] 5.2 e2e（demo pod）：park 带 14 卫星的大 cell → 压水位 → 唤醒三路（投影放行/驱逐后放行/拒绝于物化前）各验一例；验证：e2e 断言三路证据 JSON + 无 OOMKill —— **前提修正（2026-11-04 出片日裁决）**：demo pod 实跑单进程 server.js（镜像默认 CMD，无 gateway/cells/spawner/内存闸），三路 e2e 在 demo 架构上不可能。裁决：压力类两路（拒绝于物化前/驱逐后放行）以单测 10/10 为验收覆盖（model sampler 忠实建模 parked 语义）；生产 pod 人为造压=重演 6 次 OOMKill，明确不做。投影放行路已在生产活体眼见（滚版后 cell 3fdc7b8e 走新闸真实唤醒成功、boot 干净）。若需真容器级三路，另立 follow-up 用一次性 docker 容器自建 CELL_DATA_ROOT 演练，不动共享面。
+- [ ] 5.3 生产验收锚：1da519d4（16 进程 ≈900MB 名义足迹）出片后复唤醒不触发 OOMKill，首批投影/驱逐证据入册可读；验证：`cells-registry.db` 证据行 + pod restarts 不增 —— **待自然周期收口**：出片时 1da519d4 无足迹档案（上产前 park，冷启动窗按 D4 降级 current-only，首次复唤醒保护与非投影行为等价）；其下次 park 时点起档案物化（≈3600s idle 后 reaper），此后复唤醒才走投影判据。机制前置已全部活体验证：schema 列在、29 行存活、boot 无错、archiveFootprint 随车。收口判据=1da519d4 行 `last_footprint_bytes` 非空 + 其后复唤醒零 OOMKill。
 
 ## 6. 出片与收尾
 
-- [ ] 6.1 出片沿公开免费线（快照→relay→skopeo 双仓 digest 硬门→GitOps→ArgoCD hard 刷新，§15.126 配方）；验证：双 pod imageID 全等
+- [x] 6.1 出片沿公开免费线（快照→relay→skopeo 双仓 digest 硬门→GitOps→ArgoCD hard 刷新，§15.126 配方）；验证：双 pod imageID 全等 —— 实走 T2 池 testaction005/build-pool（§15.130 同线）：快照 7ad4425d（源真 sha b8044ba6 实证）→ run 41850021497 绿（target 行 yizuo/platform:sha-7ad4425，7 位截断应验）→ relay 22:51:49 OK(3s) → skopeo 双仓 digest sha256:8e42c13b 全等 → 镜像内容 grep 新符号验单过 → GitOps c98bfad 双清单 → ArgoCD refresh=hard → 双 pod imageID 8e42c13b 逐字节全等、零重启
 - [ ] 6.2 主 spec 同步 + `openspec validate --specs` 绿 + 归档；验证：validate 无 delta 残留
 - [ ] 6.3 台账/memory 更新；验证：memory 索引行含本变更要点

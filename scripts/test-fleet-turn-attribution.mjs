@@ -5,8 +5,10 @@
 //     turn_budget_exceeded (all calls returned, steps ran out) vs the honest
 //     empty shape for a turn with no tool history
 //   - laneKeyFor: stable, endpoint-sensitive, never leaks key material
-//   - the breaker: opens at the threshold, closes on any success, honors the
-//     kill switch, sweeps the window
+//   - the breaker: opens at the streak threshold, closes on any success,
+//     honors the kill switch, and IGNORES spacing between failures
+//     (fix-llm-breaker-streak — unattended cadences ≥15min/hourly can never
+//     fill a fixed wall-clock window; the count is consecutive, not timely)
 //   - shapeTurnOutcome: skipped is its own status; detail rides the row
 //   - failureStreak: a skipped round stops the streak like any non-failure
 //   - runPersonaTurn: one retry on a fast upstream failure with the chain's
@@ -85,11 +87,10 @@ test("laneKeyFor: stable, endpoint-sensitive, key material never appears", () =>
 
 // ── breaker ──────────────────────────────────────────────────────────────────
 
-test("breaker: opens at the threshold, stays open inside the window, closes on success", () => {
+test("breaker: opens at the streak threshold, stays open inside the cool-off, closes on success", () => {
   resetLanes();
   const prev = { ...process.env };
   process.env.PLATFORM_LLM_BREAKER_THRESHOLD = "3";
-  process.env.PLATFORM_LLM_BREAKER_WINDOW_MS = "60000";
   process.env.PLATFORM_LLM_BREAKER_OPEN_MS = "60000";
   try {
     const lane = "lane-test";
@@ -102,16 +103,56 @@ test("breaker: opens at the threshold, stays open inside the window, closes on s
     assert.equal(s.open, true, "3/3 — open");
     assert.ok(breakerState(lane, t0 + 3000).open, "still open inside the cool-off");
 
-    // Outside the open window (last failure t0+2s + 60s open): closed again.
+    // Outside the cool-off (last failure t0+2s + 60s open): closed again.
     assert.equal(breakerState(lane, t0 + 63_000).open, false, "cool-off elapsed → closed");
 
     // A success at any point closes immediately.
     recordUpstreamFailure(lane, t0 + 62_000);
     recordUpstreamSuccess(lane);
     assert.equal(breakerState(lane).open, false);
-    assert.equal(breakerState(lane).failures, 0);
+    assert.equal(breakerState(lane).streak, 0);
   } finally {
-    for (const k of ["PLATFORM_LLM_BREAKER_THRESHOLD", "PLATFORM_LLM_BREAKER_WINDOW_MS", "PLATFORM_LLM_BREAKER_OPEN_MS"]) delete process.env[k];
+    for (const k of ["PLATFORM_LLM_BREAKER_THRESHOLD", "PLATFORM_LLM_BREAKER_OPEN_MS"]) delete process.env[k];
+    void prev;
+  }
+});
+
+test("breaker: spacing is irrelevant — a streak across hours opens at the threshold (fix-llm-breaker-streak)", () => {
+  // The red→green heart: a 5-in-10-min sliding window (the old implementation)
+  // can NEVER open against hourly-unattended pacing — each failure sweeps its
+  // predecessors away. The streak does not care about spacing.
+  resetLanes();
+  const prev = { ...process.env };
+  process.env.PLATFORM_LLM_BREAKER_THRESHOLD = "5";
+  process.env.PLATFORM_LLM_BREAKER_OPEN_MS = "7200000"; // 2h default cool-off
+  try {
+    const lane = "lane-hours";
+    const t0 = Date.now();
+    const HOUR = 3600_000;
+    for (let i = 0; i < 4; i++) {
+      const s = recordUpstreamFailure(lane, t0 + i * 3 * HOUR);
+      assert.equal(s.open, false, `failure ${i + 1}/5 across 3h spacing — closed`);
+    }
+    const opened = recordUpstreamFailure(lane, t0 + 4 * 3 * HOUR);
+    assert.equal(opened.open, true, "the 5th consecutive failure opens regardless of spacing");
+    assert.equal(opened.streak, 5);
+
+    // Half-open probe: the first real round AFTER the cool-off fails — the
+    // streak is still above the threshold, so the cool-off rolls forward.
+    const probe = t0 + 4 * 3 * HOUR + 3 * HOUR; // one round past openUntil
+    const re = recordUpstreamFailure(lane, probe);
+    assert.ok(re.open, "probe failure reopens without requoting the threshold");
+    assert.ok(re.openUntil > probe, "openUntil rolled past the probe");
+
+    // Success clears everything — the single probe that lands on a healthy
+    // lane closes the breaker and resets the count.
+    recordUpstreamSuccess(lane);
+    assert.equal(breakerState(lane).open, false);
+    assert.equal(breakerState(lane).streak, 0);
+    const afterReset = recordUpstreamFailure(lane, probe + HOUR);
+    assert.equal(afterReset.open, false, "post-reset a lone failure does not open");
+  } finally {
+    for (const k of ["PLATFORM_LLM_BREAKER_THRESHOLD", "PLATFORM_LLM_BREAKER_OPEN_MS"]) delete process.env[k];
     void prev;
   }
 });
@@ -292,9 +333,9 @@ test("runCronJobTurn records upstream failures against the turn's lane at the se
   const out = await ctx.runCronJobTurn(fleetJob({ id: "job_a5", sessionId: "cron-attr5" }), { turnTimeoutMs: 5000 });
   assert.equal(out.ok, false);
   const lane = ctx.llmLaneForModel("model-a");
-  assert.ok(breakerState(lane).failures >= 1, "the seam fed the breaker");
+  assert.ok(breakerState(lane).streak >= 1, "the seam fed the breaker");
 
   ctx.promptBehavior = () => "ok";
   await ctx.runCronJobTurn(fleetJob({ id: "job_a6", sessionId: "cron-attr6" }), { turnTimeoutMs: 5000 });
-  assert.equal(breakerState(lane).failures, 0, "success closed it");
+  assert.equal(breakerState(lane).streak, 0, "success closed it");
 });

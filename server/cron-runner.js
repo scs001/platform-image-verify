@@ -724,7 +724,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       return withPresetPath({
         ok: false,
         skipped: true,
-        error: `llm lane ${laneId} open until ${new Date(br.openUntil).toISOString()} — round skipped (${br.failures}/${br.threshold} upstream failures in window)`,
+        error: `llm lane ${laneId} open until ${new Date(br.openUntil).toISOString()} — round skipped (${br.streak}/${br.threshold} consecutive upstream failures)`,
         metering,
       }, presetPath);
     }

@@ -1,4 +1,5 @@
-// ── LLM lane breaker (fix-fleet-turn-attribution D2/D3) ─────────────────────
+// ── LLM lane breaker (fix-fleet-turn-attribution D2/D3; streak semantics
+//    fix-llm-breaker-streak D1/D2) ───────────────────────────────────────────
 //
 // A "lane" is the provider endpoint + credential a turn actually runs on. The
 // breaker is keyed by the lane's stable id — NOT by cell, NOT by fleet —
@@ -14,9 +15,20 @@
 // deliberately does NOT reset the breaker: what is broken is the endpoint, and
 // the window self-heals in minutes anyway.
 //
+// The count is a CONSECUTIVE-FAILURE STREAK (fix-llm-breaker-streak): every
+// upstream-class failure on the lane increments, and any success resets to
+// zero. There is deliberately NO wall-clock window — unattended fleet rounds
+// fire at ≥15-minute-staggered cadences (typically hourly), so a fixed window
+// can never both accumulate a threshold and catch the next round in its
+// cool-off. The 10-28→11-04 upstream storm (94 model_upstream failures, 0
+// skipped) is the proof: a 5-in-10-min sliding window structurally cannot fire
+// against that pacing. `skipped` rounds never feed the streak (the seam
+// records nothing for a skip) — the only exit from an open window is the
+// first real round after the cool-off expires (the half-open probe).
+//
 // State is a plain in-process Map. A restart clears it — acceptable: the
-// breaker is a protective transient, and the window refills within one window
-// span if the outage persists.
+// breaker is a protective transient, and a persisting outage refills the
+// streak within threshold rounds of resuming (fix-llm-breaker-streak D5).
 
 import { createHash } from "node:crypto";
 
@@ -26,8 +38,7 @@ export function laneKeyFor(provider) {
 }
 
 const DEFAULT_THRESHOLD = 5;
-const DEFAULT_WINDOW_MS = 10 * 60 * 1000;
-const DEFAULT_OPEN_MS = 10 * 60 * 1000;
+const DEFAULT_OPEN_MS = 2 * 60 * 60 * 1000;
 
 function num(name, fallback) {
   const raw = Number(process.env[name]);
@@ -38,57 +49,52 @@ export function breakerConfig() {
   return {
     enabled: process.env.PLATFORM_LLM_BREAKER !== "0",
     threshold: num("PLATFORM_LLM_BREAKER_THRESHOLD", DEFAULT_THRESHOLD),
-    windowMs: num("PLATFORM_LLM_BREAKER_WINDOW_MS", DEFAULT_WINDOW_MS),
     openMs: num("PLATFORM_LLM_BREAKER_OPEN_MS", DEFAULT_OPEN_MS),
   };
 }
 
-const lanes = new Map(); // laneId -> { failures: number[], openUntil: number|null }
+const lanes = new Map(); // laneId -> { streak: number, openUntil: number|null }
 
-function stateOf(laneId, _now) {
+function stateOf(laneId) {
   let s = lanes.get(laneId);
   if (!s) {
-    s = { failures: [], openUntil: null };
+    s = { streak: 0, openUntil: null };
     lanes.set(laneId, s);
   }
   return s;
 }
 
-function sweep(s, now, windowMs) {
-  const cutoff = now - windowMs;
-  s.failures = s.failures.filter((t) => t > cutoff);
-}
-
 // One upstream-class failure against this lane. Returns the state after
 // recording — the caller logs it; this module never logs by itself so tests
-// and callers stay in charge of noise.
+// and callers stay in charge of noise. A failure at/above the threshold opens
+// the cool-off; while already open, a probe failure (the seam records nothing
+// for skipped rounds) ROLLS openUntil forward rather than requoting the
+// threshold — the streak never fell below it in between.
 export function recordUpstreamFailure(laneId, now = Date.now()) {
   const cfg = breakerConfig();
-  const s = stateOf(laneId, now);
-  if (!cfg.enabled) return { open: false, failures: 0, openUntil: null, enabled: false };
-  sweep(s, now, cfg.windowMs);
-  s.failures.push(now);
-  if (s.failures.length >= cfg.threshold) {
+  const s = stateOf(laneId);
+  if (!cfg.enabled) return { open: false, streak: 0, openUntil: null, enabled: false };
+  s.streak += 1;
+  if (s.streak >= cfg.threshold) {
     s.openUntil = now + cfg.openMs;
   }
-  return { open: Boolean(s.openUntil && s.openUntil > now), openUntil: s.openUntil, failures: s.failures.length, threshold: cfg.threshold };
+  return { open: Boolean(s.openUntil && s.openUntil > now), openUntil: s.openUntil, streak: s.streak, threshold: cfg.threshold };
 }
 
 // Any successful call against the lane proves it works again — close
-// immediately (the half-open probe IS this success).
+// immediately and reset the streak (the half-open probe IS this success).
 export function recordUpstreamSuccess(laneId) {
-  const s = stateOf(laneId, Date.now());
-  s.failures = [];
+  const s = stateOf(laneId);
+  s.streak = 0;
   s.openUntil = null;
-  return { open: false, failures: 0, openUntil: null };
+  return { open: false, streak: 0, openUntil: null };
 }
 
 export function breakerState(laneId, now = Date.now()) {
   const cfg = breakerConfig();
-  const s = stateOf(laneId, now);
-  sweep(s, now, cfg.windowMs);
+  const s = stateOf(laneId);
   const open = cfg.enabled && Boolean(s.openUntil && s.openUntil > now);
-  return { open, openUntil: open ? s.openUntil : null, failures: s.failures.length, threshold: cfg.threshold, enabled: cfg.enabled };
+  return { open, openUntil: open ? s.openUntil : null, streak: s.streak, threshold: cfg.threshold, enabled: cfg.enabled };
 }
 
 // Model → lane lookup, built once at boot from the llm profile (D2):

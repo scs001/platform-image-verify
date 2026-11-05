@@ -7377,3 +7377,20 @@ A2 四连拒与超时的共同上游（§15.130 挂着的 judge 换型裁决）�
 ## §15.136 skill-eval 指导文档真值上产+A2 promote 腿全闭环（fix-skill-eval-guidance-groundtruth 立项到归档全链，2026-11-05 晨）
 
 §15.135 缺口的立项→实施→出片→实弹→归档一次走完。①**代码**（a904680c）：`server/skill-eval.js` judgeUser 增指导文档真值段——old/candidate 正文以盲标「指导文档一/二」随判词提供（文档洗牌独立于回答甲乙丙洗牌，judge 无法推断文档→回答归属）+有据性规则对称全臂（与任一文档/任务一致=有据；都不含=无据，准确性存疑）+防偏置句（有据性只解决真值核验，质量按完成任务程度评，与所引文档长度无关）；超长文档沿 clip 同参截断。单测 groundtruth 4/4（文档段/盲标独立/截断/闸四分支不回潮）+skill-evolution 10/10（匿名性测试按新契约更新：**文档体入判词、臂名仍禁**）+persona 孪生 9/9 不动（角色流判据天然容忍条款差异）。②**出片**：快照 43d12843（源真 sha a904680c）→ run 41934275900 绿（target yizuo/platform:sha-43d1284）→ relay 07:41 OK(4s) → skopeo 双仓 digest `52c1f1c7` 全等 → 内容 grep 新符号（指导文档一 2/视为无据 1/change 标记 1）验单过 → GitOps `32aed9d` 双清单 bump（祖先律 a904680c ⊇ 70399f3e/b8044ba6 双基线核过，不回退并行班 supply-catalog 班）→ ArgoCD 缓存卡复现走 set-image 旁路（Git 同内容自动收敛）→ 双 pod imageID 全等。③**实弹闭环（A2 promote 腿终结）**：滚代后重铸全链——政策 v1 基线过闸 promote → v3 形态候选（政策+条款注记〔依：〕）三臂评测 **passed candidate best**（286s，glm-5.3-flash），判词逐点演示真值规则：「乙最贴合现行 v3 政策：逐行附〔依〕条款注记…丙依 v1 执行但漏用升级矩阵…甲自称无政策，自创 P3 及多项**无据** SLA」——政策条款从准确性负债转为可核验有据、control 自创值被对称标无据、old 臂按自己文档版本被评（三条臂按各自指导文档被评=设计意图完整落地）→ **promote 成功，`evolution_lineage` 落列**（旧行 supersededBy/candidateId/evalReport 全记录）+候选 promoted+新技能 enabled 在册。④**归档**：validate --strict 绿 → archive `2026-11-05-fix-skill-eval-guidance-groundtruth` → validate --specs **249/249 绿**（9/9 任务全勾，零挂账）。至此 §15.131 交接清单全部四组（A/B/C/D）清零。
+
+## §15.137 工具描述增强 A/B 双真回合+双重真缺陷热修（add-tool-description-enrichment 4.1 收口，2026-11-05 午）
+
+静窗前置（同日刀①②）：cheap-7 DiskPressure 驱逐风暴排查（盘 84%/可用 4.9G 贴 3.86G 驱逐线，8 RS 代际 churn 实为驱逐非滚版；645 死 pod 清（刀 A）+镜像全在用（刀 B 空刀）+trace.db 2.2G 全活数据 freelist 仅 33M（刀 C 空刀））→ 真凶=chatwoot-web/sidekiq+lago-api/front/worker 五 stateless 件钉 cheap-7（GitOps e58d34f nodeSelector cheap-7→cheap-6+0 字节 storage PVC 随迁重建破 pvc-protection finalizer 死锁；lago 无 GitOps 直 patch）→ cheap-7 72%/可用 8.7G 余量翻倍，驱逐止息。
+
+**A/B 数据（同任务同文本「列出 /tmp 目录里的条目并数一下总数，用一句话回答」，cell 1da519d4c1c0bf89，WS prompt 铸 cookie 直驱）**：
+- 增强开（overlay 594 在场，gen6 前）：1 bash、usage in=1800/out=125、15.3s
+- 增强关（热修后 overlay 缺席，boot 新 spawn）：2 bash（首击 `ls -A /tmp | tee /dev/stderr | wc -l` 语法冒险试错）、usage in=665/out=105、24.3s
+- 结论：两臂工具调用全 isError=false（无劣化，D2 默认不动）；OFF 臂多一步试错+慢 9s；输入 token 差 1135≈brief 注入量（懒加载子集）。filesystem.list_directory 两臂都未被模型选中（/tmp 是系统路径 bash 更顺手）——任务注记里「成功率差异」的触发面本就窄，与 §15.131 demo 面实测同判。
+
+**双重真缺陷（同根，活体实证后全修 748e51f7）**：
+1. **类型死门**：`setPreference` 落库 `String(false)='false'`，四处 `getPreference("tool.description.enrichment") !== false` 布尔比较恒 true——**开关自上线即从未真关过一次**（PUT false 后 overlay 仍复生 594）。改 `!== "false"`（值链唯一形态；SQLite 布尔退化为整数 0 同样过不了旧门，外部数据路径无解）。
+2. **漏读面**：`writeMcpPatch` 六调用点四处不传 `enrichmentEnabled`（focus overlay PUT `server/routes/overlay.js`、custom preset 保存 `custom-presets.js`、boot 序与 MCP CRUD HMR 序 `server.js`）→缺省 true→**任何 patch 重写都复活 owner 已关的 overlay**（活体：pref=false 后并行班一次 focus 保存把 594 写回）。全数补传。
+
+**产 pod 内热修（sha-a9669b2 容器内 6 处 sed+cell 重启，滚版自然回收）**——热修后 boot 序正确写 null（overlay 缺席）且关回合可复现；pref 已恢复 true、overlay 恢复 6 tools（catalog 源标准面）、preset 恢复 standard。
+
+**坑**：trace.db LIKE 深查触「database disk image is malformed」（WAL 活写面）——活库只做小单读；chat_sessions 无 created_at 列名误（schema 先探）；`kubectl patch --subresource=operation` 在此 ArgoCD 版本 NotFound（手动 apply 缺失资源替代）；同一 killed 后 Pod 换代需重验 imageID。

@@ -22,6 +22,7 @@
 import path from "node:path";
 import express from "express";
 import { createPackRegistry, registerPackRoutes } from "../gateway/packs.js";
+import { createSupplyStore, registerSupplyStoreRoutes } from "../gateway/supply-store.js";
 import { registerVendorRoutes } from "../gateway/vendors.js";
 import { registerOnboardingRoutes } from "../gateway/vendor-onboarding.js";
 import { registerMarketRoutes } from "../gateway/market.js";
@@ -234,7 +235,32 @@ registerMarketplaceJson(app, {
 // MCP catalog cards (S2, design D6): read-only aggregation from the registry
 // via registry-bridge — same env (REGISTRY_URL + MARKET_REGISTRY_TOKEN), same
 // registry-groups visibility mapping, no registry writes ever.
-await initFacetMcpCatalog(app, { resolveUser });
+//
+// add-supply-store-unification: the spine store (same packs.db, new tables) is
+// the one physical registration store for the skill/MCP species. When
+// SUPPLY_STORE_CATALOG=1 the card face reads the spine store instead of the
+// bridge snapshot — the cutover switch; default keeps the bridge until the
+// migration window flips it. The store routes (projection pull source +
+// write gate) mount regardless, so the registry can pull and the facade can
+// forward writes before the read face switches.
+const supplyStore = createSupplyStore({
+  file: path.join(DATA_ROOT, "packs.db"),
+  gatewayBase: (process.env.REGISTRY_URL || "").trim(),
+});
+registerSupplyStoreRoutes(app, {
+  store: supplyStore,
+  projectionToken: (process.env.SUPPLY_STORE_PROJECTION_TOKEN || "").trim(),
+  writeToken: (process.env.SUPPLY_STORE_WRITE_TOKEN || "").trim(),
+});
+await initFacetMcpCatalog(app, {
+  resolveUser,
+  ...(process.env.SUPPLY_STORE_CATALOG === "1"
+    ? {
+        entriesFn: () => supplyStore.catalogMcpEntries(),
+        skillsFn: () => supplyStore.catalogSkillEntries(),
+      }
+    : {}),
+});
 
 // Unified supply catalog (add-supply-catalog-unification W1): the facade and
 // data-anchor species' own source faces, projected with the production

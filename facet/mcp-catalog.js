@@ -30,6 +30,14 @@ import { projectAnnotation } from "../lib/supply-annotations.js";
 // face) consume THIS function instead of restating the predicate — a second
 // copy is exactly the drift pack-marketplace forbids (design C2).
 export function visibleTo(entry, viewer) {
+  // add-supply-store-unification: spine-sourced entries CARRY the `visibility`
+  // field and are fail-closed — anything not exactly "public" is not
+  // anonymous-visible (groups gate on top of public). Bridge-legacy entries
+  // don't carry the key, so the incumbent no-groups-is-public rule is
+  // untouched for them. `"visibility" in entry` (not a truthiness check) is
+  // the fail-closed crux: a spine row with visibility NULL carries the key
+  // with a null value and must NOT fall back to public.
+  if ("visibility" in entry && entry.visibility !== "public") return false;
   const required = Array.isArray(entry.groups) ? entry.groups : [];
   const groups = new Set(viewer?.groups ?? []);
   return required.length === 0 || required.some((g) => groups.has(g));
@@ -197,13 +205,18 @@ export function registerFacetMcpRoutes(app, {
 // registry source is unconfigured or unreachable (last-good kept by the
 // bridge itself). No per-request refresh — initRegistryBridge already owns
 // the boot fetch + TTL timer.
-export async function initFacetMcpCatalog(app, { resolveUser }) {
+export async function initFacetMcpCatalog(app, { resolveUser, entriesFn = null, skillsFn = null }) {
   const bridge = await import("../registry-bridge.js");
   bridge.initRegistryBridge({});
   return registerFacetMcpRoutes(app, {
     resolveUser,
-    entriesFn: () => bridge.getMarketEntries().mcpServers ?? [],
-    skillsFn: () => bridge.getMarketEntries().skills ?? [],
+    // add-supply-store-unification: the cutover switch injects spine-store
+    // readers here; default stays the registry bridge snapshot until the
+    // migration window flips SUPPLY_STORE_CATALOG=1. The bridge stays the
+    // skill-content channel either way (content blobs are registry
+    // execution-plane assets, not registration records).
+    entriesFn: entriesFn ?? (() => bridge.getMarketEntries().mcpServers ?? []),
+    skillsFn: skillsFn ?? (() => bridge.getMarketEntries().skills ?? []),
     // The global-read channel rides the same internal credential the 壹座
     // proxy uses (facet/index.js FACET_INTERNAL_TOKEN) — one secret, two
     // server-verified channels; the public domain can never open it.

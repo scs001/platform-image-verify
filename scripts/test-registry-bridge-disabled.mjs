@@ -52,6 +52,13 @@ test("no registry URL: no fetch, empty entries, market serves bundled only", asy
   fs.writeFileSync(path.join(process.cwd(), "market-catalog-skills.json"), JSON.stringify({ skills: [] }));
   extensionStore.clearMarketCatalogCache();
   const catalog = await extensionStore.getMarketCatalog(null);
-  assert.equal(catalog.mcpServers.length, 1);
-  assert.equal(catalog.skills.length, 0);
+  // The bundled catalog entry REPLACES the starter floor's same-name entry
+  // (add-supply-catalog-unification merge rule: a catalog entry sharing a
+  // starter name wins — the supply plane is the truth for what a server is).
+  // The floor has its own "fetch", so the served total stays at the floor's
+  // size, and the served "fetch" is the bundled definition (description "d").
+  assert.equal(catalog.mcpServers.length, (await extensionStore.loadStarters()).length);
+  assert.equal(catalog.mcpServers.filter((s) => s.name === "fetch").length, 1);
+  assert.equal(catalog.mcpServers.find((s) => s.name === "fetch").description, "d");
+  assert.equal(catalog.skills.length, (await extensionStore.loadStarterSkills()).length);
 });

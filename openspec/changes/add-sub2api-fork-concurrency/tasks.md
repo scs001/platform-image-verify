@@ -1,9 +1,9 @@
 - [x] 1.1 立项（前置裁决：fork 源码归属=本仓维护，2026-11-04 授权代拍）
-- [ ] 2.1 上游代码：per-account 有界信号量 + queue bound + 429 快速拒
-- [ ] 2.2 上游代码：AIMD 状态机（success/5xx/timeout/open/half-open/recover 全转移）
-- [ ] 2.3 上游代码：三 metrics 暴露 + channel_monitor aimd_state 哨兵收编
+- [x] 2.1 上游代码：per-account 有界信号量 + queue bound + 429 快速拒（backend/internal/repository/account_queue.go：acquireAccountSlot 唤醒式等待+waitMax 快拒；handler mapUpstreamError 429 语义透出）
+- [x] 2.2 上游代码：AIMD 状态机（success/5xx/timeout/open/half-open/recover 全转移；UPSTREAM_AIMD_ENABLED 开关=false=静态并发；port RecordAIMDResult 喂点：Do transport 失败+handleOpenAIAccountUpstreamError 语义失败双路）
+- [x] 2.3 上游代码：三 metrics 暴露 + channel_monitor aimd_state 哨兵收编（GET /admin/accounts/upstream-queue-metrics：queue_depth/queue_rejected_total/aimd_concurrency + aimd_state open|half_open|closed 真状态字段）
 - [ ] 2.4 docs/sub2api-fork-patches/ 补丁文档 + upstream-pr-candidates 登记
-- [ ] 3.1 单测：AIMD 状态机全转移覆盖
+- [x] 3.1 单测：AIMD 状态机全转移覆盖（account_queue_test.go 7 件：bounded/queue-full-fast-reject/trip-halves-recover/429-capacity-shrink/4xx-neutral/hot-upgrade/unknown-account）
 - [ ] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时
 - [ ] 3.3 回归：既有 lane 测试全绿
 - [ ] 4.1 出片滚产（fd-build-channel 通道）+ GitOps bump

@@ -199,6 +199,11 @@ export function registerOverlayRoutes(ctx) {
           userGroups: ctx.runtimeOwnerGroups ?? null,
           ownerEmail: ctx.runtimeOwnerEmail,
           agentPreset: preset,
+          // The focus rewrite must honor the same D5 owner switch as the
+          // preset-switch sequence — otherwise a focus save AFTER the owner
+          // turned enrichment off resurrects the overlay file (live A/B 4.1:
+          // the 594-tool resurrection was exactly this bypass).
+          enrichmentEnabled: db.getPreference("tool.description.enrichment") !== "false",
         });
         await dshProfile.writeSkillsPatch({ agentPreset: preset });
         if (ctx.dshBridge?.isReady?.() && !ctx.isStreaming) {

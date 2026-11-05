@@ -280,6 +280,11 @@ export function registerCustomPresetRoutes(ctx) {
           userGroups: ctx.runtimeOwnerGroups ?? null,
           ownerEmail: ctx.runtimeOwnerEmail,
           agentPreset: ctx.currentPreset,
+          // Same D5 rule as the overlay route's live rewrite: a preset save
+          // must not resurrect the tool-description overlay the owner turned
+          // off (the default here is true — without this the flag bypasses
+          // the switch; A/B 4.1 caught the overlay.js twin of this).
+          enrichmentEnabled: db.getPreference("tool.description.enrichment") !== "false",
         });
         await dshProfile.writeSkillsPatch({ agentPreset: ctx.currentPreset });
         if (ctx.dshBridge?.isReady?.() && !ctx.isStreaming) {

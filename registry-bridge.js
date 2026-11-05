@@ -15,8 +15,11 @@
 // (see the change's design.md spike notes): server summaries carry
 // {path, display_name, description, is_enabled, health_status, status} and no
 // URL — the client-facing MCP endpoint is derived as {REGISTRY_URL}/{path}/mcp.
-// Group metadata is absent from listings, so visibility groups come from the
-// optional local registry-groups.json mapping file.
+// Group metadata (carry-registry-visibility-through-bridge): server rows now
+// carry {visibility, allowed_groups} — the bridge computes group gating from
+// the carried metadata and the hand-mapped registry-groups.json file is the
+// FALLBACK for rows from a pre-upgrade registry (see visibilityGroups). A
+// group-restricted entry never degrades to public (fail-closed sentinel).
 import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import { mergeAnnotations } from "./lib/supply-annotations.js";
@@ -78,6 +81,35 @@ function loadGroups() {
 function groupsFor(kind, name) {
   const groups = groupsDoc?.[kind]?.[name];
   return Array.isArray(groups) ? groups : [];
+}
+
+// Fail-closed sentinel (carry-registry-visibility-through-bridge 3.2): a
+// group-restricted entry that lists no allowed_groups maps to this
+// never-matchable group so the legacy "no required groups = public" rule can
+// never leak it to any viewer. The registry write side already rejects
+// restricted-without-groups; this is the residue defense for hand-edited/
+// imported rows, and reconciliation names it as the defect (MCP-REGISTRY
+// 台账口径，与「特殊条目缺归属组即缺陷」同轨).
+const RESTRICTED_UNGROUPED = "__restricted_ungrouped__";
+
+// Carried registry metadata wins over the hand-mapped registry-groups.json:
+//   visibility=public          → groups [] (official default-visible stance)
+//   visibility=group-restricted→ allowed_groups verbatim; empty → sentinel
+//   visibility=private/unknown → sentinel (fail-closed; unknown values are a
+//                                 data anomaly, never treated as public)
+//   no visibility field        → hand mapping (pre-upgrade registry compat
+//                                 window; byte-identical to pre-change rows)
+function visibilityGroups(s, name) {
+  const vis = typeof s?.visibility === "string" && s.visibility ? s.visibility : null;
+  if (vis === null) return groupsFor("servers", name);
+  if (vis === "public") return [];
+  const carried = Array.isArray(s.allowed_groups) ? s.allowed_groups.filter(Boolean) : [];
+  if (carried.length) return carried;
+  console.warn(
+    `[registry-bridge] "${name}": visibility=${vis} carries no allowed_groups — ` +
+      `mapping to the never-matchable sentinel (fail-closed); reconcile the registry entry`,
+  );
+  return [RESTRICTED_UNGROUPED];
 }
 
 async function fetchJson(endpoint) {
@@ -220,7 +252,11 @@ function mapServer(s) {
     installInstructions:
       "Served through your MCP gateway. Fill in your gateway access token.",
     origin: "registry",
-    groups: groupsFor("servers", name),
+    // Visibility groups (carry-registry-visibility-through-bridge): carried
+    // registry metadata wins over the hand-mapped registry-groups.json — see
+    // visibilityGroups. A group-restricted entry never falls back to []=public:
+    // empty groups map to the never-matchable sentinel (fail-closed).
+    groups: visibilityGroups(s, name),
     // Tool surface snapshot (add-mcp-tool-scoping 5.3): the registry entry's
     // stored tool_list rides the catalog so the pack editor's tool picker can
     // offer real names; null when the entry predates a snapshot refresh.

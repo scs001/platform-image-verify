@@ -234,6 +234,97 @@ test("mapping: servers/skills/agents → market + catalog shapes", async () => {
   assert.equal(events.filter((e) => e.type === "market_changed").length, 1, "first fill broadcasts");
 });
 
+// ── group carry-through (carry-registry-visibility-through-bridge 3.4) ───────
+// Carried {visibility, allowed_groups} metadata wins over the hand-mapped
+// registry-groups.json; a group-restricted entry NEVER degrades to public —
+// empty groups map to the never-matchable sentinel (fail-closed), and the
+// pre-upgrade compat window (no visibility field) stays byte-identical to the
+// hand-mapping behavior.
+
+test("groups: carried metadata wins over hand mapping; fail-closed on empty restricted", async () => {
+  marker = "c2-groups";
+  // Hand mapping says one thing for every entry — carried metadata must win
+  // wherever it exists, and the mapping must only bite in the compat window.
+  fs.writeFileSync(
+    path.join(process.cwd(), "registry-groups.json"),
+    JSON.stringify({
+      servers: {
+        "carried-public": ["legacy-group"],
+        "carried-restricted": ["legacy-group"],
+        "carried-empty-restricted": ["legacy-group"],
+        "compat-window": ["mapped-group"],
+      },
+    }),
+  );
+  const fetchImpl = makeFetch(() => ({
+    "/api/servers": {
+      servers: [
+        {
+          path: "/carried-public",
+          display_name: "Carried Public",
+          description: "official default-visible",
+          is_enabled: true,
+          // Hand mapping registered a group, but the truth says public.
+          visibility: "public",
+        },
+        {
+          path: "/carried-restricted",
+          display_name: "Carried Restricted",
+          description: "per-customer cell",
+          is_enabled: true,
+          visibility: "group-restricted",
+          allowed_groups: ["wire-cust-acme"],
+        },
+        {
+          path: "/carried-empty-restricted",
+          display_name: "Restricted No Groups",
+          description: "invariant-violating residue",
+          is_enabled: true,
+          visibility: "group-restricted",
+          allowed_groups: [],
+        },
+        {
+          path: "/compat-window",
+          display_name: "Pre-upgrade Row",
+          description: "no visibility field — hand mapping applies",
+          is_enabled: true,
+        },
+      ],
+      total_count: 4,
+    },
+    "/api/skills": { skills: [], total_count: 0 },
+    "/api/agents": { agents: [], total_count: 0 },
+  }));
+  bridge.initRegistryBridge({ broadcast: () => {}, fetchImpl });
+  await bridge.refreshRegistry();
+
+  const byName = Object.fromEntries(
+    bridge.getMarketEntries().mcpServers.map((s) => [s.name, s]),
+  );
+
+  // Metadata beats the hand mapping in both directions.
+  assert.deepEqual(
+    byName["carried-public"].groups, [],
+    "carried public wins over a mapped group (empty = public)",
+  );
+  assert.deepEqual(
+    byName["carried-restricted"].groups, ["wire-cust-acme"],
+    "carried groups pass through verbatim",
+  );
+  // Fail-closed: restricted with no groups maps to the never-matchable
+  // sentinel, never to [] (=public).
+  assert.deepEqual(
+    byName["carried-empty-restricted"].groups, ["__restricted_ungrouped__"],
+    "restricted without groups is fail-closed, not public",
+  );
+  // Compat window: no metadata → hand mapping, byte-identical to pre-change.
+  assert.deepEqual(
+    byName["compat-window"].groups, ["mapped-group"],
+    "pre-upgrade rows keep the hand-mapped behavior",
+  );
+  fs.rmSync(path.join(process.cwd(), "registry-groups.json"));
+});
+
 // ── pagination completeness (registry-list-completeness) ─────────────────────
 // The live registry paginates list endpoints (default limit=20) and reports
 // total_count/has_next. Reading one page as "everything" silently drops

@@ -391,5 +391,7 @@ _Avoid_: 舰队包、组织模板
 - **现象**：01:01 CST 节点染 DiskPressure taint→01:02 kubelet 驱逐其上唯一钉住 pod（facet，nodeSelector 钉死该节点）→替换 pod 因污点 Pending→facet 公网 502 约 15 分钟。
 - **判据**：`kubectl get nodes -o custom-columns` 看 taints；deployment nodeSelector 钉住的节点即单点。
 - **修法**：登节点清 12 个陈旧 platform/edu/fd-memory 镜像（25G→19G，`docker rmi` 精确点名不 prune）；taint 由 kubelet 自行解除，Pending pod 随即落地。
-- **根因未除**：节点磁盘增长源（镜像累积/日志）未治理，复发在预期内——根因调查另立。
+- **根因判定（2026-11-06 普查收官）**：三层堆积模型——①**双运行时堆积**：每节点 docker（compose 栈/手工部署）与 containerd（k3s）各持一份镜像账，docker 侧完全在 kubelet GC 视野外（cheap-3 实测 docker 5.0G+21 镜像 vs containerd 仅 1.1G content）；②**滚版镜像版本堆积**：k8s 侧旧 sha 镜像（883MB/版）由 kubelet GC 兜底但滚版密集时快于回收（cheap-4 containerd 8.4G 里 overlayfs 6.5G）；③**cell 数据无界**：/opt/platform/cells 的 trace.db 无保留策略（最大单 cell 2.3G，cheap-3 合计 6.9G）+ Evicted 残骸 pod 留存（cheap-8 一节点 71 只）。30G 小盘 × 三层叠加 = 反复越 85% GC 线。
+- **预防分层**：短期=手动清旧镜像/残骸（本轮已做 cheap-3）；中期=docker 侧定时 prune + cell trace.db 保留策略（需拍板）；长期=k3s GC 阈值调优与 logrotate 核对。
+- **首轮清理实录（2026-11-06）**：cheap-8 mcp-registry 命名空间 71 只 Evicted 残骸（历次 DiskPressure 驱逐的孤儿 pod 对象）+2 只僵尸 Completed 全清，registry 1/1 Healthy、公网 302/谦面 catalog 200 链路复验通过；cheap-3 docker 12 陈旧镜像已清（25G→19G→当前 23G/76% 因 cells 数据回升）。**可再清项（需拍板）**：cell trace.db 保留策略（最大 2.3G/只，cheap-3 cells 6.9G）；cheap-3 docker 剩余 22 镜像中 postgres×2/wire-api 旧版×2 等仍在用或疑似在用，不做盲 prune。
 - **预防**：钉死单节点的 deployment（facet 类）应每巡检核节点磁盘水位；镜像清理纳入例行。

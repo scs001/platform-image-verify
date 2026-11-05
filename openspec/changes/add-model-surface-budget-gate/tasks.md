@@ -1,11 +1,11 @@
 - [x] 1.1 创建 change 目录结构
-- [ ] 2.1 编写 `server/model-budget.js`（BudgetEngine + SQLite store）
-- [ ] 2.2 接入 `cron-runner.js`：`switchModelTo` / `runPersonaTurn` 前置检查
-- [ ] 2.3 接入 `fleet-reports.js`：`fleetModelFor` 前置检查
-- [ ] 2.4 新增 SQLite 表 `model_budget` + `budget_exhausted_log`（migration）
-- [ ] 2.5 实现 `dailyReset` / `monthlyReset` cron job
-- [ ] 3.1 单测：BudgetEngine 单元测试（检查/消费/重置/超限）
-- [ ] 3.2 单测：集成点前置检查 mock 验证
-- [ ] 3.3 e2e：连续派发触发日上限→自动降级→次日凌晨重置恢复
+- [x] 2.1 编写 `server/model-budget.js`（BudgetEngine + SQLite store：model_budget model+tier 键 + budget_exhausted_log；窗口懒滚动+显式重置双保险，monthly 窗尾对齐下月 1 号；degrade-open 全程）
+- [x] 2.2 接入 `cron-runner.js`：normalizeModelForJob walk 按 plan.budgetBlocked 跳超限跳（自然走降级链；全链超限 budget_exhausted 失败不进重试）+ 结算面 single 超限一次性降级跳 + 结算缝按 attempt 草稿消费（ctx.modelBudget）
+- [x] 2.3 接入 `fleet-reports.js`：fleetModelFor budgetProbe 注记 plan.budgetBlocked（server.js ctx.resolveFleetModel 接线；probe 缺席/抛错=零注记 degrade-open）
+- [x] 2.4 SQLite 表 `model_budget` + `budget_exhausted_log`（引擎 ensureSchema 自含 CREATE TABLE IF NOT EXISTS，幂等；回滚=摘 env 开关，空表无害）
+- [x] 2.5 `attachModelBudgetReset` 定时器（60s tick，UTC 日/月界翻页显式滚窗 + 01:00 UTC 日报行 + captureFleetFact）
+- [x] 3.1 单测 7 件（scripts/test-model-budget-gate.mjs）：检查/消费/懒滚窗恢复/月窗对齐（二月反例）/single 事件/reset tick 日报/report+disabled no-op/env 解析
+- [x] 3.2 集成验证：fleetModelFor 注记 3 态（无 probe/超限注记/probe 抛错放行）+ runPersonaTurn 全路径 walk 跳过验证
+- [x] 3.3 e2e 2 件：日限→walk 跳超限跳落链下一跳→全链超限拒绝（零 switch）→次日 UTC 翻页恢复 hop 1；single 超限→一跳降级→双 attempt 诚实记账（弃掉的半程入账）→事件逐条可溯
 - [ ] 4.1 生产部署：env 配置 + 七日观察期
 - [ ] 4.2 七日观察期满 → 归档

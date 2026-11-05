@@ -2,7 +2,7 @@
 - [x] 2.1 上游代码：per-account 有界信号量 + queue bound + 429 快速拒（backend/internal/repository/account_queue.go：acquireAccountSlot 唤醒式等待+waitMax 快拒；handler mapUpstreamError 429 语义透出）
 - [x] 2.2 上游代码：AIMD 状态机（success/5xx/timeout/open/half-open/recover 全转移；UPSTREAM_AIMD_ENABLED 开关=false=静态并发；port RecordAIMDResult 喂点：Do transport 失败+handleOpenAIAccountUpstreamError 语义失败双路）
 - [x] 2.3 上游代码：三 metrics 暴露 + channel_monitor aimd_state 哨兵收编（GET /admin/accounts/upstream-queue-metrics：queue_depth/queue_rejected_total/aimd_concurrency + aimd_state open|half_open|closed 真状态字段）
-- [ ] 2.4 docs/sub2api-fork-patches/ 补丁文档 + upstream-pr-candidates 登记
+- [x] 2.4 docs/sub2api-fork-patches/ 补丁文档 + upstream-pr-candidates 登记 —— 缝点登记表§二已录「有界排队+AIMD」行（file:line 全实证）；upstream-pr-candidates **候选③**新立（2026-11-05 核实上游 MaxConnsPerHost=240 共享 transport 无 per-account 控制、AIMD/account_queue 零命中——上游化拆分建议：核心=有界排队+429 快拒先收，AIMD 与观测面拆后 PR）
 - [x] 3.1 单测：AIMD 状态机全转移覆盖（account_queue_test.go 7 件：bounded/queue-full-fast-reject/trip-halves-recover/429-capacity-shrink/4xx-neutral/hot-upgrade/unknown-account）
 - [x] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时（account_queue_stress_test.go：32 worker 3s 风暴——queueFull 56091 次快拒无堆积、全调用 deadline 内自然返回、AIMD bound≤limit 守恒；trip 确定性覆盖在 Recovery 测试）
 - [x] 3.3 回归：既有 lane 测试全绿（service 138.9s 全套绿+repository 全套绿；port 新增方法全部 test fake 补 no-op，vet 净）

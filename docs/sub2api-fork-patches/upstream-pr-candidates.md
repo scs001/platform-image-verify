@@ -71,7 +71,50 @@ POST /api/v1/admin/usage/virtual   （admin 鉴权）
 **状态**：未启动（计划就绪，等候选①）。**平台侧依赖**：ADR-0014 结算切账本
 权威、ADR-0022 分成通道对账。
 
-## 通用纪律（两候选共用）
+## 候选③ per-account 有界排队 + AIMD 自适应并发（对应上游无界等待病）
+
+**上游现状（2026-11-05 核实）**：上游 `repository/http_upstream.go` 全部上游共享
+一个 `MaxConnsPerHost=240` 的 transport；达到上限后新请求在 transport 内部队列
+**无界等待**——一个坏上游（慢/403/挂死）占满连接池后，整池请求排队吞超时。
+上游无任何 per-account 并发控制（`grep -l "AIMD|account_queue" upstream/main -- backend/`
+零命中；`ConcurrencyConfig` 只管 SSE ping 间隔；`ImageConcurrencyConfig` 只管图片
+生成入口数）。外部证据：上游 issue 区多次「一个账号挂了拖死其他账号」类报告
+（如 Kimi 403 被误归类，`ratelimit_service.go:1013` 只做分类不隔离）。
+
+**平台侧动机（实证）**：2026-10-27 词元配额事故（无界排队 3h 全平台断供）与
+2026-10-27/11-01 两度「坏仓库 403 拖死 relay 锁三连」的代码级根因即此——故障窗口
+内排队时长吞噬客户端超时，压力自我延续。
+
+**提议形状（PR 时以维护者偏好为准；fork 内已全量验证）**：
+
+- **per-account 有界信号量**：进 transport 前先过账号级 slot（bound=账号
+  `Concurrency` 字段，缺省 env `UPSTREAM_CONCURRENCY_MAX=8`）；等待用唤醒式
+  （cap-1 通知 + 兜底轮询——纯轮询在 8 等待者下不收敛，单测逮住）；
+- **队列深度上限**：`UPSTREAM_QUEUE_BOUND`（缺省 bound×4）；队满 `ErrQueueFull`
+  **快速拒**（HTTP 429 + `Retry-After`），failover 链把它当终止性信号
+  （`NextAccountStop`）——不把过载压力推给下一个账号；
+- **AIMD 容量状态机**（`UPSTREAM_AIMD_ENABLED` 开关，false=静态并发）：5xx 三连
+  减半（下限 1）、429 作为容量信号收窄但不计连击、成功冷却 +1 恢复、
+  closed/half_open/open 三态；上游 4xx 语义失败中性不喂点；
+- **观测面**：`GET /admin/accounts/upstream-queue-metrics`
+  （queue_depth / queue_rejected_total / aimd_concurrency / aimd_state）。
+
+**实现位置（fork 内已验）**：新增 `repository/account_queue.go`（~340 行）+
+`http_upstream.go` Do 入口接线（acquire/release + AIMD 记账）+ port
+`RecordAIMDResult`（service→port→repo 依赖方向）+ 语义失败喂点
+（`openai_account_runtime_block_fastpath.go`）+ 429 映射
+（`openai_upstream_transport_error.go`/`mapUpstreamError`）。**零 schema、零对外
+契约变化**；压测实证：5xx 风暴注入下 56091 次 queueFull 快拒零堆积、全 worker
+3s 内自然返回、AIMD bound≤limit 守恒。
+
+**上游化拆分**：单 PR 提 `account_queue.go` + `http_upstream.go` 接线（核心）；
+AIMD 状态机与观测面可拆后续 PR（维护者若嫌重，先收有界排队+429 快拒即可解
+拖死病——AIMD 是锦上添花）。
+
+**状态**：fork 已全量落地（fork 补丁级 17，add-sub2api-fork-concurrency，压测+
+单测全绿），未启动上游 PR（等月度窗后按通用纪律拆提交）。
+
+## 通用纪律（三候选共用）
 
 - **单提交、cherry-pickable**：分支从 `upstream/v0.2.16` 起，不含 lanes/平台清单
   等 fork 专属内容；

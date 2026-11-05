@@ -19,4 +19,4 @@
 ## 4. 收尾
 
 - [x] 4.1 spec delta：cell-gateway（wake 覆盖 interval/one-shot+legacy carve-out）+ cell-lifecycle（唤醒语义扩展）——strict 绿
-- [ ] 4.2 出片上产（净化快照线）+ 归档
+- [x] 4.2 出片上产：快照 1275719（run 42109989448 绿）→ relay → fd-infra-deploy 7715543 双清单（gitee 为 ArgoCD 真源）→ 双滚到位（facet-bbfbcd5db/platform-ff945985d 均 sha-1275719 Running，app Healthy，facet catalog 200）+ strict 归档

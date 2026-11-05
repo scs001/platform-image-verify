@@ -19,6 +19,11 @@
 #       for GET /api/ready 200 on the desktop port. Same surface as the mac
 #       install smoke (tasks 1.2). stderr streams into the CI log, so a crash
 #       names its own cause (v1.3.0's ERR_MODULE_NOT_FOUND showed here).
+#     Phase B+ (runner leg, harden-windows-runner-smoke): the packaged
+#       agent-runner hosts a real dsh child from a local-feed deployment —
+#       the child must reach the READY handshake and survive ≥30s. Catches
+#       the 0xc0000142-class "child dies at spawn" and profile-boot
+#       regressions the windows-admin drill exposed (2026-11-06).
 #     Phase C (window renders): the app self-tests its own renderer
 #       (did-finish-load + mounted DOM + capturePage) and exits 0/1.
 #
@@ -135,6 +140,11 @@ jobs:
           # resolve to ::1 on Windows runners while the probe hits 127.0.0.1).
           $env:PORT = "47611"
           $env:HOST = "127.0.0.1"
+          # Seat id for the local roster feed (Phase B+): deployed entries get
+          # metadata.runner_id = this value, and the Phase B+ runner's
+          # AGENT_RUNNER_FLEET_ID must match it or the sharding filter drops
+          # every entry (windows-admin drill 2026-11-06: poll stayed at 0).
+          $env:WANXING_PLUGIN_RUNNER_ID = "smoke-seat"
           $env:PLATFORM_DATA_DIR = "$env:RUNNER_TEMP\smoke-data"
           New-Item -ItemType Directory -Force -Path $env:PLATFORM_DATA_DIR | Out-Null
           $node = "$env:APP_DIR\resources\node\node.exe"
@@ -177,6 +187,134 @@ jobs:
             throw "packaged server.js did not reach /api/ready 200 within 6 minutes"
           }
           Write-Host "::notice::Phase B PASS — packaged backend serves /api/ready 200"
+
+      # ── Phase B+: the packaged runner hosts a real dsh child ───────────────
+      # Phase B proves the backend serves; Phase B+ proves the SERVING half:
+      # the packaged agent-runner — spawned exactly as the desktop supervisor
+      # spawns it (supervisor/descriptors.js runnerEnv: DSH_BIN through the
+      # bundled node, loopback, pod mode, seat-tagged sharding) — polls the
+      # Phase B server's local roster feed, materializes a private dsh home,
+      # and spawns the dsh child. The child must reach the READY handshake
+      # (health state "resident") and STAY ready ≥30s.
+      #
+      # This is the regression gate for the windows-admin drill (2026-11-06):
+      # a child that dies at spawn (0xc0000142-class, ssh/nohup poison) or
+      # during profile boot (inventory identity errors) never reaches
+      # "resident" — the health state stays "starting" until this leg times
+      # out with the runner's own logs in the failure output.
+      #
+      # Needs a tag that ships server/local-agent-feed.js + migration 106
+      # (v1.3.21+). LLM keys are deliberately NOT injected: residency is the
+      # assertion, not turns.
+      - name: Serve a pack through the packaged agent-runner (Phase B+)
+        shell: pwsh
+        run: |
+          $node = "$env:APP_DIR\resources\node\node.exe"
+          $appRoot = "$env:APP_DIR\resources\app"
+          $dshEntry = "$appRoot\node_modules\@deepseek-ai\dsh\lib\bin.js"
+          foreach ($f in @("$appRoot\agent-runner\index.js", $dshEntry)) {
+            if (-not (Test-Path $f)) { throw "packaged file missing: $f" }
+          }
+          # The seed home the runner copies private profile scaffolds from —
+          # the same shared ~/.dsh the desktop supervisor points
+          # AGENT_RUNNER_SEED_HOME at; Phase B's boot established it.
+          $seed = "$env:USERPROFILE\.dsh"
+          if (-not (Test-Path "$seed\profiles\platform")) { throw "shared dsh profile missing at $seed\profiles\platform (Phase B boot did not materialize ~/.dsh)" }
+
+          $base = "http://127.0.0.1:47611"
+          # 1. Install a minimal serving pack (manifest body — the headless
+          #    path; version must be an integer, serving.protocol must be a2a).
+          $manifest = @{
+            name = "smoke-serving-pack"
+            description = "win-install-smoke Phase B+ minimal serving pack"
+            agents = @(@{
+              id = "smoke-agent"
+              name = "Smoke Agent"
+              persona = "Phase B+ smoke agent — answers briefly."
+              serving = @{ protocol = "a2a" }
+            })
+          }
+          $body = @{ packId = "smoke-serving-pack"; version = 1; manifest = $manifest } | ConvertTo-Json -Depth 10
+          $r = Invoke-RestMethod -Uri "$base/api/mypacks/install" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 30
+          Write-Host "pack installed: $($r | ConvertTo-Json -Depth 5 -Compress)"
+
+          # 2. Deploy it to this seat's local fleet: the write lands in the
+          #    deployment store, the feed composes the roster entry seat-tagged
+          #    with WANXING_PLUGIN_RUNNER_ID (set in Phase B).
+          $body = @{ packId = "smoke-serving-pack"; agentId = "smoke-agent" } | ConvertTo-Json
+          $r = Invoke-RestMethod -Uri "$base/api/wanxing/fleet/deployments" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 30
+          Write-Host "deployed: $($r | ConvertTo-Json -Depth 5 -Compress)"
+
+          # 3. Spawn the packaged runner — env mirrors the desktop supervisor's
+          #    runnerEnv (the cloud-default sentinel keeps the desktop sharding
+          #    posture: only entries tagged to THIS seat are served).
+          $env:DSH_BIN = $node
+          $env:DSH_BIN_ARGS = ConvertTo-Json -InputObject @($dshEntry) -Compress
+          $env:AGENT_RUNNER_HOME = "$env:RUNNER_TEMP\wanxing-runner"
+          $env:AGENT_RUNNER_PORT = "8790"
+          $env:AGENT_RUNNER_HOST = "127.0.0.1"
+          $env:AGENT_RUNNER_POD_MODE = "1"
+          $env:AGENT_RUNNER_FLEET_ID = "smoke-seat"
+          $env:AGENT_RUNNER_DEFAULT_ID = "cloud-default"
+          $env:AGENT_SERVING_REGISTRY_URL = "$base/local-registry"
+          $env:AGENT_RUNNER_SEED_HOME = $seed
+          $p = Start-Process -FilePath $node -ArgumentList "agent-runner\index.js" -WorkingDirectory $appRoot `
+                 -RedirectStandardOutput "$env:RUNNER_TEMP\runner-out.log" `
+                 -RedirectStandardError "$env:RUNNER_TEMP\runner-err.log" -PassThru
+
+          # 4. Poll /health until a hosted agent reaches the READY handshake
+          #    (resident — or serving if a turn somehow lands). "starting"
+          #    forever = spawn/boot regression.
+          $deadline = (Get-Date).AddMinutes(6)
+          $ready = $false
+          $last = "(no poll answered)"
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 10
+            if ($p.HasExited) {
+              Write-Host "--- runner exited code $($p.ExitCode); stdout tail ---"
+              Get-Content "$env:RUNNER_TEMP\runner-out.log" -Tail 40 | Write-Host
+              Write-Host "--- stderr tail ---"
+              Get-Content "$env:RUNNER_TEMP\runner-err.log" -Tail 40 | Write-Host
+              throw "packaged agent-runner exited during Phase B+ (code $($p.ExitCode))"
+            }
+            try {
+              $h = Invoke-RestMethod -Uri "http://127.0.0.1:8790/health" -TimeoutSec 5
+              $last = ($h.agents | ForEach-Object { "$($_.key)=$($_.state)" }) -join " "
+              Write-Host "health: children=$($h.children) [$last]"
+              if ($h.agents | Where-Object { $_.state -in @("resident", "serving") }) { $ready = $true; break }
+            } catch { Write-Host "health poll: $($_.Exception.Message)" }
+          }
+          if (-not $ready) {
+            Write-Host "--- runner stdout tail ---"
+            Get-Content "$env:RUNNER_TEMP\runner-out.log" -Tail 60 | Write-Host
+            Write-Host "--- runner stderr tail ---"
+            Get-Content "$env:RUNNER_TEMP\runner-err.log" -Tail 60 | Write-Host
+            throw "no hosted agent reached the ready handshake within 6 minutes (last health: $last) — child spawn/boot regression"
+          }
+
+          # 5. Survival: still ready ≥30s later — the drill's killer was a
+          #    child that died seconds after spawn, while "children" stayed 1.
+          Start-Sleep -Seconds 30
+          $survived = $false
+          try {
+            $h = Invoke-RestMethod -Uri "http://127.0.0.1:8790/health" -TimeoutSec 5
+            $survived = [bool]($h.agents | Where-Object { $_.state -in @("resident", "serving") })
+            if (-not $survived) {
+              Write-Host "health after 30s: $($h | ConvertTo-Json -Depth 5 -Compress)"
+            }
+          } catch { Write-Host "health poll after 30s failed: $($_.Exception.Message)" }
+          if (-not $survived) {
+            Write-Host "--- runner stdout tail ---"
+            Get-Content "$env:RUNNER_TEMP\runner-out.log" -Tail 40 | Write-Host
+            Write-Host "--- runner stderr tail ---"
+            Get-Content "$env:RUNNER_TEMP\runner-err.log" -Tail 40 | Write-Host
+            throw "child reached ready but did not stay ready across the 30s survival window (0xc0000142-class regression)"
+          }
+          Write-Host "::notice::Phase B+ PASS — packaged runner hosts a ready dsh child, stable across 30s"
+          # Stop the runner before Phase C: the GUI app spawns its own runner
+          # and both would fight over :8790.
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Write-Host "Phase B+ runner stopped — Phase C gets :8790"
 
       # ── Phase C: the app testifies about its own rendering ────────────────
       # A/B prove the backend is alive and answers on the port the window uses.

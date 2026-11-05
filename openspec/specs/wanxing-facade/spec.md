@@ -182,7 +182,7 @@ entries MUST NOT be rewritten.
 
 #### Scenario: internal runner address stripped on platform domain card
 
-WHEN an entry carries `provider.url` pointing at a private/tailnet address (e.g. `http://100.64.0.8`)
+WHEN an entry carries `provider.url` pointing at a private/tailnet address (e.g. a CGNAT `100.64.0.0/10` host)
 THEN `GET /api/wanxing/v1/a2a/<slug>/.well-known/agent-card.json` returns a provider without the `url` key, other fields intact
 
 #### Scenario: public provider URL passes through

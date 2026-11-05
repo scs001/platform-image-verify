@@ -81,6 +81,7 @@ const EXCLUDE_PATHS = new Set([
   "lawcraw-architecture.md", // legacy pre-rename product notes
   "docs/opensource-release.md", // this feature's private runbook
   "docs/registry-maintenance.md", // internal registry ops runbook (tailnet/jenkins/ips)
+  "docs/supply-store-cutover-runbook.md", // spine cutover ops runbook: fd-infra-deploy paths, cluster node names, gitee remotes (add-supply-store-unification)
   "docs/explore-wanxing-cockpit-projection.md", // internal explore report: cites fd-infra-deploy manifests and internal registry wiring
   "docs/spider-heal-pack.md", // spider-heal pack ops manual (sub2api keys, mesh dsn)
   "facet/cli/NPM-SCOPE-FIX.md", // npm scope ops runbook: account/org internals

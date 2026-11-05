@@ -201,7 +201,7 @@ test("catalog endpoint: client-visible mcp_endpoint override wins, internal-form
     entry: {
       ...MCP_ENTRY,
       id: "/internal-override",
-      metadata: { ...MCP_ENTRY.metadata, mcp_endpoint: "http://100.64.0.15:18080/internal/mcp" },
+      metadata: { ...MCP_ENTRY.metadata, mcp_endpoint: "http://localhost:18080/internal/mcp" },
     },
   });
   const byName = Object.fromEntries(store.catalogMcpEntries().map((e) => [e.name, e]));

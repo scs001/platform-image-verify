@@ -120,6 +120,18 @@ export function record(notif, { sessionId, turnId }) {
     if (notif.method === "platform/stream") {
       if (STREAMING_DELTA_CHUNKS.has(notif.params?.frame?.chunk?.type)) return;
     }
+    // Storage-bound discipline (slim-trace-request-headers): request/header
+    // carries the full per-turn tool-roster schema (hundreds of KB on a
+    // loaded cell, re-serialized every turn). Every trace reader only wants
+    // header.config.{provider,model} for turn attribution; the roster itself
+    // is consumed in memory by the unknown-tool matcher and explicitly
+    // dropped there ("no other use for it"). Store the identity, never the
+    // roster.
+    let stored = notif.params ?? {};
+    if (eventType === "request/header") {
+      const cfg = notif.params?.event?.data?.header?.config;
+      stored = { event: { type: "request/header", data: { header: { config: { provider: cfg?.provider ?? null, model: cfg?.model ?? null } } } } };
+    }
     const t = turnId || "unknown";
     const seq = (seqByTurn.get(t) ?? 0) + 1;
     seqByTurn.set(t, seq);
@@ -130,7 +142,7 @@ export function record(notif, { sessionId, turnId }) {
       ts: Date.now(),
       method: notif.method,
       eventType,
-      payload: JSON.stringify(notif.params ?? {}),
+      payload: JSON.stringify(stored),
     });
     // Turn end / status changes force a flush so a finished turn is
     // immediately queryable; other chunks ride the timer.

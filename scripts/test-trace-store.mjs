@@ -317,3 +317,36 @@ test("the module self-check passes as a subprocess", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("request/header stores identity only — the tool roster never lands (slim-trace-request-headers)", async () => {
+  const { root, trace } = await freshStores();
+  try {
+    trace.bindTurn("turn-slim");
+    const bigRoster = Array.from({ length: 712 }, (_, i) => ({
+      name: `mcp__fd-quant__tool_${i}`,
+      description: "x".repeat(150),
+      input_schema: { type: "object", properties: { a: { type: "string" } } },
+    }));
+    trace.record(
+      ev("request/header", { header: { config: { provider: "volces", model: "deepseek-v4-pro" }, tools: bigRoster, adapterDefaults: { maxTokens: true } } }),
+      { sessionId: "s1", turnId: "turn-slim" },
+    );
+    trace.record(ev("turn/end", { reason: { kind: "stop" } }), { sessionId: "s1", turnId: "turn-slim" });
+    await sleep(700);
+    const turns = trace.listTurns({});
+    assert.equal(turns.length, 1);
+    // 消费方字段照常归因
+    assert.equal(turns[0].model, "deepseek-v4-pro");
+    assert.equal(turns[0].provider, "volces");
+    // 落库行瘦身：无 tools、无 adapterDefaults
+    const stored = trace.getTurn("turn-slim").find((e) => e.eventType === "request/header");
+    const header = stored.payload.event.data.header;
+    assert.deepEqual(Object.keys(header), ["config"]);
+    assert.deepEqual(header.config, { provider: "volces", model: "deepseek-v4-pro" });
+    const rawLen = JSON.stringify(stored.payload).length;
+    assert.ok(rawLen < 500, `stored header payload should be identity-only, got ${rawLen} bytes`);
+  } finally {
+    trace.shutdownTrace();
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -321,9 +321,13 @@ test("e2e 3.3b: single-tier over-cap on a successful turn degrades ONE hop at se
   assert.ok(ev, "single over-cap event auditable");
 });
 
-test("turnTokens: honest null on unreadable usage, sums all four axes", () => {
+test("turnTokens: honest null on unreadable usage, sums all axes, dsh alias shape", () => {
   assert.equal(turnTokens(null), null);
-  assert.equal(turnTokens({}), null, "no input/output axes → unreadable");
+  assert.equal(turnTokens({}), null, "no primary axes → unreadable");
   assert.equal(turnTokens({ input: 100, output: 50, cacheReadTokens: 10, cacheWriteTokens: 5 }), 165);
   assert.equal(turnTokens({ input: 100 }), 100, "missing axes count as 0");
+  // dsh TokenUsage 实测形状（dsh-events.js:533）：inputTokens/outputTokens。
+  assert.equal(turnTokens({ inputTokens: 9000, outputTokens: 125 }), 9125, "dsh alias shape");
+  // normalizeUsage 别名组：snake_case。
+  assert.equal(turnTokens({ input_tokens: 40, prompt_tokens: 1 }), 40, "snake alias first-present wins (no double count)");
 });

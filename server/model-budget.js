@@ -47,13 +47,25 @@ export function budgetConfigFromEnv(env = process.env) {
 }
 
 // 回合真实用量的 token 合计：input + output + cache 三轴全入（缓存读/写
-// 也是真金白银的上下文面）。缺失轴当 0，usage 缺席当 0（诚实入账为 0，
-// 不猜）。返回 null 表示 usage 无法解读（调用方跳过记账，不阻塞）。
+// 也是真金白银的上下文面）。字段名对齐 dsh TokenUsage 的实测形状
+//（inputTokens/outputTokens——dsh-events.js:533 起）与 normalizeUsage 的
+// 别名组（fleet-events.js:102）；缺失轴当 0，两主轴都缺当 null（调用方
+// 跳过记账，不阻塞、不猜）。
 export function turnTokens(usage) {
   if (!usage || typeof usage !== "object") return null;
-  const num = (v) => (Number.isFinite(v) && v >= 0 ? Math.round(v) : 0);
-  if (!Number.isFinite(usage.input) && !Number.isFinite(usage.output)) return null;
-  return num(usage.input) + num(usage.output) + num(usage.cacheReadTokens) + num(usage.cacheWriteTokens);
+  const pick = (...names) => {
+    for (const n of names) {
+      const v = usage[n];
+      if (Number.isFinite(v) && v >= 0) return Math.round(v);
+    }
+    return 0;
+  };
+  const input = pick("input", "inputTokens", "promptTokens", "input_tokens", "prompt_tokens");
+  const output = pick("output", "outputTokens", "completionTokens", "output_tokens", "completion_tokens");
+  const hasPrimary = ["input", "inputTokens", "promptTokens", "input_tokens", "prompt_tokens", "output", "outputTokens", "completionTokens", "output_tokens", "completion_tokens"]
+    .some((n) => Number.isFinite(usage[n]) && usage[n] >= 0);
+  if (!hasPrimary) return null;
+  return input + output + pick("cacheReadTokens") + pick("cacheWriteTokens") + pick("reasoningTokens");
 }
 
 export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) {

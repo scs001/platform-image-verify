@@ -4,7 +4,6 @@ The unified in-cell task engine: one task concept for all unattended agent work 
 
 ## Requirements
 
-
 ### Requirement: A task is the unit of work given to a persona
 Every task SHALL carry a target (`{ type, ref }` — the executor), a prompt, and a dedicated session that receives its output, created no later than its first execution and visible in the normal session list with a title derived from the task. Every task SHALL carry exactly one trigger kind; a schedule trigger's firing semantics are defined by `cron-module`. Supported target types are `persona` (a persona of this cell) and, when the cell's catalog holds online a2a entries, `a2a` (a market Agent Service, executed as a remote task — openspec: agent-delegation-a2a; an a2a execution occupies no persona slot and switches no runtime). Creation SHALL reject a target whose `type` is not supported by the cell or whose `ref` the cell cannot resolve, and the persona type SHALL be supported.
 
@@ -149,3 +148,12 @@ effects on execution.
 
 - **WHEN** an authenticated request hits the cell's task stats endpoint
 - **THEN** it answers the stats snapshot JSON; the route is NOT loopback-exempt
+
+### Requirement: Out-of-window missed cron beats alert explicitly
+
+When the task engine determines a scheduled beat was missed outside the catch-up tolerance window (the existing record-only path), the engine SHALL emit an explicit alert event (same channel discipline as the metering unconfigured alert) naming the task and miss count. Silent swallowing of out-of-window misses SHALL NOT occur: the miss record alone is not sufficient.
+
+#### Scenario: Long outage loses beats and alerts
+
+- **WHEN** a cell is stopped longer than the catch-up tolerance window and a recurring task misses beats
+- **THEN** on boot the missed beats are recorded as today AND an alert event naming the task and count is emitted

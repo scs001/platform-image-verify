@@ -16,4 +16,4 @@ installed. Native source: `massive`. It reaches agents through the DAAS / busine
 
 ## As of
 
-Provenance: daas-catalog · As of: 2026-11-05T02:57:12+00:00
+Provenance: daas-catalog · As of: 2026-11-05T03:12:12+00:00

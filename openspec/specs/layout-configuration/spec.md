@@ -8,7 +8,7 @@
 
 ### Requirement: Unified surface registry
 
-The system SHALL maintain a single surface registry covering exactly three containers in v1: primary navigation tabs, Settings sections, and the Agents page sub-tabs. Every surface SHALL be keyed by its existing public route slug (`chat`, `knowledge`, `resources`, `agents`, `apps`, `tasks`, `fleet`; settings section slugs per `settings-surface`; agents sub-tab values per `agent-catalog`). Each registry entry SHALL declare its container, its platform predicates (desktop-only, pack-marketplace-gated, documents-gated, admin-only) and its stable identity metadata (i18n key, icon, testid). Slugs SHALL NOT change and no surface SHALL exist outside the registry.
+The system SHALL maintain a single surface registry covering exactly three containers in v1: primary navigation tabs, Settings sections, and the Agents page sub-tabs. Every surface SHALL be keyed by its existing public route slug (`chat`, `knowledge`, `resources`, `memory`, `agents`, `apps`, `tasks`, `fleets`, `machines`, `zhiyu`, `blueprints`, `fleet`; settings section slugs per `settings-surface`; agents sub-tab values per `agent-catalog`). Each registry entry SHALL declare its container, its platform predicates (desktop-only, pack-marketplace-gated, documents-gated, admin-only) and its stable identity metadata (i18n key, icon, testid). Slugs SHALL NOT change and no surface SHALL exist outside the registry.
 
 #### Scenario: registry keys match public routes
 
@@ -22,18 +22,18 @@ The system SHALL maintain a single surface registry covering exactly three conta
 
 ### Requirement: Versioned layout preset schema
 
-A layout preset SHALL be a versioned object declaring, per container, an ordered list of visible surface slugs (`version` plus `nav`, `settings`, `agentsTabs`). A slug absent from a container's list is hidden by that preset. The schema SHALL carry a version field so later revisions can extend scope (chat-internal panels, interaction modes) without rewriting stored presets. The system SHALL ship two factory presets: `standard-snapshot`, the default, whose per-container lists equal the pre-simplify-chat-and-agents-ia hardcoded surfaces exactly (including platform predicates) **except** that `agentsTabs` lists `agents` and `market` only — the `apps` sub-tab is retired from every factory preset (its entries live in the app center, openspec: app-center) while its slug remains in the registry so stored presets and deep links keep resolving — **and** whose `nav` list omits `blueprints`: the blueprint studio's nav entry is retired into the workspace redirect, while its registry slug remains so stored presets and deep links keep resolving; and `simple`, the non-technical skeleton — navigation limited to Chat, Knowledge, Resources, Agents, Apps（the app center is the discovery and connection entry every business user must reach）; Settings limited to the Basics group sections plus Connections. `tasks` and `fleet` SHALL remain outside `simple`.
+A layout preset SHALL be a versioned object declaring, per container, an ordered list of visible surface slugs (`version` plus `nav`, `settings`, `agentsTabs`). A slug absent from a container's list is hidden by that preset. The schema SHALL carry a version field so later revisions can extend scope (chat-internal panels, interaction modes) without rewriting stored presets. The system SHALL ship two factory presets: `standard-snapshot`, the default, whose `nav` list equals the unified surface registry's nav order exactly (including platform predicates) **minus** `blueprints` — the blueprint studio's nav entry is retired into the workspace redirect, while its registry slug remains so stored presets and deep links keep resolving; the registry carries the post-simplify web surfaces `memory`, `fleets`, `machines`, and `zhiyu` alongside the pre-simplify set, and `standard-snapshot` renders them all in registry order — **and** whose `agentsTabs` lists `agents` and `market` only — the `apps` sub-tab is retired from every factory preset (its entries live in the app center, openspec: app-center) while its slug remains in the registry so stored presets and deep links keep resolving; and `simple`, the non-technical skeleton — navigation limited to Chat, Knowledge, Resources, Memory, Agents, Apps（the app center is the discovery and connection entry every business user must reach）; Settings limited to the Basics group sections plus Connections. `tasks` and `fleet` SHALL remain outside `simple`.
 
 #### Scenario: standard-snapshot equals today's surfaces
 
 - **WHEN** no deployment, role, or user layer provides any layout data and `standard-snapshot` resolves
-- **THEN** the rendered navigation and Settings sections match the pre-change hardcoded behavior exactly, item for item and in order, **except** that the navigation omits the 蓝图构造间 entry (retired to the workspace redirect)
+- **THEN** the rendered navigation and Settings sections match the unified surface registry item for item and in order, **except** that the navigation omits the 蓝图构造间 entry (retired to the workspace redirect)
 - **AND** the Agents page renders exactly the Experts and Packs sub-tabs, in that order, with no Apps sub-tab
 
 #### Scenario: simple preset hides technical surfaces
 
 - **WHEN** the `simple` preset resolves for a user
-- **THEN** the navigation shows Chat, Knowledge, Resources, Agents, Apps only, in registry order
+- **THEN** the navigation shows Chat, Knowledge, Resources, Memory, Agents, Apps only, in registry order
 - **AND** the Settings modal shows only the Basics group sections plus Connections
 
 #### Scenario: business-role users reach the app center

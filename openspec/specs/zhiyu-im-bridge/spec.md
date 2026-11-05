@@ -8,7 +8,7 @@
 ### Requirement: bot↔房间绑定管理
 
 cell 侧 bots 行 SHALL 可额外携带一个 `zhiRoomId`（空 = 行为与绑定出现前逐字节一致）。
-绑定由 bot owner 的管理 REST 操作：`PUT/DELETE /api/zhiyu/im-bridge/bots/:botId/room`。非法目标（房间不存在、非本人 bot、非本人房间）SHALL 同形拒绝（404），不泄露存在性。
+绑定由 bot owner 的管理 REST 操作：`PUT/DELETE /api/zhiyu-im-bridge/bots/:botId/room`。非法目标（房间不存在、非本人 bot、非本人房间）SHALL 同形拒绝（404），不泄露存在性。
 
 #### Scenario: 为 bot 绑定房间
 

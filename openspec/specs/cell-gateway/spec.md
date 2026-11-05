@@ -56,9 +56,13 @@ a cell of policy `ephemeral` SHALL be bounded in lifetime and destroyed at expir
 suspended cell whose scheduled work is due SHALL be woken by the gateway's duty ring rather
 than held resident — the former "enabled cron jobs or bots block reaping" exemption is
 superseded: holding scheduled work no longer forces residency, because suspension no longer
-means missing the schedule. The deployment SHALL document the offline contract: a suspended
-cell means the user's chat cold-starts on next visit, and due work runs via wake — with the
-honest caveat that a wake requires the gateway to be running.
+means missing the schedule. That supersession applies to registry-tracked deployments; the
+legacy no-registry deployment mode retains the exemption — enabled cron jobs or bots still
+block idle reaping there (the spawner keeps the legacy branch byte-for-byte) — while
+registry-tracked deployments follow the new semantics (the duty ring carries due scheduled
+work; residency policy alone governs reaping). The deployment SHALL document the offline
+contract: a suspended cell means the user's chat cold-starts on next visit, and due work
+runs via wake — with the honest caveat that a wake requires the gateway to be running.
 
 The gateway SHALL maintain at most one cell process per user at any time: concurrent first
 requests for the same user SHALL collapse onto a single spawn (the in-flight spawn is
@@ -88,6 +92,15 @@ so operators can see gate refusals next to spawn/wake/suspend decisions.
 - **THEN** the gateway leaves that cell running — the residency policy, not the job
   inventory, is now what keeps scheduled work resident; under `on_demand` the duty ring,
   not residency, carries the schedule
+
+#### Scenario: legacy no-registry deployments keep the reaping exemption
+
+- **WHEN** a deployment runs the legacy no-registry mode and a cell past its quiet period
+  holds enabled cron jobs or bots
+- **THEN** the gateway keeps the cell up instead of reaping it — the cron/bot reaping
+  exemption survives in legacy mode
+- **AND** registry-tracked deployments do not exempt on job inventory: reaping follows the
+  residency policy and the duty ring carries due scheduled work
 
 #### Scenario: concurrent first requests spawn one cell
 

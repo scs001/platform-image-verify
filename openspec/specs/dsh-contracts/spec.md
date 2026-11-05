@@ -89,6 +89,7 @@
 
 - **WHEN** 候选 dsh 树上 ⑨b 报 PASS
 - **THEN** 该结果 SHALL 被记录为该候选支持回合收尾交错，供 dsh 升级 change 决定翻转 `TURN_DISPATCH` 默认值
+
 ### Requirement: 0.2.0 多 agent 能力面合同族（⑩-⑭）
 
 套件 SHALL 新增五条合同（⑩-⑭），钉住平台在 dsh 0.2.0 多 agent 能力面上的行为依赖（萬星多 harness 运行层的地基，见 docs/wanxing-multi-harness-runtime-explore.md），与既有合同同流程：候选模式、独立执行、独立报告、任一 fail 退出码非零。⑩⑪⑫经**进程内探针插件**断言（test-only patch 行注入候选安装的临时 profile，装载机制与 platform-sdk-server 同型——合同⑤已钉住的 disable+insert 语义；探针的 `@deepseek-ai/*` 直引仅限适配层名单内文件）。五条合同：
@@ -185,3 +186,13 @@ The contracts suite SHALL carry a seventeenth contract pinning the ACP adapter's
 
 - **WHEN** adapter 把「空回合」或「起不来」的失败改成了与 dsh 路径不同的形状（或吞掉失败）
 - **THEN** 合同⑰ SHALL FAIL——计费与计量语义跨 harness 必须同族
+
+### Requirement: The contracts index closes over all shipped contracts
+
+套件 SHALL 维护一份合同索引，覆盖现役全部合同：①-⑯（v1 六条 + 活控制 ⑦⑧⑨ 与 advisory 行 ⑨b + 多 agent 能力面 ⑩-⑭ + 流通道 ⑮ + pod 形状 ⑯）、ACP adapter 映射面 ⑰、plugin-supply ⑱——索引 SHALL 与套件实际执行的合同清单一一对应、全量闭合：新增合同 SHALL 同时进入索引，退役合同 SHALL 同步移出，索引外 SHALL NOT 存在套件在跑的合同。合同⑱（plugin-supply：`plugins/list` 名册形状与未知名拒绝、`set_enabled` 持久化往返断言）虽由本套件执行，其能力归属 SHALL 记为 `dsh-plugin-supply` spec——该合同钉住 dsh 插件供给桥面，行为语义在彼处规定；索引 SHALL 在该条目标注跨能力归属，SHALL NOT 因归属在别的 capability 而把它从本套件索引中缺席。
+
+#### Scenario: 索引闭合含合同⑱
+
+- **WHEN** 列举套件实际执行的合同并与索引逐条核对
+- **THEN** ①-⑱（含 ⑨b advisory 行）逐条在册，无索引外合同
+- **AND** 合同⑱的索引条目 SHALL 标注其行为语义归属 `dsh-plugin-supply` capability spec

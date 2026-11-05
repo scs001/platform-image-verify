@@ -5,7 +5,6 @@ Defines what a vertical sample pack is on the hosted platform (entry skill + MCP
 
 ## Requirements
 
-
 ### Requirement: Pack composition model
 
 A vertical pack SHALL be defined as a named composition of four parts: exactly one entry skill, one or more MCP servers, exactly one conversational agent entry, and one visibility role. The pack definition SHALL be documented in `docs/vertical-packs.md` and is the single source a demo operator follows. Two packs remain at the sample face:
@@ -23,12 +22,13 @@ The two data-domain sample packs (**数据-股票**, **数据-中国经济**) SH
 #### Scenario: Wrong-role user sees none of the pack
 
 - **WHEN** a user without the pack's role browses the Store and Agents pages
-- **THEN** the pack's gated entries (per `registry-groups.json`) are invisible to that user
+- **THEN** the pack's gated entries are invisible to that user — group gating follows the registry visibility metadata carried on each entry (`visibility`/`allowed_groups`; carried metadata wins, per `registry-bridge.js`), with the hand-mapped `registry-groups.json` serving only as a compatibility fallback for entries that carry no such metadata
 
 #### Scenario: Data sample packs retire without breaking subscribers
 
 - **WHEN** 数据-股票 and 数据-中国经济 are unlisted per this change
 - **THEN** they disappear from the public listing, their published versions remain fetchable by existing subscribers, and the 柏讯 suites carry the equivalent (or richer) data-domain workflows
+
 ### Requirement: Entry skill is the pack's single install surface
 
 Each entry skill SHALL be a registry skill whose SKILL.md encodes: the pack's workflow stages in order, which existing skills to invoke at each stage (referenced by exact skill name), which MCP tool groups to call (referenced by server name and tool intent), the output deliverable format, and domain honesty constraints (no fabricated citations/case numbers/tickers; low-confidence legal conclusions MUST be flagged). Installing the entry skill plus the pack's MCP servers SHALL be sufficient for the full workflow — the entry skill MUST NOT require installing any other skill to function (other skills are invoked by name when present, skipped with a note when absent).
@@ -75,7 +75,6 @@ Each pack's agent entry SHALL be a catalog `agent-remote` `chat` entry backed by
 
 - **WHEN** a user chats with a pack agent with the pack's entry skill installed
 - **THEN** the entry skill's workflow and constraints govern the conversation; the agent entry contributes the model endpoint and display identity only
-
 
 ### Requirement: Demo playbook
 

@@ -3,7 +3,9 @@
 ## Purpose
 
 Defines the frontend shell that hosts the chat surface: what technology stack it uses, where it lives in the repository, how the server serves it, and how it coexists with the legacy vanilla views during the incremental migration. This capability is scoped to the *shell* (toolchain, module structure, static-serving contract, view-migration boundary). It does not restate the behavioral contracts of chat streaming, tool rendering, model selection, skills, or slash commands — those live in their existing specs and are preserved verbatim.
+
 ## Requirements
+
 ### Requirement: The chat view is served by a React SPA under `web/`
 
 The chat surface (sidebar, message log, composer) SHALL be implemented as a React + TypeScript single-page application located under `web/` at the repository root. Its build output SHALL be produced by Vite and written to `web/dist/`. Views other than the chat surface MAY remain on the legacy vanilla `public/` frontend until they are ported by follow-up changes.
@@ -62,7 +64,7 @@ The migration SHALL preserve every server WebSocket event and REST endpoint docu
 
 ### Requirement: Backend code remains buildless
 
-The Node backend (`server.js`, `mcp-bridge.js`, `documents.js`, `chat-history.js`, `collections.js`, `db.js`, and `electron/**`) SHALL remain plain ES modules with no transpilation step. The introduction of a bundler SHALL be scoped to `web/`.
+The Node backend (`server.js`, `dsh-bridge.js`, `documents.js`, `chat-history.js`, `collections.js`, `db.js`, and `electron/**`) SHALL remain plain ES modules with no transpilation step. The introduction of a bundler SHALL be scoped to `web/`.
 
 #### Scenario: Backend has no transpilation
 - **WHEN** a maintainer edits a backend module

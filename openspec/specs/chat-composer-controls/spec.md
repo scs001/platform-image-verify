@@ -154,36 +154,36 @@ The control strip SHALL be the only surface in the application from which the us
 
 ### Requirement: Agent switching is rejected while the agent is streaming
 
-The agent control SHALL follow the same streaming guard as the model control. The server SHALL reject a `set_agent` request while a turn is mid-response, so that a turn is not interrupted by an agent switch, and the strip SHALL surface the resulting error without changing the displayed agent.
+The agent control — since the strip's agent section is retired, the unified assistant selector「与谁对话」（the AssistantPicker in its `welcome` and session-`header` placements; openspec: agent-preset-selection）— SHALL follow the same streaming guard as the model control. The server SHALL reject a `set_agent` request while a turn is mid-response, so that a turn is not interrupted by an agent switch, and the selector SHALL surface the resulting error without changing the displayed agent.
 
 #### Scenario: agent switch attempted during streaming
 
 - **WHEN** the user selects a different agent while the agent is streaming a response
 - **THEN** the server SHALL reply with an `error` indicating the agent cannot be changed mid-turn
-- **AND** the agent control SHALL continue displaying the previous agent
+- **AND** the assistant selector SHALL continue displaying the previous agent
 
 #### Scenario: agent control is disabled while streaming
 
 - **WHEN** a turn is streaming
-- **THEN** the agent control SHALL be disabled
+- **THEN** the assistant selector's persona rows SHALL be disabled
 - **AND** SHALL be re-enabled when the turn ends, whether it succeeded or failed
 
 ### Requirement: Agent control renders only when a switch is possible
 
-The agent control SHALL render only when two or more switchable agents exist. When the deployment has a single agent — the default, since the catalog is optional — the control SHALL be omitted from the strip rather than rendered showing one unchangeable value.
+The agent control — the persona face of the unified assistant selector「与谁对话」（the AssistantPicker in its `welcome` and session-`header` placements; openspec: agent-preset-selection）— SHALL render only when two or more switchable agents exist. When the deployment has a single agent — the default, since the catalog is optional — the selector SHALL NOT render a persona choice (the single local agent SHALL NOT appear as a selectable persona row) rather than rendered showing one unchangeable value.
 
 Because the agent list arrives asynchronously after connect, the control MAY appear once the catalog loads. This settling is permitted; it matches how the model control's list populates at startup.
 
 #### Scenario: single agent omits the control
 
 - **WHEN** the chat renders in a deployment with no catalog configured, so only the local agent exists
-- **THEN** the control strip SHALL NOT render an agent control
-- **AND** the strip SHALL render its remaining controls without a gap where the agent control would be
+- **THEN** the assistant selector SHALL NOT render a persona choice
+- **AND** the control strip SHALL NOT render an agent control
 
 #### Scenario: multiple agents render the control
 
 - **WHEN** the catalog provides two or more switchable agents
-- **THEN** the control strip SHALL render the agent control
+- **THEN** the assistant selector SHALL render the persona choice
 - **AND** it SHALL list every switchable agent
 
 ### Requirement: Composer textarea uses 16px font on mobile viewports to prevent iOS focus zoom
@@ -204,6 +204,7 @@ The composer textarea SHALL render at a font size of at least 16px on viewports 
 
 - **WHEN** the viewport meta is inspected
 - **THEN** it SHALL NOT set `maximum-scale=1` or `user-scalable=no`
+
 ### Requirement: Web search toggle chip on the control strip
 
 控制条 SHALL 提供会话级「联网搜索」开关芯片，默认关。开关 SHALL 经服务端 `tools/set` 路径即时生效（免重启），翻转后芯片 SHALL 反映该会话的当前状态；桥未声明 `tools/set` 能力时 SHALL 不渲染该芯片（而非渲染一个不可用开关）。

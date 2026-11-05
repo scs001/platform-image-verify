@@ -32,7 +32,7 @@ The miniprogram SHALL surface unread scheduled output at its navigation entry po
 - **THEN** the 「定时任务」 group header shows an unread indication, which clears once the session is viewed
 
 ### Requirement: WeChat subscribe-message envelope is best-effort
-The system MAY deliver a WeChat subscribe message for a completed job when the user has an unused message consent for that template. When consent is absent or exhausted, delivery SHALL silently degrade to in-app unread only; job execution and history SHALL be unaffected. Consent SHALL be requested only from explicit user interaction (task creation flow or an in-app notice setting), never opportunistically.
+The WeChat subscribe-message envelope is a planned increment, not an implemented capability: neither the miniprogram nor the server side carries any `requestSubscribeMessage` code today, so no subscribe message is sent and completed jobs surface through in-app unread only. When the envelope is implemented, it SHALL keep the best-effort contract below: the system MAY deliver a WeChat subscribe message for a completed job when the user has an unused message consent for that template; when consent is absent or exhausted, delivery SHALL silently degrade to in-app unread only, leaving job execution and history unaffected. Consent SHALL, at implementation time, be requested only from explicit user interaction (task creation flow or an in-app notice setting), never opportunistically.
 
 #### Scenario: Consent available
 - **WHEN** a job completes and the user holds an unused consent for the notification template

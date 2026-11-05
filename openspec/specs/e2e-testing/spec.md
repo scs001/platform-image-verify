@@ -2,7 +2,9 @@
 
 ## Purpose
 The Playwright end-to-end suite: it launches an isolated server on a throwaway port with throwaway store directories and drives the real browser UI, split into a deterministic offline `fast` project and an LLM-spending `@smoke` project, run by `npm run test:e2e` / `test:e2e:smoke`. Coverage spans documents and collections, chat history and a real chat turn, model switching and the selector, the thinking-block shortcut, app-shell navigation, SQLite persistence, extensions management, the Settings modal (through the shared `openSettings` helper) and theme switching.
+
 ## Requirements
+
 ### Requirement: E2E suite launches an isolated server and drives the browser UI
 The project SHALL provide a Playwright-based end-to-end test suite that launches the server fresh via a `webServer` config on an overridable test port (default 3100) bound to `127.0.0.1`, using throwaway store directories passed through `CHAT_HISTORY_STORE_DIR` and `DOCUMENTS_STORE_DIR` env vars so the user's real `chat-history-store/` and `documents-store/` are never touched. The suite SHALL drive the real browser UI (Chromium). The store directories SHALL default to their current hard-coded paths when the env vars are unset, so production behavior is unchanged.
 
@@ -100,19 +102,6 @@ The suite SHALL cover switching models via the UI selector and via the `/model` 
 - **THEN** an error event SHALL be shown
 - **AND** the active model SHALL remain unchanged
 
-### Requirement: E2E suite covers document chat (RAG) flow
-The suite SHALL cover the "Ask the collection" flow: adding a text document, waiting for it to be ready, querying the document collection, and verifying an answer is returned with source document names. This test SHALL be marked `@smoke` since it requires an LLM call.
-
-#### Scenario: query document collection returns an answer
-- **WHEN** the test adds a text document with known content, waits for it to be ready, and submits a query through the "Ask the collection" input
-- **THEN** an answer SHALL be displayed in the answer area
-- **AND** the answer SHALL reference the source document name
-
-#### Scenario: empty collection query returns empty answer
-- **WHEN** the test queries the collection with no ready documents
-- **THEN** an empty or placeholder answer SHALL be shown
-- **AND** no source document names SHALL be listed
-
 ### Requirement: E2E suite covers thinking block keyboard shortcut
 The E2E suite SHALL test that thinking blocks are displayed when the agent produces reasoning output, and that the `Ctrl+O` keyboard shortcut toggles their visibility.
 
@@ -130,13 +119,13 @@ The E2E suite SHALL test that thinking blocks are displayed when the agent produ
 
 ### Requirement: E2E suite covers app shell navigation
 
-The suite SHALL verify the sidebar contains exactly the canonical work-surface navigation tabs — Chat, Knowledge, Agents, Bots, and Trace — that switching between them works correctly, and that the demoted configuration entries are absent from the sidebar.
+The suite SHALL verify the sidebar contains exactly the canonical work-surface navigation tabs — Chat, Knowledge, Resources, Agents, and Tasks — that switching between them works correctly, and that the demoted configuration entries are absent from the sidebar.
 
 #### Scenario: sidebar shows current navigation tabs
 
 - **WHEN** the app loads
-- **THEN** the sidebar SHALL show the navigation tabs Chat, Knowledge, Agents, Bots, and Trace
-- **AND** no Models, MCP Servers, Skills, Dashboard, Documents, or Extensions navigation tab SHALL be present
+- **THEN** the sidebar SHALL show the navigation tabs Chat, Knowledge, Resources, Agents, and Tasks
+- **AND** no Models, MCP Servers, Skills, Bots, or Trace navigation tab SHALL be present
 
 #### Scenario: switching between work surfaces works
 
@@ -349,4 +338,3 @@ The remaining specs navigate by URL and SHALL continue to pass unmodified, becau
 - **WHEN** a spec fails after the shell changes land
 - **THEN** its result SHALL be comparable against the recorded pre-change baseline run
 - **AND** a failure present in the baseline SHALL NOT be attributed to this change
-

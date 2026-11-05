@@ -69,11 +69,11 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 ### Requirement: Search relay wiring is configurable from the settings surface
 
-平台 SHALL 提供管理员可用的设置分区「网络搜索」，读写搜索 relay 的接线配置：relay 地址（`url`）与 relay 令牌（`token`）。读取 SHALL NOT 回传令牌明文（只回 `hasToken` 与尾 4 位掩码）；写入空字符串 SHALL 清除该项、回退到部署环境变量。未配置存储值时，行为 SHALL 与本变更前逐字节一致（进程 env `SEARCH_RELAY_URL`/`SEARCH_RELAY_TOKEN` 兜底）。
+平台 SHALL 在 Settings → Connections 分节内提供管理员可用的「网络搜索」接线卡（search-service 卡），读写搜索 relay 的接线配置：relay 地址（`url`）与 relay 令牌（`token`）。旧 `/settings/websearch` 路由 SHALL 以重定向保语义（指向 `/settings/connections?panel=search`）。读取 SHALL NOT 回传令牌明文（只回 `hasToken` 与尾 4 位掩码）；写入空字符串 SHALL 清除该项、回退到部署环境变量。未配置存储值时，行为 SHALL 与本变更前逐字节一致（进程 env `SEARCH_RELAY_URL`/`SEARCH_RELAY_TOKEN` 兜底）。
 
 #### Scenario: 读取当前配置（不回显令牌）
 
-- **WHEN** 管理员打开「网络搜索」分区
+- **WHEN** 管理员打开 Settings → Connections 分节内的 search-service 卡
 - **THEN** 端点 SHALL 返回生效中的 `url`、令牌的存在标记与掩码（`hasToken: true` + 尾 4 位）、以及来源（`stored` / `env` / 未配置）
 - **AND** 响应任何字段 SHALL NOT 包含令牌明文
 
@@ -94,7 +94,7 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 ### Requirement: Search relay connectivity is testable from the settings surface
 
-「网络搜索」分区 SHALL 提供连通性测试：以当前生效配置（含未保存的表单值）向 relay 发一次最小搜索请求，并返回可达性、鉴权结果与上游状态的可读结论。测试 SHALL NOT 持久化任何值。
+Settings → Connections 分节内的 search-service 卡 SHALL 提供连通性测试：以当前生效配置（含未保存的表单值）向 relay 发一次最小搜索请求，并返回可达性、鉴权结果与上游状态的可读结论。测试 SHALL NOT 持久化任何值。
 
 #### Scenario: 可达且鉴权通过
 
@@ -122,7 +122,7 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 ### Requirement: Users can bring their own search key
 
-「网络搜索」设置分区 SHALL 对所有登录用户可见。用户 SHALL 能保存自己的搜索提供商密钥（BYOK），语义为 write-only：读取面只回存在标记与尾 4 位掩码，永不回明文；保存 SHALL 立即生效（无需重启）；清除 SHALL 回退到共享池。用户密钥 SHALL 只影响该用户自己的搜索，且用户 SHALL 只能读写自己的密钥（身份取自请求，不接受客户端指定他人）。
+Settings → Connections 分节内的 search-service 卡 SHALL 对所有登录用户可见。用户 SHALL 能保存自己的搜索提供商密钥（BYOK），语义为 write-only：读取面只回存在标记与尾 4 位掩码，永不回明文；保存 SHALL 立即生效（无需重启）；清除 SHALL 回退到共享池。用户密钥 SHALL 只影响该用户自己的搜索，且用户 SHALL 只能读写自己的密钥（身份取自请求，不接受客户端指定他人）。
 
 #### Scenario: 保存后立即使用
 
@@ -131,7 +131,7 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 #### Scenario: 读取不回显
 
-- **WHEN** 用户打开分区或调用读取端点
+- **WHEN** 用户打开该卡或调用读取端点
 - **THEN** 响应 SHALL 只含 `hasKey` 与尾 4 位掩码，SHALL NOT 含密钥明文
 
 #### Scenario: 清除回退共享池
@@ -179,7 +179,7 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 ### Requirement: Shared pool health is visible to administrators
 
-「网络搜索」分区 SHALL 为管理员展示共享池健康。池的供给上游为平台网关
+Settings → Connections 分节内的 search-service 卡 SHALL 为管理员展示共享池健康。池的供给上游为平台网关
 websearch 车道时，健康面 SHALL 以车道为主视图：上游模式（车道）、车道可达性、
 车道侧错误计数与当日用量/上限；冷备直连路径已退役删除（retire-search-relay-direct），
 SHALL 不再展示冷备启用计数与 per-key 冷却视图（该状态由词元管理面承担）。
@@ -188,17 +188,17 @@ SHALL 不再展示冷备启用计数与 per-key 冷却视图（该状态由词�
 
 #### Scenario: 管理员看到池状态
 
-- **WHEN** 管理员打开分区
+- **WHEN** 管理员打开 search-service 卡
 - **THEN** SHALL 看到上游模式（车道）、车道可达性、错误计数、当日用量与上限
 
 #### Scenario: 非管理员看不到管理区
 
-- **WHEN** 非管理员用户打开分区
+- **WHEN** 非管理员用户打开 search-service 卡
 - **THEN** SHALL 只看到自己的密钥区；共享服务配置与池状态 SHALL 不渲染，且相应端点 SHALL 对其返回 403
 
 #### Scenario: keys 段隐藏
 
-- **WHEN** 退役实施后打开网络搜索设置面板
+- **WHEN** 退役实施后打开 search-service 卡
 - **THEN** 冷备 key 列表与冷却状态视图不再渲染，BYOK 配置区照常
 
 ### Requirement: Search is off by default and enabled per session
@@ -220,8 +220,6 @@ websearch 工具 SHALL 默认不进入会话的有效工具面（部署可经 `P
 
 - **WHEN** 管理员经扩展面停用 websearch 服务器
 - **THEN** 会话级开关 SHALL 不恢复其工具（会话闸只做收紧-放开，不越权启停服务器）
-
-
 
 ### Requirement: 共享搜索供给由平台网关车道承担
 

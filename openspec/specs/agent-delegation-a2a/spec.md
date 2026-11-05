@@ -4,9 +4,7 @@
 
 The cross-agent delegation domain: a cell's persona delegates work to a MARKET Agent Service — the per-cell caller identity (registry M2M, invoke-only), a2a-target task semantics (remote-slot execution with a delegation-depth header), two-level discovery (category summary + on-demand search), and caller-side politeness.
 
-
 ## Requirements
-
 
 ### Requirement: Delegated calls carry the deployment's gateway credential
 
@@ -44,7 +42,7 @@ Outbound a2a task calls SHALL ride the cell owner's PERSONAL registry credential
 
 ### Requirement: An a2a target executes as a remote task
 
-A delegated task whose target is `{type: "a2a", ref}` naming a catalog a2a entry SHALL execute as one A2A `message/stream` call to that agent's registry gateway route, sent with the cell caller credential on `X-Authorization`, the deployment's agent credential on `Authorization`, and a delegation depth header (below). The streamed reply text SHALL land in the task's dedicated session exactly like a persona execution's output, and the existing aggregation turn SHALL treat it as any finished task. An a2a-target execution SHALL NOT switch or occupy the cell's runtime persona.
+A delegated task whose target is `{type: "a2a", ref}` naming a catalog a2a entry SHALL execute as one A2A `message/stream` call to that agent's registry gateway route (`{registry}/agent/{path}/`, where `{registry}` is the registry gateway base URL resolved from the deployment's registry configuration — never a hard-coded example domain), sent with the cell caller credential on `X-Authorization`, the deployment's agent credential on `Authorization`, and a delegation depth header (below). The streamed reply text SHALL land in the task's dedicated session exactly like a persona execution's output, and the existing aggregation turn SHALL treat it as any finished task. An a2a-target execution SHALL NOT switch or occupy the cell's runtime persona.
 
 #### Scenario: The reply lands as the task output
 

@@ -57,7 +57,7 @@ The catalog SHALL merge five optional sources: a local `agents.json` file (sibli
 #### Scenario: A2A registry agents map to a2a mode
 
 - **WHEN** the registry lists an enabled agent with `supported_protocol: "a2a"`
-- **THEN** the catalog contains an `a2a`-mode entry whose `url` is the gateway route `https://mcp.finddatatech.cloud/agent/{path}/`, and no `link` entry is created for it
+- **THEN** the catalog contains an `a2a`-mode entry whose `url` is the gateway route `{registry}/agent/{path}/` (`{registry}` being the registry gateway base URL, not a hard-coded example domain), and no `link` entry is created for it
 
 #### Scenario: Deployed role coexists with its in-cell persona
 

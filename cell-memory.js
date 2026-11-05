@@ -76,3 +76,39 @@ export async function cellMemoryMount(env, ownerEmail, fetchImpl = fetch) {
     return null;
   }
 }
+
+// ── Deployment member tokens (add-member-knowledge-profile) ─────────────────
+//
+// The platform seam mints ONE deployment token per member
+// (d/<packId>/<memberId>, owner-bound at fd-memory for the oversight anchor)
+// and caches it under the cell data root — one mint per member, restart
+// stable, 0600. The token belongs to the ROLE, not to the model instance
+// behind it: 换防 keeps the cache, so the new on-duty model inherits the
+// partition the old one wrote. Fail-open by the same contract as the person
+// mount: mint failure = a counter and a thrown error for the caller to catch,
+// never a broken turn.
+
+export function memberCachePath(dataRoot, packId, memberId) {
+  const safe = (s) => String(s ?? "x").replace(/[^a-zA-Z0-9@._-]/g, "_");
+  return join(dataRoot, "cell-memory-tokens", `d-${safe(packId)}-${safe(memberId)}.json`);
+}
+
+export async function memberTokenFor(cfg, { packId, memberId, ownerEmail }, fetchImpl = fetch) {
+  const p = memberCachePath(cfg.dataRoot, packId, memberId);
+  const namespace = `d/${packId}/${memberId}`;
+  try {
+    const cached = JSON.parse(readFileSync(p, "utf8"));
+    if (cached?.token && cached?.namespace === namespace) return cached.token;
+  } catch { /* miss → mint */ }
+  if (!ownerEmail) throw new Error("member mint requires ownerEmail (the oversight anchor)");
+  const res = await fetchImpl(`${cfg.url}/admin/mint`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.platformToken}` },
+    body: JSON.stringify({ namespace, owner: `u/${ownerEmail}`, label: `member:${packId}:${memberId}` }),
+  });
+  if (!res.ok) throw new Error(`member mint HTTP ${res.status}`);
+  const { token } = await res.json();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify({ token, namespace, owner: ownerEmail, mintedAt: new Date().toISOString() }), { mode: 0o600 });
+  return token;
+}

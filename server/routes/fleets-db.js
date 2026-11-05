@@ -965,6 +965,44 @@ export function createFleetDatabase({ file } = {}) {
     ).run(key, JSON.stringify(value), Date.now());
   }
 
+  // ── knowledge profile 覆写 (add-member-knowledge-profile)：与 delegation
+  // policy 同款两层模式——cell 默认存 cell_settings['knowledgeProfile']，舰队
+  // 覆写存 fleets.knowledge_profile 列（try/ALTER 旧行 NULL=无覆写）。归一化
+  // 与默认值由纯模块 server/knowledge-profile.js 单源承载，DB 层只存取。
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN knowledge_profile TEXT`);
+  } catch {
+    /* column already exists */
+  }
+
+  function getFleetKnowledgeProfileRaw(fleetId) {
+    const row = db.prepare("SELECT knowledge_profile FROM fleets WHERE id = ?").get(fleetId);
+    if (!row || typeof row.knowledge_profile !== "string" || !row.knowledge_profile) return null;
+    try {
+      const parsed = JSON.parse(row.knowledge_profile);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setFleetKnowledgeProfile(fleetId, profile) {
+    db.prepare("UPDATE fleets SET knowledge_profile = ?, updated_at = ? WHERE id = ?").run(
+      profile == null ? null : JSON.stringify(profile),
+      Date.now(),
+      fleetId,
+    );
+    return getFleet(fleetId);
+  }
+
+  function getCellKnowledgeProfile() {
+    return getCellSetting("knowledgeProfile");
+  }
+
+  function setCellKnowledgeProfile(profile) {
+    setCellSetting("knowledgeProfile", profile);
+  }
+
   function getFleetDelegationPolicyRaw(fleetId) {
     const row = db.prepare("SELECT delegation_policy FROM fleets WHERE id = ?").get(fleetId);
     if (!row || typeof row.delegation_policy !== "string" || !row.delegation_policy) return null;
@@ -1655,6 +1693,10 @@ export function createFleetDatabase({ file } = {}) {
     countDeputyOpenDecisions,
     getCellSetting,
     setCellSetting,
+    getCellKnowledgeProfile,
+    setCellKnowledgeProfile,
+    getFleetKnowledgeProfileRaw,
+    setFleetKnowledgeProfile,
     getFleetDelegationPolicyRaw,
     setFleetDelegationPolicy,
     getFleetDelegationPolicy,

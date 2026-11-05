@@ -1292,6 +1292,65 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   return MCP_PATCH_PATH;
 }
 
+// Per-member MCP patch (add-member-knowledge-profile): the fleet member's
+// private composition for a WORKER SLOT (each worker is pinned to one persona
+// for its life, so the member identity is baked, never raced). Composed by the
+// SAME writer into a per-member profile dir (the shared patch keeps serving
+// the chat lane byte-identically), then two surgical overrides on the entries:
+//   1. fd-memory row → the member's deployment token in the Authorization
+//      header (memoryToken null = the row is DROPPED — profile memory off is
+//      "the tools do not appear", never a dead entry);
+//   2. library row (stdio) → env.LIBRARY_COLLECTIONS stamped with the member's
+//      bound collections (the boundary the tool server enforces; empty = the
+//      pre-change whole-account view, byte-for-byte).
+// Dirs reuse targetPaths' { dshHome, profileName } contract (the same
+// parameterization writeToolFilterPatch takes).
+export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, libraryCollections = [], ...writeOpts } = {}) {
+  const patchPath = await writeMcpPatch({ ...writeOpts });
+  if (!patchPath) return null;
+  const memberDir = join(dirname(MCP_PATCH_PATH), `member-${safeProfileSegment(personaPreset)}`);
+  mkdirSync(memberDir, { recursive: true });
+  let rows;
+  try {
+    rows = yaml.load(readFileSync(patchPath, "utf8"));
+  } catch (e) {
+    console.warn(`[dsh-profile] member patch read failed (fail-open to shared): ${e?.message || e}`);
+    return null;
+  }
+  const insert = Array.isArray(rows?.[0]?.insert) ? rows[0].insert : null;
+  if (!insert) return null;
+  const out = applyMemberOverrides(insert, { memoryToken, libraryCollections });
+  const memberPatch = join(memberDir, "mcp.patch.yml");
+  atomicWriteTextSync(memberPatch, yaml.dump([{ insert: out }]));
+  console.log(`[dsh-profile] member patch for ${personaPreset}: ${out.length} server(s) → ${memberPatch}`);
+  return memberPatch;
+}
+
+// The override math, PURE (exported for the boundary test): fd-memory row
+// carries the member token or DROPS (profile memory off = the tools do not
+// appear, never a dead entry); library row gets LIBRARY_COLLECTIONS stamped
+// (empty = pre-change whole-account view, byte-for-byte); `library:` prefixes
+// are stripped HERE (single point — callers may pass blueprint refs or bare
+// ids); everything else rides verbatim.
+export function applyMemberOverrides(insert, { memoryToken = null, libraryCollections = [] } = {}) {
+  const ids = libraryCollections.map((c) => String(c).replace(/^library:/, "")).filter(Boolean);
+  return insert
+    .filter((e) => !(e?.config?.serverName === "fd-memory" && !memoryToken))
+    .map((e) => {
+      if (e?.config?.serverName === "fd-memory" && memoryToken) {
+        return { ...e, config: { ...e.config, headers: { ...(e.config.headers ?? {}), Authorization: `Bearer ${memoryToken}` } } };
+      }
+      if (e?.config?.serverName === "library" && ids.length > 0) {
+        return { ...e, config: { ...e.config, env: { ...(e.config.env ?? {}), LIBRARY_COLLECTIONS: ids.join(",") } } };
+      }
+      return e;
+    });
+}
+
+function safeProfileSegment(s) {
+  return String(s ?? "x").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80) || "x";
+}
+
 // ── MCP tool allowlist filter (add-mcp-tool-scoping D1/D2) ────────────────────
 // Materializes the focused role's per-server tool allowlists as the config the
 // preset bridge's scope module reads: tool-filter.json beside the copied

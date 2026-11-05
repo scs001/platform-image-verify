@@ -316,7 +316,7 @@ function renderChildBlock({ member, latest, previous }) {
 // title query. Provider seam like decisionDigest: null/throw = section
 // absent (degrade open, never a placeholder, never a failed turn).
 export async function buildFleetContext(sourceTag, _task, deps) {
-  const { db, deriveStatuses, decisionDigest, memoryDigest } = deps;
+  const { db, deriveStatuses, decisionDigest, memoryDigest, docDigest, knowledgeProfile } = deps;
   const fleet = db.getFleet(sourceTag.fleetId);
   if (!fleet) throw new Error(`fleet ${sourceTag.fleetId} no longer exists`);
   const me = db.getMember(sourceTag.memberId);
@@ -398,18 +398,47 @@ export async function buildFleetContext(sourceTag, _task, deps) {
     sections.push(truncateWithMark(digest, PER_POST_LIMIT));
   }
 
-  // Fleet working memory (add-zhiyu-team-memory 刀A): the team's `f/` digest,
-  // member-relevant. LAST in the pool (truncation order 报数 > 决策 > 记忆 —
-  // reports are this round's input, memory is continuity), async provider,
-  // any failure = section absent.
-  if (memoryDigest) {
-    try {
-      const block = await memoryDigest(fleet.id, me.title);
-      if (typeof block === "string" && block.trim()) {
-        sections.push(truncateWithMark(`【本团队工作记忆】\n${block}`, PER_POST_LIMIT));
+  // Fleet working memory (add-zhiyu-team-memory 刀A; add-member-knowledge-
+  // profile): the member ladder — own ∪ shared ∪ legacy f/ with per-source
+  // labels, then the DOCUMENT segment (library hits for the member's bound
+  // collections) — one injection ladder, one budget ceiling. LAST in the pool
+  // (truncation order 报数 > 决策 > 记忆+文档 — reports are this round's
+  // input, memory+knowledge are continuity), async providers, any failure =
+  // segment absent.
+  //
+  // knowledgeProfile (provider seam): the member's effective profile —
+  // memory.enabled=false or scope "off" drops the memory segments entirely;
+  // memory.budget caps the memory+documents ladder (default 1200). Absent
+  // provider = platform defaults (on, own+shared, 1200).
+  if (memoryDigest || docDigest) {
+    const kp = (typeof knowledgeProfile === "function" ? await knowledgeProfile(fleet.id, me.id) : null) ?? null;
+    const mem = kp?.memory ?? null;
+    const scope = mem?.scope ?? "own+shared";
+    const ladderBudget = Math.max(64, Number(mem?.budget ?? 1200) || 1200);
+    const blocks = [];
+    if (memoryDigest && scope !== "off" && (mem?.enabled ?? true)) {
+      try {
+        const block = await memoryDigest(fleet.id, me.title, me.id, scope);
+        if (typeof block === "string" && block.trim()) blocks.push(block);
+      } catch {
+        // degrade open — a memory hiccup must never fail the firing
       }
-    } catch {
-      // degrade open — a memory hiccup must never fail the firing
+    }
+    if (docDigest) {
+      try {
+        const block = await docDigest(fleet.id, me.id, me.title);
+        if (typeof block === "string" && block.trim()) blocks.push(block);
+      } catch {
+        // same posture: knowledge hiccups degrade, never fail the firing
+      }
+    }
+    if (blocks.length) {
+      // The ladder's budget: the memory segment renders first (experience
+      // outranks raw material), documents follow into what remains — the
+      // per-source renders were already budget-clamped server-side, so the
+      // ceiling here is the hard cut with an honest mark.
+      const joined = blocks.join("\n\n");
+      sections.push(truncateWithMark(`【记忆与知识】\n${joined}`, Math.max(200, Math.min(PER_POST_LIMIT, ladderBudget * 2))));
     }
   }
 

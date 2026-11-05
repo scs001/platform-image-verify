@@ -30,6 +30,7 @@ import { createMpAuth } from "./gateway/mp-auth.js";
 import { createAppAuth } from "./gateway/app-auth.js";
 import { createMpBindings } from "./gateway/mp-bindings.js";
 import { storeDir } from "./paths.js";
+import { cellMemoryConfig, memberTokenFor } from "./cell-memory.js";
 import { registerDocumentRoutes } from "./server/routes/documents.js";
 import { registerMiscRoutes, registerStaticAndFallback } from "./server/routes/misc.js";
 import { registerLlmRoutes } from "./server/routes/llm.js";
@@ -1275,7 +1276,7 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
     }
     return memoryClient;
   };
-  ctx.fleetMemoryCapture = createFleetMemoryCapture({ memory: { async writeFleetPage(f, t, b) { const m = await memoryFor(); if (!m) throw new Error("fleet memory off"); await m.writeFleetPage(f, t, b); } } });
+  ctx.fleetMemoryCapture = createFleetMemoryCapture({ memory: { async writeFact(f) { const m = await memoryFor(); if (!m) throw new Error("fleet memory off"); await m.writeFact(f); }, async writeSharedPage(f) { const m = await memoryFor(); if (!m) throw new Error("fleet memory off"); await m.writeSharedPage(f); } } });
   // Fire-and-forget: the seam caller never awaits memory.
   ctx.captureFleetFact = (fleetId, memberId, kind, title, body) => {
     void ctx.fleetMemoryCapture?.capture(fleetId, memberId, kind, title, body)?.catch?.(() => {});
@@ -1313,12 +1314,14 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
       }
     } catch { /* capture never surfaces into the turn path */ }
   };
-  // The fleetContext memory section: member-relevant digest over the fleet's
-  // `f/` project; null = section absent (degrade open).
-  ctx.fleetMemoryDigest = async (fleetId, memberTitle) => {
+  // The fleetContext memory section: the member ladder (add-member-knowledge-
+  // profile) — own ∪ shared ∪ legacy f/ under one budget, gated by the
+  // member's knowledge scope; null = section absent (degrade open).
+  ctx.fleetMemoryDigest = async (fleetId, memberTitle, memberId = null, scope = "own+shared") => {
     const m = await memoryFor();
     if (!m) return null;
-    const out = await m.readDigest(fleetId, memberTitle ?? "", { budget: 1200 });
+    if (scope === "off") return null;
+    const out = await m.readDigest(fleetId, memberId ?? memberTitle ?? "", memberTitle ?? "", { budget: 1200, scope });
     return typeof out?.block === "string" && out.block.trim() ? out.block : null;
   };
 }
@@ -1514,6 +1517,14 @@ await Promise.all([
         // Fleet working memory (add-zhiyu-team-memory 刀A): the seam is
         // member-relevant by title; null = absent.
         memoryDigest: ctx.fleetMemoryDigest,
+        // Knowledge documents (add-member-knowledge-profile): the member's
+        // bound library collections, searched server-side — rendered AFTER
+        // memory in the same ladder; absent provider = no document segment.
+        docDigest: ctx.fleetDocDigest ?? null,
+        // Knowledge profile (same change): the member's effective profile —
+        // memory off/scope/budget and the collection binding in one lookup;
+        // absent = platform defaults.
+        knowledgeProfile: ctx.fleetKnowledgeProfile ?? null,
       }),
   }),
 ]);
@@ -1521,6 +1532,96 @@ await Promise.all([
 // subscribers) — finished manual fan-outs inject the summary turn back into
 // the initiating session; rearm covers groups a restart left pending.
 attachDelegationAggregator(ctx).rearm();
+// ── Knowledge profile + document digest providers (add-member-knowledge-
+// profile) ────────────────────────────────────────────────────────────────────
+// The member's EFFECTIVE profile = cell default (cell_settings) ⊕ fleet
+// override (fleets.knowledge_profile), normalized by the pure module. Any
+// failure degrades to platform defaults — the profile must never block a
+// firing. The document digest searches the member's bound collections
+// server-side (the same library DB the library MCP child serves, imported
+// directly — same process, one DB). Degrade open: a search failure is an
+// absent segment, never an error into the turn.
+{
+  const { effectiveProfile, normalizeKnowledgeProfile } = await import("./server/knowledge-profile.js");
+  const { searchLibrary } = await import("./documents-search.js");
+  ctx.fleetKnowledgeProfile = (fleetId, _memberId) => {
+    try {
+      const fdb = getFleetDatabase();
+      const cellDefault = normalizeKnowledgeProfile(fdb.getCellKnowledgeProfile?.() ?? null);
+      const override = normalizeKnowledgeProfile(fdb.getFleetKnowledgeProfileRaw?.(fleetId) ?? null);
+      if (!cellDefault.ok || !override.ok) return null;
+      return effectiveProfile(cellDefault.profile, override.profile);
+    } catch {
+      return null;
+    }
+  };
+  ctx.fleetDocDigest = (fleetId, memberId, memberTitle) => {
+    try {
+      const kp = ctx.fleetKnowledgeProfile(fleetId, memberId);
+      const collections = (kp?.collections ?? []).map((r) => r.slice("library:".length));
+      if (!collections.length) return null;
+      const q = String(memberTitle ?? "").trim();
+      if (!q) return null;
+      const lines = [];
+      for (const colId of collections.slice(0, 5)) {
+        const hits = searchLibrary(q, { collectionId: colId, limit: 2 });
+        for (const h of hits) lines.push(`- 《${h.name}》${h.loc ? `（${h.loc}）` : ""}：${String(h.snippet ?? "").replace(/\s+/g, " ").slice(0, 120)}`);
+      }
+      return lines.length ? `### 资料库命中 / Library hits\n${lines.slice(0, 6).join("\n")}` : null;
+    } catch {
+      return null;
+    }
+  };
+  // Per-member MCP patch composition (add-member-knowledge-profile): a fleet
+  // member persona running on a WORKER SLOT (pinned to that persona for its
+  // life) gets a private mcp patch — the fd-memory row swaps the owner person
+  // token for the member's deployment token (d/<fleetId>/<memberId>, the
+  // member IS the identity), and the library row is stamped with the member's
+  // bound collections (the same LIBRARY_COLLECTIONS env the tool server
+  // enforces; absent = whole-account view, unchanged). The persona is NOT a
+  // fleet member (or identity resolution fails) → null, shared patch, zero
+  // behavior change. Cache per persona: the token belongs to the role.
+  let memberPatchCache = new Map();
+  // The live-effect counterpart (fleet routes PUT /knowledge-profile calls
+  // this): a profile write invalidates the per-persona patches so the next
+  // member turn recomposes with the new token/collection set. Token identity
+  // is role-bound, so the fd-memory mint cache on disk stays — only the
+  // composed patch (collections/env/header) is rebuilt.
+  ctx.invalidateMemberPatchCache = () => {
+    memberPatchCache = new Map();
+  };
+  ctx.composeMemberMcpPatch = async (personaPreset) => {
+    if (!personaPreset || memberPatchCache.has(personaPreset)) return memberPatchCache.get(personaPreset) ?? null;
+    let out = null;
+    try {
+      const identity = ctx.resolveFleetIdentity?.(personaPreset) ?? null;
+      if (identity?.fleetId && identity?.memberId) {
+        const cfg = cellMemoryConfig(process.env);
+        const owner = ctx.runtimeOwnerEmail ?? null;
+        if (cfg && owner) {
+          const kp = ctx.fleetKnowledgeProfile?.(identity.fleetId, identity.memberId) ?? null;
+          const memOn = kp?.memory?.enabled ?? true;
+          const token = memOn ? await memberTokenFor(cfg, { packId: identity.fleetId, memberId: identity.memberId, ownerEmail: owner }) : null;
+          const collections = (kp?.collections ?? []).map((r) => r.slice("library:".length));
+          const { writeMemberMcpPatch } = await import("./dsh-profile.js");
+          out = await writeMemberMcpPatch({
+            personaPreset,
+            memoryToken: token,
+            libraryCollections: collections,
+            ownerEmail: owner,
+            userGroups: null,
+            agentPreset: personaPreset,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`[member-patch] compose failed for ${personaPreset} (fail-open): ${e?.message || e}`);
+      out = null;
+    }
+    memberPatchCache.set(personaPreset, out);
+    return out;
+  };
+}
 // Fleet report + decision lanes (agent-fleet-report-lane D4,
 // agent-fleet-decision-lane 2.2): a finished a2a fleet fire cannot self-report
 // (the remote agent cannot call this cell's tools) — its outcome becomes a

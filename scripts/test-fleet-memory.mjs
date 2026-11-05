@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// ── Fleet working memory tests (add-zhiyu-team-memory 刀A) ──────────────────
+// ── Fleet working memory tests (add-zhiyu-team-memory 刀A;
+// add-member-knowledge-profile capture split) ───────────────────────────────
 //
 // Pins:
-//   - the capture wrapper: five fact kinds land as pages in the `f/` project;
-//     replay dedupe (same second/fleet/member/kind → one page); a failing
-//     write is a COUNTER, never a throw (degrade open)
+//   - the capture wrapper: five fact kinds route by the closed own/shared map
+//     (turn/health → own, decision-*/swap → shared) with the metadata triple;
+//     titles stay human (no machine prefix). Replay dedupe and the counter-
+//     not-throw failure contract are inherited and re-asserted.
 //   - the health-flip tracker: emits only on ok↔failed transitions
 //   - the fleetContext memory section: present when the provider returns a
 //     block, ABSENT on null/throw (never a placeholder, never a failed render),
@@ -23,11 +25,11 @@ const {
 } = await import("../server/fleet-memory.js");
 
 function fakeMemory() {
-  const pages = [];
+  const facts = [];
   return {
-    pages,
-    async writeFleetPage(fleetId, title, body) {
-      pages.push({ project: fleetProjectId(fleetId), title, body });
+    facts,
+    async writeFact(f) {
+      facts.push(f);
       return { ok: true };
     },
   };
@@ -39,7 +41,7 @@ test("project id: f/ namespace, path-sanitized", () => {
   assert.equal(fleetProjectId(""), "f/unknown");
 });
 
-test("capture: five kinds land in the f/ project with member metadata in the title", async () => {
+test("capture: five kinds route by the closed map (own/shared) with the metadata triple", async () => {
   const mem = fakeMemory();
   const cap = createFleetMemoryCapture({ memory: mem, clock: () => 1000 });
   const f = "fleet_1";
@@ -48,23 +50,31 @@ test("capture: five kinds land in the f/ project with member metadata in the tit
   await cap.capture(f, "m1", "decision-resolved", "续约供应商？", "批准");
   await cap.capture(f, "m2", "health", "状态迁移 → failed", "连续失败");
   await cap.capture(f, "m1", "swap", "岗位「电商部」换防", "新在岗者 persona-b");
-  assert.equal(mem.pages.length, 5);
-  assert.ok(mem.pages.every((p) => p.project === "f/fleet_1"));
-  assert.match(mem.pages[0].title, /^\[turn\]\[m1\]/);
+  assert.equal(mem.facts.length, 5);
+  // 岗位私有 (turn/health) → own; 团队事实 (decision-*/swap) → shared
+  assert.deepEqual(mem.facts.filter((x) => x.partition === "own").map((x) => x.kind).sort(), ["health", "turn"]);
+  assert.deepEqual(mem.facts.filter((x) => x.partition === "shared").map((x) => x.kind).sort(), ["decision-opened", "decision-resolved", "swap"]);
+  // the identity triple rides every fact (the client layer turns it into
+  // first-class page metadata), human titles
+  for (const x of mem.facts) {
+    assert.equal(x.fleetId, f);
+    assert.ok(x.memberId && x.kind);
+    assert.ok(!/^\[/.test(x.title), "no machine prefix on titles");
+  }
 });
 
 test("capture: same-second replay dedupes; a failing write is a counter, never a throw", async () => {
   let failing = false;
   const mem = fakeMemory();
-  const orig = mem.writeFleetPage.bind(mem);
-  mem.writeFleetPage = async (...a) => {
+  const orig = mem.writeFact.bind(mem);
+  mem.writeFact = async (...a) => {
     if (failing) throw new Error("pages HTTP 503");
     return orig(...a);
   };
   const cap = createFleetMemoryCapture({ memory: mem, clock: () => 1000 });
   await cap.capture("fleet_1", "m1", "turn", "t", "b");
   await cap.capture("fleet_1", "m1", "turn", "t", "b");
-  assert.equal(mem.pages.length, 1, "replay within the dedupe window lands once");
+  assert.equal(mem.facts.length, 1, "replay within the dedupe window lands once");
   assert.equal(cap.captured, 1);
 
   failing = true;
@@ -108,7 +118,7 @@ test("fleetContext: memory section present when the provider returns a block", a
   const out = await fc.buildFleetContext({ fleetId: fleet.id, memberId: "m_lead" }, null, deps({
     memoryDigest: async () => "• [turn] 昨日处理 12 单\n• [decision] 报销政策已批准",
   }));
-  assert.match(out, /【本团队工作记忆】/);
+  assert.match(out, /【记忆与知识】/);
   assert.match(out, /昨日处理 12 单/);
   assert.match(out, /巡逻纪律/, "the discipline trailer still rides");
 });
@@ -131,6 +141,6 @@ test("fleetContext: a bloated memory block truncates, the section still rides", 
   const out = await fc.buildFleetContext({ fleetId: fleet.id, memberId: "m_lead" }, null, deps({
     memoryDigest: async () => "x".repeat(10 * 1024),
   }));
-  assert.match(out, /【本团队工作记忆】/);
+  assert.match(out, /【记忆与知识】/);
   assert.match(out, /\[截断\]/, "the oversized block is truncated with the standard mark");
 });

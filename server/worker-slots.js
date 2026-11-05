@@ -93,6 +93,20 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
 
   async function spawnWorker(persona) {
     const construct = spawnBridge || ((params) => new DshBridge(params));
+    // Per-member MCP patch (add-member-knowledge-profile): a worker is pinned
+    // to ONE persona for its life, so the member's deployment identity can be
+    // baked into a PRIVATE mcp patch (its own fd-memory row carrying the
+    // member's deployment token, and the library row stamped with the
+    // member's bound collections). The shared patch keeps serving the chat
+    // lane byte-identically — this composition is additive and per-worker.
+    // Fail-open: any compose failure falls back to the shared patch (the
+    // persona runs with the owner-lane mount, exactly today's behavior).
+    let memberPatchPath = null;
+    try {
+      memberPatchPath = (await ctx.composeMemberMcpPatch?.(persona)) ?? null;
+    } catch (e) {
+      console.warn(`[worker-pool] member patch compose failed for ${persona}; falling back to shared: ${e?.message || e}`);
+    }
     const worker = {
       id: `worker-${++workerSeq}`,
       persona,
@@ -106,6 +120,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     };
     worker.bridge = construct({
       ...ctx.workerSpawnParams,
+      // The member's private mcp patch when one composed (per-member memory
+      // token + library collections); null keeps the shared patch unchanged.
+      ...(memberPatchPath ? { mcpPatchPath: memberPatchPath } : {}),
       agentPreset: persona,
       onEvent: pumpFor(worker),
     });

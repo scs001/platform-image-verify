@@ -18,6 +18,7 @@ import { parseFleetTemplate } from "./fleet-template.js";
 import { validatePackManifest, deriveCode } from "../lib/pack-manifest.js";
 import { toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
 import { buildUserProviderEntries, getDefault } from "../llm-providers.js";
+import { normalizeKnowledgeProfile } from "./knowledge-profile.js";
 
 // ── Shape gate: 凭据扫描（存储层与 validate 路由共用） ─────────────────────
 
@@ -117,6 +118,29 @@ export function dataSourceFindings(content, resolveLibrary = null) {
 
 export function shapeFindings(content) {
   return [...credentialFindings(content), ...dataSourceFindings(content)];
+}
+
+// ── Shape gate: knowledge profile（add-member-knowledge-profile） ──────────
+//
+// content.knowledge 是成员知识画像的蓝图默认段（memory 面 + 钉死的集合）。
+// 形状与错误码全在 server/knowledge-profile.js 的 normalizeKnowledgeProfile
+// （同一函数也被部署级覆盖合并与运行时装配消费——三处对「什么合法」必须
+// 零分歧，所以这里不复制规则，只做映射）。
+//
+// 缺席/null 合法（缺省即默认），照 dataSources 的先例不产生任何 finding。
+// resolveCollection 与 dataSourceFindings 的 resolveLibrary 同源：validate
+// 主入口从同一个 DB 侧回调取「可见/为何不可见/悬空」判决；回调缺席时只验
+// 形状（纯形状校验不得猜 DB 事实）。
+export function knowledgeFindings(content, resolveCollection = null) {
+  const raw = content?.knowledge;
+  if (raw === undefined || raw === null) return [];
+  const res = normalizeKnowledgeProfile(raw, { resolveCollection });
+  if (res.ok) return [];
+  return res.errors.map((e) => ({
+    error: e.message,
+    entry: e.path ? `knowledge.${e.path}` : "knowledge",
+    code: e.code,
+  }));
 }
 
 // 判定模型在册校验（add-blueprint-judge-model-choice D3）：错配置要在校验面就暴露，
@@ -288,11 +312,15 @@ export function validateBlueprint(content, { resolveLibrary = null } = {}) {
     return {
       ok: false,
       errors: v1,
-      findings: { v1, shape: [], acceptance: [], fleet: [], manifest: [], toolFace: [], toolClosure: [] },
+      findings: { v1, shape: [], knowledge: [], acceptance: [], fleet: [], manifest: [], toolFace: [], toolClosure: [] },
       manifestPreview,
     };
   }
   const shape = [...credentialFindings(content ?? {}), ...dataSourceFindings(content ?? {}, resolveLibrary)];
+  // knowledge 画像段进校验链（add-member-knowledge-profile）：resolveCollection
+  // 与 resolveLibrary 同源传递——两者判的都是 library:<id> 集合的可见性，共用
+  // 调用方那一个 DB 回调；回调缺席时 knowledgeFindings 只做纯形状校验。
+  const knowledge = knowledgeFindings(content ?? {}, resolveLibrary);
   // 验收断言段也进校验链：试跑只有五类可判绿的断言，未知 kind 在此就指名，
   // 不留到试跑才暴露。
   const acceptance = normalizeAcceptance(content?.acceptance).errors;
@@ -305,11 +333,11 @@ export function validateBlueprint(content, { resolveLibrary = null } = {}) {
   // 5.1 收口：任何来源的 finding 都必须带稳定 code——publish-tool-gate 等
   // 未逐点补码的段在此兜底派生（原文逐字不动，code 附加）。
   const withCode = (list) => list.map((e) => (e && typeof e === "object" && !e.code ? { ...e, code: deriveCode(e.error) } : e));
-  const errors = withCode([...shape, ...judgeModel, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure]);
+  const errors = withCode([...shape, ...knowledge, ...judgeModel, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure]);
   return {
     ok: errors.length === 0,
     errors,
-    findings: { v1: [], shape: withCode(shape), judgeModel: withCode(judgeModel), acceptance: withCode(acceptance), fleet: withCode(fleet), manifest, toolFace: withCode(toolFace), toolClosure: withCode(toolClosure) },
+    findings: { v1: [], shape: withCode(shape), knowledge: withCode(knowledge), judgeModel: withCode(judgeModel), acceptance: withCode(acceptance), fleet: withCode(fleet), manifest, toolFace: withCode(toolFace), toolClosure: withCode(toolClosure) },
     manifestPreview,
   };
 }

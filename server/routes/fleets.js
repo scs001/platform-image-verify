@@ -45,6 +45,7 @@ import {
   routeForItem,
   SEVERITY_RANK,
 } from "./fleets-db.js";
+import { normalizeKnowledgeProfile, effectiveProfile } from "../knowledge-profile.js";
 import { memoryRefClientFor, memoryRefSlug } from "../memory-refs.js";
 import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
@@ -2081,6 +2082,74 @@ export function createFleetRoutes(app, ctx = null) {
       res.json({ ok: true, scope, effective });
     } catch (err) {
       console.error("[fleets] delegation policy write error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── Knowledge profile (add-member-knowledge-profile)：与 delegation-policy
+  // 同款两层读写面。归一化即硬闸（normalizeKnowledgeProfile），集合引用经
+  // resolveCollection 指名校验（不可见集合写不进去）。写入即失效 per-member
+  // patch 缓存——文档集增删对成员下一回合即时生效，无需重铸部署。
+  // Collection visibility: the SAME library DB the library MCP child serves,
+  // imported directly — a collection exists here = visible to this owner.
+  const dbCollectionVisible = (id) => {
+    try {
+      return Boolean(dbModule.getCollection?.(id));
+    } catch {
+      return false;
+    }
+  };
+  const invalidateMemberPatchCache = () => ctx?.invalidateMemberPatchCache?.();
+  router.get("/knowledge-profile", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const cellDefault = db.getCellKnowledgeProfile();
+      const fleetId = req.query.fleetId ? String(req.query.fleetId) : null;
+      const override = fleetId ? db.getFleetKnowledgeProfileRaw(fleetId) : null;
+      const cEff = normalizeKnowledgeProfile(cellDefault ?? null);
+      const oEff = normalizeKnowledgeProfile(override ?? null);
+      const effective = fleetId
+        ? effectiveProfile(cEff.ok ? cEff.profile : null, oEff.ok ? oEff.profile : null)
+        : cEff.ok
+          ? cEff.profile
+          : null;
+      res.json({ cellDefault: cellDefault ?? null, override, effective: effective && effective.ok ? effective.profile : null });
+    } catch (err) {
+      console.error("[fleets] knowledge profile read error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.put("/knowledge-profile", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const body = req.body ?? {};
+      const scope = body.scope === "fleet" && body.fleetId ? "fleet" : "cell";
+      const verdict = normalizeKnowledgeProfile(body.profile ?? null, {
+        resolveCollection: (id) => (dbCollectionVisible(id) ? true : "collection not visible in this deployment"),
+      });
+      if (!verdict.ok) return res.status(400).json({ error: "invalid_profile", errors: verdict.errors });
+      if (scope === "cell") {
+        db.setCellKnowledgeProfile(body.profile ?? null);
+      } else {
+        db.setFleetKnowledgeProfile(body.fleetId, body.profile ?? null);
+      }
+      // 即时生效的另一半：per-member patch 缓存失效，下一回合重 compose。
+      invalidateMemberPatchCache?.();
+      const cEff2 = normalizeKnowledgeProfile(db.getCellKnowledgeProfile() ?? null);
+      const oEff2 = normalizeKnowledgeProfile(db.getFleetKnowledgeProfileRaw(body.fleetId ?? "") ?? null);
+      const effective2 = body.fleetId
+        ? effectiveProfile(cEff2.ok ? cEff2.profile : null, oEff2.ok ? oEff2.profile : null)
+        : cEff2.ok
+          ? cEff2.profile
+          : null;
+      res.json({ ok: true, scope, effective: effective2 && effective2.ok ? effective2.profile : null });
+    } catch (err) {
+      console.error("[fleets] knowledge profile write error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });

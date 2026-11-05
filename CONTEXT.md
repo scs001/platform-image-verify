@@ -376,3 +376,20 @@ _Avoid_: 仪表盘（泛）、控制台（那是 ops-console）
 pack 内嵌的组织骨架清单：岗位/槽位/节奏默认/prompt 模板与依赖声明，不含凭据与运行时数据；市场安装实例化，现役舰队可导出再上架。
 _Avoid_: 舰队包、组织模板
 
+
+## 基建事故账（Infra Incident Ledger）
+
+集群节点的磁盘/驱逐事故记录——判据、修法、预防。新事故追加，不删旧条。
+
+### 2026-11-05 cheap-7 迁机磁盘事故
+- **现象**：cheap-7 DiskPressure 触发 kubelet 条件驱逐；postgres-0 驱逐后 Pending 死锁（PV 钉住节点+DiskPressure 双条件）；bench 库 laws 32296 行零丢失，KU 10 行丢→sync 重拉。
+- **判据**：`kubectl describe node` 看 DiskPressure 条件与 taint；Pod Pending 事件链里 FailedScheduling 与 PV nodeAffinity 互锁。
+- **修法**：exec 流式 dump 会截断——pod 内落盘再 cp；ArgoCD 删 PVC 即重建，须先 pin 节点；三跳 SSH 清镜像后节点复活（DiskPressure 线 74%）。
+- **教训**：toleration 不免 kubelet 条件驱逐（DiskPressure 是条件驱逐非 taint 驱逐）；迁机前先看目标节点磁盘水位。
+
+### 2026-11-06 cheap-3（liuliangjkiimypbdzxa）DiskPressure 复发
+- **现象**：01:01 CST 节点染 DiskPressure taint→01:02 kubelet 驱逐其上唯一钉住 pod（facet，nodeSelector 钉死该节点）→替换 pod 因污点 Pending→facet 公网 502 约 15 分钟。
+- **判据**：`kubectl get nodes -o custom-columns` 看 taints；deployment nodeSelector 钉住的节点即单点。
+- **修法**：ssh cheap3 清 12 个陈旧 platform/edu/fd-memory 镜像（25G→19G，`docker rmi` 精确点名不 prune）；taint 由 kubelet 自行解除，Pending pod 随即落地。
+- **根因未除**：节点磁盘增长源（镜像累积/日志）未治理，复发在预期内——根因调查另立。
+- **预防**：钉死单节点的 deployment（facet/cheap-3 类）应每巡检核节点磁盘水位；镜像清理纳入例行。

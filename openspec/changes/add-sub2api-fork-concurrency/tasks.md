@@ -6,5 +6,5 @@
 - [x] 3.1 单测：AIMD 状态机全转移覆盖（account_queue_test.go 7 件：bounded/queue-full-fast-reject/trip-halves-recover/429-capacity-shrink/4xx-neutral/hot-upgrade/unknown-account）
 - [x] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时（account_queue_stress_test.go：32 worker 3s 风暴——queueFull 56091 次快拒无堆积、全调用 deadline 内自然返回、AIMD bound≤limit 守恒；trip 确定性覆盖在 Recovery 测试）
 - [x] 3.3 回归：既有 lane 测试全绿（service 138.9s 全套绿+repository 全套绿；port 新增方法全部 test fake 补 no-op，vet 净）
-- [ ] 4.1 出片滚产（fd-build-channel 通道）+ GitOps bump
+- [x] 4.1 出片滚产 + GitOps bump —— 出片走 `law-ai-official/sub2api-images` 备用仓线（fd-build-channel 判路：FDT 私有池剩 111min 不可用、build-pool 快照被 GitHub GC 洞拒；该仓=image.yml 写死 `hkccr/finddata/sub2api` + unit 门，正是「FDT 账单阻断期活线」）。快照 sha-11ebaa6（含 CI 门收口 414fdead2：26 处测试 fake 补齐〔显式缺方法 11+内嵌 nil 接口提升 panic 15〕+ AIMD 429 改类型化 Reason `IsAccountQueueFastReject` 与真上游限流分流 + Retry-After:2 + 平台清单 doubao/tencent 测试同步 + TestAPIContracts settings 金样重铸 + lanesMeterAccountRepo 复数方法）；run 41987627271 全绿（unit 门+build-push）；relay 15:53 自动携带 ccr；skopeo 实证 digest `73fb3b7e`；GitOps bump 2ed16a6 → ArgoCD hard-refresh → rollout 成功，pod imageID digest 与 CI 铸像逐字节对上，1/1 Ready（ns=sub2api，Recreate 策略）。挂账：claude 线队列哨兵未映射（ErrQueueFull 在 claude 网关仍走 502 failover 旧行为，无回归、属快速拒语义缺口）；本地盘满一次（go clean -cache 愈）
 - [ ] 4.2 生产七日观察：queue_rejected < 1%、零 relay 锁拖死复发 → 归档

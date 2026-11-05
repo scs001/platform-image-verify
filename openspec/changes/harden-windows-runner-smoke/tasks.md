@@ -8,5 +8,5 @@
 
 ## 2. Verify & ship
 
-- [ ] 2.1 `node scripts/test-wanxing-facade.mjs` 等受影响套件全绿；`openspec validate harden-windows-runner-smoke --strict` 过
+- [x] 2.1 `node scripts/test-wanxing-facade.mjs` 等受影响套件全绿；`openspec validate harden-windows-runner-smoke --strict` 过
 - [ ] 2.2 显式路径提交；下一班 win-smoke 跑 Phase B+ 真证（workflow_dispatch）

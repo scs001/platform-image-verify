@@ -127,3 +127,11 @@ dist-opensource/
 # Python build artifacts (doc-studio sample generator)
 __pycache__/
 *.pyc
+
+# local trace db (runtime artifact, never a source file)
+trace.db
+trace.db-shm
+trace.db-wal
+
+# local gui test artifacts
+/gui-test-screenshots/

@@ -13,7 +13,7 @@
 
 ## 3. 实弹验证与收尾
 
-- [ ] 3.1 出片（快照→relay→digest 硬门→GitOps demo→ArgoCD hard）；验证：demo pod imageID 与构建 digest 全等
-- [ ] 3.2 demo 实弹：重铸 §15.135 被拒的 v3 形态候选（政策+条款注记，supersedes 政策 v1 基线）在新评测算下评测，验证政策条款获有据对待；验证：judge 判词不再以「无从考证/臆造」为由单独否定候选臂
-- [ ] 3.3 若过闸：promote → `evolution_lineage` 落列 + 评审面可见（A2 promote 腿闭环）；若仍拒：判词归因入册（judge 能力边界 vs 设计缺口）
-- [ ] 3.4 台账/memory 更新 + 归档；验证：memory 索引行含本变更要点
+- [x] 3.1 出片（快照→relay→digest 硬门→GitOps demo→ArgoCD hard）；验证：demo pod imageID 与构建 digest 全等
+- [x] 3.2 demo 实弹：重铸 §15.135 被拒的 v3 形态候选（政策+条款注记，supersedes 政策 v1 基线）在新评测算下评测，验证政策条款获有据对待；验证：judge 判词不再以「无从考证/臆造」为由单独否定候选臂
+- [x] 3.3 若过闸：promote → `evolution_lineage` 落列 + 评审面可见（A2 promote 腿闭环）；若仍拒：判词归因入册（judge 能力边界 vs 设计缺口）
+- [x] 3.4 台账/memory 更新 + 归档；验证：memory 索引行含本变更要点

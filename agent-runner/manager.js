@@ -20,6 +20,10 @@ import { AgentChild } from "./child.js";
 // falls back to the fixed per-agent planning cost.
 function sampleRssBytes(pid) {
   if (!pid || !Number.isFinite(pid)) return null;
+  // win32: neither /proc nor a ps that accepts -o rss exists here — short-circuit
+  // instead of feeding the poll loop a subprocess error every beat (windows-admin
+  // drill 2026-11-06: each poll logged "ps is not a command here").
+  if (process.platform === "win32") return null;
   try {
     const status = readFileSync(`/proc/${pid}/status`, "utf8");
     const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
@@ -957,7 +961,7 @@ export class ChildManager {
       // Visitor scope (add-matter-visitor-scope D1b): the facade-supplied
       // authenticated scope wins; the session derivation is the fallback
       // (A2A callers without a facade). Same lifecycle as the anchor.
-      this.activeSessions.set(`${key} scope`, visitorScope ?? null);
+      this.activeSessions.set(`${key}\u0000scope`, visitorScope ?? null);
       try {
         const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined, onEvent: onMemoryEvent });
         this.#meterLine(key, kind, {
@@ -1013,7 +1017,7 @@ export class ChildManager {
       }
     } finally {
       this.activeSessions.delete(key);
-      this.activeSessions.delete(`${key} scope`);
+      this.activeSessions.delete(`${key}\u0000scope`);
       release?.();
     }
   }

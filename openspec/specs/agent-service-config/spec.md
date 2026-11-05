@@ -3,6 +3,8 @@
 ## Purpose
 为 Agent 服务的部署实例立「服务配置」层：部署者可重写的运行参数集（工作节奏、回合预算、AgentCard 展示字段、模型），挂部署不挂版本——定义其读写面、写时车道校验、两档生效语义与升级存续。
 
+> 实现归属：萬星 console 前端（console agent 详情页）在 console 实现仓——本仓承载 API 双门（gateway/packs.js）与 runner 热切——跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 服务配置读写面

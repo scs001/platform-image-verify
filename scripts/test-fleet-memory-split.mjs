@@ -178,7 +178,11 @@ test("client: readDigest composes own ∪ shared ∪ legacy f/ with per-source l
 
 test("capture: replay idempotent, unknown kind counted as failure", async () => {
   let n = 0;
-  const capture = createFleetMemoryCapture({ memory: { async writeFact() { n += 1; } } });
+  // Fixed clock: the idempotency key embeds the timestamp — a real-time clock
+  // can tick between the two calls and split the "replay" across keys (the
+  // month-bomb class; 2e06aa78 precedent). Pin the clock so the test pins
+  // the dedup semantics, not the scheduler's mercy.
+  const capture = createFleetMemoryCapture({ memory: { async writeFact() { n += 1; } }, clock: () => 1_700_000_000_000 });
   assert.equal(await capture.capture("f", "m", "turn", "t", "b", ), true);
   assert.equal(await capture.capture("f", "m", "turn", "t", "b", ), null, "replay deduped");
   assert.equal(n, 1);

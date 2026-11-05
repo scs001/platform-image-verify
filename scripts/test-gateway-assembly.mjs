@@ -186,7 +186,10 @@ test("gateway assembly smoke: the full route surface assembles in test mode with
   assert.ok(findRoute(routes, "POST", "/api/share"), "POST /api/share must be registered");
   assert.ok(findRoute(routes, "GET", "/api/share/:token"), "GET /api/share/:token must be registered");
   assert.ok(findRoute(routes, "GET", "/api/packs"), "GET /api/packs must be registered");
-  assert.ok(findRoute(routes, "GET", "/api/wanxing/v1/ops/usage"), "GET /api/wanxing/v1/ops/usage must be registered");
+  // The wanxing card/catalog/management face no longer mounts here (unify-
+  // wanxing-a2a-face 4.1: single serving point is the independent facade,
+  // FindDataTechnology/fd-wanxing) — /api/wanxing/* is intentionally absent.
+  assert.ok(!findRoute(routes, "GET", "/api/wanxing/v1/ops/usage"), "wanxing ops face must stay UNMOUNTED (facade is the single serving point)");
   assert.ok(findRoute(routes, "GET", "/api/zhiyu/health"), "GET /api/zhiyu/health must be registered");
 
   // 5. Machine-caller lanes: the bot webhook is an app.all (any verb), the

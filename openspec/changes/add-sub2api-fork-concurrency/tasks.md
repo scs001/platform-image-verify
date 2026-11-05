@@ -4,7 +4,7 @@
 - [x] 2.3 上游代码：三 metrics 暴露 + channel_monitor aimd_state 哨兵收编（GET /admin/accounts/upstream-queue-metrics：queue_depth/queue_rejected_total/aimd_concurrency + aimd_state open|half_open|closed 真状态字段）
 - [ ] 2.4 docs/sub2api-fork-patches/ 补丁文档 + upstream-pr-candidates 登记
 - [x] 3.1 单测：AIMD 状态机全转移覆盖（account_queue_test.go 7 件：bounded/queue-full-fast-reject/trip-halves-recover/429-capacity-shrink/4xx-neutral/hot-upgrade/unknown-account）
-- [ ] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时
-- [ ] 3.3 回归：既有 lane 测试全绿
+- [x] 3.2 压测：5xx 注入下 queue 有界 + 客户端零吞超时（account_queue_stress_test.go：32 worker 3s 风暴——queueFull 56091 次快拒无堆积、全调用 deadline 内自然返回、AIMD bound≤limit 守恒；trip 确定性覆盖在 Recovery 测试）
+- [x] 3.3 回归：既有 lane 测试全绿（service 138.9s 全套绿+repository 全套绿；port 新增方法全部 test fake 补 no-op，vet 净）
 - [ ] 4.1 出片滚产（fd-build-channel 通道）+ GitOps bump
 - [ ] 4.2 生产七日观察：queue_rejected < 1%、零 relay 锁拖死复发 → 归档

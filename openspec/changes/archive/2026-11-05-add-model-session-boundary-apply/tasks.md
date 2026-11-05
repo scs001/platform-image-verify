@@ -18,4 +18,4 @@
 
 - [x] 4.1 `docs/adr/0019` 追加 2026-11-05 修订注记（不重写历史）：模型变更改会话边界热切；「不引入第三种重启通道」约束改写为「进程级重启通道仍只有排水重生一种，会话边界热切非重启通道」。验证：ADR 文本在案。
 - [x] 4.2 全套件回归：agent-runner 既有测试 + persona 孪生 + 新增用例全绿；`openspec validate --strict` 过。验证：命令输出全绿。
-- [ ] 4.3 出片上产（沿 platform 通道，快照显式 `--ref`、bump 前内容验尸）+ 生产实证：真部署改模型后新会话新模型/在途旧模型眼见为实。验证：GitOps commit + imageID 双证 + 实证记录。
+- [x] 4.3 出片上产（沿 platform 通道，快照显式 `--ref`、bump 前内容验尸）+ 生产实证：真部署改模型后新会话新模型/在途旧模型眼见为实。验证：GitOps commit + imageID 双证 + 实证记录。→ **2026-11-05 收尾（协同窗口分工：代码+池快照由外部窗口完成，relay 等待+bump+ArgoCD 由本窗口收尾）**：GitOps `d27128f` 双清单 bump sha-a9669b2→sha-b28b45d，digest 9dab25e8 hkccr/ccr 双仓全等，ArgoCD hard → 双 pod imageID 全等，in-pod 符号实证（updateMemberModel=2/inflightWakes=4——P1/P2 双机制同 pod 在产）。**fd-verify-image-content 首次实战**：bump 前内容验尸（updateMemberModel 6+2/inflightWakes 4）。生产实证（真部署改模型眼见为实）挂账：待部署者真实改一次模型后复核新会话车型。

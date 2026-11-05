@@ -17,4 +17,4 @@
 - AI：本文件、catalog.json、每素材一页的 materials/*.md（稳定地址），以及 A2A 服务端点。
 
 ---
-zh 镜像：上表即全文；本页自足，不依赖站点其他章节。Provenance: facet market · As of: 2026-11-04
+zh 镜像：上表即全文；本页自足，不依赖站点其他章节。Provenance: facet market · As of: 2026-11-05

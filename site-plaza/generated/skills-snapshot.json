@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04",
+  "generatedAt": "2026-11-05",
   "count": 268,
   "skills": [
     {
@@ -13,6 +13,7 @@
         "法律",
         "合同审查"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "中文合同审查",
         "summary": "按风险维度系统审查商事合同条款，输出结构化审查报告与可直接使用的修改条款。",
@@ -31,6 +32,7 @@
         "金融",
         "财报分析"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "财报分析",
         "summary": "上市公司财报分析:三表联动、比率分析与财务粉饰红旗识别,输出买方视角研究报告。",
@@ -49,6 +51,7 @@
         "法律",
         "法律检索"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律检索与论证",
         "summary": "中国法律检索与论证：法条检索与时效校验、构成要件匹配、对抗性论证，覆盖民商事、劳动、公司领域。",
@@ -69,6 +72,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "财报更新分析",
         "summary": "为已覆盖公司撰写专业股票研究财报更新报告（8–12页、3000–5000字），以快速交付格式点评季度业绩的超预期与低于预期。",
@@ -89,6 +93,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "行业板块概览",
         "summary": "撰写行业与板块全景报告，覆盖市场动态、竞争格局定位、主要参与者和主题趋势。",
@@ -109,6 +114,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "可比公司分析",
         "summary": "以 Excel/电子表格搭建机构级可比公司分析，覆盖经营指标、估值倍数与统计基准对照。",
@@ -129,6 +135,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "DCF 估值模型",
         "summary": "构建真实的 DCF 估值模型：从 SEC 文件与分析师报告获取财务数据，建立现金流预测并正确计算 WACC，用于股权估值。",
@@ -149,6 +156,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "三表模型填报",
         "summary": "填写并完善三张报表财务模型模板（利润表、资产负债表、现金流量表），把已有模型框架补全。",
@@ -169,6 +177,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "投资回报分析",
         "summary": "为私募股权投资评估搭建简明的IRR与MOIC敏感性表，围绕入场倍数、杠杆、退出倍数、增长与持有期等情景建模回报。",
@@ -189,6 +198,7 @@
         "finddata",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "投委会备忘",
         "summary": "为 PE 交易审批起草结构化投资委员会备忘录:整合尽调发现、财务分析与交易条款,形成可上会文档。",
@@ -210,6 +220,7 @@
         "anthropics",
         "lseg"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "宏观利率监测",
         "summary": "搭建宏观与利率仪表盘,整合宏观指标、收益率曲线、通胀盈亏平衡点与互换利率。",
@@ -230,6 +241,7 @@
         "finddata",
         "himself65"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "公司估值",
         "summary": "用 DCF、相对估值（同业倍数）与分部加总（SOTP）三种方法估算上市公司内在价值，交叉验证得出隐含股价及相对现价的上行或下行空间。",
@@ -250,6 +262,7 @@
         "finddata",
         "himself65"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "股票相关性分析",
         "summary": "分析股票之间的相关性，找出关联公司与交易配对，回答关于相关股票、同板块同行或两只及以上股票走势联动的问题。",
@@ -270,6 +283,7 @@
         "finddata",
         "himself65"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "财报前瞻简报",
         "summary": "用 Yahoo Finance 数据为任意股票生成财报前瞻简报：即将披露的财报、分析师预期与公司近况概览。",
@@ -290,6 +304,7 @@
         "finddata",
         "himself65"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "财报复盘摘要",
         "summary": "用 Yahoo Finance 数据生成任意股票的财报后复盘：超预期或低于预期的业绩解读、股价反应与财报回顾要点。",
@@ -311,6 +326,7 @@
         "finddata",
         "molezzz"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "A股市场分析",
         "summary": "基于 akshare 数据源、按自然语言路由的 A 股分析技能，覆盖实时行情、技术面、基本面、板块、衍生品与跨市场。",
@@ -331,6 +347,7 @@
         "finddata",
         "claude-office-skills"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "股票分析",
         "summary": "结合基本面与技术面对股票进行分析，支持美股、中国 A 股与港股市场，可生成含关键指标的投资报告。",
@@ -351,6 +368,7 @@
         "finddata",
         "mvanhorn"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "近三十日舆情检索",
         "summary": "检索近30日公众对某话题的真实讨论,从Reddit、X、YouTube、TikTok、Hacker News、Polymarket、GitHub与网页抓取帖子及互动数据。",
@@ -371,6 +389,7 @@
         "finddata",
         "claude-office-skills"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "表格数据分析",
         "summary": "对电子表格数据做分析、生成洞察、制作可视化，并从 Excel/CSV 数据产出报告。",
@@ -391,6 +410,7 @@
         "finddata",
         "k-dense"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "探索性数据分析",
         "summary": "对明确支持的科学文件做有界、本地的探索性分析：支持脱敏的 CSV/TSV/JSON 画像概览，可选 NumPy、HDF5、FASTA/FASTQ 数据检查与基本图像元数据查看。",
@@ -411,6 +431,7 @@
         "finddata",
         "k-dense"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "统计模型库",
         "summary": "基于 Python statsmodels 库的建模工作流：按具体模型类（OLS、GLM、混合效应、ARIMA）估计模型，输出详细诊断、残差与推断结果，适合计量经济与时间序列场景。",
@@ -431,6 +452,7 @@
         "finddata",
         "k-dense"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "统计分析",
         "summary": "面向研究数据的引导式统计分析：协助选择检验方法、检查前提假设、计算效应量、做功效分析与贝叶斯备选方案，并按 APA 格式输出报告。",
@@ -450,6 +472,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律环境初始化",
         "summary": "初始化并治理 AGENTS.md/CLAUDE.md：区分用户级、项目级与团队级指令，生成最小法律安全基线，并验证权限与保密。",
@@ -469,6 +492,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律材料文字识别",
         "summary": "将 PDF、图片、Office 文档或 URL 中的文字识别并转换为 Markdown，检测到法律材料时保守优化术语与文书结构；不做法律事实判断，不补写缺失内容。",
@@ -488,6 +512,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律PDF整理",
         "summary": "整理法律 PDF：检测文字层，生成页面索引、整理草稿与下游交接文件，按内容拆分、合并或规范重命名 OCR 双层扫描件；可做旋转与倾斜校正，不做 OCR 或压缩。",
@@ -507,6 +532,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "中国法律技能集",
         "summary": "面向律师与法务人员的中国法律流程技能集合，覆盖诉讼、刑事辩护、劳动争议、破产、合同审查、合规、法律检索与法律文书起草。",
@@ -526,6 +552,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产品法务合规",
         "summary": "中国境内产品法务与合规：评估产品上线与功能合规（默认开启、客户 Logo 展示等），审查产品文档、页面流程、用户协议、隐私政策与营销文案，支持医疗、金融、教育、AI 与平台类产品评估。",
@@ -545,6 +572,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事侦查阶段辩护",
         "summary": "刑事侦查阶段辩护工作规范,涵盖律师会见全流程、案件法律分析与量刑预判、批捕时间节点管理、法律文书生成与执业风险防范。",
@@ -564,6 +592,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "初步法律分析",
         "summary": "基于六来源体系、请求权基础与要件审判九步法做系统性法律分析，衔接总控事项记录与复盘台账，生成法律服务建议书 Word 文档。",
@@ -583,6 +612,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动仲裁案件管理",
         "summary": "劳动争议仲裁全流程管理:仲裁前置强制检测、仲裁时效计算、一裁终局自动判断、申请书与答辩书生成、请求清单、仲裁与诉讼衔接路由、策略报告与用人单位仲裁前风险评估。",
@@ -602,6 +632,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动争议证据体系",
         "summary": "劳动争议证据管理:举证责任倒置规则、按12类争议自动生成证据收集清单、证据效力三级评估、特殊保护自动检测、规章制度合法性三要件审查,输出举证分配表、证据清单与证据缺口表。",
@@ -621,6 +652,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动争议诉讼编排",
         "summary": "劳动争议诉讼流程编排:整合17个子技能(含仲裁程序管理、劳动关系认定与经济补偿计算、证据体系),判断协商、调解、仲裁、一审二审阶段,识别劳动者与用人单位代理角色,推荐下一步并提示关键节点与期限。",
@@ -640,6 +672,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动关系离职补偿计算器",
         "summary": "劳动争议核心分析工具:劳动关系从属性分析、12类争议自动分类、工时制度定性、经济补偿计算引擎(N/N+1/2N判断、月工资基数、三层封顶)、加班费三档计算与双倍工资计算。",
@@ -659,6 +692,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "合同深度审查",
         "summary": "基于四步审查法与三观分析法深度审查合同：支持企业核验、多语言自动检测、业务流程图、二段式审核意见、合同概览、客户可读编号、业务摘要、22类合同专项审查、续约提醒与修订模式红线稿。",
@@ -678,6 +712,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "合同文本起草",
         "summary": "合同起草、生成、多轮修订与最终版归档的统一入口：基于三观四步法与可配置的本地模板库，有模板时定制化起草、无模板时独立起草；输出草案并同步生成合同编号、概览、业务摘要、版本记录、修订历史与续约提醒。",
@@ -697,6 +732,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "委托合同管理",
         "summary": "协助律师完成委托合同签订与案件归档：签订阶段确认收费方式与授权范围、生成全套委托文书；归档阶段生成诉讼跟踪记录表并更新客户档案。",
@@ -716,6 +752,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "审查起诉辩护",
         "summary": "审查起诉阶段辩护律师工作职责全规范：指导行使阅卷、会见、调查取证、证据核实、意见表达、非法证据排除申请、控告申诉七类核心权利，并覆盖法律文书生成、量刑预判与检察机关沟通策略等全流程工作规范。",
@@ -735,6 +772,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "审理报告生成器",
         "summary": "从起诉状、答辩状、庭审纪要、法律分析等已有案件材料提取要素，生成法院内部审理报告的 Word 文书初稿，并与总控事项记录和复盘台账衔接。",
@@ -754,6 +792,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "广告合规审查",
         "summary": "依据《广告法》《反不正当竞争法》及行业专项法规，审核广告文案与素材是否符合中国广告法及相关规定，识别违法违规风险，支持房地产、食品、医疗、药品、互联网等行业广告专项审核。",
@@ -773,6 +812,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "庭前准备",
         "summary": "基于起诉状、法律分析、诉讼可视化、案例汇编、质证意见等前置文档，自动归纳争议焦点，生成争点导向庭审提纲、质证攻防矩阵、举证策略规划表、开庭陈述与法庭辩论提纲、代理词及诉讼法律服务方案。",
@@ -792,6 +832,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "庭前庭后工作",
         "summary": "系统化支持庭审全流程：庭前检查提醒、庭审纪要记录、庭审复盘分析、庭后代理词撰写、补充材料管理，以及与当事人和法官的沟通。",
@@ -811,6 +852,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "未成年人刑事辩护",
         "summary": "未成年人刑事案件专项辩护：覆盖社会调查、不逮捕申请、附条件不起诉、犯罪记录封存、不公开审理、法定代理人到场与信息保护等工作。",
@@ -830,6 +872,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事接案与委托",
         "summary": "协助律师承接刑事案件：初次接待、案件评估、风险告知、委托手续办理与信息采集，生成标准化委托文书并建立案件档案。",
@@ -849,6 +892,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "客户沟通记录",
         "summary": "制作民商事诉讼案件沟通记录文档：依《诉讼精细化》手册，采用对话式笔录格式记录与客户首次深度沟通内容，生成 Word 版案件沟通记录。",
@@ -868,6 +912,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件研讨提纲",
         "summary": "整合前序材料做深度案件分析：四维度自问自答与三方模拟法庭演练，最终生成案件提纲。",
@@ -887,6 +932,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "死刑案件辩护",
         "summary": "死刑及死缓案件专项辩护：可能判死案件识别、一审保命辩护、二审强制开庭、被害人和解、死刑复核辩护、死刑案件证据标准与被害人代理注意事项。",
@@ -906,6 +952,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "民事一审诉讼编排",
         "summary": "民事一审诉讼与破产案件的专业流程编排：整合25个子技能，民事诉讼14项（法律咨询、沟通记录、初步分析、委托合同、法规案例检索、取证与证据管理、立案、可视化、讨论提纲、文书起草、庭前准备、庭审与庭后、调解和解、结案归档），破产10项（破产分析、申请受理、管理人工作、财产调查、债权申报与审查、债权人会议等）。",
@@ -925,6 +972,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "民事判决书起草",
         "summary": "从起诉状、答辩状、庭审纪要、法律分析等案件材料提取要素，生成符合法院文书样式的一审普通程序民事判决书 Word 初稿，并与总控事项记录、复盘台账衔接。",
@@ -944,6 +992,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律知识库查询",
         "summary": "按罪名、领域或关键词检索法律 Wiki 知识页，返回知识卡片或全文内容，支持刑事罪名、民事领域与案例知识页的查询及交叉引用跳转。",
@@ -963,6 +1012,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律咨询助理",
         "summary": "协助处理微信渠道与线下法律咨询：生成口语化回复建议、智能反问引导与软性销售植入，按需更新复盘台账，支持客户编号识别、咨询入口路由与线下事实补全。",
@@ -982,6 +1032,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律流程总控",
         "summary": "法律文件夹通用入口：对法律咨询、案件办理、合同、合规、诉讼、刑辩、劳动争议、破产、文书与检索任务做语义路由与子技能匹配，并做案件隔离、来源披露、文件读取复查、法规校验与缺口提示。",
@@ -1001,6 +1052,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "文书发布前审查",
         "summary": "在业务技能生成正文或要素式字段后、导出本地 Word 前，审查草稿文件、复查与法规校验摘要、来源边界和用户确认记录，判定能否进入正式 DOCX 导出；发现问题则闭环推进整改、确认或材料补读。",
@@ -1020,6 +1072,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律文书导出",
         "summary": "统一导出法律工作中最终需输出为本地 Word（.docx）的文书、报告、清单、笔录、意见书、函件、合同等交付文件：选择格式配置、接收语义 HTML 或要素式填充数据，导出 DOCX 并做结构体检、提供兜底模板。",
@@ -1039,6 +1092,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律文稿去AI腔",
         "summary": "检测并去除文章中的 AI 化表述模式，对法律写作做润色与文本优化，消除机器腔，使行文更自然。",
@@ -1058,6 +1112,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法规案例检索",
         "summary": "按三层检索法系统性检索法律法规与案例，与前序初步法律分析的请求权路径联动，输出法官版《法律法规及案例汇编》与律师版《法规案例检索报告》双文档，并衔接总控当前事项记录和复盘台账。",
@@ -1077,6 +1132,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事特殊程序",
         "summary": "刑事特殊程序辩护与代理：覆盖违法所得没收、精神病人强制医疗与再审申诉程序的启动条件、材料审查、听证或开庭准备、文书生成，并与各刑事阶段技能衔接。",
@@ -1096,6 +1152,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "企业劳动合规",
         "summary": "公司端劳动用工合规：日常劳动合规问答、员工手册与规章制度及劳动合同更新、工资工时问答、内部劳动政策起草，以及解除、调岗、降薪、处罚、员工投诉或仲裁前的风险预判。",
@@ -1115,6 +1172,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "监管动态监测",
         "summary": "监测中国境内重点监管动态并评估客户合规影响：跟踪法律法规、部门规章、规范性文件、征求意见稿与执法动态并分级，核查客户现有合规文件缺口，给出新规要求判断、政策制度修改建议、整改清单与监管合规简报。",
@@ -1134,6 +1192,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产和解程序",
         "summary": "提供破产和解程序全流程支持，覆盖和解申请、协议草案编制、债权人会议表决、协议效力确认、执行监督及转清算；依据《企业破产法》第95-99条。",
@@ -1153,6 +1212,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产文书生成器",
         "summary": "按《破产程序法律文书样式》的165份模板（法院106份、管理人59份）按需生成破产程序文书，作为各破产技能统一调用的文书生成出口。",
@@ -1172,6 +1232,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产法律分析",
         "summary": "依据《企业破产法》及司法解释对破产案件作系统法律分析，支持管理人、债权人代理、债务人代理三种视角，输出标准化破产法律分析报告（Word）。",
@@ -1191,6 +1252,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产清算",
         "summary": "覆盖破产清算程序全流程，从宣告破产到程序终结；主要由管理人（R1）执行，债权人代理与债务人代理（R2/R3）参与监督。",
@@ -1210,6 +1272,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产申请受理",
         "summary": "覆盖破产申请全流程：申请书起草、附件准备、提交跟踪，以及法院受理后的初步工作。",
@@ -1229,6 +1292,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "民事立案管理",
         "summary": "系统化指引民事一审立案全流程：立案材料核查、管辖权预检、立案方式选择、诉讼费计算与举证期限管理。",
@@ -1248,6 +1312,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事简易速裁程序",
         "summary": "刑事辩护一审阶段分支技能：处理简易程序、速裁程序及普通程序简化审理，重点在认罪认罚案件的程序适用审查、量刑协商、庭审简化、权利保障与时间节点管理。",
@@ -1267,6 +1332,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产管理人任务",
         "summary": "覆盖破产管理人受理后的全部初期职责：印章与账户管理、财产接管、内部事务管理、合同处理、聘用工作人员、团队管理及报酬方案制定。",
@@ -1286,6 +1352,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "结案归档",
         "summary": "判决或调解完成后，系统化完成案卷归档、案件总结、客户移交与费用结算等结案工作。",
@@ -1305,6 +1372,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "诉讼可视化",
         "summary": "基于Mermaid语法生成诉讼图表:法律关系图、时间轴、争点树、要件分析图、攻防对抗图、证据链图谱,并输出法官版与律师版Word报告,与总控事项记录和复盘台账衔接。",
@@ -1324,6 +1392,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "诉讼法律文书起草",
         "summary": "基于六来源体系和请求权基础分析起草诉讼文书：起诉状、答辩状、代理词、质证意见、保全申请书等，按《法律文书汇编》格式标准成稿。",
@@ -1343,6 +1412,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "诉讼案件管理",
         "summary": "民事、刑事及劳动争议诉讼共用的案件运营管理:案件更新、通知与裁判文书处理、期限台账、时间线、简报、结案检查;建档与法规核验由法律工作总控统一处理。",
@@ -1362,6 +1432,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "证据收集管理",
         "summary": "基于请求权要件分析评估证据缺口，系统化指引证据收集、调查取证、证人管理和财产保全全流程，生成取证方案、各类申请文书与调查笔录。",
@@ -1381,6 +1452,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "调解与和解",
         "summary": "提供调解与和解全流程支持：可行性分析、调解方案起草、调解书与和解协议审查、撤诉管理。",
@@ -1400,6 +1472,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产财产调查管理",
         "summary": "破产程序中面向管理人的专项技能：全面调查债务人财产，追回可撤销或无效行为涉及的财产，编制财产管理方案。",
@@ -1419,6 +1492,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "破产重整管理",
         "summary": "管理破产重整全流程：重整申请与受理、重整期间管理、重整计划草案编制、债权分组表决、法院强制批准、重整计划执行与监督，支持管理人、债权人代理、债务人代理三类角色。",
@@ -1438,6 +1512,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "食品标签合规",
         "summary": "预包装食品标签合规审核:核对标签是否符合 GB 7718 预包装食品标签通则与 GB 28050 营养标签通则,检查缺项、错误与违规风险。",
@@ -1457,6 +1532,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件看板",
         "summary": "律师案件本地零依赖看板服务：案件总览、任务三态看板、期限预警、进度写回，并提供周研判分析；不用于案件实体分析、文书起草与法律研究。",
@@ -1476,6 +1552,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件进度台账",
         "summary": "案件 case.yaml 的统一写入引擎：新增与推进任务、登记期限、更新案件阶段、校验与存量迁移；附会话进度加载与写回契约、进度监控对账。看板展示与周研判用 case-dashboard。",
@@ -1495,6 +1572,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "代码转专利",
         "summary": "从已开发代码项目提取技术实现证据，生成算法/软件类说明书式技术交底书，并按「权利要求布局卡 → 发明专利初稿」两步法产出接近可申报版的中国发明专利起草材料。",
@@ -1514,6 +1592,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "合同起草审查助手",
         "summary": "合同起草与审查助手：基于分层分析与四步流程，输出风险清单、起草骨架、修改建议、推荐措辞与审查意见书，支持批注与修订两种文档处理方式。",
@@ -1533,6 +1612,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件法律分析",
         "summary": "法律任务的前置分析引擎:基于案件材料、咨询材料、合同与证据资料或检索结果,进行法律分析、案件研判、风险评估、诉讼策略、刑事案件审查起诉分析、非诉风险判断与客户说明报告;不要求每次都出正式报告。",
@@ -1552,6 +1632,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律方案生成器",
         "summary": "根据案件材料或沟通记录生成诉讼方案、咨询报告、非诉方案、建议书、沟通报告、结案汇报、案件分析摘要等法律服务文档。",
@@ -1571,6 +1652,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律问答提取",
         "summary": "从律师与客户沟通记录中提取有价值的法律问答对，生成结构化知识库内容，并对客户信息做严格脱敏处理。",
@@ -1590,6 +1672,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律文本排版",
         "summary": "将法律条文或法律案例转换为规范 Markdown 格式并删除推广冗余信息；只负责格式化与内容清理，不含内容抓取，抓取由其他检索类技能协作完成。",
@@ -1609,6 +1692,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律可视化",
         "summary": "把案件、合同、合规事项、证据链、诉讼流程与法律关系材料整理成关系图、流程图、时间轴、风险图或路线图，输出 PNG/SVG/PDF/.drawio。",
@@ -1628,6 +1712,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "诉讼分析",
         "summary": "判决书深度分析,生成上诉或再审的决策支持。",
@@ -1647,6 +1732,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "新案建档",
         "summary": "将案件、咨询、商标与专利材料整理成标准化目录结构：诉讼案件、潜在项目与咨询、商标案件、专利案件四种预设，按业务子类型选择模板，目录顺序按项目进展排列。",
@@ -1666,6 +1752,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "一人公司法律顾问",
         "summary": "面向一人公司（单人创业加AI协同）与小微企业经营场景的法律分诊：识别主矛盾、联动风险、行动优先级与升级边界；涉及现行法条、效力、期限、税率、名录、地方政策或平台规则时生成结构化核查。",
@@ -1685,6 +1772,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "专利分析",
         "summary": "面向中国发明与实用新型专利的结构化初步分析：拆解或解释权利要求、比较保护范围、侵权与等同比对、稳定性与无效风险、FTO、规避设计与价值评估并出图；不替代正式法律意见。",
@@ -1704,6 +1792,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "商标申请助手",
         "summary": "面向中国商标申请的尼斯分类类别规划、可注册性初筛与申请材料准备，引用中国法律法规，输出结构化建议与风险分级；不替代正式法律意见、不承诺注册成功率、不处理复杂争议。",
@@ -1723,6 +1812,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律文本格式化",
         "summary": "将法律条文或法律案例文本转换为规范的 Markdown 格式，删除推广等冗余信息；只负责格式化与内容清理，内容抓取由协作技能完成。",
@@ -1742,6 +1832,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件材料转法律文书",
         "summary": "将案件材料、咨询记录或沟通内容整理生成为各类法律服务文档，如诉讼方案、咨询报告、非诉方案、建议书与沟通报告。",
@@ -1761,6 +1852,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "诉讼批量分析",
         "summary": "支持文件夹批量处理的判决书深度分析,生成上诉或再审的决策支持。",
@@ -1780,6 +1872,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法院短信处理",
         "summary": "收到法院短信（文书送达、立案通知、开庭提醒等）时提取案号、当事人与下载链接，下载文书并归档到对应案件目录；敏感诉讼数据会落盘本地，请确认存放位置私密。",
@@ -1799,6 +1892,7 @@
         "chinese-law",
         "legalskill"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律咨询初步诊断",
         "summary": "以资深律师分阶段办案思维，结合 RAG 法律知识库检索，为法律纠纷提供初步诊断与行动策略；不用于正式法律意见书或代写文书。",
@@ -1818,6 +1912,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "要素式起诉状生成器",
         "summary": "把律师已写好的常规起诉状（md/docx）或对话描述，转换为符合67类案由官方要素式示范文本格式（法〔2025〕82号，2025-07-14起全国推广）的Word文档，适用于民间借贷、离婚纠纷、机动车事故、劳动争议等民事、商事、行政、知产案由的起诉状与答辩状。",
@@ -1837,6 +1932,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "专利批量下载",
         "summary": "专利 PDF 批量下载工具：下载专利全文 PDF、查询专利信息、批量导出专利文件；支持多平台（Google Patents 优先），自动处理申请号与公告号格式。",
@@ -1856,6 +1952,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "元典法律检索",
         "summary": "元典检索感知型法律研究中间层：先做轻量案件研判与查询矩阵，再按向量、关键词与结构化字段调用元典接口检索法规与案例，查找正反类案，生成可追溯检索报告；不替代证据审查、诉讼方案或正式意见。",
@@ -1875,6 +1972,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法条转标记文本",
         "summary": "将法条或规范性文件(.txt/.docx/.pdf)转为Markdown;处理PDF或DOCX时先检查mineru-ocr技能是否安装,未安装先引导安装,仅在用户明确同意时才用本地回退方案。",
@@ -1894,6 +1992,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事一审辩护",
         "summary": "刑事辩护一审阶段技能:覆盖法院审判阶段的委托衔接、补充阅卷、会见、庭前会议、调查取证、非法证据排除、庭审质证辩论、认罪认罚、庭后工作与上诉评估。",
@@ -1913,6 +2012,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事二审辩护",
         "summary": "刑事二审阶段辩护全流程：上诉审接案、一审材料衔接、阅卷审查、会见策略、争取开庭、书面辩护意见、二审庭审与不开庭审理沟通、裁判分析及发回重审衔接。",
@@ -1932,6 +2032,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "债权人会议",
         "summary": "系统化支持债权人会议的筹备、召开、表决与纪要全流程，覆盖管理人、债权人代理、债务人代理三种角色，支持首次及后续多次会议。",
@@ -1951,6 +2052,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "债权申报审查",
         "summary": "破产债权管理全流程：覆盖债权申报、审查与债权表编制，适配管理人、债权人代理、债务人代理三种角色的口径与产出。",
@@ -1970,6 +2072,7 @@
         "chinese-law",
         "legalskill"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律咨询",
         "summary": "面向律师、法务提供法条检索、法规查询、案例研究与司法解释解读,面向公众提供法律咨询、案件分析与维权指导。",
@@ -1989,6 +2092,7 @@
         "chinese-law",
         "pa1nrui1"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑辩流程编排",
         "summary": "按刑事诉讼阶段编排刑事辩护工作：专业路由、阶段转换提示、关键期限提示与下一步工作建议；事项建档、路径、文件读取、来源披露、OCR校正和缺口归档由法律工作总控统一处理。",
@@ -2008,6 +2112,7 @@
         "chinese-law",
         "cat-xierluo"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "行业法律调研报告",
         "summary": "输入一个行业（可选区域与业务方向），输出可交付的精排 A4 PDF 行业法律调研报告：律所蓝皮书体例与个性化配置（律所抬头、配色、主办律师等），数据来自企查查 MCP 与网络检索。",
@@ -2027,6 +2132,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律溯因推理",
         "summary": "在证据不完整、事实模糊时生成并评估最合理的解释性假设,结合密尔五法(求同、求异、求同求异、剩余、共变)进行结构化因果推断。",
@@ -2046,6 +2152,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "规范意涵论证",
         "summary": "分析法律规范的目的与价值导向，以及事实如何进入规范评价、判断涵摄的限度，并适当区别于法律解释中的规范目的解释。",
@@ -2065,6 +2172,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "行政价值判断",
         "summary": "辅助中国大陆行政机关法律工作人员，根据一段行政案情，按行政法基本原则进行价值判断与利益衡量，并形成倾向性裁量结论。",
@@ -2084,6 +2192,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "类比推理",
         "summary": "法律推理遇到现行法无直接规定（法律漏洞）的情形时，参照已有判例、相似案件或相近法律规范推导处理方案，以“相似案件相似处理”原则支撑论证结论。",
@@ -2103,6 +2212,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "论证链条构建",
         "summary": "把法律推理结果组织成完整、自洽、有说服力的论证结构，构建从事实到法律再到结论的推理路径，也可组织反驳对方观点的替代论证链。",
@@ -2122,6 +2232,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "论证强度评估",
         "summary": "对完成后的法律推理或论证进行自我评估，给出整体强度与置信度，识别并标注推理链中的薄弱环节与不确定因素，说明结论局限。",
@@ -2141,6 +2252,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "工时计费与诉讼预算",
         "summary": "统计与管理律师工时、专家费用和调查费用，控制诉讼成本，向客户出具工时单或费用单，支持按案件跟踪办案费用与预算执行。",
@@ -2160,6 +2272,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案件全周期规划",
         "summary": "规划案件准备时间线，生成案件诉讼路线图与关键时间一览表，安排准备节奏与开庭节点；不负责案件分配，也不处理一般性编程任务。",
@@ -2179,6 +2292,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "案例检索",
         "summary": "查找与当前法律问题相关的类似案例、相关判决与裁判规则，支撑法律论点引用、案件预判、文书引用与司法实践趋势分析，返回类案与裁判规则。",
@@ -2198,6 +2312,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "冲突协调",
         "summary": "法律推理中协调法条竞合、证据矛盾、争点优先级排序与法源冲突，确定审理或分析顺序与适用方案；属法律推理的核心枢纽能力。",
@@ -2217,6 +2332,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "反事实推理",
         "summary": "构建仅在目标变量上与现实不同的反事实世界，比较两世界结果差异，衡量该事实、行为或条件对法律结果的贡献，用于因果认定、过错与责任比例、赔偿范围、违约损失、刑事因果中断与立法影响评估。",
@@ -2236,6 +2352,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律演绎推理",
         "summary": "基于形式逻辑执行严密的法律演绎推理，把非结构化的法律规范与案件事实转化为有效、可检验、可复现的前提—事实—结论（P-F-C）演绎论证链条。",
@@ -2255,6 +2372,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "争议与履约风险",
         "summary": "评估合同文本、交易安排、商业协议或法律关系描述中可能产生的法律纠纷与违约风险：指出条款潜在风险、判断履约障碍、评估履约偏差是否构成违约、对条款做风险评级并识别争议焦点。",
@@ -2274,6 +2392,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "争议焦点识别",
         "summary": "在法律要素提取之后，从法律事实中提取争议焦点，将案件关系转化为法律关系问题：排除无争议事项，围绕当事人争议的事实、证据与法律适用焦点支撑后续分析，经事实调查与证据审查逼近争点本质。",
@@ -2293,6 +2412,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "证据论证链",
         "summary": "把案件中多项证据与法律论证主张系统性对应挂钩：为起诉状、答辩状、代理词构建证据—主张关系，庭前整理证据目录并明确各项证明目的，回应对方反驳后重组证据链，按争议焦点把证据分组归类，评估现有证据能否支撑全部主张并识别链中薄弱环节与缺口。",
@@ -2312,6 +2432,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "证据评估",
         "summary": "对案件证据材料进行真实性、合法性、关联性（证据三性）与证明力评估：判断证据能否被法庭采纳，回应对方质证意见，综合评判全案证据以确定待证事实是否成立，对照高度盖然性、排除合理怀疑等证明标准，识别证据链中的薄弱环节。",
@@ -2331,6 +2452,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律后果推导",
         "summary": "基于已确认的法律事实、已识别的法律关系与已匹配的法律规范，推导具体法律后果：民事责任类型与范围、损害赔偿金额计算、刑事刑期确定、行政处罚种类与幅度、合同效力状态等。",
@@ -2350,6 +2472,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "归纳推理",
         "summary": "从一个或多个具体案例、判决、事实模式中提炼一般性法律规则、裁判规则与法律原则,支撑类案检索的裁判规则摘要与司法适用标准总结。",
@@ -2369,6 +2492,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "内部合规风险识别",
         "summary": "系统性审查企业内部合规管理体系:识别制度缺漏、流程缺陷与数据隐私合规风险,评估现有制度与法律法规的匹配度。",
@@ -2388,6 +2512,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事判决书生成",
         "summary": "依据案件事实描述协调调用8个原子能力,生成格式规范、论证严密的完整刑事判决书,涵盖事实认定、法律适用、量刑推理与文书输出全流程。",
@@ -2407,6 +2532,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "司法价值判断",
         "summary": "辅助法官在疑难案件中识别法律价值冲突、确定裁量边界、展开价值衡量,形成可用于裁判说理的分析框架;不替代法官作出最终裁判。",
@@ -2426,6 +2552,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律检索报告",
         "summary": "生成标准化法律检索报告,适用于案例检索、法条检索、类案分析:预测裁判结果、复核法律依据有效性、确认请求与抗辩依据、分析司法实践倾向,支持诉讼方案、庭审准备与合规审查。",
@@ -2445,6 +2572,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律概念理解",
         "summary": "回应用户对法律概念的解释、辨析与拆解需求:比较两个概念的异同、判断给定事实是否构成某概念、分解构成要件并分析其法律效果。",
@@ -2464,6 +2592,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "裁判文书起草",
         "summary": "依据中国人民法院裁判文书制作规范，起草完整的民事判决书或刑事判决书，在起草各段落时自主调用争议焦点识别、法条检索、演绎推理、证据效力评估等原子技能。",
@@ -2483,6 +2612,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律文书摘要",
         "summary": "对判决书、裁定书、调解书、仲裁裁决书、行政处罚决定书等法律文书生成结构化摘要，提炼案件信息、争议焦点、法律依据与说理过程，形成可对比、可检索的标准结果。",
@@ -2502,6 +2632,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律要素提取",
         "summary": "从案件描述、当事人陈述、聊天记录、媒体报道等非结构化文本中提取具法律意义的事实，区分客观事实、主观判断与法律评价，把事实对应到特定法律关系的构成要件，并可整理案件时间轴。",
@@ -2521,6 +2652,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律解释论证",
         "summary": "在法条含义模糊、适用有争议或法条存在表面冲突时，运用文义解释等多种解释方法论证法条应否适用于特定情形，并分析裁判文书中的法律适用。",
@@ -2540,6 +2672,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "裁判结果预测",
         "summary": "根据案件事实描述，综合调用八个原子能力，预测罪名、适用法条、刑期及量刑情节，输出结构化预测报告及置信度评估。",
@@ -2559,6 +2692,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律规范效力核验",
         "summary": "在引用法律条文前核验其效力：判断是否已被修订或废止、多个规范冲突时的优先适用、规范性文件是否具有法律约束力，以及跨层级、跨区域适用问题。",
@@ -2578,6 +2712,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "监管处罚风险评估",
         "summary": "从许可资质、监管法规遵循及历史处罚记录等四个维度，评估企业面临的监管处罚风险。",
@@ -2597,6 +2732,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律术语校验",
         "summary": "确保合同、诉状、法律意见书、裁判文书、法规释义、备忘录等法律文本中术语准确、无歧义、符合法律文体，覆盖起草选词、术语审查、规范表达转化与中外术语对照。",
@@ -2616,6 +2752,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "多文档摘要",
         "summary": "对多份相关文档综合分析：提取共同观点、识别冲突并生成统一概览，可梳理类案要旨、条款异同、规范演变、事实脉络与研究共识。",
@@ -2635,6 +2772,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "辅助法律检索",
         "summary": "检索法条、司法解释与典型案例之外的辅助性法律信息：立法背景资料、监管处罚决定、地方指导意见、规章起草说明与政策解读、行业标准、执法检查与实施报告、白皮书、学术通说与域外比较等。",
@@ -2654,6 +2792,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "风险优先排序",
         "summary": "在法律分析出现多个可能结论、争议焦点或风险点时，按发生概率与影响程度对风险系统化排序，输出优先序列，帮助决策者聚焦关键风险并合理分配资源。",
@@ -2673,6 +2812,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "结构化要素提取",
         "summary": "对法律问题、案件事实、条文或法律关系进行系统性分析前，先将其分解为结构化要素清单，作为法律推理、法律适用、法律建议等下游任务之前的前置质量关卡。",
@@ -2692,6 +2832,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "体系解释",
         "summary": "针对文义解释后遗留的含义或适用范围争议，依据法律规范在法律体系中的位置、编章节归属、关联规范的含义与体系应有之意，给出更符合体系融贯的解释结论。",
@@ -2711,6 +2852,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "目的解释",
         "summary": "文义解释仍无法得出确定结论时，通过系统性发现并论证条文目的，在文本可承受范围内选取较正当的含义，形成可裁判的解释结论。",
@@ -2730,6 +2872,7 @@
         "chinese-law",
         "thuyran"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "排期与期限追踪",
         "summary": "跟踪开庭排期、执行排期以及证据提交、上诉、送达、保全续保等各项法定期限，支持跟踪查询与到期提醒。",
@@ -2745,6 +2888,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "示例财报口径提示",
         "summary": "给出一段简短的财报口径提示示例。",
@@ -2760,6 +2904,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "爬虫工单协议",
         "summary": "定义爬虫自愈体系的对外工单协议（SUBMIT/STATUS/QUEUE）与 inbox 状态文件规范，并规定去重与单写者规则。",
@@ -2775,6 +2920,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "爬虫修复执行",
         "summary": "爬虫自愈体系的修复执行：浅检出代码、读取工单并分诊、做定向修复、走验证链验证，用 curl 开 PR，并遵守凭据脱敏纪律。",
@@ -2790,6 +2936,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "爬虫通知核对",
         "summary": "规范爬虫自愈体系四类事件通知（工单终态、PR 开出、总闸变更、转人工）的 bot_notify 用法，并给出总闸核对流程。",
@@ -2805,6 +2952,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "爬虫生成执行",
         "summary": "爬虫自愈体系的生成执行（kind=generate）：为 greenfield 新建单元按模板起步接入、实现取数，遵守 golden 样本跨期稳定纪律，health_verify 验证循环不超过 3 轮，并在 gen/<slug> 分支开 PR。",
@@ -2823,6 +2971,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "生态技能包创建",
         "summary": "生态技能包：用结构化流程创建新的 SKILL.md 技能包。",
@@ -2841,6 +2990,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "生态服务构建器",
         "summary": "生态技能包：构建 MCP server 的工程指南与脚手架。",
@@ -2859,6 +3009,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "画布图形设计",
         "summary": "面向生态场景的画布与图形设计工作流，按既定流程完成画布排版与图形化设计任务。",
@@ -2874,6 +3025,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "文档工坊",
         "summary": "商务文档生成与编辑工坊：产出报告、表格、演示文稿等 Word/Excel/PPT 交付物，符合中式商务版式，生成后自动质检；也可编辑或转换上传的 docx、xlsx、pptx 文件。",
@@ -2893,6 +3045,7 @@
         "法律",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "类案检索报告",
         "summary": "类案检索与裁判规则报告：检索裁判文书库与指导案例库，多组关键词换搜，输出含真实案号、法院、裁判日期与出处信息的检索报告。",
@@ -2913,6 +3066,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "民事九步法流程",
         "summary": "民事案件九步法会话版，融合请求权基础、要件审判九步法与规范说：固定诉请、抗辩分析、要件拆解、类案检索、争点矩阵、举证责任、事实认定、裁判预测与法条案号核验。输出纯文本推演，不写文件、不调脚本。",
@@ -2933,6 +3087,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "中国法合同审查",
         "summary": "判定适用中国大陆法后，加载通用原则与劳动、借贷、保密、买卖、SaaS 五张行业审查卡逐条审查，产出双轴风险问题清单与审查备忘录；涉精确法条、阈值、生效日期时经法律数据工具核验。仅覆盖大陆法。",
@@ -2952,6 +3107,7 @@
         "法律",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "刑事辩护全流程",
         "summary": "刑事辩护全流程：分析罪名构成与量刑、梳理证据与程序瑕疵、准备辩护意见与庭审发问提纲；走裁判文书库、指导案例库与法规库检索，逐条溯源。",
@@ -2972,6 +3128,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "认罪认罚与不起诉论证",
         "summary": "审查起诉阶段的认罪认罚与不起诉论证：给出证据态势、利弊权衡、量刑建议预测与协商条款、法定/存疑/酌定三种不起诉路径论证，并做当事人知情告知。",
@@ -2992,6 +3149,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "庭审发问质证提纲",
         "summary": "庭审发问与举证质证提纲：庭前会议议程应对、非法证据排除申请、公诉人发问预判与应对、辩方对被告人证人鉴定人的发问提纲、辩方举证提纲与逐份质证意见。",
@@ -3012,6 +3170,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "证据卡片整理",
         "summary": "证据卡片提取与立案材料清单整理：从合同、转账记录、聊天记录、票据、送达回证等案件材料中提取证据、编排证据目录、整理材料清单并排查证据关系与矛盾，输出双视图证据卡片库与待补强清单，供起诉状、答辩状起草直接引用。",
@@ -3032,6 +3191,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动仲裁流程",
         "summary": "识律劳动法套件入口技能:按申请人、被申请人、裁判者立场推进八阶段仲裁流程,处理违法解除、经济补偿、加班费、未签合同二倍工资等争议,并按需点名套件内两个计算器技能。",
@@ -3052,6 +3212,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "劳动补偿计算器",
         "summary": "计算解除劳动合同经济补偿 N、违法解除赔偿金 2N、代通知金 N+1、二倍工资差额、加班费与未休年休假工资报酬，并判断三倍封顶；法律依据走识律条级解析，数值基数取自柏讯统计源，结果附公式与基数来源。",
@@ -3071,6 +3232,7 @@
         "法律",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律概念图谱",
         "summary": "法律概念结构化图解:以条级引用解析锚定条文,以五源语料补权威解读,拆解构成要件与例外,输出要件—例外—关联条文的结构化图解。",
@@ -3091,6 +3253,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "民商事诉讼起草",
         "summary": "民商事诉讼文书起草:起诉状、答辩状、证据目录等;法条锚定与类案参照均走真实检索数据源,经律师确认要点后生成成稿。",
@@ -3111,6 +3274,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "人身损害赔偿计算器",
         "summary": "计算人身损害赔偿各项目：医疗费、误工费、护理费、交通费、住院伙食补助费、营养费、残疾赔偿金、残疾辅助器具费、丧葬费、死亡赔偿金、被扶养人生活费与精神损害抚慰金；法律依据走识律条级解析，基数取自柏讯统计源，结果附公式与基数来源。",
@@ -3130,6 +3294,7 @@
         "法律",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法条效力核验",
         "summary": "法条检索与效力核查：召回候选条文后逐条锚定效力状态，输出带效力状态与出处溯源的法条清单；非现行有效版本明确标注不得作现行法。",
@@ -3145,6 +3310,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "任务协议",
         "summary": "解析需求单（brief），按 GET 轮询与 POST 回写交互五类 kind 消息，遵循幂等键纪律，并提供状态机地图与每回合动作表。",
@@ -3160,6 +3326,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "任务规划",
         "summary": "把目标拆解为不超过八步的计划；每步的执行代理必须经在册代理实查，查无则自行执行；计划一经确定即视为承诺，不再增删。",
@@ -3175,6 +3342,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "任务执行",
         "summary": "按步骤串行执行并回写状态，遵守窗口、预算与重试纪律；委派不可用时转为自行执行。",
@@ -3190,6 +3358,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "任务报告",
         "summary": "生成终态报告，区分完整交付与部分交付，并遵守机器人通知纪律。",
@@ -3209,6 +3378,7 @@
         "剧本",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "剧本结构分析",
         "summary": "梳理公版经典戏剧的幕场与折出骨架及情节推进；数据经 fd-text-core 引擎的剧本语料实时检索，走结构预设。",
@@ -3228,6 +3398,7 @@
         "剧本",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "剧本角色检索",
         "summary": "剧本角色检索与分析：查询某角色的台词、出场段落与形象特征（台词聚合、语言特征、关系网络）；数据经 fd-text-core 引擎（预设 character）。",
@@ -3247,6 +3418,7 @@
         "剧本",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "剧本场景检索",
         "summary": "按场景描述定位目标场景并细读整场内容，分析场景功能、调度特征与戏剧张力；数据经 fd-text-core 引擎，走场景预设。",
@@ -3266,6 +3438,7 @@
         "剧本",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "剧本相似段落",
         "summary": "以参考文本检索语义相近的剧本段落，支持跨剧比较与母题溯源；数据经 fd-text-core 引擎，走纯向量通道。",
@@ -3284,6 +3457,7 @@
         "text",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "论文文献检索",
         "summary": "论文文献检索（文本引擎·论文包入口技能）：从研究方向定位到文献梳理，基于 fd-text-core 引擎论文语料与外部开放检索（arXiv、OpenAlex、S2）实时获取。",
@@ -3302,6 +3476,7 @@
         "text",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "论文方法追踪",
         "summary": "追踪论文中的方法与技术：查某个方法在学术文献里的用法、变体与提出者，按方法名驱动检索并梳理发展脉络，数据经 fd-text-core 引擎实时获取。",
@@ -3320,6 +3495,7 @@
         "text",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "论文相关工作",
         "summary": "论文相关工作与相似文献（文本引擎·论文包）：按摘要、题目或研究想法的语义近邻找相似论文，用于写相关工作段落或查重式比对，数据经 fd-text-core 引擎实时获取。",
@@ -3335,6 +3511,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "向导核验",
         "summary": "验收用占位技能。按名称推断为向导式核验，具体行为以服务端返回为准。",
@@ -3350,6 +3527,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "快速预览",
         "summary": "上游仅注记「速览占位」，无功能说明；按名称推断为快速预览类技能，具体行为以服务端返回为准。",
@@ -3365,6 +3543,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "简报起草",
         "summary": "按名称推断为起草简报类内容的技能，具体行为以服务端返回为准。",
@@ -3385,6 +3564,7 @@
         "宏观",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "宏观周期分析",
         "summary": "宏观周期与景气分析:判断周期位置(复苏/过热/滞胀/衰退),六域景气扫描(增长、通胀、货币信用、财政、外贸、地产消费),领先-同步-滞后指标分层与拐点识别,梳理宏观变量到业务问题的传导链,做省际补充与国际对比;走柏讯服务端宏观数据,不含收益率曲线与互换分析。",
@@ -3405,6 +3585,7 @@
         "行业",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产业链分析",
         "summary": "行业景气与产业链传导分析:定位景气周期位置,梳理上下游投入产出与成本价格传导,用上市公司财务面板实证行业判断,刻画规模、增速、集中度与进入壁垒;走柏讯服务端数据,不涉及价格与市值。",
@@ -3425,6 +3606,7 @@
         "区域",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "区域经济比对",
         "summary": "对中国城市与省份做多维指标横向排名、分位定位、增长结构分解与相似城市聚类，覆盖经济实力、产业结构、财政与居民收入；数据走柏讯城市面板与统计年鉴。",
@@ -3445,6 +3627,7 @@
         "公司",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "企业基本面分析",
         "summary": "柏讯线企业基本面与财务质量分析：三表速览、杜邦分解、现金流质量诊断、财务红旗项排查与同业分位对照；基于 GTA 企业年度面板与中国财报三表及附注，输出带来源与数据期数的可复核结论。只做质量判断，不做估值、不给目标价。",
@@ -3465,6 +3648,7 @@
         "计量",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "面板数据计量分析",
         "summary": "面板数据计量推断：固定/随机效应与 Hausman 检验、聚类稳健标准误、动态面板、双重差分与平行趋势检验；面板取自柏讯 GTA 上市公司、中国城市与世界银行 WDI 三类源。",
@@ -3485,6 +3669,7 @@
         "统计",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "统计推断",
         "summary": "统计检验与探索性分析：描述统计与分布诊断、假设检验选择（t/ANOVA/卡方/非参）、组间或城市间差异显著性、相关与配对分析、时序平稳性与单位根诊断、多重比较校正，也可对本地 CSV 表格做探索性分析；走柏讯服务端序列取数，价格类序列走本地 DAAS。",
@@ -3505,6 +3690,7 @@
         "估值",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "股票估值",
         "summary": "股票估值（DCF＋可比公司＋三表联动）：做内在价值或相对估值、算 WACC 与终值、跑敏感性与情景表、给目标价区间、做同业倍数对照并反推市场隐含预期。财务数据走柏讯服务端通道 A，价格与市值走本地 DAAS 通道 B；通道 B 未连接时中止估值，不给目标价。",
@@ -3525,6 +3711,7 @@
         "财报",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "财报周期分析",
         "summary": "财报前瞻与复盘：定位披露类型与时间、该盯的科目与超/低预期来源；复盘与上年同期差异的驱动科目、盈利质量与含义；基于柏讯财报数据。",
@@ -3544,6 +3731,7 @@
         "个体户",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "生意体检",
         "summary": "谦面个体户与微型企业的生意体检内核入口：四段式问诊建档→单店算账→行业信号对照→行动清单；金额与比率一律经计算器产出并附公式与基数来源，未装行业信号包时如实标注且不中断。",
@@ -3563,6 +3751,7 @@
         "个体户",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个体户盈亏平衡计算器",
         "summary": "谦面个体户盈亏平衡计算器：算月保本流水、保本客流或单量、安全边际与保本天数；每个数字附公式、基数与来源，外部基数取不到即中止该项并明示，不用模型记忆数字填充。",
@@ -3582,6 +3771,7 @@
         "个体户",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "毛利结构计算器",
         "summary": "毛利结构计算器(谦面·个体户):固定与变动成本拆分、各项成本占流水比、毛利率与边际贡献率、成本结构诊断;每数字附公式、基数与来源,拆分结果供盈亏平衡计算器消费。",
@@ -3601,6 +3791,7 @@
         "个体户",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "现金流账期计算器",
         "summary": "现金流与账期计算器(谦面·个体户):计算现金流缺口时点与金额、账期占款、最少周转金与季节性缓冲;现金流与盈亏分开呈现,每个数字附公式、基数与来源。",
@@ -3620,6 +3811,7 @@
         "餐饮",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "餐饮行业信号包",
         "summary": "餐饮行业信号包(谦面·生意体检姊妹件):食材成本趋势取自大商所期货,商圈活跃度以电影票房作代理,堂食外卖切换以气象数据作代理,可选同业密度;每个信号标注代理性质,工商类带批次年份并注明历史格局非实时,无注销口径不计算关店量。",
@@ -3639,6 +3831,7 @@
         "零售",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "零售行业信号包",
         "summary": "零售行业信号包（谦面生意体检姊妹件）：批发价参考、城市基本面、同业密度与快递大盘景气；工商登记数据滞后约三年。",
@@ -3654,6 +3847,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "市场快讯速览",
         "summary": "把财经新闻、公告或评论收敛成一页速览:三行结论、五个要点、一处存疑,按固定版式输出。",
@@ -3669,6 +3863,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "物化探针",
         "summary": "物化探针技能;上游未展开功能范围,具体行为以实际返回为准。",
@@ -3687,6 +3882,7 @@
         "wanxing",
         "vaas"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "多平台扫码登录",
         "summary": "萬星 VAAS 登录管理:支持 6 个视频平台与 11 个文章平台的扫码登录,登录状态保存在用户本机。",
@@ -3706,6 +3902,7 @@
         "vaas",
         "publish"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "视频多平台发布",
         "summary": "把视频发布到抖音、小红书、B站、快手、视频号、YouTube 六个平台,内置 social-auto-upload 与 patchright,发布前需人工确认。",
@@ -3723,6 +3920,7 @@
       "tags": [
         "wanxing"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "云端素材拉取",
         "summary": "将租户自有的萬星 VAAS 云端素材拉取到本地发布目录。",
@@ -3743,6 +3941,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "要素式格式转换",
         "summary": "将起诉状、答辩状等传统法律文书转换为法院推广的要素式示范文本:识别案由并匹配官方示范文本,逐要素从原文提取填充并标注来源,原文事实保真;案由不可识别或示范文本未收录时如实说明。",
@@ -3763,6 +3962,7 @@
         "取数",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个股投研取数",
         "summary": "个股投研的取数与口径纪律层：为 A 股/港股公司取财务科目、公告披露、行业财务指标与公司面板变量，并交代来源工具、数据期数、币种与单位。财务与披露走柏讯服务端通道 A，价格与市值走本地 DAAS 通道 B，两通道不混用、不互相替代；取不到的数值如实声明缺口，不得填补。",
@@ -3783,6 +3983,7 @@
         "同业",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个股投研同业",
         "summary": "个股投研的同业与竞争层：为 A 股/港股公司挑可比公司、按规模带与增速带做对照、做可比性说明与倍数对照表。候选池用 GTA 公司面板按规模与增速筛选（通道 A），价格类输入与倍数只走本地 DAAS（通道 B）；同业之间的可比性差异必须逐项标注，不得抹平。",
@@ -3803,6 +4004,7 @@
         "建模",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个股投研建模",
         "summary": "个股投研的估值建模与计算层：组织 DCF、DDM、可比倍数、蒙特卡洛与敏感性分析的输入，算基本面比率、跑红旗检测、把多种估值方法合成目标价。全部算术一律调用 fd-quant 确定性计算面（通道 Q），本技能只组织输入、标注来源、原样转述返回；计算面不可用时顶部明示估值部分未完成，绝不自算顶替。财务科目走柏讯服务端通道 A。",
@@ -3823,6 +4025,7 @@
         "论点",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个股投研论点",
         "summary": "个股论点综合与方向判定（Rating 契约实例）：产出方向、置信度、目标价（可为空）、依据与证据五个字段。方法分歧、价格通道不可用或输入不足时扣值不扣结论。财务与披露走柏讯服务端通道 A。",
@@ -3843,6 +4046,7 @@
         "报告",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "个股投研报告",
         "summary": "个股投研报告装配入口：按固定 13 章装配报告，执行六项叙述审计自检，缺数据章保留并写明原因，末尾附 Rating 契约实例。",
@@ -3863,6 +4067,7 @@
         "账本",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "决策复盘落账",
         "summary": "柏讯决策落账纪律（复盘套件入口）：把判定或目标权重记入追加式决策账本；幂等键拒绝重复提交并返回既有记录号，修订产生新记录并指向被修订记录，可查回某标的的历史判定与教训。",
@@ -3883,6 +4088,7 @@
         "结算",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "决策复盘到期结算",
         "summary": "柏讯到期结算复盘：汇总待结算记录、取结算窗序列（价格走本地 DAAS 通道）、触发账本结算，输出判定理由回顾、结算结果与对照评述三段式；持有期未满不强行结算，alpha 为负不等于判断错误。",
@@ -3903,6 +4109,7 @@
         "反思",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "决策复盘反思提炼",
         "summary": "柏讯决策反思提炼：为已结算或已落账的判定写2–4句复盘反思，针对决策本身而非市场走势，区分判断错与运气差，含可执行改进项；反思由账本存储，只注入最终决策者的上下文，不得广播给其他角色，缺失反思不阻塞结算。",
@@ -3923,6 +4130,7 @@
         "持仓",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "决策复盘持仓体检",
         "summary": "柏讯持仓体检：查看模拟账户集中度（HHI、前N权重）、期间回撤与行业暴露，核查持仓是否偏离最近一次判定；持仓与账户取自模拟交易服务，缺失数据如实标注，结论为研究参考、不含买卖建议。",
@@ -3943,6 +4151,7 @@
         "回测",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "策略设计",
         "summary": "柏讯策略工坊的策略设计：把投资想法变成可回测的多标的策略（标的池＋目标权重＋调仓频率），说明权重语义、调仓频率与换手的取舍及不支持的表述，产出可创建的权重模式策略 spec。",
@@ -3963,6 +4172,7 @@
         "回测",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "回测结果解读",
         "summary": "柏讯策略工坊回测解读：解读权益曲线与统计指标说明什么、意味着什么，坚持历史模拟不预示未来、单次回测不下有效结论、不忽略成本与基准。",
@@ -3983,6 +4193,7 @@
         "风控",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "策略风控参数",
         "summary": "柏讯策略工坊的风控参数解读：单票上限、集中度、换手、止损、冷却期的含义、量级参考、代价与局限；核心纪律是风控参数属策略层参数，并非引擎保证。",
@@ -4003,6 +4214,7 @@
         "模拟盘",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "模拟盘督导",
         "summary": "柏讯策略工坊的模拟盘督导：解读权重模式纸面实盘为何未下单、权重与目标的偏差、缩量的含义与停止时是否平仓，查看运行事件与权重快照，并区分信号未触发与数据缺口。",
@@ -4023,6 +4235,7 @@
         "市场状态",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "轮动状态判定",
         "summary": "柏讯自适应轮动的市场状态判定（套件入口）：对当前A股给出带证据的风险偏好、中性或避险判定，附波动率输入说明与参数重标表。本技能只做判定，不选股、不建仓，排序与建仓交给对应技能。",
@@ -4043,6 +4256,7 @@
         "行业排序",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "轮动排序",
         "summary": "柏讯自适应轮动的组与组内排序：组为申万L1（31类）成分合成的行业指数，组强度按信息比排序，组内按残差动量加稳健Z打分。输出组排序表、组内排序表与落选原因；不建仓，建仓交给轮动组合技能。",
@@ -4063,6 +4277,7 @@
         "组合",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "轮动组合",
         "summary": "柏讯自适应轮动的风险预算建仓与风控参数：按排序结果产出 TargetWeights 契约实例（组权重→资产权重）、风险预算依据与风控参数；止损须在策略内表达，引擎不自动执行。",
@@ -4083,6 +4298,7 @@
         "回测",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "轮动闭环运行",
         "summary": "柏讯自适应轮动的闭环运行与解读：输出权重模式回测结果（含成本与基准）、权重快照解读与偏离归因。终产物是可执行的权重与运行记录，不是一段买入建议。",
@@ -4103,6 +4319,7 @@
         "口径",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "因子库与口径",
         "summary": "柏讯因子库与口径:收录 FinRL-X 的 52 个基本面因子(九类),逐因子写明分子分母、所用报表、期别、取值来源、数据可得性档位与 A 股适配说明,含共线因子剔除理由;只定义因子,不计算、不选股、不做择时。",
@@ -4123,6 +4340,7 @@
         "暴露",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "因子暴露与分层",
         "summary": "计算标的的因子暴露，按因子分层比较收益差，给出 IC 数值与样本量；暴露、分层、IC 与秩变换均经 fd-quant 计算面完成，层数、极端值处理与样本门槛须显式声明；不做选股与因子择时。",
@@ -4143,6 +4361,7 @@
         "选股",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "因子筛选",
         "summary": "柏讯因子选股应用:把因子暴露与 IC 结果变成候选股票名单与目标权重,权重或规则显式写出、筛选条件逐条可解释、缺失因子按声明规则处理;产出可直接进入权重模式回测的候选名单。因子打分不是预测。",
@@ -4163,6 +4382,7 @@
         "回测",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "因子回测",
         "summary": "柏讯因子选股的无未来函数回测协议:把财报披露日、当期成分、决策日价格与断言开启四条纪律写成可核验断言,并用注入未来披露的夹具证明拦截有效;产出回测口径卡、断言记录与样本内外结论。",
@@ -4183,6 +4403,7 @@
         "公告",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "事件识别",
         "summary": "三路检索（公告列表、分类字典、全文检索）把公告归入六组事件类型（业绩、融资、股权变动、监管、经营、互动），逐条附公告标识、披露日期与归类依据；只做识别与分类，不判利好利空。",
@@ -4203,6 +4424,7 @@
         "解读",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "事件解读",
         "summary": "柏讯事件驱动的事件解读：读公告正文（get_filing），抽取金额、比例、期限、主体、生效条件五类要素，把结论分成正文要素直接支撑（明确）与需看条件两栏，每条结论引用原文并给出公告标识。硬约束：未读正文不下结论，标题与分类只是检索入口；不做涨跌预测，不给买卖建议。",
@@ -4223,6 +4445,7 @@
         "统计",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "事件历史统计",
         "summary": "柏讯事件驱动的历史反应统计：对同类事件做默认 5/10/20 交易日的多窗口统计，输出样本量、分位数、均值与离散度，并强制给出反例比例与样本门槛。全部输出为描述性历史分布，不是预测；样本不足不下结论；口径（按分类或按关键词）随结果一并写出；不提供涨跌预期与买卖建议。",
@@ -4243,6 +4466,7 @@
         "跟踪",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "事件盯梢",
         "summary": "柏讯事件驱动的事件跟踪：按标的与事件类型筛选公告流，输出事件清单、分类计数与期间对比（如本周对上周），并明确标注检索口径与数据截至日期。不做预告、不推荐、不预测影响；定时触发属宿主 cron 配置，本技能只提供被调用时的方法与输出形态。",
@@ -4263,6 +4487,7 @@
         "预算",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "组合风险预算",
         "summary": "柏讯组合风险的风险预算：产出生成即合规的 TargetWeights 契约实例（单票上限＋板块上限＋迭代重分配，迭代上限显式，未收敛如实报告）与约束满足表；只管权重结构，现金靠权重和小于 1 留出。",
@@ -4283,6 +4508,7 @@
         "回撤",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "组合回撤审查",
         "summary": "组合回撤与波动审查：最大回撤含峰谷日期、年化波动、HHI、前N持仓占比、板块集中度与有效标的数，并附超额收益与跟踪误差基准对比；指标取自量化计算面，不手算、不预测，缺失如实标注。",
@@ -4303,6 +4529,7 @@
         "止损",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "组合止损纪律",
         "summary": "柏讯组合风险·止损纪律：整理用户既定的止损规则（固定位止损、移动止损、冷却期，含量级起点与按波动重标的方法依据），并呈现触发检查（当前值对阈值、冷却剩余）。首先声明规则是用户纪律设定、引擎不会自动执行止损。",
@@ -4323,6 +4550,7 @@
         "再平衡",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "组合再平衡方案",
         "summary": "从当前持仓调到目标权重：输出逐标的差额、买卖方向与整数股数（向下取整，与权重模式引擎同口径），附佣金、印花税、滑点分项的成本预估与参数；再平衡规则可送入权重模式回测。方案不含择时建议，并声明引擎不自动执行、只消费权重。",
@@ -4343,6 +4571,7 @@
         "映射",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产业链梳理",
         "summary": "把行业拆成上下游环节结构，判断各家公司在产业链中的环节归属并逐家给出可解释依据，列出每环关键变量与来源，标注两档映射置信度；只做结构映射，不做传导检验、不出候选。",
@@ -4363,6 +4592,7 @@
         "传导",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产业链传导验证",
         "summary": "柏讯产业链联动的传导检验：逐环给出相关系数、时滞扫描、样本量与窗口，形成传导检验表；无数据环节明示未验证，不显著结果如实呈现，频度差显式处理；结论是历史统计关系，非因果证明。",
@@ -4383,6 +4613,7 @@
         "受益",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产业链受益分析",
         "summary": "柏讯产业链联动的环节受益分析：把已验证的传导结论转化为可执行候选股票池与目标权重，支持权重模式回测；每个候选回指一条已验证传导结论，未验证环节不作依据，不预测价格与涨跌。",
@@ -4403,6 +4634,7 @@
         "跟踪",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产业链景气盯梢",
         "summary": "柏讯产业链联动的景气跟踪：按环节分组输出关键变量走势表，含来源、最新期数、缺口标注与变化方向；不含预测与建议；可由宿主 cron 定时触发，技能本身只给方法与输出形态。",
@@ -4423,6 +4655,7 @@
         "辩论",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "投委会裁决",
         "summary": "柏讯投委会套件入口:调度多头与空头两方立论,再按四条裁决纪律给出评级——冲突须指明哪方更强、证据不足给复核不降级、输出评级契约实例、改主意理由必填。",
@@ -4443,6 +4676,7 @@
         "多头",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "投委会多头立论",
         "summary": "柏讯投委会多头立论(与空头对称):把证据集收敛为买入论证;不取数、不计算、不裁决,数字只引用证据集编号;空头未发言时不得替对手立论。",
@@ -4463,6 +4697,7 @@
         "空头",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "投委会空头立论",
         "summary": "投委会辩论三角色之一：构建空头立论，回答“有什么理由不买”、指出多头论证的薄弱处；不取数、不计算、不裁决，数字只能引用证据集 evidence_id，异议须以新证据或适用边界提出。",
@@ -4483,6 +4718,7 @@
         "公告",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "公告舆情审查",
         "summary": "柏讯舆情驱动的公告审读：取巨潮面板公告全文，逐篇用舆情工具打分并强制附原文引用，呈现分数、评级带、置信度、片段与定位。多篇给分布而非平均情绪；拒答如实转述，低置信显式标注。不做交易信号，不给情绪指数。",
@@ -4503,6 +4739,7 @@
         "转向",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "舆情转向盯梢",
         "summary": "柏讯舆情驱动的舆情转向追踪：按公告发布日排布分数，给出逐期分布与转向点（附对应文档），强制报告覆盖面与置信度两栏；样本不足时明示不下转向结论，不给情绪指数与交易信号。",
@@ -4523,6 +4760,7 @@
         "对照",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "舆情信号桥接",
         "summary": "柏讯舆情驱动的描述性对照：把舆情分数分布的时间位置与价格/持仓的时间位置并排，说清先后与是否同期，并强制标注样本是否足以支持描述性陈述；严禁买卖建议、严禁把舆情称作信号；价格通道或账本不可用时明示降级。",
@@ -4538,6 +4776,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "识律控制台导览",
         "summary": "识律控制台五个页面的导览与路由表:每页负责什么、用户问题应去哪一页、何时发起页面跳转意图。",
@@ -4553,6 +4792,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "识律凭据管理指引",
         "summary": "识律凭据的创建、轮换与泄露处置通用流程及安全纪律;只给指引,不代用户执行操作。",
@@ -4568,6 +4808,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "意图动作协议",
         "summary": "宿主页面的动作协议：规定确认纪律、被拒后的改口规则，以及什么算动作、什么不算；信封的字面形状见 persona。",
@@ -4583,6 +4824,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "配额账单解读",
         "summary": "识律配额与账单的解读方法：口径以页面为准，说明硬停后的恢复途径与常见问题话术，绝不编造数字。",
@@ -4603,6 +4845,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法律语料五源检索",
         "summary": "五源法律语料检索与口径对照:按封闭词表逐源检索部门规章、地方规章、条约、纪检监察法规、人民法院案例库案例与党内法规,逐条附来源;不做跨源统计与权威解读占比类结论。",
@@ -4623,6 +4866,7 @@
         "finddata",
         "content-drifted"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "法规效力追踪",
         "summary": "法规效力生命周期追踪与所在层级查证：逐条核验效力状态（有效、已修改、已废止、尚未生效、未知），核对是否被后续修法改动，可盘点某一领域现行有效法规存量；发布日期与失效日期字段不可用时如实声明，不做趋势推断。",
@@ -4641,6 +4885,7 @@
         "crm",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "商家客服台接待",
         "summary": "商家自带 Chatwoot 租户的客服接待：发现账号、读取未处理会话、消息与联系人，在对话中生成回复草稿；默认只草不发，发送须经提议动作并等用户批准后由平台执行；工具失败原样上报并按四分类说明原因。",
@@ -4661,6 +4906,7 @@
         "资讯",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "冲击识别",
         "summary": "柏讯信息冲击识别：先查来源健康度，再按游标拉取信息流（list_since），按来源三型（公告/部委/互动）与七组冲击类型做初筛，逐条附 item_id、发布时间、正文状态与初筛依据；只做识别与初筛，不读正文下结论、不做窗口统计。",
@@ -4681,6 +4927,7 @@
         "解读",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "冲击解读",
         "summary": "柏讯信息冲击解读：读条目正文，抽取金额、比例、期限、主体、生效条件五类要素，结论分「明确」（正文要素直接支撑）与「需看条件」两栏；每条结论附证据块（item_id、as_of 与经 locate_evidence 核对的原文逐字片段）；未读正文不结论，强断言缺可定位证据时只能弱化。",
@@ -4701,6 +4948,7 @@
         "影响",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "信息冲击窗口统计",
         "summary": "对信息冲击做多窗口历史统计（默认前窗 5 日基准 + 后窗 5/10/20 个交易日）：输出样本量、分位、离散度与反例；全部为描述性历史分布，不是预测。",
@@ -4721,6 +4969,7 @@
         "跟踪",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "冲击盯梢",
         "summary": "柏讯信息冲击盯梢：按来源与冲击类型筛选条目流，输出条目清单、来源计数、期间对比与来源健康度水位；滞后与不可用如实标注「信息可能不完整」；不做预告、不预测影响、不做窗口统计；定时触发属宿主 cron，技能只提供可重复执行的输入定义与输出形态。",
@@ -4742,6 +4991,7 @@
         "表单",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "产物构建",
         "summary": "柏讯产物构建：用对话建看板、正文文档、数据录入表单、单记录扫码页，也可改产物 spec、发布或归档；所有写入先落草稿，发布必须是第二次显式调用，spec 列名须先用工具核对。",
@@ -4762,6 +5012,7 @@
         "台账",
         "finddata"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "柏讯数据治理",
         "summary": "柏讯数据治理：读表单收上来的数据、修正或撤销记录、查改错历史、导出 CSV；修正必须带来源标记且不得代填，撤销只置回滚标记、原始行不改写；导出带 truncated 字段须如实转述；工具失败原样转述，不以空列表冒充无数据。",
@@ -4777,6 +5028,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "企业语料库",
         "summary": "企业语料：介绍寻数是谁，以及双星一底座的产品定位与核心概念。",
@@ -4792,6 +5044,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "项目语料库",
         "summary": "项目语料：双星路线图的里程碑状态、出口判据与在途变更。",
@@ -4807,6 +5060,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "能力语料库",
         "summary": "能力语料：介绍谦面在架垂类、萬星服务形态，以及能拿来做什么。",
@@ -4822,6 +5076,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "分身采访与生成指南",
         "summary": "分身采访与生成流程指南：四步采访、素材整理纪律、manifest 组装规则与发布指引。",
@@ -4837,6 +5092,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "分身骨架模板",
         "summary": "分身 manifest 骨架:可直填的完整结构,含分身配置块与语料、接待的最小示例。",
@@ -4852,6 +5108,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "演示语料库",
         "summary": "演示语料：提供占位说明。",
@@ -4867,6 +5124,7 @@
       "author": null,
       "version": null,
       "tags": [],
+      "requiredGroups": [],
       "annotation": {
         "name": "演示语料",
         "summary": "提供分身 p2 的演示语料，内容为该分身的来历说明；具体以服务端返回为准。",
@@ -4885,6 +5143,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "学院课程指南",
         "summary": "生态技能包：回答「Claude 怎么用」时，推荐对应的学院课程。",
@@ -4903,6 +5162,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "算法生成艺术",
         "summary": "生态技能包：用 p5.js 制作带随机种子的生成艺术。",
@@ -4921,6 +5181,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "品牌规范指引",
         "summary": "生态技能包：提供 Anthropic 官方品牌色与字体使用规范。",
@@ -4939,6 +5200,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "交付前甄别提醒",
         "summary": "生态技能包：交出可执行结论前，补一句「哪些地方该自行核实」。",
@@ -4957,6 +5219,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "前端视觉设计",
         "summary": "生态技能包：新界面或改版时，给出视觉方向、字体与版式判断。",
@@ -4975,6 +5238,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "内部沟通写作",
         "summary": "生态技能包：内部沟通文体写作模板，覆盖状态报告、周报与公告。",
@@ -4993,6 +5257,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "群聊动图创建",
         "summary": "生态技能包：制作 Slack 用的动图，内置尺寸与体积约束及校验工具。",
@@ -5011,6 +5276,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "预设主题工厂",
         "summary": "生态技能包：为幻灯片、文档与网页套用统一主题，含十套预设。",
@@ -5029,6 +5295,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "网页产物构建器",
         "summary": "生态技能包：用 React、Tailwind 与 shadcn 搭建多组件 HTML 产物。",
@@ -5047,6 +5314,7 @@
         "ecosystem",
         "anthropics"
       ],
+      "requiredGroups": [],
       "annotation": {
         "name": "网页应用测试",
         "summary": "生态技能包：用 Playwright 驱动本地网页应用，做功能验证与界面排查。",

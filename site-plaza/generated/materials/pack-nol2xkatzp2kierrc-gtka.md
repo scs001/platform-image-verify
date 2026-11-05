@@ -6,8 +6,10 @@
 
 Adaptive industry rotation: from market-regime classification (slow trend/drawdown/volatility Z plus a fast shock check) to group-strength ranking (industry indices synthesized from SW Level-1 constituents), intra-group ranking (residual momentum + robust Z + an exception framework), risk-budgeted position building (emitting TargetWeights contract instances) and closed-loop operation (weight-mode backtests + paper trading + snapshot reading). Aligned with FinRL-X's seven strategy modules, but inputs are adapted to A-shares: volatility uses realized volatility (QVIX/iVIX are unreachable from Wire's reachable environment), groups are synthesized from SW constituents (official index series not sampled), and parameters are re-calibrated to measured quantiles (original Z≥3.0 → adopted |Z|≥2.0, since measured 3.0 covers only 0.47%). Prices go through channel B (local DAAS; A-shares must be seeded first); statistics are always produced by the fd-quant compute face. Division of labor with the strategy-lab suite: the lab provides general discipline (weight semantics, backtest interpretation, risk-control ownership), this suite provides the concrete strategy and parameters (which groups, which names within a group, how the budget splits); supervision does not re-implement. The end product is executable weights and run records, not buy advice.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,16 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (4):
+- rotation-regime — 柏讯自适应轮动 · 市场状态判定（套件入口）。当用户要求判断当前 A 股市场处于进攻/中性/防守状态、要求给出轮动的择时前提、或问"现在该不该加仓/降仓"时使用。产出：带证据的 risk_on / neutral / risk_off 判定
+- rotation-ranking — 柏讯自适应轮动 · 组与组内排序。当用户要求"哪些行业值得配""组内选哪几只""为什么这个组落选"时使用。组 = 申万 L1（31 类）成分股合成的行业指数；组强度用信息比排序，组内用残差动量 + 稳健 Z。产出：组排序表 + 组内排序表 
+- rotation-portfolio — 柏讯自适应轮动 · 风险预算建仓与风控参数。当用户要求"按排序结果给个仓位方案""组之间怎么分配""止损怎么设"时使用。产出：TargetWeights 契约实例（组权重 → 资产权重）+ 风险预算依据 + 风控参数（并明确止损须在策略内表
+- rotation-run — 柏讯自适应轮动 · 闭环运行与解读。当用户要"把这份权重跑一下""回测结果怎么看""模拟盘为什么没成交/权重为什么偏了"时使用。产出：权重模式回测结果（含成本与基准）+ 权重快照解读 + 偏离归因。终产物是可执行权重与运行记录，不是一段买入
+
+MCP server references (5): fd-quant, fd-paper-trading, fd-daas-mcp, fd-cn-report, wire-build-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

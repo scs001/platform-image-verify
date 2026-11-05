@@ -6,8 +6,10 @@
 
 Wire Info Shock four-skill set: shock identification (source health first, then cursor pull plus retrieval as two complementary paths, initial triage by three source types and seven shock-type groups, each item with item_id, publish time and body status), shock reading (read the body and extract five element classes — amount, ratio, horizon, party, effectiveness condition — with conclusions split into 'explicit' vs 'depends on conditions'; every conclusion carries an evidence block: item_id + as_of + a verbatim quote verified through locate_evidence; strong assertions without locatable evidence are downgraded to 'per title/abstract, body unverified'), impact-window statistics (front 5-day baseline vs back 5/10/20 trading days side by side, sample size, quantiles, dispersion and a mandatory counterexample ratio accompany every table; insufficient samples mark the whole table 'not to be relied on'), and stream tracking (source and type counts, period comparison, health watermark; lags and outages are prefixed 'information may be incomplete'). Division of labor with the event-driven suite: event-driven works the fd-cn-report announcement face, this suite works info-stream unified items (announcements + ministries + interactions), with item_id as the citation anchor and verbatim evidence as the bar for conclusions. Core discipline: health first (check stream_health before citing; if lag exceeds the threshold, declare 'information may be incomplete'; never report an empty result as 'no events'), no prediction (no up/down expectations), body-text support (a title is only a search entry), historical distribution is not forecast (sample size and counterexample ratio are mandatory). Not investment advice.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,16 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (4):
+- shock-detection — 柏讯信息冲击 · 冲击识别。当用户要求"最近有什么新公告/新信息""把今天的信息流筛一遍""找出可能构成信息冲击的条目"时使用。先查来源健康度，再按游标拉信息流（list_since），按来源三型（公告/部委/互动）与七组冲击类型做初筛，逐
+- shock-reading — 柏讯信息冲击 · 冲击解读。当用户要求"这条公告/这条信息说了什么""把关键条款摘出来""这个消息的具体金额和条件"时使用。读条目正文，抽取金额/比例/期限/主体/生效条件五类要素，结论分"明确（正文要素直接支撑）"与"需看条件"两栏；每条
+- shock-window — 柏讯信息冲击 · 影响窗口统计。当用户要求"这类公告发布前后一般怎么走""这条信息的历史前后窗口表现""前后窗口指标偏离多大"时使用。对同类信息冲击做多窗口（默认前窗 5 日基准 + 后窗 5/10/20 个交易日）的历史统计：样本量、分位
+- shock-watch — 柏讯信息冲击 · 信息流跟踪。当用户要求"帮我盯着信息流""每天把新条目按来源和类型筛一遍""给我一张信息流跟踪表"时使用。按来源与冲击类型筛选条目流，输出条目清单、来源计数、期间对比与来源健康度水位；滞后与不可用如实标注"信息可能不完整"
+
+MCP server references (4): fd-info, fd-quant, fd-daas-mcp, wire-build-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

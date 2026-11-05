@@ -6,8 +6,10 @@
 
 Operating-checkup core for China's micro-enterprises and sole proprietors: a four-stage workflow (intake interview → single-store accounting → industry-signal comparison → action list) as the entry skill, with three companion calculators for break-even, gross-margin structure, and cash flow/payment terms. Every amount and ratio is produced by a calculator and carries its formula, input base, and source (source name/region/year/as-of date); when an external statistical base cannot be fetched, that item halts with an explicit 'base data source not connected/uncoded' notice, and filling gaps from the model's memory of industry figures is forbidden. When no industry signal pack is installed, this is honestly labeled and the analysis continues. Single-store business profiles can be persisted on the DAAS entity model (one store = one entity, with persistent indicators and alert rules). The core is written so small-business owners can understand it, with plain-language explanations for technical terms; institutional and government channels share the same core and differ only in shell and delivery.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,16 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (4):
+- mb-business-checkup — 生意体检（谦面·面向个体户与微型企业的内核入口技能）。当小老板描述自己的店（餐馆/便利店/花店/网店）、或代账、银行普惠客户经理、园区运营要为商户做经营诊断时使用。四段式：问诊建档 → 单店算账（点名盈亏平衡/毛利结构/现金流账期三计算器）
+- mb-breakeven-calculator — 盈亏平衡计算器（谦面·面向个体户与微型企业的三个原子计算器之一）。当小老板或代账要算「一个月卖到多少才不亏」「每天要来多少客人/多少单才保本」「离保本线还有多远」「按现在的流水多少天能 cover 固定成本」时使用。产出月盈亏平衡流水、保本
+- mb-margin-structure-calculator — 毛利结构计算器（谦面·面向个体户与微型企业的三个原子计算器之一）。当小老板或代账要算「毛利有多少」「哪块成本占得最重」「房租人工占流水几成」「涨价能多赚多少」时使用。产出固定/变动成本拆分、各项成本占流水比、毛利率与边际贡献率、成本结构诊断
+- mb-cashflow-terms-calculator — 现金流与账期计算器（谦面·面向个体户与微型企业的三个原子计算器之一）。当小老板或代账要算「手里要留多少周转金」「什么时候会缺钱」「供应商账期和客户账期对不上怎么办」「旺季备货钱够不够」时使用。产出最少周转金、现金流缺口时段与金额、账期占款、
+
+MCP server references (2): fd-find-data-business-mcp, fd-daas-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

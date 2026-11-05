@@ -6,8 +6,10 @@
 
 Wire factor-selection four-skill suite: factor library and methodologies (a list of 52 factors in nine categories, with per-factor numerator, denominator, source statement and period, removal notes for three collinear factors, and data-availability tiers); factor exposure and quantile grouping (computed on the calculation surface, with explicit layer counts and outlier handling, IC incl. Pearson/Spearman, insufficient samples never used as a basis); stock-selection application (multi-factor scoring or conditional screening producing a candidate universe and target weights — scoring is not forecasting); and a no-look-ahead backtest protocol (financials dated by disclosure date, not reporting period; universe from current-period constituents; prices end at the decision date; assertions mandatory). Division of labor with the adaptive-rotation suite: rotation selects industry groups on price-based momentum, this suite selects stocks on fundamental factors — the two combine without overlap. With the single-stock research suite: that one produces in-depth reports on a single company, this one does cross-sectional ranking and screening. Factor values are always computed on the calculation surface, never by hand. Backtests are historical simulations and do not constitute investment advice.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,16 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (4):
+- factor-library — 柏讯因子选股 · 因子库与口径。当用户问"有哪些基本面因子可用""这个因子怎么算""为什么这两个因子不能同时用""某个因子在 A 股跑不跑得动"时使用。收录 FinRL-X 的 52 个基本面因子（九类），逐因子给出分子、分母、所用报表、期
+- factor-exposure — 柏讯因子选股 · 因子暴露与分层。当用户要求"算某只/某组标的的因子暴露""按因子分层看收益差""给我这个因子的 IC""这个因子在横截面上有没有区分度"时使用。暴露、分层、IC 与秩变换全部经 fd-quant 计算面完成，不在对话里手算
+- factor-screening — 柏讯因子选股 · 选股应用。当用户要求"按这些因子筛一批股票""多因子打分选前 N 只""把因子结论变成可回测的持仓"时使用。把 factor-exposure 的暴露与 IC 结果变成候选 universe 与目标权重，权重或规则显式写出
+- factor-backtest-protocol — 柏讯因子选股 · 无未来函数回测协议。当用户要把因子策略送进回测、要核对"这次回测有没有偷看未来"、要区分样本内与样本外、或要验某条未来数据会不会被拦住时使用。把四条点内纪律写成可核验的断言（财报按披露日、universe 用当期成分、价格
+
+MCP server references (6): fd-quant, fd-cn-report, fd-find-data-business-mcp, fd-paper-trading, fd-daas-mcp, wire-build-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

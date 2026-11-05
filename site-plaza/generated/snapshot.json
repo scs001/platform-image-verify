@@ -1,10 +1,103 @@
 {
-  "generatedAt": "2026-11-04",
+  "generatedAt": "2026-11-05",
   "source": "https://facet.finddatatech.cloud",
   "admission": "public+non-unlisted+curated (loadListedPacks mirror)",
-  "count": 80,
+  "count": 82,
   "stale": false,
   "packs": [
+    {
+      "id": "nG61wKNe3Vg6vtDhfDC_UA",
+      "authorEmail": "aloadtree@gmail.com",
+      "createdAt": 1793800252532,
+      "version": 1,
+      "name": "跨境电商合规分流团队",
+      "description": "跨境电商合规分流团队模板：分流员消费政策日报/通报流/ePing 逐条出分流单（四字段，只分流不裁决）→合成位管队列三态→产出位落合规日报看板草稿。装包后经壹座「团队→从模板实例化」建队；纪律来自共用层三包+值守岗包 crossborder-watch-roles（同 cell 安装）。边界：政策巡检归政策盯梢舰，物流水位归物流值守舰。",
+      "tags": [
+        "团队",
+        "跨境电商",
+        "合规"
+      ],
+      "publishedAt": 1793800252533,
+      "unlisted": false,
+      "visibility": "public",
+      "category": "fleet",
+      "line": "壹座 · 智能体团队",
+      "lineLabel": "壹座 · 智能体团队",
+      "featured": false,
+      "agentCount": 3,
+      "skillCount": 1,
+      "mcpCount": 4,
+      "facade": false,
+      "badge": "blueprint",
+      "official": true,
+      "contents": {
+        "skills": [
+          {
+            "name": "xb-triage-queue-contract",
+            "description": "分流单四字段契约与升级三判据：缺字段标待补、监管代码单列、升级不自决定级。"
+          }
+        ],
+        "mcpServers": [
+          {
+            "registryName": "fd-info"
+          },
+          {
+            "registryName": "fd-open-data-mcp"
+          },
+          {
+            "registryName": "wire-ops"
+          },
+          {
+            "registryName": "wire-build-mcp"
+          }
+        ]
+      }
+    },
+    {
+      "id": "h4Hc53roTMdoSxyPgKXN3Q",
+      "authorEmail": "aloadtree@gmail.com",
+      "createdAt": 1793800245330,
+      "version": 1,
+      "name": "跨境电商物流值守团队",
+      "description": "跨境电商物流值守团队模板：值守岗读 fd-open-data-mcp 口岸观测（port.calls 当日快照，四枢纽港逐港报水位）→合成位按三判据出物流日报（超阈/断更/政策面冲突 escalate）→产出位落看板草稿。装包后经壹座「团队→从模板实例化」建队；岗位纪律来自共用层三包+值守岗包 crossborder-watch-roles（同 cell 安装）。边界：政策公告面归政策盯梢舰，本舰只管口岸水位。",
+      "tags": [
+        "团队",
+        "跨境电商",
+        "物流"
+      ],
+      "publishedAt": 1793800245332,
+      "unlisted": false,
+      "visibility": "public",
+      "category": "fleet",
+      "line": "壹座 · 智能体团队",
+      "lineLabel": "壹座 · 智能体团队",
+      "featured": false,
+      "agentCount": 3,
+      "skillCount": 1,
+      "mcpCount": 3,
+      "facade": false,
+      "badge": "blueprint",
+      "official": true,
+      "contents": {
+        "skills": [
+          {
+            "name": "xb-port-call-pressure-reading",
+            "description": "口岸水位读数纪律：port.calls 当日快照不回填，缺港按 series_state 双态归因，拥堵与吞吐分列不混算。"
+          }
+        ],
+        "mcpServers": [
+          {
+            "registryName": "fd-open-data-mcp"
+          },
+          {
+            "registryName": "wire-ops"
+          },
+          {
+            "registryName": "wire-build-mcp"
+          }
+        ]
+      }
+    },
     {
       "id": "kyZNb-aDEEmpUfed1kp7TA",
       "authorEmail": "aloadtree@gmail.com",

@@ -6,8 +6,10 @@
 
 Wire Expectation Gap four-skill set: interactive Q&A extraction (structures info-stream sse-interaction items into 'investor question + company answer' pairs, each with item_id, verbatim quotes and body-status triage), expectation-clue reading (five clue classes — guidance / confirmation / denial / evasion / wording change — each backed by evidence traceable to the original text; wording changes always shown as a side-by-side pair; a clue is company positioning, not fact), preannouncement cross-check (a three-segment timeline per report period — Q&A date vs preannouncement/express report vs actuals; all arithmetic goes through the fd-quant compute face; preannouncement ranges shown as lower/upper/mid), and gap statement (synthesis in three tiers — verified / unverified / not assessable — each statement with an evidence chain and sample size; missing samples are marked 'not to be relied on'). Coverage boundary (upstream live probe 2026-10-23): SSE e-interaction is available; the SZSE interaction platform is unreachable upstream (legacy API 405, new portal SPA-walled), so coverage = SSE-listed companies only, SZSE names are out of scope, and every output must state this gap. Core discipline: check source health before citing any Q&A; never fill Q&A from model memory; conclusions carry sample size and time window; no scoring, no ranking, no recommendations, no forecasts. Division of labor with the info-shock suite: that one handles price-impact windows of information items, this one only contrasts company positioning against the company's own disclosures and touches no prices. Not investment advice.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,16 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (4):
+- gap-qa-extraction — 柏讯预期差 · 互动问答提取。当用户要求"这家公司在互动平台上被问了什么、怎么答的""把某段时间的投资者问答整理出来""公司在 e 互动上说过什么"时使用。从 info-stream 拉 source=sse-interaction 的条目
+- gap-signal-reading — 柏讯预期差 · 预期线索解读。当用户要求"公司答复里有没有业绩指引""口径跟以前比变没变""哪些问题公司在回避""公司在互动平台上确认过什么"时使用。从互动问答的公司答复中抽取五类预期线索：指引类（业绩/订单/产能/时间表）、确认、否认、回
+- gap-forecast-check — 柏讯预期差 · 与业绩预告对照。当用户要求"公司在互动平台的说法和后来的业绩预告对得上吗""问答是在预告前还是预告后""公司答复口径与实际业绩差多少"时使用。把问答时间点放到披露时间轴上：问答发布日 vs 业绩预告/快报披露日 vs 实际值
+- gap-statement — 柏讯预期差 · 缺口陈述。当用户要求"这家公司的预期差结论""问答口径和业绩对得上一句话怎么说""给一份预期差摘要"时使用。把前三技能的产出（问答清单、线索表、对照表）合成为限定性预期差陈述：每条陈述必须同时带证据链（问答 item_id 
+
+MCP server references (4): fd-info, fd-cn-report, fd-quant, wire-build-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

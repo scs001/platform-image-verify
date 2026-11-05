@@ -9,6 +9,8 @@ Shared fleet layer: collection discipline for intel patrol posts — fd-info ref
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -29,4 +31,4 @@ MCP server references (1): fd-info
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

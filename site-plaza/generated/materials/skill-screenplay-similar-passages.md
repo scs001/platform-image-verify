@@ -9,6 +9,8 @@ Script similar-passage search and comparison: uses a reference text to find sema
 - Species: skill (plaza category enum v1)
 - Official: no
 
+
+
 ## How to obtain
 
 1. In 壹座 (Yizuo): Extensions → Skills — subscribe from the skills face.
@@ -20,4 +22,4 @@ Script similar-passage search and comparison: uses a reference text to find sema
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-05

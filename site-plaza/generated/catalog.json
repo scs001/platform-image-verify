@@ -8,15 +8,146 @@
     "facade",
     "official-data"
   ],
-  "generatedAt": "2026-11-04",
-  "count": 370,
+  "generatedAt": "2026-11-05",
+  "count": 372,
   "counts": {
-    "packs": 80,
+    "packs": 82,
     "skills": 268,
     "mcpServers": 22,
-    "tools": 793
+    "tools": 784
   },
   "materials": [
+    {
+      "id": "nG61wKNe3Vg6vtDhfDC_UA",
+      "slug": "pack-ng61wkne3vg6vtdhfdc-ua",
+      "category": "pack",
+      "marketCategory": "fleet",
+      "tags": [
+        "团队",
+        "跨境电商",
+        "合规"
+      ],
+      "canonical": {
+        "brief": "Cross-border compliance triage cluster template: the triager turns policy dailies, notice streams and ePing items into four-field triage tickets (triage only, no verdicts), the synthesizer reconciles the three-state queue, the producer lands the compliance-daily board draft. Install, then instantiat"
+      },
+      "human": {
+        "zh-CN": {
+          "name": "跨境电商合规分流团队",
+          "summary": "跨境电商合规分流团队模板：分流员消费政策日报/通报流/ePing 逐条出分流单（四字段，只分流不裁决）→合成位管队列三态→产出位落合规日报看板草稿。装包后经壹座「团队→从模板实例化」建队；纪律来自共用层三包+值守岗包 crossborder-watch-roles（同 cell 安装）。边界：政策巡检归政策盯梢舰，物流水位归物流值守舰。"
+        },
+        "en": {
+          "name": "Cross-border Compliance Triage",
+          "summary": "Cross-border compliance triage cluster template: the triager turns policy dailies, notice streams and ePing items into four-field triage tickets (triage only, no verdicts), the synthesizer reconciles the three-state queue, the producer lands the compliance-daily board draft. Install, then instantiate; discipline from the shared packs plus crossborder-watch-roles. Boundary: notice patrolling belongs to the policy watch cluster, port levels to the logistics watch cluster."
+        },
+        "es": {
+          "name": "Triaje de cumplimiento transfronterizo",
+          "summary": "Plantilla de triaje de cumplimiento transfronterizo: el triador convierte informes de política, flujos de avisos y ePing en fichas de cuatro campos (solo triaje, sin veredictos); el sintetizador concilia la cola en tres estados; el productor guarda el borrador. Frontera: la vigilancia de avisos es del clúster de política y los niveles portuarios del logístico."
+        },
+        "fr": {
+          "name": "Triage conformité transfrontalier",
+          "summary": "Modèle de triage conformité transfrontalier : le triageur convertit notes de politique, flux d'avis et ePing en fiches à quatre champs (triage seul, sans verdict) ; le synthétiseur réconcilie la file à trois états ; le producteur dépose le brouillon. Frontière : la veille des avis relève du cluster politique, les niveaux portuaires du cluster logistique."
+        },
+        "ja": {
+          "name": "越境ECコンプライアンス分流チーム",
+          "summary": "越境ECコンプライアンス分流クラスタのテンプレート：分流役が政策日報・通報流・ePing を4項目の分流チケットへ（分流のみ、裁定せず）、統合役がキュー三態を照合、制作役がコンプラ日報の掲示板下書きを保存。インストール後にテンプレートからインスタンス化。境界：公告巡回は政策見張り艦、港湾水位は物流艦。"
+        }
+      },
+      "whenToUse": "Browse under \"fleet\" in the market.",
+      "badges": {
+        "official": true,
+        "facade": false
+      },
+      "provenance": {
+        "source": "https://facet.finddatatech.cloud",
+        "updatedAt": "2026-11-05"
+      },
+      "contents": {
+        "skills": [
+          {
+            "name": "xb-triage-queue-contract",
+            "description": "分流单四字段契约与升级三判据：缺字段标待补、监管代码单列、升级不自决定级。"
+          }
+        ],
+        "mcpServers": [
+          {
+            "registryName": "fd-info"
+          },
+          {
+            "registryName": "fd-open-data-mcp"
+          },
+          {
+            "registryName": "wire-ops"
+          },
+          {
+            "registryName": "wire-build-mcp"
+          }
+        ]
+      }
+    },
+    {
+      "id": "h4Hc53roTMdoSxyPgKXN3Q",
+      "slug": "pack-h4hc53rotmdosxypgkxn3q",
+      "category": "pack",
+      "marketCategory": "fleet",
+      "tags": [
+        "团队",
+        "跨境电商",
+        "物流"
+      ],
+      "canonical": {
+        "brief": "Cross-border logistics watch cluster template: the monitor reads port observations via fd-open-data-mcp (port.calls daily snapshot, four hub ports reported port by port), the synthesizer builds the daily logistics brief on three criteria (threshold breach / feed freeze / policy-side conflict escalat"
+      },
+      "human": {
+        "zh-CN": {
+          "name": "跨境电商物流值守团队",
+          "summary": "跨境电商物流值守团队模板：值守岗读 fd-open-data-mcp 口岸观测（port.calls 当日快照，四枢纽港逐港报水位）→合成位按三判据出物流日报（超阈/断更/政策面冲突 escalate）→产出位落看板草稿。装包后经壹座「团队→从模板实例化」建队；岗位纪律来自共用层三包+值守岗包 crossborder-watch-roles（同 cell 安装）。边界：政策公告面归政策盯梢舰，本舰只管口岸水位。"
+        },
+        "en": {
+          "name": "Cross-border Logistics Watch",
+          "summary": "Cross-border logistics watch cluster template: the monitor reads port observations via fd-open-data-mcp (port.calls daily snapshot, four hub ports reported port by port), the synthesizer builds the daily logistics brief on three criteria (threshold breach / feed freeze / policy-side conflict escalates), the producer lands the board draft. Install, then instantiate from the template; discipline comes from the shared packs plus crossborder-watch-roles (same cell). Boundary: policy notices belong to the policy watch cluster."
+        },
+        "es": {
+          "name": "Monitor logístico transfronterizo",
+          "summary": "Plantilla de clúster logístico transfronterizo: el monitor lee observaciones portuarias vía fd-open-data-mcp (port.calls, instantánea diaria, cuatro puertos nudales), el sintetizador arma el informe diario con tres criterios (umbral, corte de datos, conflicto con política: escala) y el productor guarda el borrador. Instala e instancia desde la plantilla; la disciplina viene de los packs compartidos más crossborder-watch-roles. Frontera: los avisos de política pertenecen al clúster de vigilancia política."
+        },
+        "fr": {
+          "name": "Veille logistique transfrontalière",
+          "summary": "Modèle de cluster logistique transfrontalier : le moniteur lit les observations portuaires via fd-open-data-mcp (port.calls, instantané quotidien, quatre ports pivots), le synthétiseur prépare la note logistique sur trois critères (seuil, gel de données, conflit politique : escalade), le producteur dépose le brouillon. Installez puis instanciez ; la discipline vient des packs partagés et de crossborder-watch-roles. Frontière : les avis politiques relèvent du cluster de veille politique."
+        },
+        "ja": {
+          "name": "越境EC物流モニタリングチーム",
+          "summary": "越境EC物流モニタリングクラスタのテンプレート：監視役が fd-open-data-mcp で港湾観測（port.calls 当日スナップショット、4 枢纽港を個別に）を読み、統合役が3基準で物流日報を作り（閾値超過／配信停止／政策面との矛盾はエスカレーション）、制作役が掲示板の下書きを保存。インストール後にテンプレートからインスタンス化。規律は共用3パック＋crossborder-watch-roles。境界：政策公告は政策見張り艦の担当。"
+        }
+      },
+      "whenToUse": "Browse under \"fleet\" in the market.",
+      "badges": {
+        "official": true,
+        "facade": false
+      },
+      "provenance": {
+        "source": "https://facet.finddatatech.cloud",
+        "updatedAt": "2026-11-05"
+      },
+      "contents": {
+        "skills": [
+          {
+            "name": "xb-port-call-pressure-reading",
+            "description": "口岸水位读数纪律：port.calls 当日快照不回填，缺港按 series_state 双态归因，拥堵与吞吐分列不混算。"
+          }
+        ],
+        "mcpServers": [
+          {
+            "registryName": "fd-open-data-mcp"
+          },
+          {
+            "registryName": "wire-ops"
+          },
+          {
+            "registryName": "wire-build-mcp"
+          }
+        ]
+      }
+    },
     {
       "id": "kyZNb-aDEEmpUfed1kp7TA",
       "slug": "pack-kyznb-adeempufed1kp7ta",
@@ -60,7 +191,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -118,7 +249,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -146,7 +277,7 @@
     {
       "id": "0LVfedThOxtymbwlbdZtGw",
       "slug": "pack-0lvfedthoxtymbwlbdztgw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "fleet",
       "tags": [
         "跨境电商",
@@ -185,7 +316,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -260,7 +391,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -283,7 +414,7 @@
     {
       "id": "qnhd7B3J1-HKDDKzZQ_fUQ",
       "slug": "pack-qnhd7b3j1-hkddkzzq-fuq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "doc-studio",
       "tags": [
         "官方功能集",
@@ -323,7 +454,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -338,7 +469,7 @@
     {
       "id": "Aqag8Mky4ksoPmwRDMCVYw",
       "slug": "pack-aqag8mky4ksopmwrdmcvyw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "官方功能集",
@@ -377,7 +508,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -437,7 +568,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [],
@@ -447,7 +578,7 @@
     {
       "id": "Bzz9r5rmYPIAitS8Ca33Lw",
       "slug": "pack-bzz9r5rmypiaits8ca33lw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wanxing",
       "tags": [
         "wanxing",
@@ -487,7 +618,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -518,7 +649,7 @@
     {
       "id": "ev5E51eth7e5McvyDrl9Rg",
       "slug": "pack-ev5e51eth7e5mcvydrl9rg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "daas",
       "tags": [
         "market",
@@ -557,7 +688,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -572,7 +703,7 @@
     {
       "id": "0RdQE184anPUaMhIvFwndA",
       "slug": "pack-0rdqe184anpuamhivfwnda",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "facet",
       "tags": [
         "谦面",
@@ -613,7 +744,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -639,7 +770,7 @@
     {
       "id": "oGURb41bdyAotVGOeBHZUA",
       "slug": "pack-ogurb41bdyaotvgoebhzua",
-      "category": "official-data",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "数据",
@@ -680,7 +811,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -715,7 +846,7 @@
     {
       "id": "50Tp176hW0HYTTWXZbarKA",
       "slug": "pack-50tp176hw0hyttwxzbarka",
-      "category": "official-data",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "数据",
@@ -756,7 +887,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -803,7 +934,7 @@
     {
       "id": "5y0_Gislp_OgElqq4zPswA",
       "slug": "pack-5y0-gislp-ogelqq4zpswa",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "text",
       "tags": [
         "Productivity"
@@ -840,7 +971,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -855,7 +986,7 @@
     {
       "id": "NoBBXkvxZnJNHlCrAwWp-w",
       "slug": "pack-nobbxkvxznjnhlcrawwp-w",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "fleet",
       "tags": [],
       "canonical": {
@@ -890,7 +1021,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -909,7 +1040,7 @@
     {
       "id": "DydB2cal-M9l91IMJYHshA",
       "slug": "pack-dydb2cal-m9l91imjyhsha",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -949,7 +1080,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -979,7 +1110,7 @@
     {
       "id": "wqpd5rPCFl3qIHg6oLDamg",
       "slug": "pack-wqpd5rpcfl3qihg6oldamg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1018,7 +1149,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1061,7 +1192,7 @@
     {
       "id": "azkOwU4q6mmTmbw75Ow7yQ",
       "slug": "pack-azkowu4q6mmtmbw75ow7yq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1100,7 +1231,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1150,7 +1281,7 @@
     {
       "id": "jwDL7dSYKjp7_NnQpk7DPA",
       "slug": "pack-jwdl7dsykjp7-nnqpk7dpa",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "cluster",
       "tags": [
         "研发",
@@ -1194,7 +1325,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [],
@@ -1243,7 +1374,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1269,7 +1400,7 @@
     {
       "id": "3uOELnBMA6WiWSTQxrV93g",
       "slug": "pack-3uoelnbma6wiwstqxrv93g",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -1307,7 +1438,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1337,7 +1468,7 @@
     {
       "id": "5mqV0jhihj0AhdNPCpc1iw",
       "slug": "pack-5mqv0jhihj0ahdnpcpc1iw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1376,7 +1507,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1411,7 +1542,7 @@
     {
       "id": "8edSwnv3lIXcuSAkzS9vvA",
       "slug": "pack-8edswnv3lixcusakzs9vva",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1450,7 +1581,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1469,7 +1600,7 @@
     {
       "id": "AlZiwYWeSfbs9hqRI4d-IA",
       "slug": "pack-alziwywesfbs9hqri4d-ia",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1508,7 +1639,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1547,7 +1678,7 @@
     {
       "id": "BX0qjZe26KJU-waLQNVS-A",
       "slug": "pack-bx0qjze26kju-walqnvs-a",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1585,7 +1716,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1625,7 +1756,7 @@
     {
       "id": "DNYnRrjjAWINzqR_ArmbjQ",
       "slug": "pack-dnynrrjjawinzqr-armbjq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1664,7 +1795,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1704,7 +1835,7 @@
     {
       "id": "I5n-sRpbXuFu6WLbh6PfvQ",
       "slug": "pack-i5n-srpbxufu6wlbh6pfvq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -1743,7 +1874,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1818,7 +1949,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1894,7 +2025,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1921,7 +2052,7 @@
     {
       "id": "UzMQPvaZqdmpluQsbY-eng",
       "slug": "pack-uzmqpvazqdmpluqsby-eng",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -1959,7 +2090,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -1989,7 +2120,7 @@
     {
       "id": "XozWSsRjsA8MxFPkHBJZbw",
       "slug": "pack-xozwssrjsa8mxfpkhbjzbw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2028,7 +2159,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2106,7 +2237,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2172,7 +2303,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2238,7 +2369,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2264,7 +2395,7 @@
     {
       "id": "_FN7pti9TH5JMg3YnQut0w",
       "slug": "pack-fn7pti9th5jmg3ynqut0w",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2304,7 +2435,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2341,7 +2472,7 @@
     {
       "id": "aMdkHzCbsc3fPsYiqMDUOA",
       "slug": "pack-amdkhzcbsc3fpsyiqmduoa",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2380,7 +2511,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2422,7 +2553,7 @@
     {
       "id": "ceuUUWYFYH_HiYnJ6UYqSg",
       "slug": "pack-ceuuuwyfyh-hiynj6uyqsg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2461,7 +2592,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2501,7 +2632,7 @@
     {
       "id": "cjT2AW1QDGPGbvNIFmLgDg",
       "slug": "pack-cjt2aw1qdgpgbvnifmlgdg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2540,7 +2671,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2579,7 +2710,7 @@
     {
       "id": "dxT2HEZ1z8GibrjMAgFJJw",
       "slug": "pack-dxt2hez1z8gibrjmagfjjw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2617,7 +2748,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2702,7 +2833,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2757,7 +2888,7 @@
     {
       "id": "kimcQr9qSyGmbXej3CmeDg",
       "slug": "pack-kimcqr9qsygmbxej3cmedg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2795,7 +2926,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2841,7 +2972,7 @@
     {
       "id": "mFYxWUfp5oHsPcpRDhxAhw",
       "slug": "pack-mfyxwufp5ohspcprdhxahw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -2879,7 +3010,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2919,7 +3050,7 @@
     {
       "id": "mfaIAXHRVFQJaXPXyiAzKQ",
       "slug": "pack-mfaiaxhrvfqjaxpxyiazkq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -2957,7 +3088,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -2982,7 +3113,7 @@
     {
       "id": "ndVkyAg2NfIVXg7oSDAWxw",
       "slug": "pack-ndvkyag2nfivxg7osdawxw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -3020,7 +3151,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3050,7 +3181,7 @@
     {
       "id": "noL2XKaTZP2kiERrC_gtKA",
       "slug": "pack-nol2xkatzp2kierrc-gtka",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -3089,7 +3220,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3132,7 +3263,7 @@
     {
       "id": "rz-ebXHD5astVGcyqlhmqA",
       "slug": "pack-rz-ebxhd5astvgcyqlhmqa",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -3170,7 +3301,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3192,7 +3323,7 @@
     {
       "id": "tXQaAuRY2F-Kog-rb21bCw",
       "slug": "pack-txqaaury2f-kog-rb21bcw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "wire",
       "tags": [
         "wire",
@@ -3231,7 +3362,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3271,7 +3402,7 @@
     {
       "id": "zxuH617BsFnj1QQk81QY-A",
       "slug": "pack-zxuh617bsfnj1qqk81qy-a",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -3309,7 +3440,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3347,7 +3478,7 @@
     {
       "id": "y2_QsuKxV8dZFr-39_0zRQ",
       "slug": "pack-y2-qsukxv8dzfr-39-0zrq",
-      "category": "official-data",
+      "category": "pack",
       "marketCategory": "fleet-shared",
       "tags": [
         "团队",
@@ -3387,7 +3518,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3441,7 +3572,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3498,7 +3629,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3521,7 +3652,7 @@
     {
       "id": "tHd65-7SfBT_z0KfTvHGIw",
       "slug": "pack-thd65-7sfbt-z0kftvhgiw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "docs",
       "tags": [
         "文档"
@@ -3558,7 +3689,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3573,7 +3704,7 @@
     {
       "id": "qCEIutJzQd49jnDtV4qeqw",
       "slug": "pack-qceiutjzqd49jndtv4qeqw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "authoring",
       "tags": [
         "assistant",
@@ -3612,7 +3743,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3694,7 +3825,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3754,7 +3885,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3828,7 +3959,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3847,7 +3978,7 @@
     {
       "id": "_vcfZzuxPgkiRsj5poZIgg",
       "slug": "pack-vcfzzuxpgkirsj5pozigg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "company",
       "tags": [
         "分身",
@@ -3886,7 +4017,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3945,7 +4076,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -3967,7 +4098,7 @@
     {
       "id": "_B99vDq0CFBNQGvmfy5iSw",
       "slug": "pack-b99vdq0cfbnqgvmfy5isw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "facet",
       "tags": [
         "官方功能集",
@@ -4006,7 +4137,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4071,7 +4202,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4097,7 +4228,7 @@
     {
       "id": "Ut_bJMuW5KxAD83KImPmlg",
       "slug": "pack-ut-bjmuw5kxad83kimpmlg",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "company",
       "tags": [
         "分身",
@@ -4136,7 +4267,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4159,7 +4290,7 @@
     {
       "id": "UXWcHRYPeyNue1Z4qQl-Tw",
       "slug": "pack-uxwchrypeynue1z4qql-tw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "business",
       "tags": [
         "零售",
@@ -4200,7 +4331,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4222,7 +4353,7 @@
     {
       "id": "O30LA92kq1D5uuNIBGKsZQ",
       "slug": "pack-o30la92kq1d5uunibgkszq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "fleet",
       "tags": [
         "团队",
@@ -4261,7 +4392,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4323,7 +4454,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4377,7 +4508,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [],
@@ -4387,7 +4518,7 @@
     {
       "id": "MBcXTHtyyMOxDHmSUYvDdQ",
       "slug": "pack-mbcxthtyymoxdhmsuyvddq",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "business",
       "tags": [
         "个体户",
@@ -4428,7 +4559,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4501,7 +4632,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4531,7 +4662,7 @@
     {
       "id": "INdsRWpgpp2Q03I0z3XoFA",
       "slug": "pack-indsrwpgpp2q03i0z3xofa",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "operations",
       "tags": [
         "assistant",
@@ -4570,7 +4701,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4633,7 +4764,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4683,7 +4814,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4741,7 +4872,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4774,7 +4905,7 @@
     {
       "id": "BniA5thfDdb3oG-FT0CkJA",
       "slug": "pack-bnia5thfddb3og-ft0ckja",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "business",
       "tags": [
         "餐饮",
@@ -4815,7 +4946,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4875,7 +5006,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4898,7 +5029,7 @@
     {
       "id": "6kDsKgmb-3_86A81VZC6UA",
       "slug": "pack-6kdskgmb-3-86a81vzc6ua",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "data",
       "tags": [
         "数据"
@@ -4935,7 +5066,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -4985,7 +5116,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5048,7 +5179,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5106,7 +5237,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5125,7 +5256,7 @@
     {
       "id": "1mAJYooWE-SajhzqTNMhBw",
       "slug": "pack-1majyoowe-sajhzqtnmhbw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "text",
       "tags": [
         "文本引擎",
@@ -5166,7 +5297,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5197,7 +5328,7 @@
     {
       "id": "1OQ93FLBzzVGcn2js31ADA",
       "slug": "pack-1oq93flbzzvgcn2js31ada",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "text",
       "tags": [
         "文本引擎",
@@ -5238,7 +5369,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5304,7 +5435,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5323,7 +5454,7 @@
     {
       "id": "XfyXvzONQFelnFIgM0dJVw",
       "slug": "pack-xfyxvzonqfelnfigm0djvw",
-      "category": "facade",
+      "category": "pack",
       "marketCategory": "legal",
       "tags": [
         "lex",
@@ -5362,7 +5493,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "contents": {
         "skills": [
@@ -5427,7 +5558,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -5471,7 +5602,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -5515,7 +5646,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -5561,7 +5692,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/earnings-analysis"
     },
@@ -5608,7 +5739,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/sector-overview"
     },
@@ -5655,7 +5786,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/comps-analysis"
     },
@@ -5702,7 +5833,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/dcf-model"
     },
@@ -5749,7 +5880,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/3-statement-model"
     },
@@ -5796,7 +5927,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/returns-analysis"
     },
@@ -5843,7 +5974,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/ic-memo"
     },
@@ -5891,7 +6022,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/research-methods/macro-rates-monitor"
     },
@@ -5938,7 +6069,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/market-analysis/company-valuation"
     },
@@ -5985,7 +6116,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/market-analysis/stock-correlation"
     },
@@ -6032,7 +6163,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/market-analysis/earnings-preview"
     },
@@ -6079,7 +6210,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/market-analysis/earnings-recap"
     },
@@ -6127,7 +6258,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/cn-market/akshare-stock"
     },
@@ -6174,7 +6305,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/us-market/stock-analysis"
     },
@@ -6221,7 +6352,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/sentiment/last30days"
     },
@@ -6268,7 +6399,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/data-analysis/data-analysis"
     },
@@ -6315,7 +6446,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/data-analysis/exploratory-data-analysis"
     },
@@ -6362,7 +6493,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/data-analysis/statsmodels"
     },
@@ -6409,7 +6540,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/data-analysis/statistical-analysis"
     },
@@ -6455,7 +6586,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -6501,7 +6632,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -6547,7 +6678,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -6593,7 +6724,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6639,7 +6770,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6685,7 +6816,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6731,7 +6862,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6777,7 +6908,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6823,7 +6954,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6869,7 +7000,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6915,7 +7046,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -6961,7 +7092,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7007,7 +7138,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7053,7 +7184,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7099,7 +7230,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7145,7 +7276,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7191,7 +7322,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7237,7 +7368,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7283,7 +7414,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7329,7 +7460,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7375,7 +7506,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7421,7 +7552,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7467,7 +7598,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7513,7 +7644,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7559,7 +7690,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7605,7 +7736,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7651,7 +7782,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7697,7 +7828,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7743,7 +7874,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7789,7 +7920,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7835,7 +7966,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7881,7 +8012,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7927,7 +8058,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -7973,7 +8104,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8019,7 +8150,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8065,7 +8196,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8111,7 +8242,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8157,7 +8288,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8203,7 +8334,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8249,7 +8380,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8295,7 +8426,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8341,7 +8472,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8387,7 +8518,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8433,7 +8564,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8479,7 +8610,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8525,7 +8656,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8571,7 +8702,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8617,7 +8748,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8663,7 +8794,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8709,7 +8840,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8755,7 +8886,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8801,7 +8932,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8847,7 +8978,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -8893,7 +9024,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -8939,7 +9070,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -8985,7 +9116,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9031,7 +9162,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9077,7 +9208,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9123,7 +9254,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9169,7 +9300,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9215,7 +9346,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9261,7 +9392,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9307,7 +9438,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9353,7 +9484,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9399,7 +9530,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9445,7 +9576,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9491,7 +9622,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9537,7 +9668,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -9583,7 +9714,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -9629,7 +9760,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -9675,7 +9806,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9721,7 +9852,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/legalskill/legalskill"
     },
@@ -9767,7 +9898,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9813,7 +9944,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9859,7 +9990,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -9905,7 +10036,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -9951,7 +10082,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -9997,7 +10128,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -10043,7 +10174,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -10089,7 +10220,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -10135,7 +10266,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/legalskill/legalskill"
     },
@@ -10181,7 +10312,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/pa1nrui1/legal-skills"
     },
@@ -10227,7 +10358,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/cat-xierluo/legal-skills"
     },
@@ -10273,7 +10404,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10319,7 +10450,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10365,7 +10496,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10411,7 +10542,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10457,7 +10588,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10503,7 +10634,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10549,7 +10680,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10595,7 +10726,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10641,7 +10772,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10687,7 +10818,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10733,7 +10864,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10779,7 +10910,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10825,7 +10956,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10871,7 +11002,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10917,7 +11048,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -10963,7 +11094,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11009,7 +11140,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11055,7 +11186,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11101,7 +11232,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11147,7 +11278,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11193,7 +11324,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11239,7 +11370,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11285,7 +11416,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11331,7 +11462,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11377,7 +11508,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11423,7 +11554,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11469,7 +11600,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11515,7 +11646,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11561,7 +11692,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11607,7 +11738,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11653,7 +11784,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11699,7 +11830,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11745,7 +11876,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11791,7 +11922,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11837,7 +11968,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11883,7 +12014,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11929,7 +12060,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -11975,7 +12106,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/THUYRan/Legal-Skills-Chinese"
     },
@@ -12017,7 +12148,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12058,7 +12189,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12099,7 +12230,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12140,7 +12271,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12181,7 +12312,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12225,7 +12356,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -12270,7 +12401,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -12315,7 +12446,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -12357,7 +12488,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12402,7 +12533,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12448,7 +12579,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12494,7 +12625,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12539,7 +12670,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12585,7 +12716,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12631,7 +12762,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12677,7 +12808,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12723,7 +12854,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12769,7 +12900,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12814,7 +12945,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12860,7 +12991,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12906,7 +13037,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12951,7 +13082,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -12992,7 +13123,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13033,7 +13164,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13074,7 +13205,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13115,7 +13246,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13160,7 +13291,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13205,7 +13336,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13250,7 +13381,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13295,7 +13426,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13339,7 +13470,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13383,7 +13514,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13427,7 +13558,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13468,7 +13599,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13509,7 +13640,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13550,7 +13681,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -13596,7 +13727,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/macro-cycle-analysis"
     },
@@ -13643,7 +13774,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/industry-chain-analysis"
     },
@@ -13690,7 +13821,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/regional-economy-compare"
     },
@@ -13737,7 +13868,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/corporate-fundamental-analysis"
     },
@@ -13784,7 +13915,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/panel-econometrics"
     },
@@ -13831,7 +13962,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/statistical-inference"
     },
@@ -13878,7 +14009,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-valuation"
     },
@@ -13925,7 +14056,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/earnings-cycle-analysis"
     },
@@ -13971,7 +14102,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14016,7 +14147,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14061,7 +14192,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14106,7 +14237,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14151,7 +14282,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14196,7 +14327,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14237,7 +14368,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14278,7 +14409,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14322,7 +14453,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14367,7 +14498,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14410,7 +14541,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14456,7 +14587,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -14502,7 +14633,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-research-data"
     },
@@ -14549,7 +14680,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-research-peers"
     },
@@ -14596,7 +14727,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-research-modeling"
     },
@@ -14643,7 +14774,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-research-thesis"
     },
@@ -14690,7 +14821,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/equity-research-report"
     },
@@ -14737,7 +14868,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/decision-review-log"
     },
@@ -14784,7 +14915,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/decision-review-settlement"
     },
@@ -14831,7 +14962,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/decision-review-reflection"
     },
@@ -14878,7 +15009,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/decision-review-portfolio"
     },
@@ -14925,7 +15056,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/strategy-design"
     },
@@ -14972,7 +15103,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/strategy-backtest-interpretation"
     },
@@ -15019,7 +15150,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/strategy-risk-controls"
     },
@@ -15066,7 +15197,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/strategy-paper-supervision"
     },
@@ -15113,7 +15244,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/rotation-regime"
     },
@@ -15160,7 +15291,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/rotation-ranking"
     },
@@ -15207,7 +15338,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/rotation-portfolio"
     },
@@ -15254,7 +15385,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/rotation-run"
     },
@@ -15301,7 +15432,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/factor-library"
     },
@@ -15348,7 +15479,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/factor-exposure"
     },
@@ -15395,7 +15526,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/factor-screening"
     },
@@ -15442,7 +15573,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/factor-backtest-protocol"
     },
@@ -15489,7 +15620,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/event-detection"
     },
@@ -15536,7 +15667,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/event-reading"
     },
@@ -15583,7 +15714,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/event-history"
     },
@@ -15630,7 +15761,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/event-watch"
     },
@@ -15677,7 +15808,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/portfolio-budget"
     },
@@ -15724,7 +15855,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/portfolio-drawdown-review"
     },
@@ -15771,7 +15902,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/portfolio-stop-discipline"
     },
@@ -15818,7 +15949,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/portfolio-rebalance-plan"
     },
@@ -15865,7 +15996,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/chain-mapping"
     },
@@ -15912,7 +16043,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/chain-transmission"
     },
@@ -15959,7 +16090,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/chain-beneficiary"
     },
@@ -16006,7 +16137,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/chain-watch"
     },
@@ -16053,7 +16184,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/ic-adjudication"
     },
@@ -16100,7 +16231,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/ic-bull-case"
     },
@@ -16147,7 +16278,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/ic-bear-case"
     },
@@ -16194,7 +16325,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/sentiment-document-review"
     },
@@ -16241,7 +16372,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/sentiment-trend-watch"
     },
@@ -16288,7 +16419,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/sentiment-signal-bridge"
     },
@@ -16330,7 +16461,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16371,7 +16502,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16412,7 +16543,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16453,7 +16584,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16499,7 +16630,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16545,7 +16676,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16589,7 +16720,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/crm-desk/crm-desk-reception-merchant"
     },
@@ -16636,7 +16767,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/shock-detection"
     },
@@ -16683,7 +16814,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/shock-reading"
     },
@@ -16730,7 +16861,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/shock-window"
     },
@@ -16777,7 +16908,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/shock-watch"
     },
@@ -16825,7 +16956,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/wire-artifact-build"
     },
@@ -16872,7 +17003,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://gitee.com/FindDataTechnology/finddata-skills/tree/master/wire-presets/tree/main/skills/wire-data-steward"
     },
@@ -16914,7 +17045,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16955,7 +17086,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -16996,7 +17127,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -17037,7 +17168,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -17078,7 +17209,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -17119,7 +17250,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -17160,7 +17291,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       }
     },
     {
@@ -17204,7 +17335,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17249,7 +17380,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17294,7 +17425,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17339,7 +17470,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17384,7 +17515,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17429,7 +17560,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17474,7 +17605,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17519,7 +17650,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17564,7 +17695,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17609,7 +17740,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/skills-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "repositoryUrl": "https://github.com/anthropics/skills"
     },
@@ -17660,7 +17791,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -17743,7 +17874,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -17802,7 +17933,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -17864,7 +17995,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -17946,7 +18077,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18022,7 +18153,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18078,7 +18209,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18156,7 +18287,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18248,7 +18379,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18383,7 +18514,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18635,7 +18766,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18727,7 +18858,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18801,7 +18932,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18890,7 +19021,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -18900,10 +19031,6 @@
         {
           "name": "generate_image",
           "description": "Generate images from a text prompt (registry method: seedream)."
-        },
-        {
-          "name": "generate_cover",
-          "description": "Generate a brand-consistent cover image via Remotion (registry method: brand)."
         },
         {
           "name": "generate_video_submit",
@@ -18919,23 +19046,31 @@
         },
         {
           "name": "voiceover_assemble",
-          "description": "Assemble a long voiceover from a script plan (vaas-pipeline W2).\n\nsegments: ordered [{text, window_s?}]. Per-segment TTS with bounded retries;\nover-window segments get edit suggestions (never tempo-hacked). Deterministic\nplan slug; same plan + idempotency_key replays without re-billing."
+          "description": "Assemble a long voiceover from a script plan (vaas-pipeline W2).\n\nsegments: ordered [{text, window_s?}]. Per-segment TTS with bounded retries;\nover-window segments get edit suggestions (never tempo-hacked). Deterministic\nplan slug; same plan + idempotency_key replays without re-billing.\n\nbgm（W4.3）: {asset_id|path, volume?, fade_out?} — 成片后混入背景音乐，\n语义与 render_video 的 bgm 一致：BGM 短于成片自动循环补长，长于成片在\n成片时长处收尾（-t covered_s 纪律）；volume 默认 0.2，fade_out 默认 true。\n未显式给 slug 时，bgm 签名折入确定性 slug（同计划不同 BGM 不串重放键）。"
         },
         {
           "name": "reference_clips_check",
           "description": "Review reference clips for every active voice; regenerate missing/recycled.\n\nRun after upstream/model changes to produce a per-voice diff report."
         },
         {
-          "name": "video_compose",
-          "description": "Compose one video from a storyboard, deterministically (vaas-pipeline W3).\n\nEvery frame is recomputed from time t — same storyboard → same byte stream.\nScene kinds: html_intro/html_outro (inline seek-contract page), kenburns\n(image list with slow pan/zoom), html_full (custom full-page HTML)."
+          "name": "render_video",
+          "description": "Render a video: storyboard 模式（确定性逐帧）或 type 模式（类型管线）。\n\nTwo mutually exclusive modes:\n  1. storyboard={size, scenes:[...]} — 确定性渲染，场景 kind ∈\n     html_intro/html_outro/kenburns/html_full，逐帧由 window.seek(t)\n     重放，同一 storyboard → 同一字节流；计划级重放键 scoped_asset_slug。\n  2. type=\"carousel|listicle|data-viz|kinetic-quote|news-flash\" +\n     script（口播稿文本或路径）+ inputs（类型输入 dict，见\n     types/<id>/type.json）— 走 fd-vaas-video-creator 管线 subprocess。\n\nbgm（W4.2，storyboard 模式专用）: {asset_id|path, volume?, fade_out?} —\n视频合成后混流背景音乐；BGM 短于视频自动循环补长，长于视频在视频时长处\n收尾；volume 默认 0.2，fade_out 默认 true（afade 出）。asset_id 引用\nassets 账本 type=bgm 资产（本人资产或全局种子曲库）。\n\n同时提交 storyboard 与 type 是明确错误；输入文件缺失时报错会列出\n具体缺失清单（kenburns images / voice_path / bgm path）。"
         },
         {
-          "name": "orchestrate_voiceover",
-          "description": "Create a complete voiceover video: TTS + captions + Remotion render."
+          "name": "render_still",
+          "description": "Render one still image; kind = cover | chart | graphic.\n\ncover  — CoverBrand 静帧（走原 generate_cover 的 remotion 静帧路径，\n         spec: {title, subtitle?, tags?, orientation?, size?, template?}）\nchart  — 图表静帧（tools/still_chart.py::render_chart，本波占位）\ngraphic— 通用图形静帧（tools/still_graphic.py::render_graphic，本波占位）"
         },
         {
-          "name": "orchestrate_brainstorm",
-          "description": "Generate a structured content plan for voiceover or article."
+          "name": "render_document",
+          "description": "Render a document: format ∈ {pdf, longimage}，或两者的列表.\n\nsource 为 md 或 html 文本/路径；template 未指定用 \"default\"。format 接受\n字符串或列表（W3 内核已支持多格式，每份产物独立落账）；非法值报错不变。"
+        },
+        {
+          "name": "templates_list",
+          "description": "List presentation templates by domain: video | cover | doc.\n\nvideo 版式即 render_video(type=...) 的类型清单；cover 为 CoverBrand 静帧；\ndoc 为 render_document 的版式（default 内置）。domain=None 列全部三域。"
+        },
+        {
+          "name": "templates_get",
+          "description": "Get one template's detail / input contract.\n\nvideo → types/<id>/type.json 原文（inputs 契约 + pipeline + composition）；\ncover/doc → 注册表条目 + 契约说明。"
         },
         {
           "name": "assets_list",
@@ -18943,31 +19078,11 @@
         },
         {
           "name": "assets_get",
-          "description": "Get full asset details (lineage, variants, distribution); own assets only in hosted mode.\n\nIn hosted mode the response carries a fresh signed download_url so remote\ntenants can pull the artifact without a generation call."
+          "description": "Get full asset details (lineage, variants, distribution); own assets only in hosted mode.\n\nIn hosted mode the response carries a fresh signed download_url so remote\ntenants can pull the artifact without a generation call.\n\n资产树查询：kind=\"common\" 列 downloads/common 与 remotion public 的公共\n资产（brand assets）；kind=\"logo\" 只列 logo/icon 类。给定 kind 时忽略\nid/slug，走文件系统扫描（不分 owner）。"
         },
         {
           "name": "assets_stats",
           "description": "Aggregate stats by asset type/stage and platform (own assets in hosted mode)."
-        },
-        {
-          "name": "assets_list_common",
-          "description": "List common assets in downloads/common and remotion public."
-        },
-        {
-          "name": "assets_find_logo",
-          "description": "Find the company logo asset(s)."
-        },
-        {
-          "name": "assets_list_compositions",
-          "description": "List registered Remotion compositions (id + duration)."
-        },
-        {
-          "name": "assets_validate_paths",
-          "description": "Validate staticFile() asset paths referenced in Remotion source."
-        },
-        {
-          "name": "assets_get_scene_templates",
-          "description": "List scene template components from scenes*.tsx files."
         },
         {
           "name": "registry_list_generators",
@@ -18976,29 +19091,9 @@
         {
           "name": "registry_describe_generator",
           "description": "Describe a specific generation method."
-        },
-        {
-          "name": "create_cover_image",
-          "description": "Generate a brand-consistent cover image via Remotion (registry method: brand). (deprecated: Use generate_cover)"
-        },
-        {
-          "name": "create_voiceover",
-          "description": "Create a complete voiceover video: TTS + captions + Remotion render. (deprecated: Use orchestrate_voiceover)"
-        },
-        {
-          "name": "brainstorm_content",
-          "description": "Generate a structured content plan for voiceover or article. (deprecated: Use orchestrate_brainstorm)"
-        },
-        {
-          "name": "list_all_content",
-          "description": "List asset summaries with optional filters (own assets only in hosted mode). (deprecated: Use assets_list)"
-        },
-        {
-          "name": "get_content_details",
-          "description": "Get full asset details (lineage, variants, distribution); own assets only in hosted mode.\n\n    In hosted mode the response carries a fresh signed download_url so remote\n    tenants can pull the artifact without a generation call.\n     (deprecated: Use assets_get)"
         }
       ],
-      "toolCount": 26,
+      "toolCount": 17,
       "license": null,
       "provider": null,
       "endpoint": "https://mcp.finddatatech.cloud/vaas-wanxing/mcp"
@@ -19046,7 +19141,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -19132,7 +19227,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -19252,7 +19347,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -19389,7 +19484,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -19463,7 +19558,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -19530,7 +19625,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -20349,7 +20444,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {
@@ -21168,7 +21263,7 @@
       },
       "provenance": {
         "source": "https://facet.finddatatech.cloud/api/mcp-catalog",
-        "updatedAt": "2026-11-04"
+        "updatedAt": "2026-11-05"
       },
       "tools": [
         {

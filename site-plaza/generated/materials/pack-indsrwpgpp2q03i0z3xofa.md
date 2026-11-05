@@ -6,8 +6,10 @@
 
 A dedicated assistant for operating the Wanxing cluster from within Yizuo — browse the agent catalog, read details, and check deployment status. Read-only tools plus a proposal channel; every write operation must be confirmed through the action gate.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,14 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (2):
+- wanxing-browse-guidance — 指导用户如何使用 wanxing-ops-mcp 的 browse/card 工具查看 agent
+- deployment-precheck-guidance — 指导用户在部署前检查凭据和机位状态
+
+MCP server references (1): wanxing-ops-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

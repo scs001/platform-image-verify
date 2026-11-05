@@ -6,8 +6,10 @@
 
 Natural-language team orchestration inside Yizuo chat: compile the user's words into a team-structure draft, present a validated, cost-estimated diff, and land it on approval. Governs editing boundaries and review discipline.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,12 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (2):
+- fleet-authoring-flow — 团队编排流程卡：需求→草稿→diff 呈现→批准→落地。
+- fleet-edge-vocabulary — 编边词汇卡：主管式/流水线/单边派发/草稿引用的编译对照。
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

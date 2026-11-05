@@ -6,8 +6,10 @@
 
 Chat with the workshop assistant for a few rounds and it turns your knowledge into a publishable AI avatar: it interviews you, organizes your corpus, generates the reception persona and manifest.json, and hands you a three-step publishing guide. Once the avatar is built and deployed, anyone can click "Chat with this avatar" in the catalog to get to know you — you cover the cost (hosted); visitors are free.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,12 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (2):
+- facade-builder-guide — 分身采访与生成流程：四步采访、素材整理纪律、manifest 组装规则、发布指引
+- facade-manifest-template — 分身 manifest 骨架：可直填的完整结构，含分身配置块与语料/接待的最小示例
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

@@ -9,6 +9,8 @@ A legal triage and judgment skill for OPC (One Person Company - single-person co
 - Species: skill (plaza category enum v1)
 - Official: no
 
+
+
 ## How to obtain
 
 1. In 壹座 (Yizuo): Extensions → Skills — subscribe from the skills face.
@@ -22,4 +24,4 @@ Source repository: https://github.com/cat-xierluo/legal-skills
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-05

@@ -7,6 +7,8 @@ Guided statistical analysis for research data - test selection, assumption check
 - Species: skill (plaza category enum v1)
 - Official: no
 
+
+
 ## How to obtain
 
 1. In 壹座 (Yizuo): Extensions → Skills — subscribe from the skills face.
@@ -20,4 +22,4 @@ Source repository: https://gitee.com/FindDataTechnology/finddata-skills/tree/mas
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-05

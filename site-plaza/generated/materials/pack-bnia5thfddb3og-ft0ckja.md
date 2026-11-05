@@ -6,8 +6,10 @@
 
 Catering industry environmental signal pack (install alongside the Micro-Business · Core Checkup Suite): food-cost trend (Dalian Commodity Exchange futures — live hogs/soybean meal/corn/palm oil — trend warnings for catering's largest variable-cost item, not market spot prices), a commercial-district activity proxy (national film box office daily/weekly charts, traceable back to 2017; reflects district consumption activity, not your store's footfall), and a dine-in/delivery shift proxy (Central Meteorological Observatory weather, hourly across 34 provinces and 2,529 stations; a structural hint, not a footfall forecast), plus optional peer-density lookup (business registry at county + sub-industry granularity). Every signal is labeled with its proxy nature and its limits; when a source is unavailable it is marked 'not connected' and never filled with model-memory values. Registry-based signals carry their batch year with a 'historical snapshot, not real-time' label, and explicitly state that there is no deregistration/revocation scope and no closure counts.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,13 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (1):
+- mb-signal-catering — 餐饮行业环境信号包（谦面·生意体检姊妹件，需与内核套件 mb-core 叠加安装）。读三类信号：食材成本趋势（大商所期货生猪/豆粕/玉米/棕榈油，餐饮最大变动成本项）、商圈活跃度代理（专资办电影票房日榜/周榜）、堂食外卖切换代理（中央气象台
+
+MCP server references (2): fd-find-data-business-mcp, fd-open-data-mcp
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

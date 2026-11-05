@@ -9,6 +9,8 @@ cast debugging
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -22,4 +24,4 @@ Three paths, all landing the same frozen version snapshot:
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

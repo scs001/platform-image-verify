@@ -9,6 +9,8 @@ Owner-facing three-post fleet: the sentinel audits all registered fleets and inf
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -31,4 +33,4 @@ MCP server references (5): infra-telemetry, fleet-architect, blueprint-author, f
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

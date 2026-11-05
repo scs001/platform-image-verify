@@ -6,8 +6,10 @@
 
 Blueprint construction face: compiles a natural-language vertical brief into a blueprint draft (boundary/sources/fleet/boards/monitoring/acceptance), dry-runs the existing validators, shows the diff and waits for the owner's approval — only then mints and instantiates. No new platform capability.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,13 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (1):
+- harness-constructor — 垂直蓝图编制纪律：NL→草稿→既有校验器→diff→停等批准→批准后铸造；字段契约与八舰同源。
+
+MCP server references (2): fleet-architect, facet-market
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

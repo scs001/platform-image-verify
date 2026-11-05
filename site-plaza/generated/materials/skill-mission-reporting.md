@@ -9,6 +9,8 @@ Final-state reports (complete/partial delivery) and bot_notify notification disc
 - Species: skill (plaza category enum v1)
 - Official: no
 
+
+
 ## How to obtain
 
 1. In 壹座 (Yizuo): Extensions → Skills — subscribe from the skills face.
@@ -20,4 +22,4 @@ Final-state reports (complete/partial delivery) and bot_notify notification disc
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud/api/skills-catalog · As of: 2026-11-05

@@ -6,8 +6,10 @@
 
 Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of proposals/variants/applications), and related work (semantically similar papers and comparison matrices). The corpus covers thousand-scale samples across eight arXiv categories including q-fin and cs.CL (metadata + abstracts, CC0 metadata); external open search (arXiv/OpenAlex/Semantic Scholar) is orchestrated as a supplement. **Copyright red line**: only metadata, abstracts, chunked quotes, and links pointing back to arXiv.org are returned — this service neither provides nor sends out full paper texts. Retrieval runs through the fd-text-core engine's hybrid channel (keywords ⊕ semantic vectors via Qwen3-Embedding-8B).
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,15 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (3):
+- paper-literature-search — 论文文献检索（文本引擎·论文包入口技能）。当用户想查某个研究方向的论文、做文献综述、了解某领域有哪些工作、或要求"找找关于 XX 的论文""这个方向的研究现状"时使用。驱动从方向定位到文献梳理的流程，数据经 fd-text-core 引擎的
+- paper-method-tracking — 论文方法追踪（文本引擎·论文包）。当用户想查某个方法/技术（如 transformer、对比学习、GARCH）在学术论文里怎么用、有哪些变体、谁提出的，或要求"追一下 XX 方法的发展"时使用。按方法名驱动检索与脉络梳理，数据经 fd-te
+- paper-related-work — 论文相关工作与相似文献（文本引擎·论文包）。当用户给出一段摘要/题目/研究想法，要求找相似论文、写相关工作段落、或做查重式比对（"有没有做过类似的"）时使用。按参考文本的语义向量找近邻，数据经 fd-text-core 引擎实时取。
+
+MCP server references (1): fd-text-core
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

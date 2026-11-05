@@ -9,6 +9,8 @@ A three-role investment research team that examines one question through three i
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -35,4 +37,4 @@ MCP server references (5): fd-cn-report, fd-daas-mcp, fd-quant, fd-find-data-bus
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

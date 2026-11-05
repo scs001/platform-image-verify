@@ -9,6 +9,8 @@ Lex statute-update cluster template: the monitor scans new/amended/repealed stat
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -30,4 +32,4 @@ MCP server references (2): fd-legal-search-mcp, wire-build-mcp
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

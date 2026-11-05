@@ -6,8 +6,10 @@
 
 Distill a piece of financial news, an announcement, or market commentary into a one-page briefing: three-line verdict, five key points, one open question — built for readers who need to absorb it fast pre-market or pre-meeting.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -20,6 +22,11 @@ Three paths, all landing the same frozen version snapshot:
 
 3. From the market page: https://agent.finddatatech.cloud/#/packs
 
+## What it contains
+
+Skills (1):
+- market-flash-briefing — 把一段财经新闻/公告/评论收敛成一页速览：三行结论、五个要点、一处存疑，输出固定版式。
+
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

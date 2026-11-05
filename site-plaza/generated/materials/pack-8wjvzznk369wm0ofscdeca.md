@@ -9,6 +9,8 @@ Wanxing fleet-ops fleet: health patrol over fleets.db (read-only, names failing 
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -30,4 +32,4 @@ MCP server references (1): wanxing-ops
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

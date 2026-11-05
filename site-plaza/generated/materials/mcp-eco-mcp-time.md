@@ -9,6 +9,8 @@ Hosted time service: current time and timezone conversion.
 - Species: mcp (plaza category enum v1)
 - Official: no
 - Public tools: 2 · License: MIT · Provider: modelcontextprotocol
+
+
 ## How to obtain
 
 MCP servers are connected, not installed. The public endpoint:
@@ -19,4 +21,4 @@ Connect it where your agent runs: in 壹座 (Extensions → MCP), or in any MCP-
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud/api/mcp-catalog · As of: 2026-11-05

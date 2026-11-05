@@ -9,6 +9,8 @@ Lex marketing content cluster template (content-factory variant): collector (cus
 - Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
 
+
+
 ## How to obtain
 
 Three paths, all landing the same frozen version snapshot:
@@ -31,4 +33,4 @@ MCP server references (1): wire-build-mcp
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

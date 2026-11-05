@@ -6,8 +6,10 @@
 
 Eight handless engineering review roles: code review, security audit, architecture review, performance analysis, QA strategy, API design, incident debugging, API documentation. Paste code, diffs, logs, design docs or OpenAPI into the chat — the squad reads, judges, and reports: severity-graded findings with quoted evidence, and anything that needs running is honestly marked "verify by execution". Roles are adapted from VoltAgent/awesome-claude-code-subagents (MIT, pinned revision); imperative tool steps were rewritten as advisory discipline.
 
-- Species: facade (plaza category enum v1)
+- Species: pack (plaza category enum v1)
 - Official: yes — curated by FindData
+
+
 
 ## How to obtain
 
@@ -22,4 +24,4 @@ Three paths, all landing the same frozen version snapshot:
 
 ## As of
 
-Provenance: https://facet.finddatatech.cloud · As of: 2026-11-04
+Provenance: https://facet.finddatatech.cloud · As of: 2026-11-05

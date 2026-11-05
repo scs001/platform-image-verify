@@ -11,10 +11,7 @@
 import schedule from "node-schedule";
 import cronParser from "cron-parser";
 import * as engine from "./task-engine.js";
-
-// Missed-occurrence accounting caps iteration at this many gaps per load so a
-// task left dead for years cannot spin the parser.
-const MAX_MISSED_PER_LOAD = 100;
+import { catchUpWindowMs, withinCatchUpWindow, countMissedBetween } from "./server/cron-decisions.js";
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
@@ -49,11 +46,14 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
       // inside its tolerance window then gets ONE catch-up run (P2, 2026-10-26:
       // an unattended fleet silently lost a patrol when a restart covered its
       // trigger — a counter in a log nobody reads is not a delivery guarantee).
-      // Outside the window the gap is past saving: record and move on.
+      // Outside the window the gap is past saving: record AND alert explicitly
+      // (harden-cell-execution-reliability) — the miss record alone is not
+      // sufficient, silent swallowing is banned.
       const missed = countMissedOccurrences(j);
       if (missed > 0) {
         void engine.saveTasks();
         if (!j.paused && withinToleranceWindow(j)) catchUp.push(j.id);
+        else if (!j.paused) alertMissedBeats(j, missed);
       }
       scheduleJob(j);
     } else if (j.type === "once" && !j.paused) {
@@ -176,25 +176,29 @@ function nextIntervalOccurrence(task, from = Date.now()) {
 // saving: the post would read `missing` anyway and a late patrol would only
 // mislead. Unparseable rules fall back to the floor (never suppress a catch-up
 // on a rule the scheduler itself accepted).
-const CATCH_UP_FLOOR_MS = 6 * 60 * 60 * 1000;
+//
+// The window math and the verdict itself are pure functions in
+// server/cron-decisions.js (harden-cell-execution-reliability 3.1, pinned by
+// scripts/test-cron-decisions.mjs); this wrapper owns only the inherently
+// impure parts — the env kill switch, the cron-rule parse and the default
+// clock. Verdict order stays: kill switch → unparseable rule (degrade open)
+// → never ran → window compare (inclusive at the boundary).
 function withinToleranceWindow(task, now = Date.now()) {
-  if (process.env.PLATFORM_CRON_CATCHUP === "0") return false; // kill switch
-  try {
-    const iter = cronParser.parseExpression(task.cron, { tz: task.tz || undefined });
-    const a = iter.next().toDate();
-    const b = iter.next().toDate();
-    const period = b - a;
-    const window = Number.isFinite(period) && period > 0
-      ? Math.max(2 * period, CATCH_UP_FLOOR_MS)
-      : CATCH_UP_FLOOR_MS;
-    const lastMs = task.lastRun ? Date.parse(task.lastRun) : null;
-    // A task that never ran has no "missed round" to make up — it is simply
-    // starting (its first occurrence is still ahead).
-    if (lastMs == null || !Number.isFinite(lastMs)) return false;
-    return now - lastMs <= window;
-  } catch {
-    return true;
+  const killSwitch = process.env.PLATFORM_CRON_CATCHUP === "0";
+  let windowMs = null; // unparseable rule → null → the verdict degrades open
+  if (!killSwitch) {
+    try {
+      const iter = cronParser.parseExpression(task.cron, { tz: task.tz || undefined });
+      const a = iter.next().toDate();
+      const b = iter.next().toDate();
+      windowMs = catchUpWindowMs(b - a);
+    } catch {
+      // A rule the scheduler itself accepted failed to parse here: degrade
+      // open — never suppress a catch-up on it.
+    }
   }
+  const lastMs = task.lastRun ? Date.parse(task.lastRun) : null;
+  return withinCatchUpWindow({ killSwitch, windowMs, lastRunMs: lastMs, nowMs: now });
 }
 
 // Interrupted-beat makeup decision (add-rollout-gap-durability): a cron-sourced
@@ -222,21 +226,16 @@ function makeUpInterruptedBeat({ fleetId, memberId }) {
 // occurrences recorded as missed (0 when the record did not change) — the
 // caller persists, and the boot pass uses it to decide on a catch-up run
 // (2026-10-26 P2: a downtime-covered trigger silently lost one delivery).
+// The counting walk itself is the pure countMissedBetween
+// (server/cron-decisions.js); what stays here is rule parsing, the record
+// mutation and the reason stamping.
 function countMissedOccurrences(task) {
   const now = new Date();
   const from = task.lastRun ? new Date(task.lastRun) : null;
   if (!from || Number.isNaN(from.getTime())) return 0;
   try {
     const iter = parseRule(task.cron, task.tz);
-    let missed = 0;
-    // prev() yields occurrences strictly before `now`; each one after lastRun
-    // was entirely covered by downtime. No warm-up call — the first prev() is
-    // itself a countable occurrence.
-    let prev = iter.prev();
-    while (prev && prev.toDate() > from && missed < MAX_MISSED_PER_LOAD) {
-      missed++;
-      prev = iter.prev();
-    }
+    const missed = countMissedBetween(iter, from.getTime());
     if (missed > 0) {
       task.missed = (task.missed || 0) + missed;
       // Stamp the reason on the record so every surface that shows a task can
@@ -252,6 +251,25 @@ function countMissedOccurrences(task) {
     console.warn(`[cron] missed-count failed for ${task.id}: ${err.message}`);
   }
   return 0;
+}
+
+// 窗外丢轮显式告警（harden-cell-execution-reliability）：容差窗外的停机丢轮
+// 在「只记账」之上必须显式告警——miss 计数行本身不算告警，静默吞掉被规格明令
+// 禁止。通道纪律与计量链直读未配置告警先例（wire-metering-explicit-alerting）
+// 一致：WARNING 明示、点名对象与数量。复用引擎既有的 WS 事件面（cron_* 事件
+// 同缝）广播一条显式告警事件；任务记录上的 missed/lastMissedAt/lastMissedReason
+// 仍是持久证据。暂停任务不告警（不跑是所有者的本意）；kill switch 下照告——
+// 关掉的是补跑，不是知情权（reason 区分，运维可辨）。
+function alertMissedBeats(task, missed) {
+  const reason = process.env.PLATFORM_CRON_CATCHUP === "0" ? "catch-up-disabled" : "outside-tolerance";
+  console.warn(`[cron] ALERT: task ${task.id} lost ${missed} beat(s) to downtime outside the catch-up window (${reason})`);
+  engine.broadcastEvent({
+    type: "cron_missed_alert",
+    id: task.id,
+    missed,
+    reason,
+    at: new Date().toISOString(),
+  });
 }
 
 // ── Schedule management ──────────────────────────────────────────────────────

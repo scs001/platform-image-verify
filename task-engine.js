@@ -208,6 +208,11 @@ async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerSt
   beforeTurnFn = typeof beforeTurn === "function" ? beforeTurn : null;
   onFinishedHooks.clear();
   if (onFinished) onFinishedHooks.add(onFinished);
+  // A fresh init replaces the in-memory map — any pending retry backoff from
+  // the previous generation is stale (the reloaded records carry no attempt
+  // state) and must not fire into the new one.
+  for (const timer of retryTimers.values()) clearTimeout(timer);
+  retryTimers.clear();
   tasks = new Map();
 
   await fs.promises.mkdir(TASK_STORAGE_DIR, { recursive: true });
@@ -326,6 +331,7 @@ function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiato
 }
 
 function deleteRecord(id) {
+  clearRetryTimer(id);
   return tasks.delete(id);
 }
 
@@ -414,11 +420,112 @@ function releaseCatchUpMarker(t) {
   }
 }
 
+// ── Failure retry policy (harden-cell-execution-reliability) ────────────────
+//
+// A failed execution MAY re-execute automatically: env-configured, OFF by
+// default (the fail-fast status quo is untouched unless enabled), exponential
+// backoff, bounded attempt count. Misconfiguration fails closed to the
+// default — no retry — a typo'd knob must never invent executions. Per-kind
+// override: PLATFORM_TASK_RETRY_MAX_TARGET_<TYPE> (persona/a2a/cluster/tool)
+// raises, lowers or disables the ceiling for that target class.
+//
+// A retry re-enters through the ORDINARY enqueue path (guards re-run there:
+// schedule-side blocked, already queued/running), and any fresh execution —
+// schedule fire, run-now, re-run — supersedes a pending retry: the backoff
+// timer is cancelled and the attempt cycle restarts at 1. Timers are
+// in-process only: a restart drops the pending backoff, the record stays
+// failed (human-visible, manually re-runnable) and the next execution starts
+// a fresh cycle.
+const RETRY_MAX_ENV = "PLATFORM_TASK_RETRY_MAX";
+const RETRY_BACKOFF_ENV = "PLATFORM_TASK_RETRY_BACKOFF_MS";
+const DEFAULT_RETRY_BACKOFF_MS = 60_000;
+// setTimeout loses precision past 2^31 ms (a too-large delay fires early);
+// the cap keeps every backoff inside timer territory and bounds one wait to
+// a day.
+const RETRY_DELAY_CAP_MS = 24 * 60 * 60 * 1000;
+const warnedRetryEnvs = new Set();
+
+function warnBadRetryEnv(name, value) {
+  const key = `${name}=${value}`;
+  if (warnedRetryEnvs.has(key)) return;
+  warnedRetryEnvs.add(key);
+  console.warn(`[task-engine] invalid ${name}='${value}' — retry policy fails closed to the default (no retry)`);
+}
+
+// Resolve the policy for one failed execution. Read per failure (not cached at
+// boot) so an operator can turn retries on without a restart.
+function resolveRetryPolicy(targetType) {
+  let broken = false;
+  let max = 0;
+  const rawMax = process.env[RETRY_MAX_ENV];
+  if (rawMax != null && rawMax !== "") {
+    const parsed = Number(rawMax);
+    if (Number.isInteger(parsed) && parsed >= 0) max = parsed;
+    else {
+      warnBadRetryEnv(RETRY_MAX_ENV, rawMax);
+      broken = true;
+    }
+  }
+  const overrideEnv = `${RETRY_MAX_ENV}_TARGET_${String(targetType ?? "").toUpperCase()}`;
+  const rawOverride = process.env[overrideEnv];
+  if (rawOverride != null && rawOverride !== "") {
+    const parsed = Number(rawOverride);
+    if (Number.isInteger(parsed) && parsed >= 0) max = parsed;
+    else {
+      warnBadRetryEnv(overrideEnv, rawOverride);
+      broken = true;
+    }
+  }
+  let backoffMs = DEFAULT_RETRY_BACKOFF_MS;
+  const rawBackoff = process.env[RETRY_BACKOFF_ENV];
+  if (rawBackoff != null && rawBackoff !== "") {
+    const parsed = Number(rawBackoff);
+    if (Number.isFinite(parsed) && parsed > 0) backoffMs = parsed;
+    else {
+      warnBadRetryEnv(RETRY_BACKOFF_ENV, rawBackoff);
+      broken = true;
+    }
+  }
+  // Fail closed: ANY misconfigured knob retires the whole policy for this
+  // resolution — the default is no retry, never an invented one.
+  if (broken) return { max: 0, backoffMs: DEFAULT_RETRY_BACKOFF_MS };
+  return { max, backoffMs };
+}
+
+// Pending backoff timers, keyed by task id. Cancelled by the next fresh
+// enqueue, by deletion, and by shutdown — a retry never outlives a decision
+// a human (or the schedule) made afterwards.
+const retryTimers = new Map(); // id -> NodeJS timeout
+
+function clearRetryTimer(id) {
+  const timer = retryTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    retryTimers.delete(id);
+  }
+}
+
+// Schedule the next attempt of a failed execution after its backoff. The wait
+// is exponential in the attempt just failed: attempt 1 → backoffMs, attempt 2
+// → 2×, attempt 3 → 4× (capped). The re-entry carries its attempt stamp so
+// the engine counts toward the ceiling.
+function scheduleRetry(t, failedAttempt, policy) {
+  clearRetryTimer(t.id);
+  const delay = Math.min(policy.backoffMs * 2 ** (failedAttempt - 1), RETRY_DELAY_CAP_MS);
+  const nextAttempt = failedAttempt + 1;
+  console.log(`[task-engine] Task ${t.id} failed (attempt ${failedAttempt}) — retry #${nextAttempt} in ${delay}ms`);
+  const timer = setTimeout(() => {
+    retryTimers.delete(t.id);
+    enqueueExecution(t.id, { retry: true, attempt: nextAttempt });
+  }, delay);
+  retryTimers.set(t.id, timer);
+}
+
 // Enqueue one execution of a task (schedule fire, run-now, re-run, or repair).
 // Guards: schedule-side states that must not run are rejected; an execution
 // already queued or running is a no-op returning the current state (re-run
 // must not double-queue).
-function enqueueExecution(id) {
+function enqueueExecution(id, opts = {}) {
   if (!initialized) return { ok: false, error: "task engine is still starting — retry in a moment" };
   const t = tasks.get(id);
   if (!t) return { ok: false, error: "task not found" };
@@ -443,6 +550,15 @@ function enqueueExecution(id) {
     if (verdict && verdict.ok === false) {
       return { ok: false, error: `mandate revoked: ${verdict.reason ?? "revalidation failed"}`, mandateRevoked: true };
     }
+  }
+  // Attempt bookkeeping: an automatic retry re-enters with its stamped
+  // attempt; any fresh execution (schedule fire, run-now, re-run) starts a
+  // new cycle at 1 and supersedes a pending automatic retry.
+  if (opts.retry === true) {
+    t.attempt = Number.isInteger(opts.attempt) && opts.attempt >= 1 ? opts.attempt : 1;
+  } else {
+    clearRetryTimer(id);
+    t.attempt = 1;
   }
   t.state = "queued";
   // Turn metering (add-turn-metering D1/D3): the enqueue stamp feeds
@@ -623,12 +739,17 @@ function finishExecution(t, startTime, result) {
   // A catch-up run is spent too — the marker must not outlive the make-up (P2).
   const wasCatchUp = t.catchUpPending === true;
   t.catchUpPending = false;
+  // The attempt serial of THIS execution (1 = a fresh cycle; higher = an
+  // automatic retry). Recorded on the history entry so every attempt of a
+  // retried task is individually visible.
+  const attempt = Number.isInteger(t.attempt) && t.attempt >= 1 ? t.attempt : 1;
 
   t.history.push({
     time: startTime,
     duration: Date.now() - new Date(startTime).getTime(),
     state: t.state,
     success: ok,
+    attempt,
     ...(wasCatchUp ? { catchUp: true } : {}),
     ...(t.error ? { error: t.error } : {}),
     // The collected assistant text (remote a2a turns and cluster digests
@@ -669,6 +790,15 @@ function finishExecution(t, startTime, result) {
     });
   }
   broadcastStatus(t.id);
+
+  // Failure retry policy: only a turn that RAN and failed follows it —
+  // interrupted (a restart ate the turn) and skipped (the platform chose not
+  // to start) keep their own semantics, and a success needs no policy.
+  // Default max = 0 keeps this block inert on today's deployments.
+  if (t.state === "failed") {
+    const policy = resolveRetryPolicy(t.targetType);
+    if (policy.max > attempt) scheduleRetry(t, attempt, policy);
+  }
 }
 
 // Register a fire that failed BEFORE execution could start. Now UNUSED by the
@@ -799,7 +929,12 @@ function stats({ now = Date.now(), windowMs = 3_600_000 } = {}) {
 
 // Timer cancellation is the scheduling front-end's (cron.js owns the
 // node-schedule handles); the engine's queue is allowed to settle naturally.
-function shutdown() {}
+// The engine's OWN timers — pending retry backoffs — die here: shutdown must
+// not leave a timer that re-enqueues an execution behind the teardown.
+function shutdown() {
+  for (const timer of retryTimers.values()) clearTimeout(timer);
+  retryTimers.clear();
+}
 
 export {
   initTaskEngine,
@@ -832,6 +967,10 @@ export {
   broadcastEvent,
   getDashboardState,
   stats,
+  // Retry policy resolver (harden-cell-execution-reliability) — exported so
+  // the env contract (default off, fail-closed, per-kind override) is pinned
+  // by a test rather than only exercised on a failed execution.
+  resolveRetryPolicy,
   shutdown,
   SUPPORTED_TARGET_TYPES,
 };

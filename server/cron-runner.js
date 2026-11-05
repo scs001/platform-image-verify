@@ -25,6 +25,7 @@ import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./ll
 import { classifyPresetSetError } from "../dsh-bridge.js";
 import { getFleetDatabase } from "./routes/fleets-db.js";
 import { turnTokens } from "./model-budget.js";
+import { retryFastWindowMs, shouldRetryFastFailure, shouldDegradeOverBudget } from "./cron-decisions.js";
 
 // ── Turn carrier (add-fleet-carrier) ─────────────────────────────────────────
 //
@@ -829,14 +830,20 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   // has an untried hop. Timeouts and tool failures are the work's own shape —
   // another model would hit them too. The fast-failure window bounds the
   // double-budget risk (upstream 5xx answers in seconds; a real turn doesn't).
-  const retryFastMs = Number(process.env.PLATFORM_LLM_RETRY_FAST_MS) > 0 ? Number(process.env.PLATFORM_LLM_RETRY_FAST_MS) : 60_000;
+  // The gate itself is the pure shouldRetryFastFailure
+  // (server/cron-decisions.js, contract-tested) — this seam only feeds it the
+  // attempt outcome, the classified error kind, the elapsed wall time and the
+  // chain position.
+  const retryFastMs = retryFastWindowMs(process.env);
   if (
-    result.ok === false &&
-    !result.interrupted &&
-    classifyErrorKind(result.error) === "model_upstream" &&
-    Date.now() - startedWall < retryFastMs &&
-    Array.isArray(candidates) &&
-    landedIndex + 1 < candidates.length
+    shouldRetryFastFailure({
+      result,
+      errorKind: classifyErrorKind(result.error),
+      elapsedMs: Date.now() - startedWall,
+      retryFastMs,
+      candidates,
+      landedIndex,
+    })
   ) {
     const nextModel = candidates[landedIndex + 1];
     try {
@@ -857,14 +864,17 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   // untried-hop + fast-window conditions (a slow 9k-token answer is the
   // work's own shape; re-running it late doubles the bill for nothing).
   // The over-cap event itself is logged at consume time (settlement seam).
+  // The gate is the pure shouldDegradeOverBudget (server/cron-decisions.js).
   if (
-    result.ok === true &&
-    !result.interrupted &&
-    turnTokens(result?.usage) != null &&
-    turnTokens(result.usage) > (ctx.modelBudget?.config?.single ?? Infinity) &&
-    Date.now() - startedWall < retryFastMs &&
-    Array.isArray(candidates) &&
-    landedIndex + 1 < candidates.length
+    shouldDegradeOverBudget({
+      result,
+      tokens: turnTokens(result?.usage),
+      singleCap: ctx.modelBudget?.config?.single,
+      elapsedMs: Date.now() - startedWall,
+      retryFastMs,
+      candidates,
+      landedIndex,
+    })
   ) {
     const nextModel = candidates[landedIndex + 1];
     try {

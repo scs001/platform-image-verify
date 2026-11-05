@@ -676,6 +676,10 @@ async function streamRemoteChat(entry, text, explicitSessionId = null) {
   try {
     const headers = { "Content-Type": "application/json" };
     if (entry.apiKey) headers.Authorization = `Bearer ${entry.apiKey}`;
+    // Exempt from the shared fetch timeout (harden-cell-execution-reliability):
+    // this call returns an SSE chat-completion stream that lives for the whole
+    // turn — a headers/body deadline would cut real answers mid-stream. The
+    // navigation abort signal below is the lane's only cancel path.
     const r = await fetch(`${entry.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
       headers,

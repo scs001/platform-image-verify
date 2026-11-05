@@ -1156,10 +1156,22 @@ server.on("upgrade", async (req, socket, head) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`[gateway] listening on http://${HOST}:${PORT} (cells under ${DATA_ROOT})`);
-  console.log(`[gateway] idle reaping: ${IDLE_REAP_SECS > 0 ? `after ${IDLE_REAP_SECS}s` : "disabled (cells stay resident)"}`);
-});
+// Test seam (harden-cell-execution-reliability 3.2): GATEWAY_ASSEMBLY_ONLY=1
+// assembles the full route surface but skips server.listen, so the assembly
+// smoke test can import this module and read the route registry without
+// binding a port. Unset — the production default (`node gateway/index.js`) —
+// runtime behavior is unchanged.
+if (process.env.GATEWAY_ASSEMBLY_ONLY !== "1") {
+  server.listen(PORT, HOST, () => {
+    console.log(`[gateway] listening on http://${HOST}:${PORT} (cells under ${DATA_ROOT})`);
+    console.log(`[gateway] idle reaping: ${IDLE_REAP_SECS > 0 ? `after ${IDLE_REAP_SECS}s` : "disabled (cells stay resident)"}`);
+  });
+}
+
+// Named export for scripts/test-gateway-assembly.mjs: the assembled Express
+// app, so the smoke test asserts the live route registry instead of parsing
+// source. No runtime effect — the gateway itself runs as a script.
+export const gatewayAppForTests = app;
 
 // No cell outlives the gateway: a redeploy would otherwise leak one process
 // per user on the host. Auxiliary closes are failure-isolated on purpose: a

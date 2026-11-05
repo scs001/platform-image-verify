@@ -63,11 +63,18 @@ export function zhFallbackAnnotation({ name, summary, whenToUse = null, source, 
 
 // ── TTL-fed source state (registry-bridge pattern, one adapter per source) ───
 
-function createSource({ url, token, label, fetchImpl = globalThis.fetch, timeoutMs = 10_000 }) {
+// Exported for tests: pin the boot-race retry contract (start() keeps polling
+// on a short backoff until the first snapshot lands).
+export function createSource(opts) {
+  return createSourceInner(opts);
+}
+
+function createSourceInner({ url, token, label, fetchImpl = globalThis.fetch, timeoutMs = 10_000 }) {
   let snapshot = null; // last-good parsed payload
   let fetchedAt = 0;
   let inflight = null;
   let timer = null;
+  let bootTimer = null;
 
   const configured = () => Boolean(url);
 
@@ -107,6 +114,20 @@ function createSource({ url, token, label, fetchImpl = globalThis.fetch, timeout
     const ttlMs = Number(process.env.MARKET_REGISTRY_TTL_SECS || 300) * 1000;
     timer = setInterval(() => pull().catch(() => {}), ttlMs);
     timer.unref?.();
+    // Boot race quick retry: the upstream (sidecar/svc) often isn't listening
+    // in the first seconds after a rollout — a failed boot pull must not pin
+    // the face to source_absent for a full TTL. While no snapshot has ever
+    // landed, retry on a short backoff (15s steps, 20 tries ≈ 5 min) instead.
+    let bootRetries = 0;
+    bootTimer = setInterval(() => {
+      if (snapshot || bootRetries++ >= 20) {
+        clearInterval(bootTimer);
+        bootTimer = null;
+        return;
+      }
+      pull().catch(() => {});
+    }, 15_000);
+    bootTimer.unref?.();
   }
 
   return {
@@ -115,7 +136,10 @@ function createSource({ url, token, label, fetchImpl = globalThis.fetch, timeout
     get asOf() { return fetchedAt ? new Date(fetchedAt).toISOString() : null; },
     ensureFresh,
     start,
-    stop() { if (timer) clearInterval(timer); },
+    stop() {
+      if (timer) clearInterval(timer);
+      if (bootTimer) clearInterval(bootTimer);
+    },
     pull, // exposed for tests / forced refresh
   };
 }

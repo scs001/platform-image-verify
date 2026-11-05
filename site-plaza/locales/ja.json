@@ -20,7 +20,9 @@
     "asOf": "スナップショット時点",
     "skills": "スキル",
     "mcp": "MCP サーバー",
-    "tools": "呼び出し可能ツール"
+    "tools": "呼び出し可能ツール",
+    "facade": "稼働エージェント",
+    "officialData": "公式データ錨"
   },
   "materials": {
     "title": "素材の種類",

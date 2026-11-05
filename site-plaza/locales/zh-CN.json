@@ -20,7 +20,9 @@
     "asOf": "快照截至",
     "skills": "技能",
     "mcp": "MCP 服务",
-    "tools": "可调工具"
+    "tools": "可调工具",
+    "facade": "在场分身",
+    "officialData": "官方数据锚"
   },
   "materials": {
     "title": "素材有什么",

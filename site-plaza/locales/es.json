@@ -20,7 +20,9 @@
     "asOf": "Instantánea al",
     "skills": "Habilidades",
     "mcp": "Servidores MCP",
-    "tools": "Herramientas llamables"
+    "tools": "Herramientas llamables",
+    "facade": "Agentes activos",
+    "officialData": "Anclas de datos"
   },
   "materials": {
     "title": "Qué materiales existen",

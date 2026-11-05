@@ -20,7 +20,9 @@
     "asOf": "Instantané au",
     "skills": "Compétences",
     "mcp": "Serveurs MCP",
-    "tools": "Outils appelables"
+    "tools": "Outils appelables",
+    "facade": "Agents actifs",
+    "officialData": "Ancres de données"
   },
   "materials": {
     "title": "Quels matériaux existent",

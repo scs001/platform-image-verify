@@ -364,7 +364,10 @@ export function buildCatalog(materials) {
     generatedAt: materials[0]?.provenance.updatedAt ?? null,
     count: materials.length,
     counts: {
-      packs: materials.filter((m) => m.category === "pack" || m.category === "facade" || m.category === "official-data").length,
+      // 真实口径（五物种各归各类）：packs 只数 pack；facade/official-data
+      // 自成物种——早前"部署类并包"的 577 口径会让 counts.packs 与
+      // byCategory.pack 漂移两倍以上，消费方对不上账。
+      packs: materials.filter((m) => m.category === "pack").length,
       skills: materials.filter((m) => m.category === "skill").length,
       mcpServers: materials.filter((m) => m.category === "mcp").length,
       tools: materials.reduce((n, m) => n + (m.toolCount ?? 0), 0),

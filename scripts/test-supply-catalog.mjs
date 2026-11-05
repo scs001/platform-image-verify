@@ -280,3 +280,22 @@ test("skill content proxies for visible entries, 404 for gated to anonymous", as
     assert.equal(res.status, 200);
   } finally { close(); }
 });
+
+// ── boot race quick retry (createSource.start) ───────────────────────────────
+
+test("boot pull race: failed first pull retries on 15s backoff until snapshot lands", async () => {
+  // 真时钟换不掉（setInterval），这里只钉三件事：bootTimer 与主 timer 并存、
+  // stop() 双清、拿到快照后 boot retry 停手。时序行为由 fakeSource 之上的
+  // 集成验证（facet pod 实弹：侧车就绪前 404 → 下轮 15s 内 200）。
+  const src = mod.createSource({ url: "http://127.0.0.1:1/never", label: "boot-race" });
+  src.start();
+  try {
+    // never-listening port: boot pull fails fast; snapshot stays null but the
+    // source must not throw and must keep polling (no crash within 100ms).
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(src.snapshot, null);
+    assert.equal(src.configured(), true);
+  } finally {
+    src.stop();
+  }
+});

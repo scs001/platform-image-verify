@@ -243,6 +243,14 @@
       $("#countMcp").textContent = c.mcpServers ?? "—";
       $("#countTools").textContent = c.tools ?? "—";
       $("#asOfDate").textContent = store.catalog.generatedAt ?? "—";
+      // 五物种 hero 计数（add-supply-catalog-unification）：facade/official-data
+      // 自带槽位，缺源（source_absent）时按 0 呈现——诚实零，不留 "—"。
+      // 计数从 counts.json 的 byCategory 读（catalog.json 不带该块）。
+      const countsRes = await fetch("generated/counts.json").catch(() => null);
+      const countsBody = countsRes && countsRes.ok ? await countsRes.json() : null;
+      const byCat = new Map((countsBody?.byCategory ?? []).map((x) => [x.category, x.count]));
+      $("#countFacade").textContent = byCat.get("facade") ?? 0;
+      $("#countOfficialData").textContent = byCat.get("official-data") ?? 0;
     }
     applyStatic();
     // reflect the preselected tab in the UI

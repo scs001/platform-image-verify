@@ -20,7 +20,9 @@
     "asOf": "Snapshot as of",
     "skills": "Skills",
     "mcp": "MCP services",
-    "tools": "Callable tools"
+    "tools": "Callable tools",
+    "facade": "Live agents",
+    "officialData": "Data anchors"
   },
   "materials": {
     "title": "What materials exist",

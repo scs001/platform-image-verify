@@ -305,8 +305,9 @@ test("full export spans five species with counts and material pages", async () =
   fx.dataAnchors = [mkAnchor("gdp"), mkAnchor("cpi"), mkAnchor("cn-region-bj", { kind: "entity", name: "CN11", source: "1" })];
   fs.writeFileSync(fixture, JSON.stringify(fx));
   const r = await runExport({ fixture, outDir: path.join(dir, "gen") });
-  // agents bucket = pack + facade + official-data; skills; mcp
-  assert.equal(r.counts.packs, 2 + 2 + 3); // 2 packs + 2 facades + 3 anchors
+  // 真实口径（五物种各归各类）：packs 只数 pack——部署类物种不再并入
+  // （counts.packs 与 byCategory.pack 必须同值，消费方对账锚点）。
+  assert.equal(r.counts.packs, 2); // 2 packs（facade 2 + anchors 3 各归各类）
   assert.equal(r.counts.skills, 2);
   assert.equal(r.counts.mcpServers, 2);
   const cat = JSON.parse(fs.readFileSync(path.join(dir, "gen", "catalog.json"), "utf8"));

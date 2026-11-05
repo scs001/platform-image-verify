@@ -106,12 +106,40 @@ export function createA2aFace({
     };
   }
 
+  // ── Provider redaction (redact-agent-card-private-endpoints twin of
+  // fd-wanxing): the platform-domain card face must never disclose the
+  // registry entry's internal runner URL. Fail closed — drop the url key
+  // when the host is not publicly routable (RFC1918 / CGNAT 100.64/10 /
+  // loopback / link-local / single-label / cluster suffixes) or unparseable;
+  // public URLs and all other provider fields pass through verbatim.
+  const PRIVATE_HOST_IP =
+    /^(?:10\.|127\.|169\.254\.|0\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
+  function isPrivateProviderUrl(u) {
+    let host;
+    try {
+      host = new URL(u).hostname.toLowerCase();
+    } catch {
+      return true;
+    }
+    if (!host || host === "::1" || host === "[::1]" || host === "0.0.0.0") return true;
+    if (PRIVATE_HOST_IP.test(host)) return true;
+    if (!host.includes(".")) return true;
+    return /\.(?:svc|local|internal)$|\.cluster\.local$/.test(host);
+  }
+  function publicProvider(p) {
+    if (p == null) return { organization: "paas-pack" };
+    if (typeof p !== "object" || p.url == null) return p;
+    if (!isPrivateProviderUrl(String(p.url))) return p;
+    const { url: _redacted, ...rest } = p;
+    return rest;
+  }
+
   function publicCard(slug, entry, req) {
     return {
       name: entry.name,
       description: entry.description,
       version: entry.version,
-      provider: entry.provider ?? { organization: "paas-pack" },
+      provider: publicProvider(entry.provider),
       capabilities: entry.capabilities ?? { streaming: true },
       skills: entry.skills ?? [],
       tags: entry.tags ?? [],

@@ -17,6 +17,9 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { deputyToolErrorText, decisionResolveErrorText } from "./fleet-mcp-hints.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else.
@@ -29,6 +32,16 @@ function bridgeOrigin() {
   const bracketed = host.includes(":") ? `[${host}]` : host;
   return `http://${bracketed}:${process.env.PORT || 3000}`;
 }
+
+// Outbound call discipline (harden-cell-execution-reliability): bridge calls
+// ride the shared deadline wrapper so a stalled loopback service fails as a
+// structured retryable FetchTimeoutError instead of hanging the lane. The env
+// override exists for tests and slow deployments; the per-call values keep the
+// historical 10s/20s bounds.
+const BRIDGE_TIMEOUT_MS = (fallback) => {
+  const raw = Number(process.env.FLEET_MCP_BRIDGE_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+};
 
 const TOOLS = [
   {
@@ -169,13 +182,12 @@ function errOut(message) {
   return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
 }
 
-async function toolReport({ metrics, resources, blockers, summary }) {
-  const res = await fetch(`${bridgeOrigin()}/api/fleets/report`, {
+export async function toolReport({ metrics, resources, blockers, summary }) {
+  const res = await fetchWithTimeout(`${bridgeOrigin()}/api/fleets/report`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ metrics, resources, blockers, summary }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  }, { timeoutMs: BRIDGE_TIMEOUT_MS(10_000) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return errOut(data.error || `report failed (${res.status})`);
 
@@ -196,12 +208,11 @@ async function toolReport({ metrics, resources, blockers, summary }) {
 }
 
 async function toolEscalate({ question, options, severity, suggestedDeadline, recommendation }) {
-  const res = await fetch(`${bridgeOrigin()}/api/fleets/escalate`, {
+  const res = await fetchWithTimeout(`${bridgeOrigin()}/api/fleets/escalate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ question, options, severity, suggestedDeadline, recommendation }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  }, { timeoutMs: BRIDGE_TIMEOUT_MS(10_000) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return errOut(data.error || `escalate failed (${res.status})`);
   return textOut(
@@ -225,12 +236,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 // 服务端的逐项校验保证。
 
 async function bridgePost(path, body) {
-  const res = await fetch(`${bridgeOrigin()}${path}`, {
+  const res = await fetchWithTimeout(`${bridgeOrigin()}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body ?? {}),
-    signal: AbortSignal.timeout(20_000),
-  });
+  }, { timeoutMs: BRIDGE_TIMEOUT_MS(20_000) });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
 }
@@ -312,12 +322,11 @@ async function toolDecisionEscalateToOwner({ itemId, analysis }) {
 }
 
 async function toolDispatch({ to, brief }) {
-  const res = await fetch(`${bridgeOrigin()}/api/fleets/dispatch`, {
+  const res = await fetchWithTimeout(`${bridgeOrigin()}/api/fleets/dispatch`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ to, brief }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  }, { timeoutMs: BRIDGE_TIMEOUT_MS(10_000) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return errOut(data.error || `dispatch failed (${res.status})`);
   return textOut(
@@ -344,4 +353,17 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 });
 
-await server.connect(new StdioServerTransport());
+// Only start the stdio server when launched as the MCP child; importing the
+// module (tests, tooling) must stay side-effect free. Same guard as
+// actions-mcp.
+const launchedDirectly = (() => {
+  try {
+    return process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (launchedDirectly) {
+  await server.connect(new StdioServerTransport());
+}

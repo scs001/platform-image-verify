@@ -17,6 +17,7 @@ import { createA2aFace } from "./a2a.js";
 import { createBookkeepingCache, diffDeployments } from "./bookkeeping.js";
 import { createFleetReporter } from "./fleet-report.js";
 import { createSub2apiClient } from "../../lib/sub2api-admin.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 export function registerWanxingRoutes(app, {
   dataRoot,
@@ -49,13 +50,15 @@ export function registerWanxingRoutes(app, {
   const core = createWanxingCore({ store, sub2api });
 
   const doFetch = (p, init = {}) =>
-    (fetchImpl ?? fetch)(`${registryUrl()}${p}`, {
+    // Outbound call discipline: registry-proxy reads ride the shared deadline
+    // wrapper (default env bound); fetchImpl stays the test seam.
+    fetchWithTimeout(`${registryUrl()}${p}`, {
       ...init,
       headers: {
         ...(registryToken() ? { Authorization: `Bearer ${registryToken()}` } : {}),
         ...(init.headers ?? {}),
       },
-    });
+    }, { fetchImpl });
 
   // Dual internal credentials for runtime forwarding — the same pair the
   // platform's a2a client rides (registry service credential on
@@ -75,9 +78,10 @@ export function registerWanxingRoutes(app, {
   const packsInternalFetch = async (p) => {
     let r;
     try {
-      r = await (fetchImpl ?? fetch)(`${packsInternalBase()}${p}`, {
+      // Outbound call discipline: shared deadline wrapper (default env bound).
+      r = await fetchWithTimeout(`${packsInternalBase()}${p}`, {
         headers: { Authorization: `Bearer ${registryToken()}` },
-      });
+      }, { fetchImpl });
     } catch {
       throw Object.assign(new Error(`packs internal API unreachable (${p})`), { code: "PACKS_INTERNAL_UNAVAILABLE" });
     }

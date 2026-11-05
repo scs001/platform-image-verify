@@ -9,6 +9,7 @@
 // off — memory never fails a task.
 
 import { cellMemoryConfig, personTokenFor } from "../cell-memory.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 export function clusterProjectId(clusterId) {
   const out = String(clusterId ?? "").trim().replace(/[/\\]+/g, "-").slice(0, 128);
@@ -37,20 +38,23 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
     const token = await personTokenFor(cfg, ownerEmail, fetchImpl);
     return {
       async readShared(clusterId, limit = 5) {
-        const r = await fetchImpl(
+        // Outbound call discipline: shared deadline wrapper (default env
+        // bound); fetchImpl stays the test seam.
+        const r = await fetchWithTimeout(
           `${cfg.url}/pages?project=${encodeURIComponent(clusterProjectId(clusterId))}&limit=${limit}`,
           { headers: { authorization: `Bearer ${token}` } },
+          { fetchImpl },
         );
         if (!r.ok) throw new Error(`pages HTTP ${r.status}`);
         const doc = await r.json();
         return Array.isArray(doc?.pages) ? doc.pages : [];
       },
       async writeDigest(clusterId, title, body) {
-        const r = await fetchImpl(`${cfg.url}/pages`, {
+        const r = await fetchWithTimeout(`${cfg.url}/pages`, {
           method: "POST",
           headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
           body: JSON.stringify({ project: clusterProjectId(clusterId), title, body }),
-        });
+        }, { fetchImpl });
         if (!r.ok) throw new Error(`pages HTTP ${r.status}`);
         return await r.json();
       },

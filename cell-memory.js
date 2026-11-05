@@ -15,6 +15,7 @@ import { join, dirname } from "node:path";
 // the fleet runner injects, imported from the repo root so the two surfaces
 // can never drift (bilingual zh + en by decision).
 import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
+import { fetchWithTimeout } from "./lib/fetch-with-timeout.js";
 
 export { MEMORY_DISCIPLINE };
 
@@ -37,11 +38,13 @@ export async function personTokenFor(cfg, ownerEmail, fetchImpl = fetch) {
     const cached = JSON.parse(readFileSync(p, "utf8"));
     if (cached?.token && cached?.namespace === `u/${ownerEmail}`) return cached.token;
   } catch { /* miss → mint */ }
-  const res = await fetchImpl(`${cfg.url}/admin/mint`, {
+  // Outbound call discipline: token mint rides the shared deadline wrapper
+  // (default env bound); fetchImpl stays the test seam.
+  const res = await fetchWithTimeout(`${cfg.url}/admin/mint`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${cfg.platformToken}` },
     body: JSON.stringify({ namespace: `u/${ownerEmail}`, label: `cell:${ownerEmail}` }),
-  });
+  }, { fetchImpl });
   if (!res.ok) throw new Error(`person mint HTTP ${res.status}`);
   const { token } = await res.json();
   mkdirSync(dirname(p), { recursive: true });
@@ -101,11 +104,11 @@ export async function memberTokenFor(cfg, { packId, memberId, ownerEmail }, fetc
     if (cached?.token && cached?.namespace === namespace) return cached.token;
   } catch { /* miss → mint */ }
   if (!ownerEmail) throw new Error("member mint requires ownerEmail (the oversight anchor)");
-  const res = await fetchImpl(`${cfg.url}/admin/mint`, {
+  const res = await fetchWithTimeout(`${cfg.url}/admin/mint`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${cfg.platformToken}` },
     body: JSON.stringify({ namespace, owner: `u/${ownerEmail}`, label: `member:${packId}:${memberId}` }),
-  });
+  }, { fetchImpl });
   if (!res.ok) throw new Error(`member mint HTTP ${res.status}`);
   const { token } = await res.json();
   mkdirSync(dirname(p), { recursive: true });

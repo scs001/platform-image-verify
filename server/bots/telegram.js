@@ -9,17 +9,25 @@
 // getUpdates long-poll loop instead. One loop per Telegram bot.
 // Docs: https://core.telegram.org/bots/api#getupdates / #sendmessage
 
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
+
 const API = "https://api.telegram.org";
 const POLL_TIMEOUT_SEC = 25;
+// Long-poll headroom: getUpdates parks the connection for POLL_TIMEOUT_SEC by
+// design, so its deadline must exceed the poll window, not the shared default.
+const POLL_TIMEOUT_MS = (POLL_TIMEOUT_SEC + 5) * 1000;
+const CALL_TIMEOUT_MS = 10_000;
 
 const api = (token, method) => `${API}/bot${token}/${method}`;
 
-async function call(token, method, body) {
-  const res = await fetch(api(token, method), {
+async function call(token, method, body, timeoutMs = CALL_TIMEOUT_MS) {
+  // Outbound call discipline: shared deadline wrapper — per-call override
+  // keeps the long-poll lane above its own 25s window.
+  const res = await fetchWithTimeout(api(token, method), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-  });
+  }, { timeoutMs });
   const json = await res.json().catch(() => ({}));
   if (!json.ok) throw new Error(`telegram ${method} failed: ${json.description || res.status}`);
   return json.result;
@@ -85,7 +93,7 @@ export const registry = {
             offset,
             timeout: POLL_TIMEOUT_SEC,
             allowed_updates: ["message"],
-          });
+          }, POLL_TIMEOUT_MS);
           for (const u of updates) {
             offset = u.update_id + 1;
             const msg = toMessage(u);

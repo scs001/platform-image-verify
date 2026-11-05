@@ -9,6 +9,7 @@
 import express from "express";
 import { GATEWAY_SECRET_HEADER } from "../auth.js";
 import { reload as reloadBot } from "../bots.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 export function registerZhiyuImBridgeRoutes(ctx) {
   const { app } = ctx;
@@ -47,7 +48,10 @@ export function registerZhiyuImBridgeRoutes(ctx) {
       return res.status(400).json({ error: "zhiRoomId must look like a room id" });
     }
     try {
-      const r = await fetch(`${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(roomId)}`, { headers: machineHeaders(email) });
+      // Outbound call discipline: shared deadline wrapper (default env bound)
+      // — the loopback room check answers within the bound or the binding
+      // degrades to a 502 instead of hanging the PUT.
+      const r = await fetchWithTimeout(`${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(roomId)}`, { headers: machineHeaders(email) });
       if (!r.ok) return res.status(r.status === 404 || r.status === 401 ? 404 : 502).json({ error: "room unavailable" });
       const room = await r.json();
       const updated = ctx.db.updateBot(bot.id, { zhiRoomId: roomId });

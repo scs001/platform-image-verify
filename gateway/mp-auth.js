@@ -41,6 +41,7 @@
 // forge the other.
 
 import crypto from "node:crypto";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 const B64 = "base64url";
 
@@ -97,7 +98,7 @@ export function verifyMpJwt(token, secret) {
 }
 
 export function createMpAuth(config) {
-  const { appid, mpSecret, tokenSecret, ttlHours, codeUrl, bindings, demoMode = false } = config;
+  const { appid, mpSecret, tokenSecret, ttlHours, codeUrl, bindings, demoMode = false, fetchImpl = fetch } = config;
   // `configured` gates the wx.login flow (code2Session needs the WeChat
   // triple). TOKEN VERIFICATION needs only the secret — gating it on the
   // triple locked every app/paired-device Bearer out of deployments without
@@ -111,7 +112,11 @@ export function createMpAuth(config) {
     const url = `${codeUrl}?appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(mpSecret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
     let data;
     try {
-      const res = await fetch(url);
+      // Outbound call discipline (harden-cell-execution-reliability): the
+      // WeChat code2Session exchange rides the shared deadline wrapper — a
+      // stalled endpoint fails as a structured retryable timeout within the
+      // configured bound instead of hanging the browser login surface.
+      const res = await fetchWithTimeout(url, {}, { fetchImpl });
       data = await res.json();
     } catch {
       return { ok: false, status: 502, error: "WeChat code2Session unreachable" };

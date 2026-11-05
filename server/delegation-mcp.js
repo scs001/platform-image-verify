@@ -16,6 +16,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else.
@@ -30,12 +31,13 @@ function bridgeOrigin() {
 }
 
 async function call(method, path, body) {
-  const res = await fetch(`${bridgeOrigin()}${path}`, {
+  // Outbound call discipline: shared deadline wrapper — a stalled bridge fails
+  // as a structured retryable FetchTimeoutError instead of hanging the tool.
+  const res = await fetchWithTimeout(`${bridgeOrigin()}${path}`, {
     method,
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(10_000),
-  });
+  }, { timeoutMs: 10_000 });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `${method} ${path} failed (${res.status})`);
   return data;

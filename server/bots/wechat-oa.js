@@ -12,6 +12,7 @@
 
 import crypto from "node:crypto";
 import { postJson, xmlField, tokenCache } from "./adapter.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 const BASE = process.env.WECHAT_OA_BASE_URL || "https://api.weixin.qq.com";
 
@@ -35,7 +36,8 @@ function tokenFor(cred) {
       // secret forever (the wecom adapter hit exactly this — 40001 after a
       // rotation despite a working direct token call with the same values).
       const url = `${BASE}/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(entry.cred.appId)}&secret=${encodeURIComponent(entry.cred.appSecret)}`;
-      const j = await (await fetch(url)).json();
+      // Outbound call discipline: shared deadline wrapper (default env bound).
+      const j = await (await fetchWithTimeout(url)).json();
       if (j.errcode) throw new Error(`token: ${j.errcode} ${j.errmsg}`);
       return { token: j.access_token, expiresInSec: j.expires_in };
     });
@@ -93,7 +95,8 @@ export const registry = {
   async sendText(cred, chatKey, text) {
     const send = async () => {
       const url = `${BASE}/cgi-bin/message/custom/send?access_token=${await tokenFor(cred).get()}`;
-      const res = await fetch(url, {
+      // Outbound call discipline: shared deadline wrapper (default env bound).
+      const res = await fetchWithTimeout(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ touser: chatKey, msgtype: "text", text: { content: text } }),

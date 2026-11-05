@@ -9,6 +9,7 @@
 // the observer. Inert without a URL.
 
 import { randomBytes } from "node:crypto";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 const ENC = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 function ulid(now) {
@@ -52,11 +53,13 @@ export function createFleetReporter({ url, token, source = "facade", fetchImpl =
     flushing = true;
     try {
       const batch = queue.slice(0, maxBatch);
-      const res = await (fetchImpl ?? fetch)(`${url.replace(/\/+$/, "")}/ingest`, {
+      // Outbound call discipline: shared deadline wrapper (default env bound)
+      // — a stalled observer holds at most one flush window, never the queue.
+      const res = await fetchWithTimeout(`${url.replace(/\/+$/, "")}/ingest`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ events: batch }),
-      });
+      }, { fetchImpl });
       if (!res.ok) {
         say(`flush refused (${res.status}) — keeping ${queue.length}`);
         return;

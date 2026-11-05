@@ -6,6 +6,7 @@
 // 配置或请求失败 → null / 静默跳过，绝不阻塞入仓或回话。
 
 import { cellMemoryConfig, personTokenFor } from "../cell-memory.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 export function memoryRefSlug(id) {
   return `r-${String(id).replace(/[^a-zA-Z0-9_-]+/g, "").slice(0, 24)}`;
@@ -31,18 +32,20 @@ export async function memoryRefClientFor(env, ownerEmail, fetchImpl = fetch) {
     const authH = { authorization: `Bearer ${token}`, "content-type": "application/json" };
     return {
       async writeReference({ project = "default", title, summary, tags = [], tier = "draft", source_ref, slug }) {
-        const r = await fetchImpl(`${base}/write`, {
+        // Outbound call discipline: shared deadline wrapper (default env
+        // bound); fetchImpl stays the test seam.
+        const r = await fetchWithTimeout(`${base}/write`, {
           method: "POST", headers: authH,
           body: JSON.stringify({ project, type: "reference", title, body: summary, tags, tier, source_ref, slug }),
-        });
+        }, { fetchImpl });
         if (!r.ok) throw new Error(`pages/write HTTP ${r.status}`);
         return await r.json(); // { path, created }
       },
       async mutateReference({ path, op, tier, tags, origin = "human" }) {
-        const r = await fetchImpl(`${base}/mutate`, {
+        const r = await fetchWithTimeout(`${base}/mutate`, {
           method: "POST", headers: authH,
           body: JSON.stringify({ path, op, tier, tags, origin }),
-        });
+        }, { fetchImpl });
         if (!r.ok) {
           const err = new Error(`pages/mutate HTTP ${r.status}`);
           err.status = r.status;

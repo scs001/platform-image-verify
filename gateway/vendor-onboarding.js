@@ -15,6 +15,7 @@
 //                   truthful note rather than faking in册).
 import { randomBytes } from "node:crypto";
 import { probeMcpToolNames } from "../lib/publish-tool-gate.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 const STATUSES = ["submitted", "in_review", "onboarded", "rejected", "withdrawn"];
 const AXIS = {
@@ -111,7 +112,9 @@ export function defaultWriter(env = process.env) {
         ["POST", regPath, entry],
         ["POST", togglePath, { path: `/${serverName}/`, new_state: true }],
       ]) {
-        const r = await fetch(url + path, { method, headers, body: JSON.stringify(body) });
+        // Outbound call discipline: platform-credential registry write rides
+        // the shared deadline wrapper (default env bound).
+        const r = await fetchWithTimeout(url + path, { method, headers, body: JSON.stringify(body) });
         if (!r.ok) throw new Error(`registry ${path} HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 160)}`);
       }
       return { path: `/${serverName}/` };

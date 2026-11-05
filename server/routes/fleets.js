@@ -25,6 +25,7 @@ import { validateFleetDraft, applyFleetDraft } from "../fleet-architect.js";
 import { splitToolTarget } from "../tool-turn.js";
 import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
 import { fleetModelChoiceError, resolveModelChain, validateConfigDims, effortUnionFrom } from "../fleet-model.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 import {
   validateReportPayload,
   resolveAttribution,
@@ -561,7 +562,10 @@ export function createFleetRoutes(app, ctx = null) {
     ctx?.iterationsPublisher ??
     (async ({ packId, manifest }) => {
       const base = `${req.protocol || "http"}://${req.get("host") ?? "127.0.0.1"}`;
-      const r = await fetch(`${base}/api/packs`, {
+      // Outbound call discipline: loopback self-call rides the shared deadline
+      // wrapper (default env bound) — a wedged packs route fails the
+      // fire-and-forget publish instead of hanging the reconcile lane.
+      const r = await fetchWithTimeout(`${base}/api/packs`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -576,7 +580,8 @@ export function createFleetRoutes(app, ctx = null) {
     ctx?.iterationsValidator ??
     (async ({ packId, manifest }) => {
       const base = `${req.protocol || "http"}://${req.get("host") ?? "127.0.0.1"}`;
-      const r = await fetch(`${base}/api/packs/validate`, {
+      // Outbound call discipline: shared deadline wrapper (default env bound).
+      const r = await fetchWithTimeout(`${base}/api/packs/validate`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

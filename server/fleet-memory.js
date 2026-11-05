@@ -21,6 +21,7 @@
 
 import { cellMemoryConfig, personTokenFor, memberTokenFor } from "../cell-memory.js";
 import { digestTimeoutMs } from "./cluster-memory.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 const CAPTURE_DEDUP_MAX = 512;
 
@@ -129,11 +130,13 @@ export async function fleetMemoryFor(env, ownerEmail, fetchImpl = fetch) {
       return t;
     };
     const post = async (tok, project, title, body, metadata) => {
-      const r = await fetchImpl(`${cfg.url}/pages`, {
+      // Outbound call discipline: shared deadline wrapper (default env bound);
+      // fetchImpl stays the test seam.
+      const r = await fetchWithTimeout(`${cfg.url}/pages`, {
         method: "POST",
         headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
         body: JSON.stringify({ project, title, body, ...(metadata ? { metadata } : {}) }),
-      });
+      }, { fetchImpl });
       if (!r.ok) throw new Error(`pages HTTP ${r.status}`);
       return await r.json();
     };

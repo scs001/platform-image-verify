@@ -36,6 +36,7 @@ import { registry as feishu } from "./feishu.js";
 import { registry as wecom } from "./wecom.js";
 import { registry as wechatOa } from "./wechat-oa.js";
 import { registry as wecomBot } from "./wecom-bot.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 export const BOT_TYPES = ["telegram", "feishu", "wecom", "wechat-oa", "wecom-bot"];
 
@@ -98,8 +99,10 @@ export function validateCredentials(type, credentials) {
 
 // POST JSON and return the parsed body. Throws on transport failure or a
 // non-2xx; platform-level error codes inside a 200 body are the adapter's job.
+// Outbound call discipline: shared deadline wrapper (default env bound) — a
+// stalled IM platform must not hang the bot lane.
 export async function postJson(url, body, headers = {}) {
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),

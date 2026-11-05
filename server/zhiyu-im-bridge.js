@@ -10,6 +10,7 @@
 
 import { GATEWAY_SECRET_HEADER } from "./auth.js";
 import { adapterForBot as defaultAdapterForBot } from "./bots/adapter.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 const RELAY_MAX_CHARS = 3800; // below every target platform's hard cap, once and for all
 const OUTBOUND_PER_MIN = 60;
@@ -19,7 +20,11 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
   const enabled = () => ["1", "true", "yes"].includes(String(env.ZHIYU_IM_BRIDGE_ON || "").toLowerCase());
   const gatewayBase = () => (env.GATEWAY_INTERNAL_URL || `http://127.0.0.1:${env.GATEWAY_PORT || 3080}`).replace(/\/+$/, "");
   const secret = () => env.CELL_GATEWAY_SECRET || "";
-  const doFetch = fetchImpl ?? fetch;
+  // Outbound call discipline: relay/poll calls ride the shared deadline
+  // wrapper (default env bound) — a stalled gateway degrades this bridge to
+  // the legacy session path instead of hanging the inbound hook; fetchImpl
+  // stays the test seam.
+  const doFetch = (url, init = {}) => fetchWithTimeout(url, init, { fetchImpl });
   const pollMs = Number(env.ZHIYU_IM_BRIDGE_POLL_MS || 2500);
 
   const machineHeaders = (email) => ({

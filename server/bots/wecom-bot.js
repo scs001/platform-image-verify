@@ -25,6 +25,7 @@
 
 import { decrypt, encrypt, signature } from "./wecom.js";
 import { xmlField } from "./adapter.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 const DEBUG = String(process.env.WECOM_BOT_DEBUG || "").trim() === "1";
 // response_url: one call per url, valid 1h (official 主动回复消息 doc). The
@@ -200,7 +201,8 @@ export const registry = {
     // rejected with 40008 invalid message type (prod-verified). Plain text is
     // valid markdown, so text rides the markdown channel; in groups the reply
     // also quotes the triggering message (platform behavior, free win).
-    const res = await fetch(entry.url, {
+    // Outbound call discipline: shared deadline wrapper (default env bound).
+    const res = await fetchWithTimeout(entry.url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ msgtype: "markdown", markdown: { content: text } }),

@@ -26,6 +26,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
 import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
@@ -1500,7 +1501,10 @@ export function registerPackRoutes(app, {
     const cfg0 = deployConfig();
     const doRegFetch = async (p, init = {}) => {
       const base = String(cfg0.registryUrl || "").replace(/\/+$/, "");
-      const r = await fetch(base + p, {
+      // Outbound call discipline: registry reads ride the shared deadline
+      // wrapper (default env bound) — a stalled registry must not hang the
+      // scheduler lane.
+      const r = await fetchWithTimeout(base + p, {
         ...init,
         headers: { Accept: "application/json", ...(cfg0.token ? { Authorization: `Bearer ${cfg0.token}` } : {}), ...(init.headers ?? {}) },
       });
@@ -1511,7 +1515,8 @@ export function registerPackRoutes(app, {
       const url = String(process.env.FLEET_BOARD_URL || "").replace(/\/+$/, "");
       const token = process.env.FLEET_BOARD_TOKEN || "";
       if (!url) throw new Error("FLEET_BOARD_URL not configured");
-      const r = await fetch(`${url}/api/fleet/v1/board`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      // Outbound call discipline: shared deadline wrapper (default env bound).
+      const r = await fetchWithTimeout(`${url}/api/fleet/v1/board`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       if (!r.ok) throw new Error(`board HTTP ${r.status}`);
       const board = await r.json();
       boardCache = { at: Date.now(), board };

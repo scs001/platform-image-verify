@@ -9,6 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { runA2aTurn } from "../../server/a2a-client.js";
+import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 
 // Visitor scope derivation (add-matter-visitor-scope's convention: sha256 of
 // the lane id, first 32 hex). For room turns the "visitor" is the ASKING
@@ -52,7 +53,10 @@ export function createZhiyuAgentLane({ bookings, registryUrl, registryToken, bac
   const settleTurn = async (member, { usageId, minutes }) => {
     const dep = await resolveDeployment(member);
     if (!dep) throw new Error(`agent seat has no live deployment (${member.ref})`);
-    const r = await fetch(
+    // Outbound call discipline: internal host-settle POST rides the shared
+    // deadline wrapper (default env bound) — a stalled packs service must not
+    // wedge the settle turn.
+    const r = await fetchWithTimeout(
       `${packsInternalBase()}/api/packs/internal/deployments/${encodeURIComponent(dep.packId)}/${encodeURIComponent(dep.agentId)}/host-settle`,
       {
         method: "POST",

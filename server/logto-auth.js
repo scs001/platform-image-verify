@@ -12,6 +12,7 @@ import {
   verifySignedCookie,
   STATE_TTL_MS,
 } from "./session.js";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 const SESSION_COOKIE = "paas_session";
 const STATE_COOKIE = "paas_oauth_state";
@@ -79,8 +80,12 @@ function redirectUrl(discovery, params) {
   return url.toString();
 }
 
+// Outbound call discipline: every Logto face (discovery, JWKS, token endpoint)
+// rides the shared deadline wrapper (default env bound) — a stalled IdP fails
+// the sign-in as a retryable failure instead of hanging the browser redirect;
+// fetchImpl stays the test seam.
 async function fetchJson(fetchImpl, url, options) {
-  const response = await fetchImpl(url, options);
+  const response = await fetchWithTimeout(url, options, { fetchImpl });
   if (!response.ok) throw new Error(`Logto HTTP ${response.status}`);
   return response.json();
 }

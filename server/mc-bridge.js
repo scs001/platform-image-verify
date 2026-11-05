@@ -15,6 +15,7 @@
 import * as engine from "../task-engine.js";
 import * as chatHistory from "../chat-history.js";
 import os from "node:os";
+import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 // Internal override for tests (fast ticks); production default 5s.
 const POLL_MS = Math.max(50, Number(process.env.MC_POLL_MS) || 5_000);
@@ -31,15 +32,17 @@ function bridgeEnabled() {
 }
 
 async function mcFetch(base, key, method, path, body) {
-  const res = await fetch(`${base}${path}`, {
+  // Outbound call discipline: shared deadline wrapper — a stalled console
+  // fails as a structured retryable FetchTimeoutError and the tick loop backs
+  // off instead of hanging.
+  const res = await fetchWithTimeout(`${base}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${key}`,
       ...(body ? { "content-type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(RESULT_TIMEOUT_MS),
-  });
+  }, { timeoutMs: RESULT_TIMEOUT_MS });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `${method} ${path} failed (${res.status})`);
   return data;

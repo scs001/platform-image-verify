@@ -57,6 +57,16 @@ export class DshHarnessAdapter {
   // resumed persisted session needs (the bridge resolves the parked preset on
   // the resume path too, so composition cannot drift across rebuilds).
   #prepared = new Set();
+  // Solo model hot-swap state (add-model-session-boundary): the single-member
+  // model face, null until the manager's first updateMemberModel lands —
+  // before that, solo sessions compose the process-level model with NO
+  // parking, the byte-identical legacy path. #soloSessions records every
+  // session id this adapter has dispatched; at each update the snapshot
+  // becomes #soloLegacy — the sessions that keep their model (the boundary:
+  // only sessions first seen after the update compose the new one).
+  #soloFace = null;
+  #soloSessions = new Set();
+  #soloLegacy = new Set();
   #ready = false;
   #budgetKilled = false;
   #activeTurns = 0;
@@ -121,6 +131,57 @@ export class DshHarnessAdapter {
   // context reap pass skips active sessions; add-wanxing-serving-api D10).
   isActive(wireSessionId) {
     return this.#collectors.has(wireSessionId);
+  }
+
+  // Session-boundary model hot-swap (add-model-session-boundary): the
+  // manager's reconcile lands a descriptor model change here instead of
+  // draining the child. This touches ONLY the parked model face — pod: the
+  // member's row; solo: the single-member face — never #prepared (sessions
+  // already parked keep their model to the end) and never an in-flight
+  // collector (no running turn is disturbed). New sessions compose the new
+  // model at their lazy creation; in-flight and already-parked sessions keep
+  // the old one — the session-boundary semantic, no restart channel.
+  // Invalid input is rejected loudly: an unknown member, or a non-string
+  // provider/model, would otherwise silently park a broken face.
+  updateMemberModel(agentKey, { provider, model } = {}) {
+    if (typeof provider !== "string" || !provider) {
+      throw new TypeError(`updateMemberModel: provider must be a non-empty string (got ${JSON.stringify(provider)})`);
+    }
+    if (typeof model !== "string" || !model) {
+      throw new TypeError(`updateMemberModel: model must be a non-empty string (got ${JSON.stringify(model)})`);
+    }
+    if (this.podMembers) {
+      const face = this.podMembers.get(agentKey);
+      if (!face) throw new RangeError(`updateMemberModel: agentKey '${agentKey}' is not a member of pod ${this.key}`);
+      face.provider = provider;
+      face.model = model;
+      return;
+    }
+    // Solo: the single-member face. The manager addresses the runtime's own
+    // key; absent means the same single member.
+    if (agentKey != null && agentKey !== this.key) {
+      throw new RangeError(`updateMemberModel: agentKey '${agentKey}' does not match solo runtime ${this.key}`);
+    }
+    // Each update moves the boundary: everything already seen through this
+    // adapter (parked with a previous model included) keeps its model; only
+    // sessions first dispatched after this call compose the new one.
+    this.#soloLegacy = new Set(this.#soloSessions);
+    this.#soloFace = { provider, model };
+  }
+
+  // The model this runtime would compose for a NEW session of one member —
+  // the parked face the manager's reconcile compares the descriptor against.
+  // Solo runtimes report the hot face once updated, else the spawn-level
+  // model every session composes with. Unknown pod members answer null.
+  memberModelOf(agentKey) {
+    if (this.podMembers) {
+      const face = this.podMembers.get(agentKey);
+      return face ? { provider: face.provider, model: face.model } : null;
+    }
+    return {
+      provider: this.#soloFace?.provider ?? this.spawnSpec.provider,
+      model: this.#soloFace?.model ?? this.spawnSpec.model,
+    };
   }
 
   // Active turns for ONE member (pod health): collector keys carry the member
@@ -321,6 +382,21 @@ export class DshHarnessAdapter {
       await this.client.request("preset/set", { sessionId: wireId, presetId: member.presetId });
       await this.client.request("model/set", { sessionId: wireId, provider: member.provider, model: member.model });
       this.#prepared.add(wireId);
+    }
+    // Solo model hot-swap (add-model-session-boundary): once an update has
+    // landed on this runtime, sessions first seen AFTER it park the new model
+    // before their first prompt — the same lazy-creation composition pod
+    // members use, minus the preset (solo presets stay process-level).
+    // Sessions seen before the update (#soloLegacy) never park: they keep the
+    // model they were composed with, in-flight turns untouched. Recorded
+    // BEFORE any await so an update landing mid-park sees this session as
+    // already in existence.
+    if (!member) {
+      this.#soloSessions.add(sessionId);
+      if (this.#soloFace && !this.#soloLegacy.has(sessionId) && !this.#prepared.has(sessionId)) {
+        await this.client.request("model/set", { sessionId, provider: this.#soloFace.provider, model: this.#soloFace.model });
+        this.#prepared.add(sessionId);
+      }
     }
     this.#activeTurns += 1;
     const turnTimeoutMs = member?.turnTimeoutMs ?? this.turnTimeoutMs;

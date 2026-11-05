@@ -436,6 +436,51 @@ export class ChildManager {
         }
       }
     }
+
+    // Model reconciliation (session-boundary hot swap — agent-service-config,
+    // add-model-session-boundary): model left the composition identity above,
+    // so a model-only change neither drains nor restarts anything. Per member
+    // with a live child, the descriptor's resolved model is compared with the
+    // runtime's parked face; a drift lands on the adapter in place — new
+    // sessions compose the new model at their lazy creation, sessions already
+    // in flight keep the old one to the end. Idempotent per cycle: once the
+    // face matches the descriptor the pass is a no-op, so a raced or partial
+    // read converges on the next poll instead of thrashing.
+    for (const [childKey, group] of groups) {
+      const child = this.children.get(childKey);
+      if (!child || child.draining) continue;
+      const adapter = child.adapter;
+      for (const [memberKey, entry] of group.members) {
+        const desired = this.#resolvedModelOf(entry);
+        const current = this.#runtimeModelOf(child, memberKey);
+        if (!current || current.model === desired) continue;
+        if (typeof adapter?.updateMemberModel === "function") {
+          try {
+            adapter.updateMemberModel(memberKey, { provider: this.config.provider, model: desired });
+            this.log.log(`[agent-runner] ${memberKey} model hot-swapped to ${desired} (session boundary — in-flight turns keep the old model)`);
+          } catch (e) {
+            // A refused update must never take the poll cycle down — the next
+            // reconcile retries the same comparison (fail-open, idempotent).
+            this.log.warn(`[agent-runner] model hot-swap failed for ${memberKey}: ${e.message}`);
+          }
+        } else {
+          // Harnesses without the parked-face surface (the model is baked at
+          // spawn) keep the upgrade-grade channel for model changes — a
+          // silent staleness would be worse than the drain. The next touch
+          // re-spawns on the new model, the pre-hot-swap semantics verbatim.
+          this.log.log(`[agent-runner] ${childKey} model changed (${current.model} → ${desired}); draining — harness '${adapter?.name ?? "?"}' has no session-boundary surface`);
+          this.children.delete(childKey);
+          child.drainAndStop(this.config.drainMs).catch((e) => this.log.warn(`[agent-runner] upgrade drain failed for ${childKey}: ${e.message}`));
+          // A re-materialization clears the billing park, same as an identity
+          // change (the next spawn re-pins from the new descriptor).
+          for (const parkedKey of group.members.keys()) {
+            this.#parked.delete(parkedKey);
+            this.#billingPins.delete(parkedKey);
+          }
+          break; // the whole child is going away — no per-member work left
+        }
+      }
+    }
     return served.length;
   }
 
@@ -478,11 +523,30 @@ export class ChildManager {
       // change must drain so the next spawn materializes and exports it.
       // Draining never touches the home — data/ persists verbatim.
       workspace: m.workspace,
-      // Per-deployment model (agent-service-config / ADR-0019): the spawn's
-      // LLM is derived from this field, so a model change must drain the
-      // old child — the upgrade-grade channel, no third restart path.
-      model: m.effective_model,
+      // `model` is deliberately ABSENT (add-model-session-boundary): a
+      // model change no longer drains — it hot-swaps at the session boundary
+      // via the reconcile model pass below. Only when the hosting adapter
+      // has no parked-face surface does that pass fall back to this drain.
     };
+  }
+
+  // The model a (re)spawn composes for one entry (ADR-0019): the descriptor's
+  // effective model wins, the runner's deployment default fills in. The same
+  // resolution the solo spawn spec and the pod member faces use, so the
+  // reconcile comparison and the materialization can never disagree.
+  #resolvedModelOf(entry) {
+    const m = entry?.metadata?.effective_model;
+    return typeof m === "string" && m ? m : this.config.model;
+  }
+
+  // The model the runtime would compose for a NEW session of one member —
+  // the parked face for adapters that expose one (dsh), else the spawn-baked
+  // model (upgrade-grade harnesses; the drain fallback's comparison point).
+  #runtimeModelOf(child, agentKey) {
+    const a = child.adapter;
+    if (typeof a?.memberModelOf === "function") return a.memberModelOf(agentKey);
+    const model = a?.spawnSpec?.model;
+    return typeof model === "string" && model ? { provider: a.spawnSpec.provider ?? null, model } : null;
   }
 
   // Group wanted entries by hosting child (add-dsh-pod-adapter). Solo mode

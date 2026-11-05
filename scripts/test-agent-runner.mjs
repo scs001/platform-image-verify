@@ -19,6 +19,7 @@ import yaml from "js-yaml";
 
 import { materializeAgentHome, materializePackHome, mcpEntry, agentKeyFor, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets } from "../agent-runner/compose.js";
 import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
+import { DshHarnessAdapter } from "../agent-runner/harness/dsh.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp, agentPortFor } from "../agent-runner/a2a.js";
 import net from "node:net";
@@ -1473,22 +1474,86 @@ test("model: the descriptor's effective_model rides the spawn; absent falls back
   }
 });
 
-test("model: a model change drains the old child; the next touch re-spawns on the new model", async () => {
+test("model: a model change hot-swaps at the session boundary — no drain; new sessions take the new model, old sessions keep theirs", async () => {
   const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-1" } };
   const { manager, spawned, entriesRef } = await directManager({ entries: [entry] });
   try {
     await manager.reconcile();
     await manager.turn(entry, "s1", "hi");
     const key = agentKeyFor(entry);
-    const first = manager.children.get(key);
-    assert.ok(first, "child spawned on m-1");
+    const child = manager.children.get(key);
+    assert.ok(child, "child spawned on m-1");
+    assert.equal(spawned[0].client.calls.initialize[0].model, "m-1");
+    // Model-only change: no drain, no re-spawn — the session-boundary channel.
     entriesRef.current = [{ ...entry, metadata: { ...entry.metadata, effective_model: "m-2" } }];
     await manager.reconcile();
-    assert.equal(manager.children.has(key), false, "model change drains the child (upgrade-grade channel)");
-    assert.equal(first.draining, true);
+    assert.equal(manager.children.get(key), child, "the child survives a model-only change (no drain)");
+    assert.equal(child.draining, false);
+    assert.equal(spawned.length, 1, "no re-spawn");
+    assert.deepEqual(child.adapter.memberModelOf(key), { provider: "p", model: "m-2" }, "the runtime face carries the new model");
+    // The pre-update session keeps its model: no model/set ever lands on s1.
+    await manager.turn(entriesRef.current[0], "s1", "hi");
+    assert.equal(spawned[0].client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === "s1").length, 0, "an existing session never re-parks — it keeps the old model");
+    // A NEW session parks the new model before its first prompt.
     await manager.turn(entriesRef.current[0], "s2", "hi");
-    assert.equal(spawned.length, 2, "the next touch re-spawns");
+    const park = spawned[0].client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === "s2");
+    assert.ok(park, "a new session parks model/set before its first prompt");
+    assert.equal(park.params.model, "m-2");
+    assert.equal(park.params.provider, "p");
+    // Idempotent convergence: further reconciles are complete no-ops.
+    let updates = 0;
+    const orig = child.adapter.updateMemberModel.bind(child.adapter);
+    child.adapter.updateMemberModel = (k, p) => { updates += 1; return orig(k, p); };
+    await manager.reconcile();
+    await manager.reconcile();
+    assert.equal(updates, 0, "the pass is idempotent once the face matches the descriptor");
+    assert.equal(manager.children.get(key), child, "and still no drain");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("model: a turn in flight during the hot-swap keeps the old model and settles untouched", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-1" } };
+  const { manager, spawned, entriesRef } = await directManager({ entries: [entry], harness: { delayMs: 400 } });
+  try {
+    await manager.reconcile();
+    const pending = manager.turn(entry, "s-live", "hi");
+    await new Promise((r) => setTimeout(r, 80)); // the turn is in flight
+    entriesRef.current = [{ ...entry, metadata: { ...entry.metadata, effective_model: "m-2" } }];
+    await manager.reconcile();
+    const out = await pending;
+    assert.match(out.text, /答复/, "the in-flight turn settles normally");
+    assert.equal(spawned[0].client.calls.requests.some((r) => r.method === "model/set"), false, "no model/set reached the runtime mid-turn");
+    // The touched session keeps the old model on its NEXT turn too (no re-park).
+    await manager.turn(entriesRef.current[0], "s-live", "hi");
+    assert.equal(spawned[0].client.calls.requests.some((r) => r.method === "model/set" && r.params.sessionId === "s-live"), false);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("model: a mixed model+persona redeploy drains once and the reborn child materializes the new model (no second interruption)", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-1" } };
+  const { manager, spawned, entriesRef } = await directManager({ entries: [entry] });
+  try {
+    await manager.reconcile();
+    await manager.turn(entry, "s1", "hi");
+    const key = agentKeyFor(entry);
+    entriesRef.current = [{ ...entry, metadata: { ...entry.metadata, persona: "你是改版的金融分析师。", effective_model: "m-2" } }];
+    await manager.reconcile();
+    assert.equal(manager.children.has(key), false, "the composition change drained the child");
+    await manager.turn(entriesRef.current[0], "s2", "hi");
+    assert.equal(spawned.length, 2, "one respawn");
     assert.equal(spawned[1].client.calls.initialize[0].model, "m-2", "the reborn child runs the new model");
+    // Convergence: the model pass finds nothing to do after the respawn.
+    const child = manager.children.get(key);
+    let updates = 0;
+    const orig = child.adapter.updateMemberModel.bind(child.adapter);
+    child.adapter.updateMemberModel = (k, p) => { updates += 1; return orig(k, p); };
+    await manager.reconcile();
+    assert.equal(updates, 0, "no secondary interruption after the respawn");
+    assert.equal(manager.children.get(key), child);
   } finally {
     await manager.stopAll();
   }
@@ -2007,11 +2072,91 @@ test("pod mode: one member's descriptor change drains the whole pod (pack-granul
     await h.manager.turn(entries[0], "srv-a", "你好");
     const pod = h.manager.children.get(podKeyFor("pk-abc"));
     assert.ok(pod, "the pod serves the pack");
-    // One member's composition changes (a model bump).
-    entries[1] = { ...entries[1], metadata: { ...entries[1].metadata, effective_model: "test-model-2" } };
+    // One member's COMPOSITION changes (a persona rewrite — model is no
+    // longer a composition field, it hot-swaps at the session boundary).
+    entries[1] = { ...entries[1], metadata: { ...entries[1].metadata, persona: "你是改版的文案作者。" } };
     await h.manager.reconcile();
     assert.equal(h.manager.children.size, 0, "the identity change removed the pod from the map (draining)");
     assert.equal(pod.draining, true, "the OLD pod is draining — both members' in-flight turns ride the drain");
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod model hot-swap: member-level session boundary — the sibling's face, sessions, and parking are untouched", async () => {
+  const entries = [ENTRY, ENTRY_B];
+  const h = await bootRunner({
+    entries,
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 4 },
+    clientOpts: { onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }) },
+  });
+  try {
+    await h.manager.reconcile();
+    const keyA = agentKeyFor(ENTRY);
+    const keyB = agentKeyFor(ENTRY_B);
+    await h.manager.turn(entries[0], "srv-ctx1", "你好"); // parks A: preset + old model
+    const pod = h.manager.children.get(podKeyFor("pk-abc"));
+    const client = h.spawned[0].client;
+    const wireA1 = `${keyA}--srv-ctx1`;
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === wireA1).length, 1, "the first use parks exactly once (old model)");
+    // Member A's model changes; member B has no change.
+    entries[0] = { ...entries[0], metadata: { ...entries[0].metadata, effective_model: "m-2" } };
+    await h.manager.reconcile();
+    assert.equal(h.manager.children.size, 1, "no drain — the pod survives a member model change");
+    assert.equal(pod.draining, false);
+    assert.deepEqual(pod.adapter.memberModelOf(keyA), { provider: "test-provider", model: "m-2" }, "A's face carries the new model");
+    assert.equal(pod.adapter.memberModelOf(keyB).model, "test-model", "B's face is untouched");
+    // A's OLD session: no second park — it keeps the model it was created with.
+    await h.manager.turn(entries[0], "srv-ctx1", "你好");
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === wireA1).length, 1, "A's existing session never re-parks");
+    // A's NEW session parks the full preset+model sequence with the new model.
+    await h.manager.turn(entries[0], "srv-ctx2", "你好");
+    const wireA2 = `${keyA}--srv-ctx2`;
+    const presetCall = client.calls.requests.find((r) => r.method === "preset/set" && r.params.sessionId === wireA2);
+    assert.equal(presetCall.params.presetId, "srv-pk-abc-pack-fingpt", "the parking sequence rides the hot-swap too");
+    const modelCall = client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === wireA2);
+    assert.equal(modelCall.params.model, "m-2");
+    assert.equal(modelCall.params.provider, "test-provider");
+    // B's NEW session still parks B's OLD model — the sibling is untouched.
+    await h.manager.turn(ENTRY_B, "srv-ctx2", "写一句");
+    const wireB2 = `${keyB}--srv-ctx2`;
+    const bModelCall = client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === wireB2);
+    assert.equal(bModelCall.params.model, "test-model", "B composes its own (unchanged) model");
+    assert.equal(h.manager.children.size, 1, "the pod kept serving throughout");
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod mixed change: persona + model in one redeploy drains ONCE and the reborn pod materializes the new model", async () => {
+  const entries = [ENTRY, ENTRY_B];
+  const h = await bootRunner({
+    entries,
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 4 },
+    clientOpts: { onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }) },
+  });
+  try {
+    await h.manager.reconcile();
+    await h.manager.turn(entries[0], "srv-a", "你好");
+    assert.equal(h.manager.children.size, 1);
+    entries[0] = { ...entries[0], metadata: { ...entries[0].metadata, persona: "你是改版的金融分析师。", effective_model: "m-2" } };
+    await h.manager.reconcile();
+    assert.equal(h.manager.children.size, 0, "the composition change drained the pod (one interruption)");
+    await h.manager.turn(entries[0], "srv-b", "你好");
+    assert.equal(h.manager.children.size, 1, "the next touch re-spawns once");
+    assert.equal(h.spawned.length, 2, "exactly one respawn — no second interruption");
+    const pod = h.manager.children.get(podKeyFor("pk-abc"));
+    assert.deepEqual(pod.adapter.memberModelOf(agentKeyFor(entries[0])), { provider: "test-provider", model: "m-2" }, "the reborn composition materializes the new model");
+    // Convergence: two more reconciles are complete no-ops.
+    let updates = 0;
+    const orig = pod.adapter.updateMemberModel.bind(pod.adapter);
+    pod.adapter.updateMemberModel = (k, p) => { updates += 1; return orig(k, p); };
+    await h.manager.reconcile();
+    await h.manager.reconcile();
+    assert.equal(updates, 0, "no further model work after the respawn");
+    assert.equal(h.manager.children.size, 1);
   } finally {
     await h.close();
   }
@@ -2280,4 +2425,92 @@ test("4.2c materialized SKILL.md carries synthesized frontmatter; authored wins"
   assert.match(md, /财报分析/);
   // The body survives verbatim below the synthesized header.
   assert.ok(md.endsWith("# 财报分析\n\n看三张表。\n"));
+});
+
+// ── Session-boundary model hot-swap (add-model-session-boundary) ─────────────
+//
+// Adapter-level unit tests: updateMemberModel mutates ONLY the parked model
+// face (pod row / solo single-member face), never #prepared and never an
+// in-flight collector; invalid input is refused loudly.
+
+test("adapter updateMemberModel: pod face row updated in place; prepared sessions and in-flight collectors untouched; invalid input refused", async () => {
+  const client = fakeHarnessClient({ reply: "ok" });
+  const adapter = new DshHarnessAdapter({
+    key: "pod-x",
+    spawnSpec: { profile: "platform", patchPaths: [], cwd: tmpRoot, env: {}, provider: "prov", model: "m0", presetId: null },
+    podMembers: new Map([
+      ["mem-a", { presetId: "p-a", provider: "prov", model: "m-a", turnTimeoutMs: 60_000, budgetLabel: "1m" }],
+      ["mem-b", { presetId: "p-b", provider: "prov", model: "m-b", turnTimeoutMs: 60_000, budgetLabel: "1m" }],
+    ]),
+    clientFactory: () => client,
+    log: { log() {}, warn() {}, error() {} },
+  });
+  await adapter.start();
+  try {
+    await adapter.turn("s1", "hi", { agentKey: "mem-a" }); // parks mem-a (old model)
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === "mem-a--s1").length, 1, "the first use parks once");
+    adapter.updateMemberModel("mem-a", { provider: "prov", model: "m-a2" });
+    assert.deepEqual(adapter.memberModelOf("mem-a"), { provider: "prov", model: "m-a2" }, "the member row carries the new model");
+    assert.deepEqual(adapter.memberModelOf("mem-b"), { provider: "prov", model: "m-b" }, "the sibling row is untouched");
+    // The already-parked session does NOT re-park (#prepared untouched).
+    await adapter.turn("s1", "hi", { agentKey: "mem-a" });
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === "mem-a--s1").length, 1, "#prepared untouched — the old session keeps its model");
+    // A NEW session of the updated member parks the new model.
+    await adapter.turn("s2", "hi", { agentKey: "mem-a" });
+    const s2 = client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === "mem-a--s2");
+    assert.equal(s2.params.model, "m-a2");
+    // An in-flight turn survives the update untouched.
+    const inflight = adapter.turn("s-live", "hi", { agentKey: "mem-b" });
+    adapter.updateMemberModel("mem-b", { provider: "prov", model: "m-b2" });
+    const out = await inflight;
+    assert.match(out.text, /ok/, "the in-flight collector was never disturbed");
+    assert.equal(adapter.isActive("mem-b--s-live"), false, "and it settled exactly once");
+    // Invalid input is refused loudly, leaving the faces intact.
+    assert.throws(() => adapter.updateMemberModel("mem-nope", { provider: "prov", model: "m3" }), /is not a member of pod/);
+    assert.throws(() => adapter.updateMemberModel("mem-a", { provider: "prov", model: "" }), /must be a non-empty string/);
+    assert.throws(() => adapter.updateMemberModel("mem-a", { provider: "prov" }), /must be a non-empty string/);
+    assert.deepEqual(adapter.memberModelOf("mem-a"), { provider: "prov", model: "m-a2" }, "the refused calls changed nothing");
+  } finally {
+    await adapter.stop();
+  }
+});
+
+test("adapter updateMemberModel: solo single-member isomorphism — legacy byte-identical before the first update, boundary after", async () => {
+  const client = fakeHarnessClient({ reply: "ok" });
+  const adapter = new DshHarnessAdapter({
+    key: "solo-x",
+    spawnSpec: { profile: "platform", patchPaths: [], cwd: tmpRoot, env: {}, provider: "prov", model: "m0", presetId: null },
+    clientFactory: () => client,
+    log: { log() {}, warn() {}, error() {} },
+  });
+  await adapter.start();
+  try {
+    assert.deepEqual(adapter.memberModelOf("solo-x"), { provider: "prov", model: "m0" }, "the face reports the spawn model before any update");
+    await adapter.turn("pre", "hi");
+    assert.equal(client.calls.requests.some((r) => r.method === "model/set"), false, "legacy: no model/set without a hot update");
+    adapter.updateMemberModel("solo-x", { provider: "prov", model: "m1" });
+    assert.deepEqual(adapter.memberModelOf("solo-x"), { provider: "prov", model: "m1" });
+    await adapter.turn("pre", "hi");
+    assert.equal(client.calls.requests.some((r) => r.method === "model/set"), false, "a session seen before the update never parks");
+    await adapter.turn("post", "hi");
+    const park = client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === "post");
+    assert.equal(park.params.model, "m1", "a session first seen after the update parks the new model");
+    assert.equal(park.params.provider, "prov");
+    await adapter.turn("post", "hi");
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === "post").length, 1, "parked exactly once");
+    // A later update moves the boundary: the m1 session keeps m1, new
+    // sessions compose m2.
+    adapter.updateMemberModel("solo-x", { provider: "prov", model: "m2" });
+    await adapter.turn("post", "hi");
+    assert.equal(client.calls.requests.filter((r) => r.method === "model/set" && r.params.sessionId === "post").length, 1, "sessions in existence keep their model across updates");
+    await adapter.turn("post2", "hi");
+    assert.equal(client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === "post2").params.model, "m2");
+    // Refusals: a foreign key, an empty model, a missing model.
+    assert.throws(() => adapter.updateMemberModel("other-key", { provider: "prov", model: "m3" }), /does not match solo runtime/);
+    assert.throws(() => adapter.updateMemberModel("solo-x", { provider: "prov", model: "" }), /must be a non-empty string/);
+    assert.throws(() => adapter.updateMemberModel("solo-x", { provider: "prov" }), /must be a non-empty string/);
+    assert.deepEqual(adapter.memberModelOf("solo-x").model, "m2", "the refused calls changed nothing");
+  } finally {
+    await adapter.stop();
+  }
 });

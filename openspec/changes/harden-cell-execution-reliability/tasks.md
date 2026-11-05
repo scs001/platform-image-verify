@@ -26,7 +26,7 @@
 ## 4. 运维账本回填
 
 - [x] 4.1 CONTEXT.md 增「基建事故账」节：cheap-7 迁机磁盘事故（判据/修法/教训）
-- [x] 4.2 CONTEXT.md：cheap-3 DiskPressure 复发记录（2026-11-06 facet 驱逐 502 一刻钟、镜像清理 25G→19G、根因未除复发在预期内）
+- [x] 4.2 CONTEXT.md：facet 钉住节点 DiskPressure 复发记录（2026-11-06 facet 驱逐 502 一刻钟、陈旧镜像清理 25G→19G、根因未除复发在预期内）
 
 ## 5. 收尾
 

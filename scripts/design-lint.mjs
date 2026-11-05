@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ── design-lint: the color-discipline ratchet gate (web-design-system) ───────
 //
-// Five rules, scanned over web/src/pages/** and web/src/components/** with the
+// Six rules, scanned over web/src/pages/** and web/src/components/** with the
 // shared ui/ primitives directory EXEMPT (primitives own the one place literal
 // values may live):
 //   hex-color          #rgb/#rrggbb literals outside a tailwind arbitrary value

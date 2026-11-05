@@ -38,9 +38,14 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
   // Scheduling pass over the engine's loaded records: downtime accounting
   // before rescheduling, then arm timers / mark expiry. Afterwards the engine
   // re-enqueues executions that were persisted as queued at load.
+  // Interval rows arm through the same scheduleJob (the next occurrence is
+  // recomputed from the stored anchor grid); they have no cron-style catch-up
+  // accounting — an occurrence that passed while down fires at the next grid
+  // point. Skipping them here silently killed every interval task at restart
+  // (fix-audit-code-gaps: spec — recurring schedules reschedule automatically).
   const catchUp = []; // tasks whose downtime gap still deserves one make-up run
   for (const j of engine.allRecords()) {
-    if (j.type === "recurring" && j.cron) {
+    if (j.type === "recurring" && (j.cron || j.interval)) {
       // Downtime accounting happens before rescheduling: occurrences entirely
       // covered by the downtime window are recorded as missed. A DELIVERY task
       // inside its tolerance window then gets ONE catch-up run (P2, 2026-10-26:
@@ -48,12 +53,15 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
       // trigger — a counter in a log nobody reads is not a delivery guarantee).
       // Outside the window the gap is past saving: record AND alert explicitly
       // (harden-cell-execution-reliability) — the miss record alone is not
-      // sufficient, silent swallowing is banned.
-      const missed = countMissedOccurrences(j);
-      if (missed > 0) {
-        void engine.saveTasks();
-        if (!j.paused && withinToleranceWindow(j)) catchUp.push(j.id);
-        else if (!j.paused) alertMissedBeats(j, missed);
+      // sufficient, silent swallowing is banned. Cron-only: interval rows have
+      // no cron expression to parse.
+      if (j.cron) {
+        const missed = countMissedOccurrences(j);
+        if (missed > 0) {
+          void engine.saveTasks();
+          if (!j.paused && withinToleranceWindow(j)) catchUp.push(j.id);
+          else if (!j.paused) alertMissedBeats(j, missed);
+        }
       }
       scheduleJob(j);
     } else if (j.type === "once" && !j.paused) {
@@ -145,8 +153,8 @@ function validateCron(cron, tz) {
 // approximation: five-field cron cannot express "every 40 days". Occurrences
 // are anchor + k × step, where the anchor is the acceptance time on the SERVER
 // clock (a client-computed wall time would silently roll a year forward once
-// it lands in the past). Day/week units honour the job's timezone for the
-// optional time-of-day phase; minute/hour units are pure durations.
+// it lands in the past). All four units (minute/hour/day/week) are pure
+// durations — no time-of-day phase exists.
 const INTERVAL_UNITS = new Set(["minute", "hour", "day", "week"]);
 const UNIT_MS = { minute: 60_000, hour: 3_600_000, day: 86_400_000, week: 604_800_000 };
 
@@ -554,8 +562,8 @@ async function addJob({
     projectId: projectId ?? null,
   };
 
-  // insertTask validates the target (persona-only today) before anything is
-  // scheduled or persisted.
+  // insertTask validates the target (engine SUPPORTED_TARGET_TYPES: persona,
+  // a2a, cluster, tool) before anything is scheduled or persisted.
   const record = engine.insertTask(taskData);
   scheduleJob(record);
   await engine.saveTasks();
@@ -696,12 +704,16 @@ async function updateJob(id, changes = {}) {
 
   // Re-arm the live handle under the new schedule (paused tasks stay parked —
   // the paused bit is owned by the reconcile layer, never flipped here).
+  // Interval rows re-arm through scheduleJob (next occurrence recomputed from
+  // the stored rule; spec: an update changing the schedule recomputes the next
+  // occurrence from the new form). Without this branch the cancel below killed
+  // an interval task's timer for good on ANY in-place update.
   if (task.job) {
     task.job.cancel();
     task.job = null;
   }
   if (!task.paused) {
-    if (task.type === "recurring" && task.cron) {
+    if (task.type === "recurring" && (task.cron || task.interval)) {
       scheduleJob(task);
     } else if (task.type === "once" && task.when) {
       const scheduledAt = new Date(task.when);
@@ -754,9 +766,11 @@ async function resumeJob(id) {
   if (task.trigger === "manual") return false;
   task.paused = false;
   task.status = "scheduled";
-  // Reschedule
-  if (task.type === "recurring" && task.cron) {
-    countMissedOccurrences(task);
+  // Reschedule — interval rows re-arm through scheduleJob too (the rule's next
+  // occurrence is recomputed from the anchor grid; spec: on resume a recurring
+  // task continues from the next future occurrence).
+  if (task.type === "recurring" && (task.cron || task.interval)) {
+    if (task.cron) countMissedOccurrences(task);
     scheduleJob(task);
   } else if (task.type === "once" && task.when) {
     const scheduledAt = new Date(task.when);

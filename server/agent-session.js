@@ -840,7 +840,10 @@ async function startNewSession(originWs = null, ownerEmail = null) {
     }
   };
   toOrigin({ type: "session_changed", id });
-  toOrigin({ type: "session_loaded", id, title: "New chat", messages: [] });
+  // `created` marks this load as a session THIS requester just created
+  // (chat-input-focus): the client focuses the composer on it. Only the
+  // requester's push carries it — switches/resyncs/other viewers never do.
+  toOrigin({ type: "session_loaded", id, title: "New chat", messages: [], created: true });
   toOrigin(ctx.planMessage(id));
   // A fresh session composes gates closed (live-runtime-control) — restate so
   // the requester's web-search chip resets to the default-off position.

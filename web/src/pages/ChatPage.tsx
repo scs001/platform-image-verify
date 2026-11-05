@@ -186,6 +186,18 @@ export function ChatPage({ send, onToggleNav }: Props) {
     setFocusTick((n) => n + 1);
   }, [parkedDraft]);
 
+  // New-session auto-focus (chat-input-focus spec): a session this client just
+  // created — New chat button or /new, every entry funnels through the
+  // server's startNewSession — arrives as a `created`-marked session_loaded,
+  // which the WS hook re-dispatches as a window event. Bumping focusTick rides
+  // the same seam as the prefills above (and survives the empty↔transcript
+  // composer remount the fresh view causes).
+  useEffect(() => {
+    const onCreated = () => setFocusTick((n) => n + 1);
+    window.addEventListener("session_created", onCreated);
+    return () => window.removeEventListener("session_created", onCreated);
+  }, []);
+
   // Cluster termination fallback (dynamic-cluster-composer spec): when the
   // cluster bound to this session is terminated, the session falls back to the
   // built-in agent. The banner below carries the notice; the store clears the

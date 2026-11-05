@@ -8,6 +8,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import schedule from "node-schedule";
+import * as engine from "../task-engine.js";
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cron-parity-"));
 process.env.CRON_STORAGE_PATH = tmpRoot;
@@ -106,4 +107,50 @@ test("update rejects an unknown id and conflicting forms", async () => {
   const updated = await cron.updateJob(capped.id, { maxRuns: 2 });
   assert.equal(updated.maxRuns, 2);
   assert.equal(updated.runs, 0, "the run counter is preserved (not reset by a cap edit)");
+});
+
+// ── Interval rows re-arm everywhere a live timer is (re)built ────────────────
+// (fix-audit-code-gaps: boot/resume/update all conditioned re-arming on
+// `task.cron`, so an interval task's timer silently died at restart, on
+// resume, and on ANY in-place update — spec: recurring schedules reschedule
+// automatically, resume continues from the next future occurrence, and an
+// update recomputes the next occurrence from the new form.)
+
+test("interval rows are armed at boot, not only after their first run", async () => {
+  // Persist an interval row whose anchor is in the past, then boot the
+  // scheduling pass over the reloaded records. (The anchor is aged via the
+  // live record + the engine's own save chain — addJob always anchors at now,
+  // and a raw file write would race the engine's pending saves.)
+  const job = await cron.addJob({ prompt: "boot-arm", interval: { number: 30, unit: "minute" } });
+  const anchor = new Date(Date.now() - 90 * 60_000).toISOString();
+  const seeded = engine.getRecord(job.id);
+  seeded.anchor = anchor;
+  seeded.createdAt = anchor;
+  await engine.saveTasks();
+  await boot();
+  const rec = engine.getRecord(job.id);
+  assert.ok(rec, "the persisted row loaded");
+  assert.ok(rec.job, "the interval row is armed by the boot pass");
+  assert.ok(rec.nextRun, "nextRun recomputed from the anchor grid");
+  assert.ok(new Date(rec.nextRun).getTime() > Date.now(), "the armed occurrence is in the future (past beats collapse to the next grid point)");
+});
+
+test("resume re-arms an interval task (continues from the next future occurrence)", async () => {
+  await boot();
+  const job = await cron.addJob({ prompt: "resumable", interval: { number: 1, unit: "hour" } });
+  await cron.pauseJob(job.id);
+  assert.ok(!engine.getRecord(job.id).job, "pause disarms the timer");
+  await cron.resumeJob(job.id);
+  assert.ok(engine.getRecord(job.id).job, "resume re-arms the interval timer");
+  assert.ok(engine.getRecord(job.id).nextRun, "next occurrence restored");
+});
+
+test("an in-place update re-arms an interval task instead of killing it", async () => {
+  await boot();
+  const job = await cron.addJob({ prompt: "editable", interval: { number: 1, unit: "hour" } });
+  assert.ok(engine.getRecord(job.id).job, "armed at creation");
+  const updated = await cron.updateJob(job.id, { prompt: "edited" });
+  assert.equal(updated.prompt, "edited");
+  assert.ok(engine.getRecord(job.id).job, "the update's cancel+re-arm cycle leaves the interval timer alive");
+  assert.ok(engine.getRecord(job.id).nextRun, "next occurrence recomputed from the unchanged rule");
 });

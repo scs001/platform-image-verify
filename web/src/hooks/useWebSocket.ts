@@ -76,6 +76,13 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
           const lc = msg as { line?: string };
           window.dispatchEvent(new CustomEvent("line_credential_stale", { detail: lc }));
         }
+        // Fresh-session arrival (chat-input-focus): the server marks the load
+        // of a session THIS client just created (New chat button, /new). The
+        // chat page listens and focuses the composer — one signal for every
+        // creation entry, after the creation actually completed.
+        if ((msg as { type?: string }).type === "session_loaded" && (msg as { created?: boolean }).created) {
+          window.dispatchEvent(new CustomEvent("session_created"));
+        }
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyOverlay(msg as ServerMessage);

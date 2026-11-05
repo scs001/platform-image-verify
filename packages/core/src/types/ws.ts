@@ -166,6 +166,10 @@ export type ServerMessage =
       // this instead of from the transcript, since a queued prompt is never a
       // history row. Absent/null = nothing queued for this session.
       queued?: QueuedTurn | null;
+      // Fresh-session marker (chat-input-focus): the load carries a session
+      // created by THIS requester's action (New chat / /new). Absent on every
+      // other load — switches, resyncs, other viewers' views.
+      created?: boolean;
     }
   // A page of earlier transcript (polish-web-surfaces): the answer to
   // `load_earlier`, ascending, with whether even older messages remain.

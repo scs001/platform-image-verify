@@ -166,7 +166,9 @@ function apiKeyFor(provider) {
 // ── 车道解析 ────────────────────────────────────────────────────────────────
 
 // 可用的 judge 模型 → { providerId, baseUrl, apiKey, model, laneId }。
-// 选型顺序：BLUEPRINT_JUDGE_MODEL 指定 → 否则取第一个在册模型（便宜档由环境定）。
+// 选型顺序（三层，add-blueprint-judge-model-choice D1）：蓝图 judgeModel →
+// 部署默认 BLUEPRINT_JUDGE_MODEL → 名册首个；实际用源与理由落在
+// judgeSource/fallbackReason（详见下方三分判据）。
 //
 // 两条来源（2026-10-28 生产实证）：① 部署的 env 路由 LLM_BASE_URL/LLM_API_KEY
 // 是权威且总在场；② providers doc（Models 页）补充 provider 标识与更多模型。

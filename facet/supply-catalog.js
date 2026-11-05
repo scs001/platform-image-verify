@@ -153,7 +153,7 @@ export function registerSupplyCatalogRoutes(app, {
   anchorSource, // createSource over the DAAS export
   refreshFn = null, // optional forced refresh before serving (tests inject noop)
 }) {
-  const requestLocale = (req) =>
+  const _requestLocale = (req) =>
     resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
 
   // Deployment provenance index: slug → {packId, agentId, deployedAt}.
@@ -208,7 +208,7 @@ export function registerSupplyCatalogRoutes(app, {
     res.json({ facades, viewer: viewer ? "identified" : "anonymous" });
   });
 
-  app.get("/api/data-anchors-catalog", async (req, res) => {
+  app.get("/api/data-anchors-catalog", async (_req, res) => {
     if (typeof refreshFn === "function") await refreshFn().catch(() => {});
     else await anchorSource?.ensureFresh().catch(() => {});
     const payload = anchorSource?.snapshot;

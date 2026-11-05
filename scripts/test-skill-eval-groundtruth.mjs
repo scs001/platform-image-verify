@@ -19,9 +19,9 @@ const TASK = "分诊 3 条反馈：①「付款后订单不显示」②「希望
 
 // Mock judge: pick which 甲乙丙 answer carries the marker, return that label
 // (or a forced override for gate-branch tests).
-function makeMock({ forceBest = null, verdict = { best: "candidate", reasoning: "x" } } = {}) {
+function makeMock({ forceBest = null } = {}) {
   const captured = [];
-  const fetchImpl = async (url, opts = {}) => {
+  const fetchImpl = async (_url, opts = {}) => {
     const body = JSON.parse(opts.body);
     const system = body.messages[0].content;
     const user = body.messages[1].content;
@@ -124,7 +124,7 @@ test("gate semantics unchanged across all four verdict branches", async () => {
   for (const [v, expectPass, reasonPrefix] of cases) {
     // forceBest: return the raw verdict.best verbatim (unmapped labels → the
     // gate's unmappable branch is separately covered by the mock default).
-    const { fetchImpl } = makeMock({ forceBest: v.best === "candidate" ? null : undefined, verdict: v });
+    const { fetchImpl } = makeMock({ forceBest: v.best === "candidate" ? null : undefined });
     // For candidate we use the blind simulation; for the others the judge
     // returns a non-label token, exercising the unmappable branch — so instead
     // drive the label honestly: find the label of the arm the verdict names.
@@ -146,7 +146,7 @@ test("gate semantics unchanged across all four verdict branches", async () => {
 // the verdict (control/old/candidate identified by transcript markers).
 function makeVerdictAwareMock(namedArm) {
   const marker = { control: "转写(none)", old: "转写(old)", candidate: "转写(candidate)" }[namedArm];
-  const fetchImpl = async (url, opts = {}) => {
+  const fetchImpl = async (_url, opts = {}) => {
     const body = JSON.parse(opts.body);
     const system = body.messages[0].content;
     const user = body.messages[1].content;

@@ -198,7 +198,7 @@ async function mergedMarketCatalog() {
   const [starterMcp, starterSkills] = await Promise.all([loadStarters(), loadStarterSkills()]);
   let catalogMcp, catalogSkills;
   if (getCatalogSource() === "none") {
-    const [snap, snapSk] = await Promise.all([loadMarketCatalog(), loadMarketCatalogSkills()]);
+    const [snap, _snapSk] = await Promise.all([loadMarketCatalog(), loadMarketCatalogSkills()]);
     catalogMcp = snap.mcpServers || [];
     catalogSkills = snap.skills || [];
   } else {

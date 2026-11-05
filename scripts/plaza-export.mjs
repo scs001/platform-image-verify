@@ -201,7 +201,7 @@ export function annotateFacade(f, generatedAt, source) {
 }
 
 // ── data-anchor species — admitted by the DAAS catalog face ──────────────────
-export function annotateDataAnchor(a, generatedAt, source) {
+export function annotateDataAnchor(a, generatedAt, _source) {
   if (!a?.id) return null; // malformed — the G1 count gate must see the drop
   const name = a.name || a.id;
   const summary = a.summary ?? "";

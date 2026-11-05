@@ -98,7 +98,7 @@ test("collectTurn: a stream error finish still wins when it fired first (no doub
 
 test("runPersonaTurn: silent empty return settles ok:false — never billed as success", async () => {
   const { collectors, ctx } = baseCtx();
-  const childId = "cron-empty#r1";
+  const _childId = "cron-empty#r1";
   ctx.dshBridge.prompt = async (sessionId) => {
     const fire = collectors.get(sessionId);
     // Tokens spent, zero output, turn ends error — the billed-empty shape.

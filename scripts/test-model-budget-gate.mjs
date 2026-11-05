@@ -26,7 +26,7 @@ await dbModule.initDb();
 await (await import("../chat-history.js")).initChatHistory();
 const { createFleetDatabase, setFleetDatabase } = await import("../server/routes/fleets-db.js");
 const { fleetModelFor } = await import("../server/fleet-reports.js");
-const { runPersonaTurn, roundChildSessionId } = await import("../server/cron-runner.js");
+const { runPersonaTurn } = await import("../server/cron-runner.js");
 const { createBudgetEngine, attachModelBudgetReset, budgetConfigFromEnv, utcDayKey, turnTokens } = await import("../server/model-budget.js");
 
 const fleetId = "f1";

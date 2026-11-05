@@ -224,14 +224,21 @@
       localStorage.setItem("plaza.locale", e.target.value);
       location.search = `lang=${e.target.value}`;
     });
-    $("#invSearch").addEventListener("input", () => renderInventory());
-    $("#invCategory").addEventListener("change", () => renderInventory());
-    document.querySelectorAll(".inv-tab").forEach((b) =>
+    $("#invSearch").addEventListener("input", () => {
+      renderInventory();
+    });
+    $("#invCategory").addEventListener("change", () => {
+      renderInventory();
+    });
+    document.querySelectorAll(".inv-tab").forEach((b) => {
       b.addEventListener("click", () => {
         store.speciesTab = b.dataset.tab;
-        document.querySelectorAll(".inv-tab").forEach((x) => x.classList.toggle("active", x === b));
+        document.querySelectorAll(".inv-tab").forEach((x) => {
+          x.classList.toggle("active", x === b);
+        });
         renderInventory();
-      }));
+      });
+    });
 
     store.dict = await loadDict(store.locale).catch(() => loadDict(DEFAULT_LOCALE));
     const catRes = await fetch("generated/catalog.json").catch(() => null);
@@ -254,7 +261,9 @@
     }
     applyStatic();
     // reflect the preselected tab in the UI
-    document.querySelectorAll(".inv-tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === store.speciesTab));
+    document.querySelectorAll(".inv-tab").forEach((x) => {
+      x.classList.toggle("active", x.dataset.tab === store.speciesTab);
+    });
     void refreshLive();
   }
 

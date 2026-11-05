@@ -81,7 +81,7 @@ function makeModelSampler({ regDb, limitBytes = LIMIT } = {}) {
         CACHE_BYTES +
         cells.filter((c) => !parked.has(c.cellId)).reduce((s, c) => s + c.totalBytes * CAL, 0) +
         GATEWAY_RSS * CAL;
-      const totalScan = cells.reduce((s, c) => s + c.totalBytes, 0) + GATEWAY_RSS;
+      const _totalScan = cells.reduce((s, c) => s + c.totalBytes, 0) + GATEWAY_RSS;
       return { available: true, sampledAt: Date.now(), cells, gateway: { totalBytes: GATEWAY_RSS, processes: [] }, ungrouped: { totalBytes: 0, processes: [] }, container: { available: true, usedBytes: Math.round(used), limitBytes } };
     },
     admission(threshold, { projectedBytes = null, inflightBytes = null } = {}) {

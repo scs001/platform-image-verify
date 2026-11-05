@@ -173,7 +173,7 @@ The facade SHALL maintain an in-process cached snapshot of the deployment bookke
 
 The gateway's Wanxing serving face SHALL serialize `provider` in public agent
 cards through a redactor identical in semantics to the fd-wanxing facade: a
-`provider.url` that is non-publicly-routable (RFC1918, CGNAT 100.64.0.0/10,
+`provider.url` that is non-publicly-routable (RFC1918, CGNAT range,
 loopback, link-local, `0.0.0.0`, single-label hostnames, cluster-internal
 suffixes `.svc`, `.cluster.local`, `.local`, `.internal`) or unparseable MUST
 have its `url` key omitted. Publicly-routable URLs and all other provider
@@ -182,7 +182,7 @@ entries MUST NOT be rewritten.
 
 #### Scenario: internal runner address stripped on platform domain card
 
-WHEN an entry carries `provider.url` pointing at a private/tailnet address (e.g. a CGNAT `100.64.0.0/10` host)
+WHEN an entry carries `provider.url` pointing at a private/tailnet address (e.g. a CGNAT-range host)
 THEN `GET /api/wanxing/v1/a2a/<slug>/.well-known/agent-card.json` returns a provider without the `url` key, other fields intact
 
 #### Scenario: public provider URL passes through

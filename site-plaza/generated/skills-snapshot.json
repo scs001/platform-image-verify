@@ -1,64 +1,7 @@
 {
   "generatedAt": "2026-11-05",
-  "count": 268,
+  "count": 265,
   "skills": [
-    {
-      "name": "contract-review",
-      "displayName": "contract-review",
-      "description": "中文合同审查:风险维度系统审查商事合同条款,输出结构化报告与可直接使用的修改条款",
-      "repositoryUrl": null,
-      "author": null,
-      "version": "1.0.0",
-      "tags": [
-        "法律",
-        "合同审查"
-      ],
-      "requiredGroups": [],
-      "annotation": {
-        "name": "中文合同审查",
-        "summary": "按风险维度系统审查商事合同条款，输出结构化审查报告与可直接使用的修改条款。",
-        "whenToUse": null,
-        "source": "finddata-supply-annotations"
-      }
-    },
-    {
-      "name": "financial-statement-analysis",
-      "displayName": "financial-statement-analysis",
-      "description": "上市公司财报分析:三表联动+比率分析+财务粉饰红旗识别,输出买方视角研究报告",
-      "repositoryUrl": null,
-      "author": null,
-      "version": "1.0.0",
-      "tags": [
-        "金融",
-        "财报分析"
-      ],
-      "requiredGroups": [],
-      "annotation": {
-        "name": "财报分析",
-        "summary": "上市公司财报分析:三表联动、比率分析与财务粉饰红旗识别,输出买方视角研究报告。",
-        "whenToUse": null,
-        "source": "finddata-supply-annotations"
-      }
-    },
-    {
-      "name": "legal-research-cn",
-      "displayName": "legal-research-cn",
-      "description": "中国法律检索与论证:法条检索时效校验+构成要件匹配+对抗性论证,民商事劳动公司领域",
-      "repositoryUrl": null,
-      "author": null,
-      "version": "1.0.0",
-      "tags": [
-        "法律",
-        "法律检索"
-      ],
-      "requiredGroups": [],
-      "annotation": {
-        "name": "法律检索与论证",
-        "summary": "中国法律检索与论证：法条检索与时效校验、构成要件匹配、对抗性论证，覆盖民商事、劳动、公司领域。",
-        "whenToUse": null,
-        "source": "finddata-supply-annotations"
-      }
-    },
     {
       "name": "earnings-analysis",
       "displayName": "earnings-analysis",

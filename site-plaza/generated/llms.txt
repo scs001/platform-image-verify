@@ -1,13 +1,13 @@
 # Yizuo Agent Materials Plaza（壹座·智能体素材广场）
 
-> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Three species: 82 agents (versioned bundles), 268 skills, 22 MCP servers (784 public tools). Canonical data: https://agent.finddatatech.cloud/generated/catalog.json. As of: 2026-11-05.
+> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Three species: 577 agents (versioned bundles), 265 skills, 22 MCP servers (784 public tools). Canonical data: https://agent.finddatatech.cloud/generated/catalog.json. As of: 2026-11-05.
 
 ## Machine surfaces
 
 - [catalog.json](https://agent.finddatatech.cloud/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.
 - [infrastructure.md](https://agent.finddatatech.cloud/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.
 
-## Agents (82 — one self-contained page each, stable addresses)
+## Agents (577 — one self-contained page each, stable addresses)
 
 - [Cross-border Compliance Triage](https://agent.finddatatech.cloud/generated/materials/pack-ng61wkne3vg6vtdhfdc-ua.md): Cross-border compliance triage cluster template: the triager turns policy dailies, notice streams and ePing items into four-field triage tic
 - [Cross-border Logistics Watch](https://agent.finddatatech.cloud/generated/materials/pack-h4hc53rotmdosxypgkxn3q.md): Cross-border logistics watch cluster template: the monitor reads port observations via fd-open-data-mcp (port.calls daily snapshot, four hub
@@ -91,12 +91,504 @@
 - [Text Engine · Paper Research Suite](https://agent.finddatatech.cloud/generated/materials/pack-1oq93flbzzvgcn2js31ada.md): Retrieval and research over academic papers: literature review (framing the direction and mapping the thread), method tracking (lineage of p
 - [CRM Customer Support Suite](https://agent.finddatatech.cloud/generated/materials/pack-0avynunhmsctaxu7fgs-nq.md): A customer support reception suite for merchants who bring their own Chatwoot: connect your Chatwoot account to read unhandled conversations
 - [Lex Console Companion](https://agent.finddatatech.cloud/generated/materials/pack-xfyxvzonqfelnfigm0djvw.md): A copilot for the Lex console: a five-page tour, reading quota and billing methodology, credential guidance; after an ask-card confirmation 
+- [阿尔法哨兵](https://agent.finddatatech.cloud/generated/materials/facade-packs-4fhjskpibrr2d0-9bxacqq-wx-alpha.md): 向导验收 · 双子 · M4① 部署向导生产验收——双子 agent 勾选与子集部署
+- [数据侦察员](https://agent.finddatatech.cloud/generated/materials/facade-packs-6kdskgmb-3-86a81vzc6ua-data-scout.md): 外部好货 · 数据速览 · M4② 绿地从目录部署验收——外作者的可部署 pack
+- [p2 接待](https://agent.finddatatech.cloud/generated/materials/facade-packs-ibsyc2w-l9uuc1cdt-amhg-reception.md): facet-demo 的分身 · M5.3 构造验收：facet-demo 账号开放门自助发布的个人 AI 分身。
+- [p2 接待](https://agent.finddatatech.cloud/generated/materials/facade-packs-kmpgjvkewly9hgwtjrfzxa-reception.md): p2 的分身 · M5.3 构造验收：新客户 p2walk1025 开放门自助发布的个人 AI 分身——它自己就是旅程记录。
+- [寻数分身](https://agent.finddatatech.cloud/generated/materials/facade-packs-ut-bjmuw5kxad83kimpmlg-reception.md): 想了解寻数（FindData）？和这个接待角色聊：企业是谁、项目在做什么、产品有什么能力。回答出自随版本冻结的策展语料，答不了的如实说。
+- [寻数分身](https://agent.finddatatech.cloud/generated/materials/facade-packs-ut-bjmuw5kxad83kimpmlg-reception-dde7ec3a6.md): 想了解寻数（FindData）？和这个接待角色聊：企业是谁、项目在做什么、产品有什么能力。回答出自随版本冻结的策展语料，答不了的如实说。
+- [识律控制台伴随助手](https://agent.finddatatech.cloud/generated/materials/facade-packs-xfyxvzonqfelnfigm0djvw-lex-console-copilot.md): 识律控制台副驾：导览、配额账单解读、凭据指引、经确认的页面导航。
+- [分身工坊](https://agent.finddatatech.cloud/generated/materials/facade-packs--vcfzzuxpgkirsj5pozigg-builder.md): 想拥有自己的 AI 分身？和工坊聊几句：它采访你、整理语料、生成可直接发布的 manifest 和发布指引。
+- [谦面专家](https://agent.finddatatech.cloud/generated/materials/facade-packs-btnrv2p-jhmczqqxcf0gia-intro-facet.md): 谦面产品线：千人千面，人人搭建自己的文本与数据 AI 工作流，从 DAAS 平台起步。
+- [产品向导](https://agent.finddatatech.cloud/generated/materials/facade-packs-btnrv2p-jhmczqqxcf0gia-intro-guide.md): 公司前台。介绍 FindData 全貌、跨产品线关系与使命；法律、数据、工作流、智能体互联、平台部署等话题负责分诊到对应产品线专家。
+- [识律专家](https://agent.finddatatech.cloud/generated/materials/facade-packs-btnrv2p-jhmczqqxcf0gia-intro-lex.md): 识律产品线：让法律被读懂。LawBench 合同智能、微调法律模型、法律语料库。
+- [柏讯专家](https://agent.finddatatech.cloud/generated/materials/facade-packs-btnrv2p-jhmczqqxcf0gia-intro-wire.md): 柏讯产品线：让 AI 替你读世界。开放数据本体、MCP 数据服务与背后的爬虫平台。
+- [壹座专家](https://agent.finddatatech.cloud/generated/materials/facade-packs-btnrv2p-jhmczqqxcf0gia-intro-yizuo.md): 壹座产品线：智能体团队执行平台。组合、管理、迭代并分享你自己的智能体团队；开源（MIT），覆盖网页、小程序与桌面端，支持私有化部署。
+- [宏观经济研究员](https://agent.finddatatech.cloud/generated/materials/facade-packs-egayyoazvtf0fwllvagaqa-pack-wire-macro-analyst.md): 柏讯 · 投研三镜头 · 三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。集群任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态集群叠加。
+- [股票估值分析师](https://agent.finddatatech.cloud/generated/materials/facade-packs-egayyoazvtf0fwllvagaqa-pack-wire-valuation-analyst.md): 柏讯 · 投研三镜头 · 三员投研团队：宏观分析（环境）、估值分析（价值）、投委会多空质询（博弈）三个独立镜头审读同一问题。集群任务下扇出聚合；单聊可切换任一角色。舆情/风控等更多角色可入动态集群叠加。
+- [市场快讯速览员](https://agent.finddatatech.cloud/generated/materials/facade-packs-ev5e51eth7e5mcvydrl9rg-market-flash-briefer.md): 发来一段财经新闻/公告/评论，收回一页固定版式速览：三行结论、五个要点、一处存疑。
+- [萬星 Planner](https://agent.finddatatech.cloud/generated/materials/facade-packs-i262i0tuwtf9wslex12cow-mission-planner.md): 萬星 Planner · Mission Planner · M2 任务拆解执行体：消费任务定义面的派发契约——一句话目标 → 拆解计划（search_agents 实查步骤 agent）→ 按状态机串行驱动步骤 → 终态报告与通知。节奏自巡检驱动多回合推进。
+- [演示接待](https://agent.finddatatech.cloud/generated/materials/facade-packs-mjbgihphn1sfrmrhfat8cq-reception.md): 演示分身 · M5.2 开门首验：platform-test（非 creator）经开放发布门发布的第一个 AI 分身。语料为演示占位——正式演示内容随后续版本补充。
+- [文档工坊 · 报告撰写](https://agent.finddatatech.cloud/generated/materials/facade-packs-qnhd7b3j1-hkddkzzq-fuq-doc-report-writer.md): 文档工坊 · Office 文档生成与编辑：商务报告（docx）、数据工作簿（xlsx）、汇报演示（pptx）三场景成稿，配验证过的封面配方、中式设计系统与生成后质检 postcheck；支持编辑用户上传的原件（fetch_document_file 取原件）。回合内免费。
+- [简报写手](https://agent.finddatatech.cloud/generated/materials/facade-packs-thd65-7sfbt-z0kftvhgiw-brief-writer.md): 外部好货 · 简报快写 · M4③ 套装验收——第二件外作者绿地带货
+- [演示分析师](https://agent.finddatatech.cloud/generated/materials/facade-packs-vtdpsnmtw6oq9i99mbhbdw-pack-demo-fingpt.md): 部署演示 · FingPt 分析师 · add-a2a-agent-serving 首个带服务契约的演示包：一个技能 + 一个可部署角色
+- [一键流验收](https://agent.finddatatech.cloud/generated/materials/facade-packs-vz-kdoitzsqfgkmp5undxg-agent.md): 一键流验收 · S4.1 一键流线上验收：preset → 发布 → 部署（add-facet-platform）
+- [SPY_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-1.md): SPY_ma5（yfinance）
+- [SPY_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-2.md): SPY_ma10（yfinance）
+- [SPY_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-3.md): SPY_ma20（yfinance）
+- [SPY_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-4.md): SPY_rsi14（yfinance）
+- [SPY_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-5.md): SPY_volstd20（yfinance）
+- [SPY_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-6.md): SPY_high20（yfinance）
+- [QQQ_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-7.md): QQQ_ma5（yfinance）
+- [QQQ_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-8.md): QQQ_ma10（yfinance）
+- [QQQ_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-9.md): QQQ_ma20（yfinance）
+- [QQQ_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-10.md): QQQ_rsi14（yfinance）
+- [QQQ_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-11.md): QQQ_volstd20（yfinance）
+- [QQQ_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-12.md): QQQ_high20（yfinance）
+- [AAPL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-13.md): AAPL_ma5（yfinance）
+- [AAPL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-14.md): AAPL_ma10（yfinance）
+- [AAPL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-15.md): AAPL_ma20（yfinance）
+- [AAPL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-16.md): AAPL_rsi14（yfinance）
+- [AAPL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-17.md): AAPL_volstd20（yfinance）
+- [AAPL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-18.md): AAPL_high20（yfinance）
+- [MSFT_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-19.md): MSFT_ma5（yfinance）
+- [MSFT_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-20.md): MSFT_ma10（yfinance）
+- [MSFT_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-21.md): MSFT_ma20（yfinance）
+- [MSFT_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-22.md): MSFT_rsi14（yfinance）
+- [MSFT_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-23.md): MSFT_volstd20（yfinance）
+- [MSFT_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-24.md): MSFT_high20（yfinance）
+- [NVDA_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-25.md): NVDA_ma5（yfinance）
+- [NVDA_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-26.md): NVDA_ma10（yfinance）
+- [NVDA_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-27.md): NVDA_ma20（yfinance）
+- [NVDA_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-28.md): NVDA_rsi14（yfinance）
+- [NVDA_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-29.md): NVDA_volstd20（yfinance）
+- [NVDA_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-30.md): NVDA_high20（yfinance）
+- [AMZN_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-31.md): AMZN_ma5（yfinance）
+- [AMZN_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-32.md): AMZN_ma10（yfinance）
+- [AMZN_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-33.md): AMZN_ma20（yfinance）
+- [AMZN_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-34.md): AMZN_rsi14（yfinance）
+- [AMZN_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-35.md): AMZN_volstd20（yfinance）
+- [AMZN_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-36.md): AMZN_high20（yfinance）
+- [GOOGL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-37.md): GOOGL_ma5（yfinance）
+- [GOOGL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-38.md): GOOGL_ma10（yfinance）
+- [GOOGL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-39.md): GOOGL_ma20（yfinance）
+- [GOOGL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-40.md): GOOGL_rsi14（yfinance）
+- [GOOGL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-41.md): GOOGL_volstd20（yfinance）
+- [GOOGL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-42.md): GOOGL_high20（yfinance）
+- [META_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-43.md): META_ma5（yfinance）
+- [META_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-44.md): META_ma10（yfinance）
+- [META_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-45.md): META_ma20（yfinance）
+- [META_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-46.md): META_rsi14（yfinance）
+- [META_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-47.md): META_volstd20（yfinance）
+- [META_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-48.md): META_high20（yfinance）
+- [TSLA_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-49.md): TSLA_ma5（yfinance）
+- [TSLA_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-50.md): TSLA_ma10（yfinance）
+- [TSLA_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-51.md): TSLA_ma20（yfinance）
+- [TSLA_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-52.md): TSLA_rsi14（yfinance）
+- [TSLA_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-53.md): TSLA_volstd20（yfinance）
+- [TSLA_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-54.md): TSLA_high20（yfinance）
+- [AVGO_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-55.md): AVGO_ma5（yfinance）
+- [AVGO_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-56.md): AVGO_ma10（yfinance）
+- [AVGO_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-57.md): AVGO_ma20（yfinance）
+- [AVGO_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-58.md): AVGO_rsi14（yfinance）
+- [AVGO_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-59.md): AVGO_volstd20（yfinance）
+- [AVGO_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-60.md): AVGO_high20（yfinance）
+- [AMD_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-61.md): AMD_ma5（yfinance）
+- [AMD_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-62.md): AMD_ma10（yfinance）
+- [AMD_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-63.md): AMD_ma20（yfinance）
+- [AMD_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-64.md): AMD_rsi14（yfinance）
+- [AMD_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-65.md): AMD_volstd20（yfinance）
+- [AMD_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-66.md): AMD_high20（yfinance）
+- [NFLX_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-67.md): NFLX_ma5（yfinance）
+- [NFLX_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-68.md): NFLX_ma10（yfinance）
+- [NFLX_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-69.md): NFLX_ma20（yfinance）
+- [NFLX_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-70.md): NFLX_rsi14（yfinance）
+- [NFLX_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-71.md): NFLX_volstd20（yfinance）
+- [NFLX_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-72.md): NFLX_high20（yfinance）
+- [sma30_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-73.md): sma30_yield_1_year（massive）
+- [ema20_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-74.md): ema20_yield_1_year（massive）
+- [pct_change_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-75.md): pct_change_yield_1_year（massive）
+- [zscore30_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-76.md): zscore30_yield_1_year（massive）
+- [rolling_std30_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-77.md): rolling_std30_yield_1_year（massive）
+- [level_yield_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-78.md): level_yield_1_year（massive）
+- [sma30_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-79.md): sma30_yield_5_year（massive）
+- [ema20_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-80.md): ema20_yield_5_year（massive）
+- [pct_change_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-81.md): pct_change_yield_5_year（massive）
+- [zscore30_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-82.md): zscore30_yield_5_year（massive）
+- [rolling_std30_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-83.md): rolling_std30_yield_5_year（massive）
+- [level_yield_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-84.md): level_yield_5_year（massive）
+- [sma30_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-85.md): sma30_yield_10_year（massive）
+- [ema20_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-86.md): ema20_yield_10_year（massive）
+- [pct_change_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-87.md): pct_change_yield_10_year（massive）
+- [zscore30_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-88.md): zscore30_yield_10_year（massive）
+- [rolling_std30_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-89.md): rolling_std30_yield_10_year（massive）
+- [level_yield_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-90.md): level_yield_10_year（massive）
+- [sma12_cpi](https://agent.finddatatech.cloud/generated/materials/official-data-ind-91.md): sma12_cpi（massive）
+- [pct_change_cpi](https://agent.finddatatech.cloud/generated/materials/official-data-ind-92.md): pct_change_cpi（massive）
+- [zscore12_cpi](https://agent.finddatatech.cloud/generated/materials/official-data-ind-93.md): zscore12_cpi（massive）
+- [level_cpi](https://agent.finddatatech.cloud/generated/materials/official-data-ind-94.md): level_cpi（massive）
+- [sma12_model_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-95.md): sma12_model_1_year（massive）
+- [pct_change_model_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-96.md): pct_change_model_1_year（massive）
+- [zscore12_model_1_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-97.md): zscore12_model_1_year（massive）
+- [sma12_model_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-98.md): sma12_model_5_year（massive）
+- [pct_change_model_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-99.md): pct_change_model_5_year（massive）
+- [zscore12_model_5_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-100.md): zscore12_model_5_year（massive）
+- [sma12_model_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-101.md): sma12_model_10_year（massive）
+- [pct_change_model_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-102.md): pct_change_model_10_year（massive）
+- [zscore12_model_10_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-103.md): zscore12_model_10_year（massive）
+- [sma12_model_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-104.md): sma12_model_30_year（massive）
+- [pct_change_model_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-105.md): pct_change_model_30_year（massive）
+- [zscore12_model_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-106.md): zscore12_model_30_year（massive）
+- [sma12_unemployment_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-107.md): sma12_unemployment_rate（massive）
+- [pct_change_unemployment_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-108.md): pct_change_unemployment_rate（massive）
+- [zscore12_unemployment_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-109.md): zscore12_unemployment_rate（massive）
+- [level_unemployment_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-110.md): level_unemployment_rate（massive）
+- [sma12_labor_force_participation_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-111.md): sma12_labor_force_participation_rate（massive）
+- [pct_change_labor_force_participation_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-112.md): pct_change_labor_force_participation_rate（massive）
+- [zscore12_labor_force_participation_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-113.md): zscore12_labor_force_participation_rate（massive）
+- [level_labor_force_participation_rate](https://agent.finddatatech.cloud/generated/materials/official-data-ind-114.md): level_labor_force_participation_rate（massive）
+- [sma30_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-115.md): sma30_yield_30_year（massive）
+- [ema20_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-116.md): ema20_yield_30_year（massive）
+- [pct_change_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-117.md): pct_change_yield_30_year（massive）
+- [zscore30_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-118.md): zscore30_yield_30_year（massive）
+- [rolling_std30_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-119.md): rolling_std30_yield_30_year（massive）
+- [level_yield_30_year](https://agent.finddatatech.cloud/generated/materials/official-data-ind-120.md): level_yield_30_year（massive）
+- [sma12_cpi_core](https://agent.finddatatech.cloud/generated/materials/official-data-ind-121.md): sma12_cpi_core（massive）
+- [pct_change_cpi_core](https://agent.finddatatech.cloud/generated/materials/official-data-ind-122.md): pct_change_cpi_core（massive）
+- [zscore12_cpi_core](https://agent.finddatatech.cloud/generated/materials/official-data-ind-123.md): zscore12_cpi_core（massive）
+- [level_cpi_core](https://agent.finddatatech.cloud/generated/materials/official-data-ind-124.md): level_cpi_core（massive）
+- [sma12_pce](https://agent.finddatatech.cloud/generated/materials/official-data-ind-125.md): sma12_pce（massive）
+- [pct_change_pce](https://agent.finddatatech.cloud/generated/materials/official-data-ind-126.md): pct_change_pce（massive）
+- [zscore12_pce](https://agent.finddatatech.cloud/generated/materials/official-data-ind-127.md): zscore12_pce（massive）
+- [level_pce](https://agent.finddatatech.cloud/generated/materials/official-data-ind-128.md): level_pce（massive）
+- [sma12_job_openings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-129.md): sma12_job_openings（massive）
+- [pct_change_job_openings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-130.md): pct_change_job_openings（massive）
+- [zscore12_job_openings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-131.md): zscore12_job_openings（massive）
+- [level_job_openings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-132.md): level_job_openings（massive）
+- [sma12_avg_hourly_earnings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-133.md): sma12_avg_hourly_earnings（massive）
+- [pct_change_avg_hourly_earnings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-134.md): pct_change_avg_hourly_earnings（massive）
+- [zscore12_avg_hourly_earnings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-135.md): zscore12_avg_hourly_earnings（massive）
+- [level_avg_hourly_earnings](https://agent.finddatatech.cloud/generated/materials/official-data-ind-136.md): level_avg_hourly_earnings（massive）
+- [gdp_level_usd](https://agent.finddatatech.cloud/generated/materials/official-data-ind-137.md): gdp_level_usd（wbdata）
+- [population_total](https://agent.finddatatech.cloud/generated/materials/official-data-ind-138.md): population_total（wbdata）
+- [gdp_growth_annual_pct](https://agent.finddatatech.cloud/generated/materials/official-data-ind-139.md): gdp_growth_annual_pct（wbdata）
+- [COST_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-140.md): COST_ma5（yfinance）
+- [COST_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-141.md): COST_ma10（yfinance）
+- [COST_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-142.md): COST_ma20（yfinance）
+- [COST_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-143.md): COST_rsi14（yfinance）
+- [COST_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-144.md): COST_volstd20（yfinance）
+- [COST_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-145.md): COST_high20（yfinance）
+- [ADBE_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-146.md): ADBE_ma5（yfinance）
+- [ADBE_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-147.md): ADBE_ma10（yfinance）
+- [ADBE_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-148.md): ADBE_ma20（yfinance）
+- [ADBE_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-149.md): ADBE_rsi14（yfinance）
+- [ADBE_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-150.md): ADBE_volstd20（yfinance）
+- [ADBE_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-151.md): ADBE_high20（yfinance）
+- [CSCO_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-152.md): CSCO_ma5（yfinance）
+- [CSCO_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-153.md): CSCO_ma10（yfinance）
+- [CSCO_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-154.md): CSCO_ma20（yfinance）
+- [CSCO_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-155.md): CSCO_rsi14（yfinance）
+- [CSCO_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-156.md): CSCO_volstd20（yfinance）
+- [CSCO_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-157.md): CSCO_high20（yfinance）
+- [INTU_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-158.md): INTU_ma5（yfinance）
+- [INTU_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-159.md): INTU_ma10（yfinance）
+- [INTU_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-160.md): INTU_ma20（yfinance）
+- [INTU_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-161.md): INTU_rsi14（yfinance）
+- [INTU_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-162.md): INTU_volstd20（yfinance）
+- [INTU_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-163.md): INTU_high20（yfinance）
+- [NOW_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-164.md): NOW_ma5（yfinance）
+- [NOW_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-165.md): NOW_ma10（yfinance）
+- [NOW_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-166.md): NOW_ma20（yfinance）
+- [NOW_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-167.md): NOW_rsi14（yfinance）
+- [NOW_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-168.md): NOW_volstd20（yfinance）
+- [NOW_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-169.md): NOW_high20（yfinance）
+- [ORCL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-170.md): ORCL_ma5（yfinance）
+- [ORCL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-171.md): ORCL_ma10（yfinance）
+- [ORCL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-172.md): ORCL_ma20（yfinance）
+- [ORCL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-173.md): ORCL_rsi14（yfinance）
+- [ORCL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-174.md): ORCL_volstd20（yfinance）
+- [ORCL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-175.md): ORCL_high20（yfinance）
+- [CRM_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-176.md): CRM_ma5（yfinance）
+- [CRM_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-177.md): CRM_ma10（yfinance）
+- [CRM_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-178.md): CRM_ma20（yfinance）
+- [CRM_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-179.md): CRM_rsi14（yfinance）
+- [CRM_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-180.md): CRM_volstd20（yfinance）
+- [CRM_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-181.md): CRM_high20（yfinance）
+- [PEP_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-182.md): PEP_ma5（yfinance）
+- [PEP_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-183.md): PEP_ma10（yfinance）
+- [PEP_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-184.md): PEP_ma20（yfinance）
+- [PEP_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-185.md): PEP_rsi14（yfinance）
+- [PEP_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-186.md): PEP_volstd20（yfinance）
+- [PEP_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-187.md): PEP_high20（yfinance）
+- [JPM_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-188.md): JPM_ma5（yfinance）
+- [JPM_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-189.md): JPM_ma10（yfinance）
+- [JPM_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-190.md): JPM_ma20（yfinance）
+- [JPM_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-191.md): JPM_rsi14（yfinance）
+- [JPM_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-192.md): JPM_volstd20（yfinance）
+- [JPM_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-193.md): JPM_high20（yfinance）
+- [V_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-194.md): V_ma5（yfinance）
+- [V_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-195.md): V_ma10（yfinance）
+- [V_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-196.md): V_ma20（yfinance）
+- [V_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-197.md): V_rsi14（yfinance）
+- [V_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-198.md): V_volstd20（yfinance）
+- [V_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-199.md): V_high20（yfinance）
+- [MA_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-200.md): MA_ma5（yfinance）
+- [MA_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-201.md): MA_ma10（yfinance）
+- [MA_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-202.md): MA_ma20（yfinance）
+- [MA_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-203.md): MA_rsi14（yfinance）
+- [MA_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-204.md): MA_volstd20（yfinance）
+- [MA_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-205.md): MA_high20（yfinance）
+- [LLY_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-206.md): LLY_ma5（yfinance）
+- [LLY_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-207.md): LLY_ma10（yfinance）
+- [LLY_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-208.md): LLY_ma20（yfinance）
+- [LLY_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-209.md): LLY_rsi14（yfinance）
+- [LLY_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-210.md): LLY_volstd20（yfinance）
+- [LLY_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-211.md): LLY_high20（yfinance）
+- [UNH_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-212.md): UNH_ma5（yfinance）
+- [UNH_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-213.md): UNH_ma10（yfinance）
+- [UNH_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-214.md): UNH_ma20（yfinance）
+- [UNH_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-215.md): UNH_rsi14（yfinance）
+- [UNH_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-216.md): UNH_volstd20（yfinance）
+- [UNH_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-217.md): UNH_high20（yfinance）
+- [HD_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-218.md): HD_ma5（yfinance）
+- [HD_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-219.md): HD_ma10（yfinance）
+- [HD_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-220.md): HD_ma20（yfinance）
+- [HD_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-221.md): HD_rsi14（yfinance）
+- [HD_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-222.md): HD_volstd20（yfinance）
+- [HD_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-223.md): HD_high20（yfinance）
+- [WMT_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-224.md): WMT_ma5（yfinance）
+- [WMT_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-225.md): WMT_ma10（yfinance）
+- [WMT_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-226.md): WMT_ma20（yfinance）
+- [WMT_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-227.md): WMT_rsi14（yfinance）
+- [WMT_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-228.md): WMT_volstd20（yfinance）
+- [WMT_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-229.md): WMT_high20（yfinance）
+- [BAC_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-230.md): BAC_ma5（yfinance）
+- [BAC_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-231.md): BAC_ma10（yfinance）
+- [BAC_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-232.md): BAC_ma20（yfinance）
+- [BAC_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-233.md): BAC_rsi14（yfinance）
+- [BAC_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-234.md): BAC_volstd20（yfinance）
+- [BAC_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-235.md): BAC_high20（yfinance）
+- [ABBV_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-236.md): ABBV_ma5（yfinance）
+- [ABBV_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-237.md): ABBV_ma10（yfinance）
+- [ABBV_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-238.md): ABBV_ma20（yfinance）
+- [ABBV_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-239.md): ABBV_rsi14（yfinance）
+- [ABBV_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-240.md): ABBV_volstd20（yfinance）
+- [ABBV_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-241.md): ABBV_high20（yfinance）
+- [KO_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-242.md): KO_ma5（yfinance）
+- [KO_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-243.md): KO_ma10（yfinance）
+- [KO_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-244.md): KO_ma20（yfinance）
+- [KO_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-245.md): KO_rsi14（yfinance）
+- [KO_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-246.md): KO_volstd20（yfinance）
+- [KO_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-247.md): KO_high20（yfinance）
+- [XOM_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-248.md): XOM_ma5（yfinance）
+- [XOM_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-249.md): XOM_ma10（yfinance）
+- [XOM_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-250.md): XOM_ma20（yfinance）
+- [XOM_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-251.md): XOM_rsi14（yfinance）
+- [XOM_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-252.md): XOM_volstd20（yfinance）
+- [XOM_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-253.md): XOM_high20（yfinance）
+- [CVX_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-254.md): CVX_ma5（yfinance）
+- [CVX_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-255.md): CVX_ma10（yfinance）
+- [CVX_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-256.md): CVX_ma20（yfinance）
+- [CVX_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-257.md): CVX_rsi14（yfinance）
+- [CVX_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-258.md): CVX_volstd20（yfinance）
+- [CVX_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-259.md): CVX_high20（yfinance）
+- [AXON_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-260.md): AXON_ma5（yfinance）
+- [AXON_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-261.md): AXON_ma10（yfinance）
+- [AXON_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-262.md): AXON_ma20（yfinance）
+- [AXON_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-263.md): AXON_rsi14（yfinance）
+- [AXON_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-264.md): AXON_volstd20（yfinance）
+- [AXON_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-265.md): AXON_high20（yfinance）
+- [CBOE_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-266.md): CBOE_ma5（yfinance）
+- [CBOE_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-267.md): CBOE_ma10（yfinance）
+- [CBOE_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-268.md): CBOE_ma20（yfinance）
+- [CBOE_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-269.md): CBOE_rsi14（yfinance）
+- [CBOE_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-270.md): CBOE_volstd20（yfinance）
+- [CBOE_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-271.md): CBOE_high20（yfinance）
+- [DDOG_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-272.md): DDOG_ma5（yfinance）
+- [DDOG_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-273.md): DDOG_ma10（yfinance）
+- [DDOG_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-274.md): DDOG_ma20（yfinance）
+- [DDOG_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-275.md): DDOG_rsi14（yfinance）
+- [DDOG_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-276.md): DDOG_volstd20（yfinance）
+- [DDOG_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-277.md): DDOG_high20（yfinance）
+- [DELL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-278.md): DELL_ma5（yfinance）
+- [DELL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-279.md): DELL_ma10（yfinance）
+- [DELL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-280.md): DELL_ma20（yfinance）
+- [DELL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-281.md): DELL_rsi14（yfinance）
+- [DELL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-282.md): DELL_volstd20（yfinance）
+- [DELL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-283.md): DELL_high20（yfinance）
+- [FTNT_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-284.md): FTNT_ma5（yfinance）
+- [FTNT_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-285.md): FTNT_ma10（yfinance）
+- [FTNT_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-286.md): FTNT_ma20（yfinance）
+- [FTNT_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-287.md): FTNT_rsi14（yfinance）
+- [FTNT_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-288.md): FTNT_volstd20（yfinance）
+- [FTNT_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-289.md): FTNT_high20（yfinance）
+- [HUM_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-290.md): HUM_ma5（yfinance）
+- [HUM_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-291.md): HUM_ma10（yfinance）
+- [HUM_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-292.md): HUM_ma20（yfinance）
+- [HUM_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-293.md): HUM_rsi14（yfinance）
+- [HUM_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-294.md): HUM_volstd20（yfinance）
+- [HUM_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-295.md): HUM_high20（yfinance）
+- [MPC_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-296.md): MPC_ma5（yfinance）
+- [MPC_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-297.md): MPC_ma10（yfinance）
+- [MPC_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-298.md): MPC_ma20（yfinance）
+- [MPC_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-299.md): MPC_rsi14（yfinance）
+- [MPC_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-300.md): MPC_volstd20（yfinance）
+- [MPC_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-301.md): MPC_high20（yfinance）
+- [MRNA_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-302.md): MRNA_ma5（yfinance）
+- [MRNA_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-303.md): MRNA_ma10（yfinance）
+- [MRNA_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-304.md): MRNA_ma20（yfinance）
+- [MRNA_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-305.md): MRNA_rsi14（yfinance）
+- [MRNA_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-306.md): MRNA_volstd20（yfinance）
+- [MRNA_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-307.md): MRNA_high20（yfinance）
+- [MRVL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-308.md): MRVL_ma5（yfinance）
+- [MRVL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-309.md): MRVL_ma10（yfinance）
+- [MRVL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-310.md): MRVL_ma20（yfinance）
+- [MRVL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-311.md): MRVL_rsi14（yfinance）
+- [MRVL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-312.md): MRVL_volstd20（yfinance）
+- [MRVL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-313.md): MRVL_high20（yfinance）
+- [MU_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-314.md): MU_ma5（yfinance）
+- [MU_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-315.md): MU_ma10（yfinance）
+- [MU_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-316.md): MU_ma20（yfinance）
+- [MU_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-317.md): MU_rsi14（yfinance）
+- [MU_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-318.md): MU_volstd20（yfinance）
+- [MU_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-319.md): MU_high20（yfinance）
+- [PANW_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-320.md): PANW_ma5（yfinance）
+- [PANW_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-321.md): PANW_ma10（yfinance）
+- [PANW_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-322.md): PANW_ma20（yfinance）
+- [PANW_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-323.md): PANW_rsi14（yfinance）
+- [PANW_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-324.md): PANW_volstd20（yfinance）
+- [PANW_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-325.md): PANW_high20（yfinance）
+- [PSX_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-326.md): PSX_ma5（yfinance）
+- [PSX_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-327.md): PSX_ma10（yfinance）
+- [PSX_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-328.md): PSX_ma20（yfinance）
+- [PSX_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-329.md): PSX_rsi14（yfinance）
+- [PSX_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-330.md): PSX_volstd20（yfinance）
+- [PSX_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-331.md): PSX_high20（yfinance）
+- [PYPL_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-332.md): PYPL_ma5（yfinance）
+- [PYPL_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-333.md): PYPL_ma10（yfinance）
+- [PYPL_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-334.md): PYPL_ma20（yfinance）
+- [PYPL_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-335.md): PYPL_rsi14（yfinance）
+- [PYPL_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-336.md): PYPL_volstd20（yfinance）
+- [PYPL_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-337.md): PYPL_high20（yfinance）
+- [SNDK_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-338.md): SNDK_ma5（yfinance）
+- [SNDK_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-339.md): SNDK_ma10（yfinance）
+- [SNDK_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-340.md): SNDK_ma20（yfinance）
+- [SNDK_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-341.md): SNDK_rsi14（yfinance）
+- [SNDK_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-342.md): SNDK_volstd20（yfinance）
+- [SNDK_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-343.md): SNDK_high20（yfinance）
+- [STX_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-344.md): STX_ma5（yfinance）
+- [STX_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-345.md): STX_ma10（yfinance）
+- [STX_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-346.md): STX_ma20（yfinance）
+- [STX_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-347.md): STX_rsi14（yfinance）
+- [STX_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-348.md): STX_volstd20（yfinance）
+- [STX_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-349.md): STX_high20（yfinance）
+- [TECH_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-350.md): TECH_ma5（yfinance）
+- [TECH_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-351.md): TECH_ma10（yfinance）
+- [TECH_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-352.md): TECH_ma20（yfinance）
+- [TECH_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-353.md): TECH_rsi14（yfinance）
+- [TECH_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-354.md): TECH_volstd20（yfinance）
+- [TECH_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-355.md): TECH_high20（yfinance）
+- [SMCI_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-356.md): SMCI_ma5（yfinance）
+- [SMCI_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-357.md): SMCI_ma10（yfinance）
+- [SMCI_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-358.md): SMCI_ma20（yfinance）
+- [SMCI_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-359.md): SMCI_rsi14（yfinance）
+- [SMCI_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-360.md): SMCI_volstd20（yfinance）
+- [SMCI_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-361.md): SMCI_high20（yfinance）
+- [ABT_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-362.md): ABT_ma5（yfinance）
+- [ABT_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-363.md): ABT_ma10（yfinance）
+- [ABT_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-364.md): ABT_ma20（yfinance）
+- [ABT_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-365.md): ABT_rsi14（yfinance）
+- [ABT_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-366.md): ABT_volstd20（yfinance）
+- [ABT_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-367.md): ABT_high20（yfinance）
+- [HPE_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-368.md): HPE_ma5（yfinance）
+- [HPE_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-369.md): HPE_ma10（yfinance）
+- [HPE_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-370.md): HPE_ma20（yfinance）
+- [HPE_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-371.md): HPE_rsi14（yfinance）
+- [HPE_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-372.md): HPE_volstd20（yfinance）
+- [HPE_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-373.md): HPE_high20（yfinance）
+- [VLO_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-374.md): VLO_ma5（yfinance）
+- [VLO_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-375.md): VLO_ma10（yfinance）
+- [VLO_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-376.md): VLO_ma20（yfinance）
+- [VLO_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-377.md): VLO_rsi14（yfinance）
+- [VLO_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-378.md): VLO_volstd20（yfinance）
+- [VLO_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-379.md): VLO_high20（yfinance）
+- [TRV_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-380.md): TRV_ma5（yfinance）
+- [TRV_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-381.md): TRV_ma10（yfinance）
+- [TRV_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-382.md): TRV_ma20（yfinance）
+- [TRV_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-383.md): TRV_rsi14（yfinance）
+- [TRV_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-384.md): TRV_volstd20（yfinance）
+- [TRV_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-385.md): TRV_high20（yfinance）
+- [CTAS_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-386.md): CTAS_ma5（yfinance）
+- [CTAS_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-387.md): CTAS_ma10（yfinance）
+- [CTAS_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-388.md): CTAS_ma20（yfinance）
+- [CTAS_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-389.md): CTAS_rsi14（yfinance）
+- [CTAS_volstd20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-390.md): CTAS_volstd20（yfinance）
+- [CTAS_high20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-391.md): CTAS_high20（yfinance）
+- [600519_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-392.md): 600519_close（astock）
+- [600519_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-393.md): 600519_ma5（astock）
+- [600519_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-394.md): 600519_ma10（astock）
+- [600519_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-395.md): 600519_ma20（astock）
+- [600519_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-396.md): 600519_rsi14（astock）
+- [000333_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-397.md): 000333_close（astock）
+- [000333_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-398.md): 000333_ma5（astock）
+- [000333_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-399.md): 000333_ma10（astock）
+- [000333_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-400.md): 000333_ma20（astock）
+- [000333_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-401.md): 000333_rsi14（astock）
+- [600036_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-402.md): 600036_close（astock）
+- [600036_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-403.md): 600036_ma5（astock）
+- [600036_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-404.md): 600036_ma10（astock）
+- [600036_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-405.md): 600036_ma20（astock）
+- [600036_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-406.md): 600036_rsi14（astock）
+- [000858_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-407.md): 000858_close（astock）
+- [000858_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-408.md): 000858_ma5（astock）
+- [000858_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-409.md): 000858_ma10（astock）
+- [000858_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-410.md): 000858_ma20（astock）
+- [000858_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-411.md): 000858_rsi14（astock）
+- [601318_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-412.md): 601318_close（astock）
+- [601318_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-413.md): 601318_ma5（astock）
+- [601318_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-414.md): 601318_ma10（astock）
+- [601318_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-415.md): 601318_ma20（astock）
+- [601318_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-416.md): 601318_rsi14（astock）
+- [000651_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-417.md): 000651_close（astock）
+- [000651_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-418.md): 000651_ma5（astock）
+- [000651_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-419.md): 000651_ma10（astock）
+- [000651_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-420.md): 000651_ma20（astock）
+- [000651_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-421.md): 000651_rsi14（astock）
+- [600276_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-422.md): 600276_close（astock）
+- [600276_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-423.md): 600276_ma5（astock）
+- [600276_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-424.md): 600276_ma10（astock）
+- [600276_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-425.md): 600276_ma20（astock）
+- [600276_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-426.md): 600276_rsi14（astock）
+- [002415_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-427.md): 002415_close（astock）
+- [002415_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-428.md): 002415_ma5（astock）
+- [002415_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-429.md): 002415_ma10（astock）
+- [002415_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-430.md): 002415_ma20（astock）
+- [002415_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-431.md): 002415_rsi14（astock）
+- [601012_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-432.md): 601012_close（astock）
+- [601012_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-433.md): 601012_ma5（astock）
+- [601012_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-434.md): 601012_ma10（astock）
+- [601012_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-435.md): 601012_ma20（astock）
+- [601012_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-436.md): 601012_rsi14（astock）
+- [600030_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-437.md): 600030_close（astock）
+- [600030_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-438.md): 600030_ma5（astock）
+- [600030_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-439.md): 600030_ma10（astock）
+- [600030_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-440.md): 600030_ma20（astock）
+- [600030_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-441.md): 600030_rsi14（astock）
+- [000001_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-442.md): 000001_close（astock）
+- [000001_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-443.md): 000001_ma5（astock）
+- [000001_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-444.md): 000001_ma10（astock）
+- [000001_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-445.md): 000001_ma20（astock）
+- [000001_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-446.md): 000001_rsi14（astock）
+- [600887_close](https://agent.finddatatech.cloud/generated/materials/official-data-ind-447.md): 600887_close（astock）
+- [600887_ma5](https://agent.finddatatech.cloud/generated/materials/official-data-ind-448.md): 600887_ma5（astock）
+- [600887_ma10](https://agent.finddatatech.cloud/generated/materials/official-data-ind-449.md): 600887_ma10（astock）
+- [600887_ma20](https://agent.finddatatech.cloud/generated/materials/official-data-ind-450.md): 600887_ma20（astock）
+- [600887_rsi14](https://agent.finddatatech.cloud/generated/materials/official-data-ind-451.md): 600887_rsi14（astock）
+- [CKAN Open Data](https://agent.finddatatech.cloud/generated/materials/official-data-src-1.md): Open data portals (data.gov, data.gov.uk, etc.) — configurable portal URL
+- [Chinese Statistics](https://agent.finddatatech.cloud/generated/materials/official-data-src-2.md): National Bureau of Statistics macro indicators — CPI, PMI, industrial output, retail sales
+- [World Bank](https://agent.finddatatech.cloud/generated/materials/official-data-src-3.md): World Bank Open Data — GDP, population, trade, education, health (1400+ indicators)
+- [MOT Data Hub Archive (交通运输部数据)](https://agent.finddatatech.cloud/generated/materials/official-data-src-9.md): Catalog of statistical / analysis / freight-index documents published by China's Ministry of Transport (交通运输部), crawled from the /shuju/ dat
+- [MOHURD Xinwen Archive (住建部新闻动态)](https://agent.finddatatech.cloud/generated/materials/official-data-src-10.md): 住房和城乡建设部 /xinwen/ archive — 部门动态/工作动态/地方信息. Paginated via jpaas API (paramJson={pageNo,pageSize:20}). ~21,000 docs total across 3 sections.
+- [MOF gkml Archive (财政部信息公开)](https://agent.finddatatech.cloud/generated/materials/official-data-src-11.md): 财政部 /gkml/ 信息公开 archive — 通知公告/财政数据/财政文告/财经论坛 (6 sub-archives). TRS WCM, index_{N-1}.htm pagination, t<YYYYMMDD>_ URL date token.
+- [MOA GovPublic Archive (农业农村部 机构分类)](https://agent.finddatatech.cloud/generated/materials/official-data-src-12.md): Create moa_govpublic_archive datasource
+- [PBC News Archive (人民银行新闻发布)](https://agent.finddatatech.cloud/generated/materials/official-data-src-13.md): Create pbc_xinwen_archive datasource
+- [NDRC Notice Archive (发改委通知公告)](https://agent.finddatatech.cloud/generated/materials/official-data-src-14.md): Create ndrc_tzgg_archive datasource
+- [SAFE News Archive (外汇局外汇新闻)](https://agent.finddatatech.cloud/generated/materials/official-data-src-15.md): Create safe_whxw_archive datasource
+- [MNR Notice Archive (自然资源部通知公告)](https://agent.finddatatech.cloud/generated/materials/official-data-src-16.md): Create mnr_tzgg_archive datasource
+- [MEE Notice Archive (生态环境部公示公告)](https://agent.finddatatech.cloud/generated/materials/official-data-src-17.md): Create mee_gsgg_archive datasource
+- [MEM Notice Archive (应急管理部通知公告)](https://agent.finddatatech.cloud/generated/materials/official-data-src-18.md): Create mem_tzgg_archive datasource
+- [MOFCOM News Preview (商务部新闻发布)](https://agent.finddatatech.cloud/generated/materials/official-data-src-19.md): Create mofcom_xwfb_archive datasource
+- [SEC EDGAR](https://agent.finddatatech.cloud/generated/materials/official-data-src-20.md): US Securities and Exchange Commission filings (10-K, 10-Q, 8-K, Form 4) via edgartools-mcp.
+- [Japan EDINET](https://agent.finddatatech.cloud/generated/materials/official-data-src-21.md): Japan FSA EDINET corporate disclosure system (有価証券報告書 and related forms) via edinet-mcp.
+- [Yahoo Finance](https://agent.finddatatech.cloud/generated/materials/official-data-src-22.md): Global market data via yfinance-mcp — prices, fundamentals, options, holders, news.
+- [Chinese Annual Reports](https://agent.finddatatech.cloud/generated/materials/official-data-src-23.md): A-share 年度报告 (annual reports) via cnreport-mcp — outline extraction, section text retrieval, LLM structured extraction, and Elasticsearch se
+- [Hong Kong Stock Exchange (HKEXnews + akshare)](https://agent.finddatatech.cloud/generated/materials/official-data-src-24.md): HK-listed company filings, financials, and disclosure calendar via hkreport-mcp.
+- [Massive.com](https://agent.finddatatech.cloud/generated/materials/official-data-src-25.md): Multi-asset financial data (stocks, options, forex, crypto, futures, fundamentals, analyst news, treasuries) via the mcp_massive 3-tool comp
+- [World Bank (world_bank_data)](https://agent.finddatatech.cloud/generated/materials/official-data-src-26.md): World Bank Open Data via the world_bank_data package — GDP, population, trade, education, health, environment indicators (yearly cadence)
+- [A股（akshare 客户侧直取）](https://agent.finddatatech.cloud/generated/materials/official-data-src-27.md): A-share daily bars fetched client-side via akshare (stock_zh_a_hist); prices stay in the local instance.
 
-## Skills (268)
+## Skills (265)
 
-- [contract-review](https://agent.finddatatech.cloud/generated/materials/skill-contract-review.md): Chinese contract review: systematically reviews commercial contract clauses across risk dimensions and outputs a structured report with read
-- [financial-statement-analysis](https://agent.finddatatech.cloud/generated/materials/skill-financial-statement-analysis.md): Listed-company financial statement analysis: links the three statements, performs ratio analysis and identifies red flags of financial windo
-- [legal-research-cn](https://agent.finddatatech.cloud/generated/materials/skill-legal-research-cn.md): Chinese legal research and argumentation: statute retrieval with validity verification, matching of constitutive elements, and adversarial a
 - [earnings-analysis](https://agent.finddatatech.cloud/generated/materials/skill-earnings-analysis.md): Create professional equity research earnings update reports (8-12 pages, 3,000-5,000 words) analyzing quarterly results for companies alread
 - [sector-overview](https://agent.finddatatech.cloud/generated/materials/skill-sector-overview.md): Create comprehensive industry and sector landscape reports covering market dynamics, competitive positioning, key players, and thematic tren
 - [comps-analysis](https://agent.finddatatech.cloud/generated/materials/skill-comps-analysis.md): Build institutional-grade comparable company analyses with operating metrics, valuation multiples, and statistical benchmarking in Excel/spr

@@ -1,5 +1,9 @@
 # member-knowledge-profile Specification (Delta)
 
+## Purpose
+
+让舰队每个成员拥有独立的记忆分区与可运行时配置的文档集：以 pack→部署的一等 knowledge profile（蓝图默认+部署覆盖）编译出 deployment 令牌与参数化挂载，注入侧记忆与文档共用统一预算，成员间隔离由服务端强制而非事后过滤。
+
 ## ADDED Requirements
 
 ### Requirement: 成员物化铸造部署令牌且缓存重启稳定

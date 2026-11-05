@@ -3,7 +3,7 @@
 ## 0. 前置
 
 - [x] 0.1 add-agent-memory-foundation 已上产（metadata/结构化筛选/oversight/platform 代铸 deployment 可用）
-- [ ] 0.2 生产存量 `f/<fleetId>` 页回填已跑（地基单回填命令），回填报告留存
+- [x] 0.2 生产存量 `f/<fleetId>` 页回填已跑（地基单回填命令），回填报告留存
 
 ## 1. deployment 令牌铸造与缓存
 

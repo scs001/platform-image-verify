@@ -305,7 +305,13 @@ test("按任务类覆盖：persona 按全局策略重试，a2a 被覆盖关闭",
 
 test("重启不恢复待发重试：终态保留，人工可重跑", async () => {
   process.env.PLATFORM_TASK_RETRY_MAX = "3";
-  process.env.PLATFORM_TASK_RETRY_BACKOFF_MS = "50";
+  // Long backoff: the retry timer armed by the FIRST boot's failure must not
+  // fire inside the idle→saveTasks→reboot window — a real-time 50ms backoff
+  // races the test and fires mid-boot on a loaded runner (CI-only flake,
+  // month-bomb class). The reboot clears stale timers anyway; the semantic
+  // under test (no auto-retry across restart) needs the timer merely ARMED,
+  // not fired.
+  process.env.PLATFORM_TASK_RETRY_BACKOFF_MS = "10000";
   let n = 0;
   const failTurn = async () => {
     n++;

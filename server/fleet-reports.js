@@ -202,7 +202,7 @@ export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id, tu
 // cellDefault] against the current roster. Lookup is per-turn by design — the
 // model declaration is NEVER materialized into the task record, so a PATCH
 // costs zero reconciliation.
-export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roster = null, cellDefault = null } = {}) {
+export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roster = null, cellDefault = null, budgetProbe = null } = {}) {
   if (!presetId) return null;
   const personaMembers = [];
   for (const f of db.listFleets()) {
@@ -238,6 +238,24 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
     model: plan.effective,
     roster,
   });
+  // 预算门注记（add-model-surface-budget-gate 2.3）：链上每一跳问一次
+  // budgetProbe（daily/monthly 是否已超限），超限跳在 plan 上打
+  // budgetBlocked——normalizeModelForJob 的 walk 据此跳过该跳（自然走降级
+  // 链下一跳），报表面也看得见。probe 缺席/引擎关=零注记（degrade-open，
+  // 字节不差旧行为）。probe 抛错=该跳放行（预算门故障不拦合法模型）。
+  let budgetBlocked = null;
+  if (typeof budgetProbe === "function") {
+    try {
+      budgetBlocked = [];
+      for (const hop of plan.candidates) {
+        const verdict = budgetProbe(hop.model);
+        if (verdict && verdict.allowed === false) budgetBlocked.push({ model: hop.model, blocked: verdict.blocked ?? [] });
+      }
+      if (!budgetBlocked.length) budgetBlocked = null;
+    } catch {
+      budgetBlocked = null;
+    }
+  }
   return {
     memberId: member.id,
     fleetDefault,
@@ -250,6 +268,7 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
     effortSource: effort.source,
     effortNotices: effort.notices,
     contextBudget: member.contextBudget ?? fleet?.contextBudget ?? null,
+    budgetBlocked,
   };
 }
 

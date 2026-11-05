@@ -1200,6 +1200,9 @@ ctx.resolveFleetModel = async (presetId) => {
       rosterPresetId,
       roster,
       cellDefault: ctx.bootModel?.id ?? null,
+      // 预算门注记（add-model-surface-budget-gate 2.3）：链上每跳问一次
+      // daily/monthly 窗口；引擎关=probe 缺席=零注记（degrade-open）。
+      budgetProbe: ctx.modelBudget ? (model) => ctx.modelBudget.checkBudget(model) : null,
     });
   } catch (e) {
     console.warn(`[fleets] post model resolution failed: ${e?.message || e}`);
@@ -1784,6 +1787,29 @@ try {
   });
 } catch (e) {
   console.warn(`[fleet-cost-digest] attach failed (degrade open): ${e?.message || e}`);
+}
+// Model-surface budget gate (add-model-surface-budget-gate 4.1)：引擎挂 ctx
+// （walk 注记 probe + 结算缝消费都读它），reset 定时器管 UTC 日/月界翻页与
+// 01:00 UTC 日报。MODEL_BUDGET_ENABLED 未开=引擎照挂（probe 恒 allowed、
+// consume 空转），开销是一次 60s tick 的日界比较——开关语义留在引擎内，
+// 接线无分支。degrade-open：建引擎失败只留 warn，平台照常起。
+try {
+  const { createBudgetEngine, budgetConfigFromEnv, attachModelBudgetReset } = await import("./server/model-budget.js");
+  ctx.modelBudget = createBudgetEngine({ db: getFleetDatabase(), config: budgetConfigFromEnv(process.env) });
+  attachModelBudgetReset({
+    engine: ctx.modelBudget,
+    captureFact: (report, hot) => {
+      try {
+        ctx.captureFleetFact?.("fleet", null, "budget", `模型预算日报`, `exhausted=${JSON.stringify(report.exhaustedEvents)} hot=[${hot.map((x) => `${x.model}/${x.tier}/${((x.utilization ?? 0) * 100).toFixed(0)}%`).join(", ")}]`);
+      } catch { /* degrade */ }
+    },
+  });
+  if (ctx.modelBudget.config.enabled) {
+    console.log(`[model-budget] enabled: single=${ctx.modelBudget.config.single} daily=${ctx.modelBudget.config.daily} monthly=${ctx.modelBudget.config.monthly}`);
+  }
+} catch (e) {
+  console.warn(`[model-budget] attach failed (degrade open): ${e?.message || e}`);
+  ctx.modelBudget = null;
 }
 console.log("Platform fully initialized");
 

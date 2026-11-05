@@ -24,6 +24,7 @@ import { classifyErrorKind } from "./fleet-events.js";
 import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
 import { classifyPresetSetError } from "../dsh-bridge.js";
 import { getFleetDatabase } from "./routes/fleets-db.js";
+import { turnTokens } from "./model-budget.js";
 
 // ── Turn carrier (add-fleet-carrier) ─────────────────────────────────────────
 //
@@ -414,7 +415,19 @@ async function normalizeModelForJob(ctx, preset) {
   // the cheap path unchanged.
   const assertSoft = process.env.FLEET_MODEL_ASSERT_SOFT === "1";
   const force = plan.explicitChain === true && !assertSoft;
+  // 预算门（add-model-surface-budget-gate 2.2）：plan.budgetBlocked 是
+  // resolveFleetModel 注记的 daily/monthly 超限跳——walk 直接跳过（自然落
+  // 降级链下一跳）；全链超限 → budget_exhausted 失败（不进重试，防死循环，
+  // spec 日/月超限语义）。probe 在 fleetModelFor 侧已 degrade-open。
+  const budgetBlockedModels = new Set((plan.budgetBlocked ?? []).map((b) => b.model));
   for (const hop of plan.candidates) {
+    if (budgetBlockedModels.has(hop.model)) {
+      const why = (plan.budgetBlocked.find((b) => b.model === hop.model)?.blocked ?? [])
+        .map((x) => x.tier)
+        .join("+");
+      notices.push(`model '${hop.model}' skipped: budget_exhausted (${why || "budget"})`);
+      continue;
+    }
     const r = await ctx.switchModelTo(hop.model, force ? { force: true } : undefined);
     if (r?.ok) {
       landed = hop.model;
@@ -423,9 +436,12 @@ async function normalizeModelForJob(ctx, preset) {
     notices.push(`model switch to '${hop.model}' failed: ${r?.error || "unknown error"}`);
   }
   if (!landed) {
+    const allBudgetBlocked = plan.candidates.length > 0 && plan.candidates.every((hop) => budgetBlockedModels.has(hop.model));
     return {
       ok: false,
-      error: `no runnable model for this post (${notices.length ? notices.join("; ") : "no model declared and no default available"})`,
+      error: allBudgetBlocked
+        ? `budget_exhausted: all candidate models over daily/monthly budget (${notices.length ? notices.join("; ") : "no candidates"})`
+        : `no runnable model for this post (${notices.length ? notices.join("; ") : "no model declared and no default available"})`,
     };
   }
   // fix-fleet-turn-attribution D5: the retry loop walks the SAME candidates
@@ -762,6 +778,12 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       // attempt START is the prompt call's wall clock, not the seam's
       // startedAt (model-normalize time is not latency to first token).
       const ttftMs = out?.firstAssistantAt != null ? Math.max(0, out.firstAssistantAt - promptT0) : null;
+      // 预算记账草稿（add-model-surface-budget-gate）：每次 attempt 的真实
+      // 用量按 attempt 当时的落地模型记一条——降级弃掉的半程也如实入账，
+      // 结算缝一次性消费（不藏、不重复）。
+      const attemptModel = _attemptModel ?? ctx.session?.model?.id ?? null;
+      const tokens = turnTokens(out?.usage);
+      if (attemptModel && tokens != null) budgetLedger.push({ model: attemptModel, tokens });
       return { ok: true, ...out, metering: { ...metering, ...(ttftMs != null ? { ttftMs } : {}) } };
     } catch (e) {
       ctx.sessionCollectors.delete(childSessionId);
@@ -775,6 +797,8 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   const landedIndex = Number.isInteger(modeled?.landedIndex) ? modeled.landedIndex : 0;
   const promptT0 = Date.now();
   const startedWall = Date.now();
+  // 预算记账草稿（add-model-surface-budget-gate）：attempt 逐条 push，结算缝消费。
+  const budgetLedger = [];
   let result = await attempt(modeled?.landed ?? null);
   let degradedTo = null;
 
@@ -825,6 +849,51 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
         else if (result.detail) result.detail = { ...result.detail, degradedTo: nextModel };
       }
     } catch { /* switch failure: the original result stands */ }
+  }
+
+  // Single-tier budget gate (add-model-surface-budget-gate, spec 单次超限走
+  // 降级链): the turn SUCCEEDED but blew the per-turn token cap — the same
+  // one-hop degrade the upstream-failure retry rides, gated on the same
+  // untried-hop + fast-window conditions (a slow 9k-token answer is the
+  // work's own shape; re-running it late doubles the bill for nothing).
+  // The over-cap event itself is logged at consume time (settlement seam).
+  if (
+    result.ok === true &&
+    !result.interrupted &&
+    turnTokens(result?.usage) != null &&
+    turnTokens(result.usage) > (ctx.modelBudget?.config?.single ?? Infinity) &&
+    Date.now() - startedWall < retryFastMs &&
+    Array.isArray(candidates) &&
+    landedIndex + 1 < candidates.length
+  ) {
+    const nextModel = candidates[landedIndex + 1];
+    try {
+      const switched = await ctx.switchModelTo?.(nextModel);
+      if (switched?.ok !== false) {
+        console.warn(`[fleets] post model degraded for ${job.id}: ${modeled?.landed ?? "?"} → ${nextModel} (single-turn budget exceeded)`);
+        degradedTo = nextModel;
+        result = await attempt(nextModel);
+        if (result.ok && !result.detail) result.detail = { degradedTo: nextModel, singleBudgetExceeded: true };
+        else if (result.detail) result.detail = { ...result.detail, degradedTo: nextModel, singleBudgetExceeded: true };
+      }
+    } catch { /* switch failure: the original result stands */ }
+  }
+
+  // 预算结算缝（add-model-surface-budget-gate）：turn 落幕，按 attempt 草稿
+  // 逐条消费（降级弃掉的半程如实入账）；single 超限事件在 consume 里落
+  // budget_exhausted_log。degrade-open：引擎缺席/抛错只留 warn，绝不改写
+  // 回合结果。
+  if (budgetLedger.length) {
+    try {
+      for (const a of budgetLedger) {
+        const r = ctx.modelBudget?.consumeBudget?.(a.model, a.tokens, { jobId: job.id, sessionId });
+        if (r?.singleExceeded) {
+          console.warn(`[fleets] single-turn budget exceeded for ${job.id}: model=${a.model} tokens=${a.tokens} cap=${ctx.modelBudget?.config?.single}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[model-budget] consume failed for ${job.id} (degrade open): ${e?.message || e}`);
+    }
   }
 
   // Round-scoped child disposal (fix-fleet-round-discipline D5): the rotated

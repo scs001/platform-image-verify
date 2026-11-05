@@ -7,5 +7,5 @@
 - [x] 3.1 单测 7 件（scripts/test-model-budget-gate.mjs）：检查/消费/懒滚窗恢复/月窗对齐（二月反例）/single 事件/reset tick 日报/report+disabled no-op/env 解析
 - [x] 3.2 集成验证：fleetModelFor 注记 3 态（无 probe/超限注记/probe 抛错放行）+ runPersonaTurn 全路径 walk 跳过验证
 - [x] 3.3 e2e 2 件：日限→walk 跳超限跳落链下一跳→全链超限拒绝（零 switch）→次日 UTC 翻页恢复 hop 1；single 超限→一跳降级→双 attempt 诚实记账（弃掉的半程入账）→事件逐条可溯
-- [ ] 4.1 生产部署：env 配置 + 七日观察期
+- [x] 4.1 生产部署：env 配置 + 七日观察期起点——出片走公开快照仓 scs001/platform-image-verify 免费线（FDT 私有池打墙：dispatch 3s 即终零 steps；快照 949dc5a，publish workflow 被 force-push 冲掉按配方恢复，恢复提交 b0275ea 即出片 sha，run 41995322497 绿）；digest 7aec408f hkccr/ccr 双仓全等（relay 手动补单 OK）；GitOps 1cad815 五清单同拍（platform/platform-demo/agent-runner-serving/agent-runner-c/facet，祖先律 627879dc ⊇ e096c382 ⊇ 70399f3e 核过）；env MODEL_BUDGET_ENABLED=1（single 8192/daily 1M/monthly 10M 默认）；rollout 全绿（facet 因 DiskPressure 节点迟 7 分钟自愈）+ in-pod 实证（boot 行 `[model-budget] enabled: single=8192 daily=1000000 monthly=10000000`；1da519d4/3fdc7b8e 双 cell fleet 库 model_budget 表已建）。观察期 2026-11-05 起七日至 11-12
 - [ ] 4.2 七日观察期满 → 归档

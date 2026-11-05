@@ -1,5 +1,11 @@
 # wanxing-facade Specification
 
+> **MOVED (2026-11-06, change unify-wanxing-a2a-face 4.2)**：萬星门面的正本 spec 已迁至
+> **FindDataTechnology/fd-wanxing `openspec/specs/wanxing-facade/`**（2026-10-04 fork 后独立
+> 生长至今；本仓 twin 同步纪律随 platform 域卡片路由摘挂废止）。本文为历史存档，保留 platform
+> 域卡片时代的 4 场景幂等硬化记录（fix-agent-serving-stability，已回灌 fd 侧）。摘挂后本仓
+> 不再挂载 `/api/wanxing/v1/*` 卡片/目录/管理路由——唯一出面 = wanxing.finddatatech.cloud。
+
 ## Purpose
 
 The external serving front door of the agent platform (ADR-0014): the Wanxing facade authenticates external callers by their own sub2api caller keys, admits them per agent visibility and per-agent allowlists, bounds and deduplicates their traffic, speaks A2A natively at per-agent routes, meters every admitted turn, and settles the caller's key at the boundary. The registry stays internal; internal callers are unaffected.

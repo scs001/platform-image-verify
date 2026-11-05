@@ -17,12 +17,27 @@ import { fetchWithTimeout } from "../../lib/fetch-with-timeout.js";
 // exactly like a facade visitor's scope binds to their conversation lane.
 const scopeFor = (seed) => (typeof seed === "string" && seed ? createHash("sha256").update(seed).digest("hex").slice(0, 32) : null);
 
-export function createZhiyuAgentLane({ bookings, registryUrl, registryToken, backendToken, packsInternalBase }) {
+export function createZhiyuAgentLane({ bookings, packsInternalBase, packsInternalToken, registryUrl, registryToken, backendToken }) {
+  // Deployment resolution (unify-wanxing-a2a-face 4.1 解耦): reads the packs
+  // internal deployments API directly over the service credential — same rows
+  // the wanxing bookkeeping snapshot was built from, one less in-process
+  // coupling to the wanxing mount (which no longer carries the card routes).
+  // `bookings` stays as a fallback seam for tests.
   const resolveDeployment = async (member) => {
-    if (!bookings) return null;
     const [packId, agentId] = String(member.ref ?? "").split(":");
     if (!packId || !agentId) return null;
-    const rows = await bookings.rows();
+    let rows = null;
+    if (packsInternalBase && packsInternalToken) {
+      try {
+        const r = await fetch(`${packsInternalBase().replace(/\/+$/, "")}/api/packs/internal/deployments`, {
+          headers: { Authorization: `Bearer ${packsInternalToken()}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (r.ok) rows = (await r.json())?.deployments ?? null;
+      } catch { /* fall through to the bookings seam */ }
+    }
+    if (!rows && bookings) rows = await bookings.rows();
+    if (!rows) return null;
     return (
       rows.find(
         (d) => d.packId === packId && d.agentId === agentId && (!member.onBehalfOf || d.deployedBy === member.onBehalfOf),

@@ -43,7 +43,8 @@ import { createRoleStore, makeIsAdminUser } from "./roles.js";
 import { createLayoutStore } from "./layout.js";
 import { GATEWAY_SECRET_HEADER, secretMatches } from "../server/auth.js";
 import { isBusinessRole } from "../server/roles.js";
-import { registerWanxingRoutes } from "./wanxing/index.js";
+// wanxing mount 摘挂（unify-wanxing-a2a-face 4.x）：卡片/目录/管理路由的唯一出面
+// 是萬星 facade（wanxing.finddatatech.cloud，fd-wanxing 仓）；platform 域不再挂载。
 import { registerZhiyuRoutes } from "./zhiyu/index.js";
 import { registerFleetRoomBridge } from "./fleet-room-bridge.js";
 import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
@@ -832,38 +833,28 @@ if (facetBase) {
   });
 }
 
-// ── Wanxing facade (openspec: add-wanxing-serving-api; ADR-0014) ────────────
-// The external front door: callers authenticate with their own sub2api key,
-// agents are admitted by visibility/allowlist, turns are metered and settled
-// at the boundary. Registered before the cell-proxy catch-all so these
-// routes never fall into Logto identity; its own SQLite file sits beside
-// packs.db (ledger + allowlist + idempotency). Deployment bookkeeping is
-// read over the packs internal API (add-facet-platform S0) — loopback to
-// this process by default, PACKS_INTERNAL_BASE_URL repoints it.
-const wanxing = registerWanxingRoutes(app, {
-  dataRoot: DATA_ROOT,
-  resolveUser,
-  rejectUnauthenticated,
-  creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-  adminGroups: ADMIN_GROUPS,
-  env: process.env,
-});
+// ── Wanxing mount 摘挂（unify-wanxing-a2a-face 4.x）──────────────────────────
+// The wanxing card/catalog/management face no longer mounts here: its single
+// serving point is the independent facade (wanxing.finddatatech.cloud,
+// FindDataTechnology/fd-wanxing). The zhiyu agent lane below reads deployment
+// rows straight from the packs internal API (packs.js above), so nothing in
+// this process imports gateway/wanxing anymore.
 
 // ── Zhiyu room kernel (add-zhiyu-room) ──────────────────────────────────────
 // 萬星·智语 phase 1: multi-human × multi-agent rooms. Lives at the gateway
 // because rooms are cross-user objects (cells are per-user); owns the whole
 // /api/zhiyu prefix before the cell-proxy catch-all. Agent seats dispatch
-// through wanxing's deployment bookkeeping onto the registry-proxy a2a lane.
+// onto the registry-proxy a2a lane, resolving deployments straight from the
+// packs internal API (unify-wanxing-a2a-face 4.1 解耦：不再经 wanxing mount 的
+// bookkeeping——該 mount 的卡片/目录/管理路由已摘挂至萬星 facade，见
+// FindDataTechnology/fd-wanxing；本进程不再 import gateway/wanxing）。
 const zhiyuLane = createZhiyuAgentLane({
-  bookings: wanxing.bookkeeping,
+  packsInternalBase: () =>
+    (process.env.PACKS_INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.GATEWAY_PORT || 3080}`).replace(/\/+$/, ""),
+  packsInternalToken: () => process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
   registryUrl: () => (process.env.AGENT_SERVING_REGISTRY_URL || process.env.REGISTRY_URL || "").replace(/\/+$/, ""),
   registryToken: () => process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
   backendToken: () => process.env.AGENT_SERVING_BACKEND_TOKEN || "",
-  packsInternalBase: () =>
-    (process.env.PACKS_INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.GATEWAY_PORT || 3080}`).replace(/\/+$/, ""),
 });
 const zhiyu = registerZhiyuRoutes(app, {
   dataRoot: DATA_ROOT,

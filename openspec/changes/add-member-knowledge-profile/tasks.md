@@ -53,5 +53,5 @@
 ## 8. 收口验证
 
 - [x] 8.1 全量测试绿零回归；新增用例全过
-- [ ] 8.2 真机冒烟：物化三成员团队 → 铸令牌 → 回合 capture 分流 → fleetContext 合流注入 → 运行时增删文档集 → oversight 下 owner 可读成员分区
+- [x] 8.2 真机冒烟：物化三成员团队 → 铸令牌 → 回合 capture 分流 → fleetContext 合流注入 → 运行时增删文档集 → oversight 下 owner 可读成员分区
 - [ ] 8.3 清理 src/ 内部 IP/秘密；`openspec validate add-member-knowledge-profile --strict` 绿后归档

@@ -1319,7 +1319,7 @@ export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, l
   }
   const insert = Array.isArray(rows?.[0]?.insert) ? rows[0].insert : null;
   if (!insert) return null;
-  const out = applyMemberOverrides(insert, { memoryToken, libraryCollections });
+  const out = applyMemberOverrides(insert, { memoryToken, libraryCollections, memoryUrl: writeOpts.mcpOverlay?.fd_memory_url ?? null });
   const memberPatch = join(memberDir, "mcp.patch.yml");
   atomicWriteTextSync(memberPatch, yaml.dump([{ insert: out }]));
   console.log(`[dsh-profile] member patch for ${personaPreset}: ${out.length} server(s) → ${memberPatch}`);
@@ -1332,10 +1332,17 @@ export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, l
 // (empty = pre-change whole-account view, byte-for-byte); `library:` prefixes
 // are stripped HERE (single point — callers may pass blueprint refs or bare
 // ids); everything else rides verbatim.
-export function applyMemberOverrides(insert, { memoryToken = null, libraryCollections = [] } = {}) {
+// The fd-memory row does NOT depend on the base composition having a person
+// mount: the member token is the identity, so an absent row with a present
+// token APPENDS a standard entry (the memoryMcpEntry shape, verbatim). This
+// is what makes the member patch self-sufficient — the base writer only adds
+// the person row when the person mount resolves, which is orthogonal to
+// whether the member's own memory face exists.
+export function applyMemberOverrides(insert, { memoryToken = null, libraryCollections = [], memoryUrl = null } = {}) {
   const ids = libraryCollections.map((c) => String(c).replace(/^library:/, "")).filter(Boolean);
-  return insert
-    .filter((e) => !(e?.config?.serverName === "fd-memory" && !memoryToken))
+  const hasMemoryRow = insert.some((e) => e?.config?.serverName === "fd-memory");
+  let out = insert
+    .filter((e) => !(e?.config?.serverName === "fd-memory" && (!memoryToken || hasMemoryRow === false && memoryToken)))
     .map((e) => {
       if (e?.config?.serverName === "fd-memory" && memoryToken) {
         return { ...e, config: { ...e.config, headers: { ...(e.config.headers ?? {}), Authorization: `Bearer ${memoryToken}` } } };
@@ -1345,6 +1352,23 @@ export function applyMemberOverrides(insert, { memoryToken = null, libraryCollec
       }
       return e;
     });
+  if (memoryToken && !hasMemoryRow) {
+    out = [
+      ...out,
+      {
+        id: "mcp-fd-memory",
+        name: "@deepseek-ai/dsh-mcp-client",
+        config: {
+          serverName: "fd-memory",
+          failOnStartupError: false,
+          transport: "streamable-http",
+          ...(memoryUrl ? { url: memoryUrl } : {}),
+          headers: { Authorization: `Bearer ${memoryToken}` },
+        },
+      },
+    ];
+  }
+  return out;
 }
 
 function safeProfileSegment(s) {

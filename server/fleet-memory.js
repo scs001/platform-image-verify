@@ -148,7 +148,10 @@ export async function fleetMemoryFor(env, ownerEmail, fetchImpl = fetch) {
       try {
         const r = await fetchImpl(u, { headers: { authorization: `Bearer ${tok}` }, signal: controller.signal });
         if (!r.ok) throw new Error(`digest HTTP ${r.status}`);
-        return await r.json();
+        const json = await r.json();
+        // fd-memory's face names the rendered text `digest`; the ladder below
+        // reads `.block` — normalize here so every segment speaks one shape.
+        return { block: typeof json?.digest === "string" ? json.digest : (json?.block ?? "") };
       } finally {
         clearTimeout(timer);
       }

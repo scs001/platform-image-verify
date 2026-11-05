@@ -66,6 +66,10 @@ function createWebProxy({ prefix, getBase, getToken, label = "Upstream" }) {
 
     let upstreamRes;
     try {
+      // Exempt from the shared fetch timeout (harden-cell-execution-reliability):
+      // reverse-proxy pass-through — the upstream body streams verbatim to the
+      // caller and may be long-lived (arbitrary external service APIs,
+      // including SSE faces); a deadline here would cut real traffic mid-body.
       upstreamRes = await fetch(url, {
         method: req.method,
         headers: reqHeaders,

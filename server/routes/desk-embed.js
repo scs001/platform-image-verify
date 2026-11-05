@@ -327,6 +327,11 @@ export function registerDeskEmbedRoutes(ctx) {
         });
     let upstream;
     try {
+      // Exempt from the shared fetch timeout (harden-cell-execution-reliability):
+      // reverse-proxy pass-through — the upstream body streams verbatim to the
+      // browser and may be long-lived (attachments, SSE); bounding it would cut
+      // real sessions mid-transfer. Header readability is guarded by the
+      // try/catch below answering a 502 page.
       upstream = await fetch(proxyTargetUrl(req, base), {
         method: req.method,
         headers: upstreamHeaders(req, session),

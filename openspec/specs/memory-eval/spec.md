@@ -4,6 +4,8 @@
 
 记忆面评测：接续成功率三臂对照（无记忆 / 标题列表 / digest 注入）、digest 渲染契约（预算、召回同源、标注、排除）、LLM-judge 盲评双指标、v4 解锁门的判定与基线入档——「agent 拿到召回后续作是否更好」的科学门（add-continuation-eval）。
 
+> 实现归属：fd-memory 服务仓——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 接续评测是三臂对照实验且臂形状钉死

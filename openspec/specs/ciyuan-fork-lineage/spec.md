@@ -5,6 +5,8 @@
 萬星·词元以 sub2api 增量谱系 fork 形态运行（对照 ADR-0017 registry 冻谱系），规定
 其版本语义、跟上游节奏、分叉纪律与降级条件，使「深度定制」与「定期跟上游」长期并存。
 
+> 实现归属：sub2api fork 仓（治理台账）——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: tag 编码上游基线

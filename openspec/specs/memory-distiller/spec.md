@@ -2,6 +2,8 @@
 
 L2 蒸馏：把零 LLM 的 L0 观测 / L1 交接在后台限额地蒸馏为可跨会话复用的事实（fact）与经验（experience），引擎可替换（契约层对齐开源引擎，不耦合其代码）、永不删页只 supersede、全程可溯源可回滚。
 
+> 实现归属：fd-memory 服务仓——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: Distiller 契约是幂等且可替换的

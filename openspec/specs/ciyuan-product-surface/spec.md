@@ -6,6 +6,8 @@
 首页为仓内单一事实源（`docs/ciyuan/home-content.html`）经管理接口灌入，
 呈现内容与面板、协议事实一致。
 
+> 实现归属：外部面板（本仓 docs/ciyuan/ 为内容真源）——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 首页呈现当前产品能力

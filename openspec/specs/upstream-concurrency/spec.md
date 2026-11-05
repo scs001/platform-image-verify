@@ -1,7 +1,7 @@
 # upstream-concurrency Specification
 
 ## Purpose
-TBD - created by archiving change add-sub2api-fork-concurrency. Update Purpose after archive.
+上游并发的平台侧契约：sub2api fork 网关的有界队列与 AIMD 车道并发治理——承诺/取消传播、队列满结构化错误、三指标观测。实现载体是仓外 sub2api fork（ patches 记录见 docs/sub2api-fork-patches/），本 spec 是行为契约的真源，不是实现仓。
 
 ## Requirements
 

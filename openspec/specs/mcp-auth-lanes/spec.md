@@ -1,7 +1,7 @@
 # mcp-auth-lanes Specification
 
 ## Purpose
-TBD - created by archiving change add-universal-keyless-mcp-auth. Update Purpose after archive.
+MCP 连接的三条鉴权车道（无凭据/共享池/用户凭据）的能力表与证据纪律：每车道声明支持的能力组合，stale 凭据的降级口径，refresh token 语义。实现锚点在 facet/cli/mcp-auth-capability.js 与连接面板。
 
 ## Requirements
 

@@ -6,6 +6,8 @@
 在 token/router 两域均可完成（别名白名单派生回调），且不存在由请求 Host 派生的
 任意回调地址。
 
+> 实现归属：sub2api fork 仓——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 多宿主登录闭环（别名白名单派生）

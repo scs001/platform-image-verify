@@ -1,7 +1,7 @@
 # platform-memory-observability Specification
 
 ## Purpose
-TBD - created by archiving change harden-platform-memory-carrier. Update Purpose after archive.
+平台内存的可观测与治理面：三层读面（进程树/cgroup/投影）、准入闸的 fail-open 契约、运维坞渲染与零侵入计量。「运维坞」渲染端在 fleet owner 面（fleet-owner-api 消费 /api/monitoring/memory），非 ops-console。
 
 ## Requirements
 

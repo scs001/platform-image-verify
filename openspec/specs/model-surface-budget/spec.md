@@ -1,7 +1,7 @@
 # model-surface-budget Specification
 
 ## Purpose
-TBD - created by archiving change add-model-surface-budget-gate. Update Purpose after archive.
+模型表面的预算门：turn 级/日级/月级三级消费帽，消费缝以 dsh TokenUsage 实测形状记账（turnTokens），超限降级与显式拒绝口径。实现锚点 server/model-budget* 与 agent-session。
 
 ## Requirements
 

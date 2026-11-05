@@ -4,6 +4,8 @@
 
 舰队级工作记忆服务：为萬星 runner 上的部署 agent（及后续壹座 cell 与本地节点）提供跨会话的任务状态、交接与沉淀事实存取——namespace 隔离、令牌鉴权、OKF 兼容存储；L0/L1 零 LLM，L2 经 memory-distiller 契约在预算内后台蒸馏。
 
+> 实现归属：fd-memory 服务仓（本仓仅消费端缝）——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 人令牌经 /hook 写入其 namespace，platform 族边界如联邦契约

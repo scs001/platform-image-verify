@@ -1,7 +1,7 @@
 # agent-memory-foundation Specification
 
 ## Purpose
-TBD - created by archiving change add-agent-memory-foundation. Update Purpose after archive.
+成员记忆的底层契约：事实五类封闭集、d/ 与 u/ 分区语义、预算钳制与 token 铸造。实现权威在 fd-memory 服务仓（独立 TS 部署，CELL_MEMORY_URL 指向）；本 spec 是跨仓契约真源，paas 侧只有消费端缝（cluster-memory/fleet-memory/cell-memory）。
 
 ## Requirements
 

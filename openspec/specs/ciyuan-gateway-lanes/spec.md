@@ -6,6 +6,8 @@
 语音（ASR+TTS）、rerank、serpapi 式搜索中转——规定其对外协议形状、鉴权口径、
 计量单位与账本归属，使外部调用者凭词元 key 按量消费、平台凭既有账本机器收费。
 
+> 实现归属：sub2api fork 仓——本 spec 为跨仓行为契约，审计时按文件间一致性核对。
+
 ## Requirements
 
 ### Requirement: 车道统一凭据与既有鉴权链

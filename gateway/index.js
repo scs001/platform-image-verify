@@ -873,6 +873,10 @@ const zhiyu = registerZhiyuRoutes(app, {
   callAgent: zhiyuLane.callAgent,
   settleTurn: zhiyuLane.settleTurn,
   cellExport: exportSessionFromCell,
+  // The /api/zhiyu/* 404 guard is deferred: fleet-room-bridge below mounts
+  // more routes under this prefix. zhiyu.registerNotFound() seals the prefix
+  // once all of them are mounted (before the cell-proxy catch-all).
+  deferNotFound: true,
 });
 
 // Fleet ↔ room bridge (add-zhiyu-team-memory 刀B): rooms subscribe to their
@@ -906,6 +910,12 @@ const zhiyu = registerZhiyuRoutes(app, {
   const bridgeTimer = setInterval(() => void bridge.tick(), bridgeTickMs);
   bridgeTimer.unref?.();
 }
+
+// Seal the /api/zhiyu/* prefix now that the room kernel, IM bridge and fleet
+// bridge are all mounted. This MUST stay after registerFleetRoomBridge and
+// before the cell-proxy catch-all: an early 404 guard swallows the fleet
+// bridge's subscriptions/summon endpoints (fix-zhiyu-fleet-bridge-route-order).
+zhiyu.registerNotFound();
 
 // ── Bot webhooks: machine callers with no platform identity ────────────────
 // Chat-platform servers (WeChat OA / WeCom / Feishu / Telegram) sign their own

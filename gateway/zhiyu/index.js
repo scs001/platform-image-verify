@@ -42,6 +42,12 @@ export function registerZhiyuRoutes(app, {
   sweepMs = 30_000,
   startTimers = true,
   proactiveDelayMs = 20_000, // deliberate pause before a duty seat greets an unanswered visitor (opt-in per room)
+  // The /api/zhiyu/* prefix 404 guard must be the LAST zhiyu registration on
+  // the app. Production registers fleet-room-bridge AFTER this function
+  // returns, so it defers the guard and calls zhiyu.registerNotFound() once
+  // every zhiyu route (kernel + IM bridge + fleet bridge) is mounted. Tests
+  // that mount this module alone keep the inline guard (default false).
+  deferNotFound = false,
 }) {
   const store = storeOpt ?? createZhiyuStore({ file: path.join(dataRoot, "zhiyu.db") });
 
@@ -1232,13 +1238,17 @@ export function registerZhiyuRoutes(app, {
 
   // The prefix is owned: unmatched /api/zhiyu/* paths must 404 here (JSON),
   // never proxy into a cell where a same-named route could answer with a
-  // different meaning.
-  app.all(/^\/api\/zhiyu(\/.*)?$/, (_req, res) => {
-    res.status(404).json({ error: "not found" });
-  });
+  // different meaning. Register it AFTER every zhiyu route is mounted.
+  const registerNotFound = () => {
+    app.all(/^\/api\/zhiyu(\/.*)?$/, (_req, res) => {
+      res.status(404).json({ error: "not found" });
+    });
+  };
+  if (!deferNotFound) registerNotFound();
 
   return {
     store,
+    registerNotFound,
     replyCap,
     effectiveCap,
     router,

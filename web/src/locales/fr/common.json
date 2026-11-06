@@ -2790,7 +2790,10 @@
       "deployments": "Déploiements",
       "datasets": "Mes données",
       "artifacts": "Artefacts",
-      "demands": "Demandes"
+      "demands": "Demandes",
+      "credentials": "Mes identifiants",
+      "suites": "Suites Lex",
+      "billing": "Facturation"
     },
     "subtitle": "Yizuo · tableau {{line}}",
     "disabled": "Les tableaux de ligne ne sont pas activés (LINE_BOARDS_ENABLED)",
@@ -2802,7 +2805,7 @@
       "title": "Non connecté",
       "body": "Connectez {{title}} pour voir son état et agir depuis Yizuo.",
       "expiredTitle": "Session expirée",
-      "expiredBody": "Votre session Wire a expiré — ouvrez la page de connexion pour réautoriser ; aucune clé à coller.",
+      "expiredBody": "Votre session a expiré — revenez à la page de connexion pour vous réautoriser. Aucune clé à coller.",
       "connect": "Se connecter"
     },
     "back": "Retour au centre d'applications",
@@ -2813,7 +2816,10 @@
       "demands": "Demandes",
       "quota": "Quota du plan gratuit",
       "my_packs": "Mes packs",
-      "published_versions": "Versions publiées"
+      "published_versions": "Versions publiées",
+      "identity": "Identité",
+      "usage_calls": "Appels de recherche",
+      "quota_state": "État du quota"
     }
   },
   "copilot": {

@@ -2633,7 +2633,10 @@
       "deployments": "部署",
       "datasets": "我的数据",
       "artifacts": "产物",
-      "demands": "需求单"
+      "demands": "需求单",
+      "credentials": "我的凭据",
+      "suites": "识律套件",
+      "billing": "账单"
     },
     "subtitle": "壹座 · {{line}} 看板",
     "disabled": "线看板未开启（LINE_BOARDS_ENABLED）",
@@ -2645,7 +2648,7 @@
       "title": "尚未连接",
       "body": "连接 {{title}} 后即可在壹座内查看状态与发起操作。",
       "expiredTitle": "登录已过期",
-      "expiredBody": "柏讯登录已过期——重新进入连接页即可重新授权，无需粘贴任何密钥。",
+      "expiredBody": "登录已过期——重新进入连接页即可重新授权，无需粘贴任何密钥。",
       "connect": "去连接"
     },
     "back": "返回应用中心",
@@ -2656,7 +2659,10 @@
       "demands": "需求单",
       "quota": "免费档配额",
       "my_packs": "我的包",
-      "published_versions": "已发布版本"
+      "published_versions": "已发布版本",
+      "identity": "身份",
+      "usage_calls": "检索调用",
+      "quota_state": "额度状态"
     }
   },
   "copilot": {

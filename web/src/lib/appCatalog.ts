@@ -50,7 +50,9 @@ export const APP_LINES: AppLine[] = [
     nameKey: "appCenter.line.lex.name",
     taglineKey: "appCenter.line.lex.tagline",
     url: "https://lex.finddatatech.cloud",
-    status: "early",
+    // add-lex-line-board: the line has a real board now — the "early" badge
+    // would misstate availability (same rule as wire below; Q3 章程拍板=徽标随看板机制).
+    status: "live",
   },
   {
     id: "wire",

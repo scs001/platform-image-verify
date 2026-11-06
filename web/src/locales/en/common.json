@@ -2633,7 +2633,10 @@
       "deployments": "Deployments",
       "datasets": "My data",
       "artifacts": "Artifacts",
-      "demands": "Demands"
+      "demands": "Demands",
+      "credentials": "My credentials",
+      "suites": "Lex suites",
+      "billing": "Billing"
     },
     "subtitle": "Yizuo · {{line}} board",
     "disabled": "Line boards are not enabled (LINE_BOARDS_ENABLED)",
@@ -2645,7 +2648,7 @@
       "title": "Not connected",
       "body": "Connect {{title}} to see its status and act on it from Yizuo.",
       "expiredTitle": "Session expired",
-      "expiredBody": "Your Wire login expired — open the connection page to re-authorize; there is no key to paste.",
+      "expiredBody": "Your session has expired — return to the connection page to re-authorize. No keys to paste.",
       "connect": "Connect"
     },
     "back": "Back to App Center",
@@ -2656,7 +2659,10 @@
       "demands": "Demands",
       "quota": "Free-tier quota",
       "my_packs": "My packs",
-      "published_versions": "Published versions"
+      "published_versions": "Published versions",
+      "identity": "Identity",
+      "usage_calls": "Search calls",
+      "quota_state": "Quota state"
     }
   },
   "copilot": {

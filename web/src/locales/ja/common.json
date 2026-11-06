@@ -2790,7 +2790,10 @@
       "deployments": "デプロイ",
       "datasets": "マイデータ",
       "artifacts": "成果物",
-      "demands": "需要票"
+      "demands": "需要票",
+      "credentials": "認証情報",
+      "suites": "Lex スイート",
+      "billing": "請求"
     },
     "subtitle": "壹座 · {{line}} ボード",
     "disabled": "ラインボードは無効です（LINE_BOARDS_ENABLED）",
@@ -2802,7 +2805,7 @@
       "title": "未接続",
       "body": "{{title}} を接続すると、壹座内で状態の確認と操作ができます。",
       "expiredTitle": "ログインの期限切れ",
-      "expiredBody": "Wire のログインが期限切れです。接続ページを開いて再認可してください（キーの貼り付けは不要）。",
+      "expiredBody": "セッションが期限切れです——接続ページから再認証してください。キーの貼り付けは不要です。",
       "connect": "接続する"
     },
     "back": "アプリセンターへ戻る",
@@ -2813,7 +2816,10 @@
       "demands": "依頼票",
       "quota": "無料枠クォータ",
       "my_packs": "マイパック",
-      "published_versions": "公開済みバージョン"
+      "published_versions": "公開済みバージョン",
+      "identity": "識別情報",
+      "usage_calls": "検索呼び出し",
+      "quota_state": "クォータ状態"
     }
   },
   "copilot": {

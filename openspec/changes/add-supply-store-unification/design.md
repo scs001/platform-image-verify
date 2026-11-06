@@ -70,3 +70,4 @@ registry HTTP API 面保留在 registry 进程内（对调用方零改），但�
 ## Open Questions
 
 - 无。副本载体（收缩版 Mongo vs registry 内嵌 SQLite）在 tasks 里作为实现细节由实测性能定，不影响契约。
+- **实测结论（2026-11-06 静窗回填）**：副本载体定为 **pull-only 投影副本**——registry 侧不做内嵌 SQLite，改为 ~20-30s 周期拉取 facet 脊柱投影（`GET /api/supply-store/projection`，Bearer 副本 token）进内存/Mongo 只读视图，写链全部经兼容 facade 转发脊柱写闸。实测：27 行副本拉取 20s 周期稳定、公网读面零行为变化、迁移 26/26 AGREE。取舍：Mongo 直写结构性拒绝在 repos 构造期实现（replica 模式下 DocumentDB repos 整体不实例化写路径），避免双写；旧 Mongo 转只读归档。

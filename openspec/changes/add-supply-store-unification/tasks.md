@@ -35,7 +35,7 @@
 
 ## 5. 文档与收尾
 
-- [ ] 5.1 MCP-REGISTRY.md §0 对账规则换锚（对账对象、修复命令、直补配方退役注记）+ §1.1 台账复核
-- [ ] 5.2 registry-groups.json 手工映射退役记录 + fail-open 补丁类移除
-- [ ] 5.3 registry-maintenance.md 发布记录 + design 决策回填（副本载体实测结论）
+- [x] 5.1 MCP-REGISTRY.md §0 对账规则换锚（对账对象、修复命令、直补配方退役注记）+ §1.1 台账复核（换锚块+退役注记落档 2026-11-06；脊柱 26 行与 registry 副本/API 一致，drillp1207 注册→拆 cell delete 全程 audit 留痕）
+- [x] 5.2 registry-groups.json 手工映射退役记录 + fail-open 补丁类移除（MCP-REGISTRY.md §3 退役段落档；groups 成脊柱原生列）
+- [x] 5.3 registry-maintenance.md 发布记录 + design 决策回填（副本载体实测结论）（§9.1 切换实录+design 副本载体=pull-only 投影副本回填）
 - [ ] 5.4 validate --strict + 双读窗口期满归档前复核（旧 Mongo 归档 dump 留存确认）

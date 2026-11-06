@@ -130,9 +130,11 @@ argocd app sync <mcp-registry-app> --async
 
 | 项 | 值 |
 |---|---|
-| 静窗起止 | |
-| facet 镜像 sha | |
-| registry 镜像 sha | |
-| 迁移对账 | |
-| 双 dump sha256 | |
-| 双读窗口首日 | |
+| 静窗起止 | 2026-11-06 ~01:00Z–（进行中，双读窗口 24h） |
+| facet 镜像 sha | sha-7d935ac（1a 落位；注释修复版 sha-0af2495 出片中——cheap-3 本地构建旁路，GH Actions 计费墙） |
+| registry 镜像 sha | sha-ab9b55e（digest 66c81845，内容级合流 onto 公开 release 线） |
+| 迁移对账 | 26/26 AGREE（--registry-dump 模式，pre-cutover Mongo dump 为读源） |
+| 双 dump sha256 | 脊柱侧落 pod /data/dumps；Mongo dump /tmp/mongodump-pre-cutover（26 行）——sha256 待归档段补录 |
+| 双读窗口首日 | 28→9→修 visibility 后剩 tool_list×6（in-flight）+provider_organization×2（迁移增强良性）；identity 27/27 对齐 |
+| CATALOG 翻转 | 首翻 f84073b 实弹逮出 23 条 annotation null（repoAnnotationFn 未接）→ revert aca8849 恢复 → 修复 b0c47f756 待滚再翻 |
+| 事故 | cheap-8 DiskPressure 驱逐风暴（journald 638M+镜像 prune 清，03:20Z False）；GH Actions 计费墙（11-04T22:57Z 后零成功，待用户处理账单） |

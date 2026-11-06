@@ -9,4 +9,4 @@
 ## 2. Verify & ship
 
 - [x] 2.1 `node scripts/test-wanxing-facade.mjs` 等受影响套件全绿；`openspec validate harden-windows-runner-smoke --strict` 过
-- [ ] 2.2 显式路径提交；下一班 win-smoke 跑 Phase B+ 真证（workflow_dispatch）
+- [x] 2.2 显式路径提交；下一班 win-smoke 跑 Phase B+ 真证（workflow_dispatch）——✅ 2026-11-06 实弹：v1.3.28 出片（testaction001 池 42154182609 全绿）+ smoke 三班真证（42161353553 全绿：装包→部署→feed 领回→rhythm 自回合 spawn→resident 30s 存活→Phase C；三课实弹课并入本 change：B+ 并入 B 同步会话/rhythm 懒 spawn 首触/publish job checkout）

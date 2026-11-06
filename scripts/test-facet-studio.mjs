@@ -310,3 +310,51 @@ test("3.3 honest degradation: drafting leg upstream failure is an explicit faile
   assert.equal(body?.preview?.draft, undefined, "no placeholder draft");
   assert.equal(body?.staticValidation?.ok, true, "static+shape legs still honest");
 });
+
+// ── 3.4/3.5 晋升通道（壹座实例→Studio 草稿 fork） ──────────────────────────
+// Cross-domain write via the facet internal channel; the fleet detail's
+// promote action lands a draft in the facet store with provenance, and the
+// running instance is untouched (structural one-way gate — the blueprint API
+// has no fleet-write path).
+
+import { createFleetPromotionTestHarness } from "./lib/test-fleet-promotion.mjs";
+
+test("3.4 promotion: fleet config state forks into a facet draft with provenance + excluded list", async () => {
+  const h = await createFleetPromotionTestHarness({ studioApp: app, studioBase: base });
+  try {
+    const res = await h.promote({ fleetName: "盯梢台-晋升源", packAgents: [{ id: "watch-agent", name: "盯梢岗", persona: "你是盯梢岗。" }] });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body?.promoted?.forkScope, "preset/config/skills");
+    assert.deepEqual(res.body?.promoted?.excluded, ["记忆", "会话历史"]);
+    const docId = res.body?.promoted?.studioDocId;
+    assert.ok(docId, "facet draft id returned");
+    const doc = await api("GET", `/api/blueprints/${docId}`, { email: h.ownerEmail });
+    assert.equal(doc.status, 200, "the draft lives in the facet studio store");
+    assert.equal(doc.body?.blueprint?.content?._promotion?.sourceFleetName, "盯梢台-晋升源");
+    assert.equal(doc.body.blueprint.content._promotion?.excluded?.length, 2);
+    assert.ok(doc.body.blueprint.content._promotion?.promotedAt);
+  } finally {
+    await h.close();
+  }
+});
+
+test("3.5 one-way gate: editing the promoted draft leaves the running instance byte-identical (structural)", async () => {
+  const h = await createFleetPromotionTestHarness({ studioApp: app, studioBase: base });
+  try {
+    const res = await h.promote({ fleetName: "单向闸样本" });
+    const docId = res.body?.promoted?.studioDocId;
+    // The facet studio API has NO fleet-write path: editing the draft only
+    // touches studio-docs. Prove it structurally — the blueprint routes'
+    // write surface (POST/PUT/DELETE) never mentions fleet state.
+    const before = h.fleetSnapshot();
+    const edited = await api("PUT", `/api/blueprints/${docId}`, {
+      email: h.ownerEmail,
+      body: { name: "改过", expectVersion: 1, content: teamDoc({ boundary: { name: "改过", oneLine: "", outOfScope: "" } }) },
+    });
+    assert.ok([200, 201].includes(edited.status), JSON.stringify(edited.body));
+    const after = h.fleetSnapshot();
+    assert.deepEqual(after, before, "running instance byte-identical across studio edits");
+  } finally {
+    await h.close();
+  }
+});

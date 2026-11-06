@@ -76,7 +76,11 @@ const trialOf = (b: Blueprint | null): TrialReport | null => {
   return r && typeof r.ranAt === "number" ? (r as unknown as TrialReport) : null;
 };
 
-export function AgentStudioPage() {
+// runOrigin (add-supply-studio-migration 2.2): when hosted on the facet
+// domain, the run domain (壹座) origin to hand the deploy deep link to — the
+// honest boundary of D4. Undefined on the 壹座 host, where the deploy action
+// keeps its direct same-domain API path (byte-for-byte unchanged).
+export function AgentStudioPage({ runOrigin }: { runOrigin?: string } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -497,6 +501,19 @@ export function AgentStudioPage() {
   // paused) then navigate to the live fleet. No new endpoint, no new field.
   const deployTeam = useCallback(async () => {
     if (!doc?.castPackId) return;
+    // Cross-domain branch (D4 honest boundary): on the facet host the run
+    // domain is a different process and login — hand off via deep link with
+    // the cast pack attached; the 壹座 face (single release, task 4.2) opens
+    // its install+from-template flow on ?deployCastPack=. No silent degrade:
+    // this is a navigation, not a fake success.
+    if (runOrigin) {
+      window.open(
+        `${runOrigin}/packs?deployCastPack=${encodeURIComponent(doc.castPackId)}${doc.castPackVersion ? `&v=${doc.castPackVersion}` : ""}`,
+        "_blank",
+        "noopener",
+      );
+      return;
+    }
     setBusy("deploy-team");
     try {
       // from-template provisions from the INSTALLED pack — a fresh cast only
@@ -527,7 +544,7 @@ export function AgentStudioPage() {
     } finally {
       setBusy(null);
     }
-  }, [doc, navigate, t]);
+  }, [doc, navigate, t, runOrigin]);
 
   // ── emit ports (never mutate the document; re-validate at emit) ──────────
   const selectedAgent = useMemo(

@@ -58,6 +58,7 @@ export function PackMarketView({
   studioOrigin,
   onUsePrompt,
   installSurface = true,
+  initialDetailId,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -70,6 +71,8 @@ export function PackMarketView({
   onRequireLogin?: () => void;
   // Fork deep-link origin (add-agent-fork-lineage) — forwarded to the dialog.
   studioOrigin?: string;
+  // Deep-link prefill: the pack id the dialog opens on (deployCastPack).
+  initialDetailId?: string;
   // Host-selected "go to my packs" affordance (polish-facet-interactions
   // follow-up): forwarded to the dialog, which routes it through the login
   // guidance when the host also wired onRequireLogin and the viewer is
@@ -107,7 +110,12 @@ export function PackMarketView({
   const [localeStale, setLocaleStale] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // deployCastPack handoff (add-supply-studio-migration 2.2): the supply
+  // Studio's cross-domain deploy link opens the dialog straight on the cast
+  // pack (install surface → from-template wizard → team page).
+  const [detailId, setDetailId] = useState<string | null>(
+    typeof initialDetailId === "string" && initialDetailId ? initialDetailId : null,
+  );
   // Publish the inspected pack for the copilot dock (add-facet-copilot D2):
   // opening/switching publishes the pack, closing publishes null. The packs
   // array is the name/version source of truth (the id is all the dialog owns).

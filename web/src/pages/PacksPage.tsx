@@ -11,6 +11,7 @@
 // true, so no code path here needs a local-deployment fallback.
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "@platform/core";
@@ -25,7 +26,12 @@ export function PacksPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const setComposerDraft = useChatStore((s) => s.setComposerDraft);
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("market");
+  // deployCastPack deep link (add-supply-studio-migration 2.2): the supply
+  // Studio hands the cast pack off here; the market opens its detail dialog
+  // straight on it (install surface → from-template wizard → team page).
+  const deployCastPack = searchParams.get("deployCastPack") ?? undefined;
 
   // A preset conversion handoff lands with this page already targeted — go
   // straight to 我的, where PackDraftsView consumes it (opens the converted
@@ -62,6 +68,7 @@ export function PacksPage() {
       <div className="flex-1 overflow-auto p-6">
         {activeTab === "market" && (
           <PackMarketView
+            initialDetailId={deployCastPack}
             onSubscribed={() => setActiveTab("mine")}
             onUsePrompt={(prompt) => {
               // Parked-draft channel (P2 3.5, same as DocumentsPage): the

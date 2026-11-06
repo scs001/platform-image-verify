@@ -53,6 +53,7 @@ import { exportFleetToTemplate } from "../fleet-template.js";
 import { createConfigChangeProposal, runIterationCast, retryIterationCast } from "../fleet-iteration.js";
 import { provisionFleetFromTemplate } from "../fleet-provisioner.js";
 import * as dbModule from "../../db.js";
+import { facetRequest } from "../../gateway/facet-proxy.js";
 
 const DENSE_CADENCE_MS = 10 * 60 * 1000; // design D7: <10min cadence needs confirmation
 const KPI_SLOT_LIMIT = 8;
@@ -2654,6 +2655,95 @@ export function createFleetRoutes(app, ctx = null) {
       console.error("[fleets] create error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
+  });
+
+
+  // ── Instance → Studio-draft promotion (add-supply-studio-migration 3.4, D7) ──
+  // One-way fork of the RUNNING instance's configuration state (installed pack
+  // manifest segments verbatim, boundary named from the live fleet) into a
+  // facet-hosted Studio draft, via the facet internal channel. 单向闸门（3.5）：
+  // 只创建草稿——蓝图 API 没有任何回写 fleet 的路径，Studio 编辑永不触碰运行态。
+  // v1 fork 范围如实划定：preset/配置/skills；记忆与会话历史不在 fork 内
+  // （响应与确认界面显式列出 excluded）。
+  router.post("/:id/promote", async (req, res) => {
+    const owned = requireOwnedFleet(req, res);
+    if (!owned) return;
+    const { fleet, user } = owned;
+    const packId = fleet.sourceTemplate?.packId;
+    if (!packId) {
+      return res.status(409).json({
+        error: "this fleet has no pack origin to fork — promotion forks the installed configuration state",
+        code: "promote_no_origin",
+      });
+    }
+    let manifest = null;
+    let installedVersion = null;
+    try {
+      const installed = dbModule.getInstalledPack(packId);
+      manifest = installed?.manifest ?? null;
+      installedVersion = installed?.version ?? null;
+    } catch {
+      manifest = null;
+    }
+    if (!manifest) {
+      return res.status(409).json({ error: "installed pack manifest unreadable — nothing to fork", code: "promote_no_manifest" });
+    }
+    const content = {
+      kind: "team",
+      boundary: { name: `${fleet.name}（晋升稿）`, oneLine: manifest?.description ?? "", outOfScope: "" },
+      dataSources: [],
+      fleet: manifest?.fleet ?? { name: `${fleet.name}（晋升稿）`, members: [] },
+      agents: Array.isArray(manifest?.agents) ? manifest.agents : [],
+      mcpServers: Array.isArray(manifest?.mcpServers) ? manifest.mcpServers : [],
+      skills: Array.isArray(manifest?.skills) ? manifest.skills : [],
+      monitoring: {},
+      acceptance: [],
+      board: {},
+      // Provenance rides the document (spec: provenance 如实记录来源实例与时间).
+      _promotion: {
+        sourceFleetId: fleet.id,
+        sourceFleetName: fleet.name,
+        sourcePackId: packId,
+        sourcePackVersion: installedVersion,
+        promotedBy: user.email,
+        promotedAt: new Date().toISOString(),
+        forkScope: "preset/config/skills",
+        excluded: ["记忆", "会话历史"],
+      },
+    };
+    const base = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
+    if (!base) {
+      return res.status(503).json({ error: "supply-domain channel is not configured (FACET_BASE_URL)", code: "promote_channel_unconfigured" });
+    }
+    let upstream;
+    try {
+      upstream = await facetRequest({
+        base,
+        token: process.env.FACET_INTERNAL_TOKEN || "",
+        user: { email: user.email, groups: user.groups ?? [] },
+        path: "/api/blueprints",
+        method: "POST",
+        contentType: "application/json",
+        body: JSON.stringify({ name: content.boundary.name, content }),
+      });
+    } catch (e) {
+      return res.status(502).json({ error: `supply-domain unreachable: ${e?.message || e}`, code: "promote_channel_failed" });
+    }
+    const body = await upstream.json().catch(() => null);
+    if (!upstream.ok) {
+      return res.status(upstream.status ?? 502).json({
+        error: body?.error ?? `promotion failed (HTTP ${upstream.status})`,
+        code: "promote_rejected",
+        upstream: body ?? undefined,
+      });
+    }
+    res.json({
+      promoted: {
+        studioDocId: body?.blueprint?.id ?? null,
+        forkScope: "preset/config/skills",
+        excluded: ["记忆", "会话历史"],
+      },
+    });
   });
 
   router.get("/:id", (req, res) => {

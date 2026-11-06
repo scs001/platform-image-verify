@@ -910,7 +910,17 @@ export function FleetsPage() {
                   pack was cast from (D7 回链; rides the casting provenance). */}
               {detail.blueprintId ? (
                 <Link
-                  to={`/studio?doc=${encodeURIComponent(detail.blueprintId)}`}
+                  to={
+                    // W2 (add-supply-studio-migration 2.3): the studio doc lives
+                    // on the supply domain now — the chip links across. The env
+                    // default is the production facet origin; an unset value
+                    // keeps the pre-teardown in-domain link (release-window
+                    // order safety).
+                    (STUDIO_ORIGIN
+                      ? `${STUDIO_ORIGIN}/studio?doc=${encodeURIComponent(detail.blueprintId)}`
+                      : `/studio?doc=${encodeURIComponent(detail.blueprintId)}`) as string
+                  }
+                  {...(STUDIO_ORIGIN ? { target: "_blank", rel: "noopener" } : {})}
                   className="mt-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                   data-testid="fleet-source-blueprint"
                 >

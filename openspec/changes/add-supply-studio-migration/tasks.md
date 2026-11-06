@@ -35,7 +35,7 @@
 
 ## 5. 数据迁移与验收
 
-- [ ] 5.1 静窗迁移：blueprints.db → studio-docs（文档数+逐文档 content_json 相等对账；owner email 映射表落档；无谦面身份 owner 首访按邮箱认领）
+- [x] 5.1 静窗迁移：blueprints.db → studio-docs（文档数+逐文档 content_json 相等对账；owner email 映射表落档；无谦面身份 owner 首访按邮箱认领）（scripts/studio-store-migrate.mjs 程序化对账件；生产实况=壹座库 0 行【特性上线数日无人存盘】→空搬 0/0 AGREE；owner 映射=同域 Logto 同邮箱同人，零映射表条目；壹座 blueprints.db 转只读归档随 4.6 端点退役生效——存储层结构性不可写已由卸载达成）
 - [ ] 5.2 漏斗验收：新谦面身份完成「注册→创作→预览→发布」全程零壹座依赖（端到端走查）
 - [ ] 5.3 六客户端装包链路回归 + e2e（三栏/自动保存冲突/ribbon/深链/结构图环拒绝/跨域部署闭环/晋升）
 - [ ] 5.4 机器面对账：studio 发布产物在 generated/catalog.json 出现且注释层形状合规

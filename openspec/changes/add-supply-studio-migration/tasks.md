@@ -26,12 +26,12 @@
 
 ## 4. 壹座侧解体与退役（单 release）
 
-- [ ] 4.1 `/studio` 路由退役为供给域重定向（query 原样透传，`?doc=` id 稳定性回归钉）
-- [ ] 4.2 `/agents` 四区解体：构建/供给/我的创作区移除，旧区深链 query 重定向表（MUST NOT 404）
-- [ ] 4.3 sidebar 一级入口改「智能体市场」深链+装机动作面板（slug/testid 身份不变；词表 v4 增「智能体市场」五语言行）
-- [ ] 4.4 原生调优面 `/tuning`（候选评审+persona 占位，契约=skill-self-evolution 不变；路由名归档前复核词表）
-- [ ] 4.5 legacy 重定向改靶：`/settings/packs`、`/settings/presets`（Settings 原生面或市场深链）；Settings MCP/技能管理别名入口保留不分叉
-- [ ] 4.6 蓝图相关壹座端点退役或转晋升通道专用（blueprints 路由、AI 起草端点、hub 构建区读端点）；blueprints.db 转只读归档
+- [x] 4.1 `/studio` 路由退役为供给域重定向（query 原样透传，`?doc=` id 稳定性回归钉）（App.tsx StudioRouteRedirect→facet/#/studio，?doc/?new/?fork 原样透传；回归钉在 5.3 e2e）
+- [x] 4.2 `/agents` 四区解体：构建/供给/我的创作区移除，旧区深链 query 重定向表（MUST NOT 404）（AgentMarketPage 替换四区门面；旧 query 经 SURFACE_SLUG_ALIASES 保持可解析，layout 44 测绿）
+- [x] 4.3 sidebar 一级入口改「智能体市场」深链+装机动作面板（slug/testid 身份不变；词表 v4 增「智能体市场」五语言行）（nav.agents 五语改词条；AgentMarketPage 装机面板=MyPacksView 既有件）
+- [x] 4.4 原生调优面 `/tuning`（候选评审+persona 占位，契约=skill-self-evolution 不变；路由名归档前复核词表）（TuningPage 原样挂两视图；路由名待 5.5 词表复核）
+- [x] 4.5 legacy 重定向改靶：`/settings/packs`、`/settings/presets`（Settings 原生面或市场深链）；Settings MCP/技能管理别名入口保留不分叉（presets→settings/general、packs→/agents；别名入口未动）
+- [x] 4.6 蓝图相关壹座端点退役或转晋升通道专用（blueprints 路由、AI 起草端点、hub 构建区读端点）；blueprints.db 转只读归档（server.js 卸 createBlueprintRoutes/createStudioDraftRoutes/registerBlueprintAuthorRoutes；模块保留供 facet 装配与迁移读；blueprints.db 只读归档在 5.1 迁移段执行）
 
 ## 5. 数据迁移与验收
 

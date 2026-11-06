@@ -48,7 +48,7 @@
    法律数据·应用·模型 B2B 数据中台    pack 市场供给面   agent 执行层
    四入口(官网/       三入口(官网/    介绍页 LIVE      介绍页 LIVE
    console/admin/API) console/mcp)   +#/docs+市场    +console+chat
-   官网=占位页        官网=骨架       （独立 deployment，见伞文档/市场线文档）
+   官网=LIVE(11-07核证) 官网=LIVE(11-07核证)（独立 deployment，见伞文档/市场线文档）
    检索本体=          企业租户=
    fd-legal-search-  壹座 cell
    mcp(MCP 服务)     (ADR-0002)
@@ -61,7 +61,7 @@
   谦面 pack 经订阅一键装 cell。执行承载不是待建，是待**呈现**。
 - **身份统一已成立**：五线统一 IdP（Logto 同租户），用户不重复注册；授权直通 =
   同租户 SSO 跳转即登录，无新建身份工作。
-- **呈现层缺口**：识律/柏讯官网为占位/骨架；壹座 web `/` 直跳 `/chat`，无发现面。
+- **呈现层缺口**：~~识律/柏讯官网为占位/骨架~~（**2026-11-07 已核证消除**：两线官网均真实上线——wire bundle 2.38MB、lex 646KB，console/admin/callback 全 200，见 A0 `clear-line-integration-drift` 6.1）；壹座 web `/` 直跳 `/chat`，无发现面。
 
 ## AI 操作面（五线操作 MCP）——2026-10-13 explore 定案
 
@@ -197,7 +197,7 @@ credential-refs 轨 `paper-trading`（paste 形最简实例——fdt_ 长命 tok
 |---|---|---|
 | 电脑端执行节点化 | ~~长线线索~~ **2026-10-28 改判复活**：五决策拍板「Win/Mac 本地多智能体集群」，add-local-fleet-control-plane 归档（本机 roster 真源+舰队页写面+desktop-fleet-runner）；剩 installer-e2e 本地集群一幕证据（5.3，挂台账） | Y3/桌面线 |
 | ~~应用中心给谁看~~ ✅已裁决 | Y1 落地为登录后导航项（app-center spec:11）；「匿名可逛门户」档未选未建——拉新靠 site-plaza 素材广场承接 | 已销 |
-| 识律/柏讯官网填充 | 两线官网现为占位/骨架；壹座卡片降级策略已定（如实+直达），但介绍内容的最终归宿是各线官网自己长 | 五线呈现质量 |
+| ~~识律/柏讯官网填充~~ ✅已填充（2026-11-07 核证） | 两线官网均已真实上线（wire SPA 2.38MB / lex 646KB，console/admin/callback 全 200，A0 `clear-line-integration-drift` 6.1）；壹座卡片如实徽标策略不变（lex 按 Q3 拍板跟随看板机制，`/boards/lex` 上线再升 live） | 已销（介绍内容归各线官网自己长） |
 | ~~Y4 闭环形状~~ ✅已裁决 | 形状=会话→「我的解决方案」向导（persona+示例提问，非轻量 pack）；两刀 add-session-to-preset+add-solution-iterate 已上线归档；后续刀口（轻分享档）待流量反馈 | 已销 |
 | ~~操作面身份模型~~ ✅已定案落地 | C0-C4 五线操作面 2026-10-15 收官；C3.1 wire-customer ref 经柏讯看板线 PKCE 铸 ID token 打通 | 已销 |
 

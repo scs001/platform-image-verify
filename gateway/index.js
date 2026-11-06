@@ -773,10 +773,17 @@ const facetBase = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
 // SIGTERM throw ReferenceError in pack mode and skip cell shutdown entirely.
 let packRegistry = null;
 if (facetBase) {
+  // FACET_PROXY_TIMEOUT_MS is opt-in: when unset (or non-positive / invalid)
+  // we pass no timeoutMs and registerFacetProxy keeps its 30_000 default, so
+  // behaviour stays byte-for-byte backward compatible. Only an explicitly
+  // configured positive value widens the timeout — prod sets 120000 because a
+  // pack deploy forwarding through this proxy can exceed 30s (deployToRegistry).
+  const proxyTimeout = Number(process.env.FACET_PROXY_TIMEOUT_MS);
   registerFacetProxy(app, {
     base: facetBase,
     resolveUser,
     token: process.env.FACET_INTERNAL_TOKEN || "",
+    ...(proxyTimeout > 0 ? { timeoutMs: proxyTimeout } : {}),
   });
 } else {
   // Gateway-level registry + routes: identity-gated creators publish

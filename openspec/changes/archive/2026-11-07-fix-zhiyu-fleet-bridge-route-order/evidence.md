@@ -1,6 +1,49 @@
 # Evidence: fix-zhiyu-fleet-bridge-route-order
 
-> 执行日 2026-11-07 · 仓 `paas` · 本地 apply 阶段（**未出片、未上产**）。
+> 执行 2026-11-06 本地 apply → 2026-11-07 出片 + 上产 + 真机复验 + 归档（21/21 全勾）。
+> 状态：**P0 O0 已在生产解除**；`zy_fleet_subs` 从恒 0 落下生产第一行。
+
+---
+
+## 7. 出片与上产实录（2026-11-07，4.3）
+
+| 环节 | 实证 |
+|---|---|
+| 通道判路 | `fd-build-channel`：公开免费线 tier1（`scs001/platform-image-verify` 探针 success，5 池共 10943 min 有余额）——**无需 cheap-3 旁路**，遵守「禁止节点本地 docker build」 |
+| 提交 | `f7d593c5e`（修复）+ `fb7fa7082`（快照闸维护）；只 `git add` 本单 9 文件，并发会话零卷入 |
+| 双推 | origin + gitee 同点 `15634c240`（`git ls-remote` 三端全等） |
+| 快照闸 | 初跑两道拦（并发会话提交的 `docs/supply-domain-roadmap.md:188` 含 `cheap-3`、`scripts/test-facet-studio.mjs` 的 `sk-live-*` 占位常量）；按既有先例分别走 EXCLUDE_PATHS / `.gitleaks.toml` allowlist，重跑 **1817 文件零禁品 + gitleaks clean** |
+| 出片 | 快照 `85e946f` force-push 后**立即恢复** `image-publish.yml`/`image.yml`/`live-supply-owner-acceptance.yml`（技能坑册：force-push 冲掉镜像仓 workflows）→ 恢复提交 `1f9335b` 触发 run 42256943637 **全绿**（build + 五道 smoke：/api/config、/api/ready、dsh contracts、browser lane、module identity） |
+| relay | `2026-11-07T01:07:51+08:00 OK yizuo/platform:sha-1f9335b (4s)` |
+| ccr 硬门 | `skopeo inspect --creds` 该 tag 解析成功，`Created 2026-11-06 17:00:22 UTC` 与构建吻合，digest `sha256:5c862edc`（**bump 前实证，非凭推断**） |
+| GitOps | `4fbf889` 双清单（prod platform.yaml + platform-demo.yaml 对齐同镜像；demo 原落后两版，其间 facet-proxy knob 已在 prod 验证），gitee+github 同推 |
+| 滚版 | ArgoCD hard-refresh → 双 rollout 绿 → **双 pod imageID `sha256:5c862edcabe4` 逐字全等**（`platform-589b87dfc7-cbnqj` / `platform-demo-cdd977999-fkj9z`） |
+| 镜像内容验单 | pod 内 `registerNotFound` ×4、`deferNotFound: true` :879、`zhiyu.registerNotFound()` :918，装配序 889→918→1126 与本地一致 |
+
+## 8. 真机复验（2026-11-07，4.4/4.5 —— O0 解除判据）
+
+专用房 `zy_1ad879f94b7f3248e3`（owner `aloadtree@gmail.com`，reply_cap=3 / daily_budget_turns=20，复验后已 end；公开演示房 `zy_42ce690574b5423bd2` 未触碰，`day_turns` 保持 8）：
+
+| 判据 | 修复前 | 修复后 |
+|---|---|---|
+| `GET /api/zhiyu/rooms/:id/fleet-subscriptions` | 404 | **200 `{"subscriptions":[]}`** |
+| `POST …/fleet-subscriptions`（自有现役团队） | 404 | **201**（`fs_1793987849221_2qmcz2`「工单分诊集群·试跑」） |
+| 回读 | — | 200，1 行 |
+| `POST …/fleet-summon`（dryRun） | 404 | **200**，`plan.summonable=[]` + `plan.cockpitOnly=["分诊岗","处置岗"]`（如实分诊，不假装） |
+| 非自有团队 | — | 同形 404 `{"error":"not found"}`，不泄漏存在性 |
+| 未匹配 `/api/zhiyu/*` | 404 | 仍 404（兜底意图保留，cell 代理未兜住） |
+
+**生产库**：`zy_fleet_subs` 从恒 0 → **1 行**（生产首行，`fleet_id=fleet_1793235503630_7n5a3u`）。
+
+**事件行纪律（4.5）**：等 2 个拉取 tick（默认 60s）后空间流出现两条桥事件行，均带来源标注（fleetId）+ 驾驶舱深链：`bridge=health to=abnormal deepLink=true`（seq 3）、`bridge=report deepLink=true`（seq 4）；5/5 行 `visibility=shared`，零 `private:<id>`。密集合并（`MAX_PER_WINDOW=10`）与熔断丢弃（`DROPS_NOTE_MIN`）由 3.x 装配测试与 `gateway/fleet-room-bridge.js:24/26/244` 在码覆盖；本轮无密集窗口，合并路径未触发——如实记录，非「未观测到」挂账。
+
+**会话纪律**：登录凭据仅用于本次会话，未落盘未入仓；临时会话文件已删（建议轮换该口令）。
+
+## 9. 归档（5.2）
+
+`openspec validate --strict` EXIT=0 → 21/21 全勾 → `archive --yes` → `2026-11-07-fix-zhiyu-fleet-bridge-route-order` → `fleet-room-bridge` spec 新增「团队订阅与召唤端点在平台网关完整装配下可达」（1 added，四场景）→ 全仓 **255/255** 绿。
+
+---
 
 ## 1. 装配契约与回归基线
 

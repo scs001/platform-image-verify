@@ -7426,3 +7426,33 @@ A2 四连拒与超时的共同上游（§15.130 挂着的 judge 换型裁决）�
 **③ 壹座侧退役**：server.js 卸蓝图三件套（routes 卸载、模块保留供 facet 装配与迁移读）；/studio→StudioRouteRedirect（query 透传）；/agents 四区解体→AgentMarketPage（市场深链+MyPacksView 装机面板，slug/testid/路由身份不变，layout 44 测绿）；/tuning 原生调优面（SkillCandidatesView+PersonaAmendmentsView 原样）；nav.agents 五语改「智能体市场」；legacy /settings/packs|presets 改靶不 404。
 
 **④ 迁移与验收**：壹座 blueprints.db 0 行（特性上线数日无人存盘）→空搬 0/0 AGREE（scripts/studio-store-migrate.mjs 程序化对账件留存）；**挂账**：GH 计费墙旁路（cheap-3 本地构建）出片→上产后跑真机漏斗走查（5.2）/六客户端装包 e2e（5.3）/机器面对账（5.4）→5.5 归档终验。测试：test-facet-studio 13/13+workspace 系 35 绿+layout 44 绿。
+
+## §15.138 智语跨边界链体检：生产只读盘点全绿代码面、空间桥零使用、真机走查 BLOCKED（optimize-zhiyu-behavior-walkthrough，2026-11-06）
+
+**立案口径更正（两处）**：① 11-06 两轮模块体检判智语三件套 A/A/A-，`align-yizuo-specs-to-reality`（90acfaf10）已清 P1-10/P1-11，spec 面对账无增量；② 5.2 并非「从无真机证据」——11-05 归档的 `add-member-knowledge-profile` 8.2 已用真 fd-memory + 真 paas 缝 HTTP 跑过 9/9（capture 分流 + fleetContext 合流），且同 change 把团队记忆从 `u/<owner>/f/<fleetId>` 迁到 own/shared（`server/fleet-memory.js:10` 明写 legacy `f/` STOPS receiving writes）。故本单 2.1/2.2 改按新口径**回归**、空间桥四腿才**首验**；按旧 `f/` 判据会得假阴性。证据全档在 change 目录 `evidence.md`。
+
+**代码前提已具备**：生产镜像 `sha-d5784e8e5-paas`（源 `d5784e8e5`，`unify-wanxing-a2a-face` paas 半边 / zhiyu lane 直读 packs internal）；`git merge-base --is-ancestor d5784e8e5 HEAD` EXIT=0，`git log d5784e8e5..HEAD -- <智语链 9 文件>` 为空——10-30 的「随滚版班」挂账在代码侧已销。
+
+**生产只读盘点**（`kubectl --context cheap-ts -n fd-prod exec platform-54c75c5c8d-6xtkw` 查 `/data/cells/zhiyu.db`，零写）：28 房（active 1）/266 消息 /92 成员 /31 widget 令牌（18 embed+13 link，25 已吊销）/29 邀请 /55 通知 /1 owner policy；**`zy_fleet_subs`=0、`fleet|team` 类事件行=0**——团队订阅桥的三类事件（报数摘要/待拍板/健康迁移）从未在生产流过一行。活跃房间 `zy_42ce690574b5423bd2`「智语 · 现场演示」（owner `zhiyu@finddatatech.cloud`，reply_cap=1、daily_budget_turns=60、day_turns=8，agent 4 / guest 20 / user 1）；现役令牌 `192c58071d18` 未吊销、白名单恰为两域，公网 `GET /zhiyu/embed/<token>`=200 且 CSP 与文档一致。消息 visibility 266/266 全 `shared`（私窗零行）；`meta.im` 类行 4 条；`agent_failed` 18 条（10-26~11-03，近 24h=0，多为 A2A 上游 4xx/5xx 与 parked key-invalid，属历史波动）。
+
+**如实挂账（第一段，只读盘点）**：完成准备/判据/证据/收账 11 项；2.1–2.6、3.1–3.4、4.3 BLOCKED。三条根因：① 无 owner 会话；② 只读扫 12 份 `fleets.db` 共 25 支团队零条「客服班组」实化实例；③ `proposal.md` Impact 写「只读观察」而 2.4/2.6 是 POST 写（O5 设计不一致）。
+
+**第二段（用户按选项 A 授权自有账号后）**：O5 已解除（Impact 改为「只读为主、辅以授权范围内受限写」，Non-Goals 增「不触碰公开演示房间」）。登录 `aloadtree@gmail.com` → `GET /api/fleets/overview` 得 50 团队 / 17 active → 新建专用走查房 `zy_68aea26f922749debe`（走查后已 end）→ 以现役 `fleet_1793235503630_7n5a3u` 作标的尝试订阅/召唤。Playwright 浏览器眼复验官网：200、`#liveRoom` 真令牌在线、注入 1 个 iframe 指向 `platform.finddatatech.cloud`、`CONSOLE_ERRORS=[]`、无登录墙。**公开演示房 `zy_42ce690574b5423bd2` 未触碰（day_turns 保持 8）；未跑任何计费回合；凭据未落盘/未入仓，临时会话文件已删（建议用户轮换该口令）。**
+
+**★ 真机走查抓出 P0 缺陷（本段核心产出）**：`fleet-room-bridge` 的 4 条端点生产**全部不可达**。`gateway/zhiyu/index.js:1236` 在 `registerZhiyuRoutes` 内注册了前缀 catch-all `app.all(/^\/api\/zhiyu(\/.*)?$/, … 404)`，而 `registerFleetRoomBridge(app, …)` 在 `gateway/index.js:878` **之后**才把 `/api/zhiyu/rooms/:id/fleet-subscriptions|fleet-summon` 挂到同一个 `app`；Express 顺序匹配 → 桥路由永远被 404 吞掉。**四路交叉实证**：公网 curl、浏览器同域 `page.evaluate(fetch)`（`/api/auth/me` = authenticated `aloadtree@gmail.com`）、pod 内直连 `127.0.0.1:3100`（排除边缘）、本地最小 Express 复现（先 catch-all → 404；去掉 → 200）。这解释了只读盘点里 `zy_fleet_subs`=0 / `fleet|team` 事件行 0 的全部谜面——`add-zhiyu-team-memory` 刀B 自 10-30 归档起在生产从未可用过；13 个 script 套件 + 2 个 e2e 全绿却漏掉，因为测试把桥路由挂到独立 app 上绕过了生产装配顺序（与 §15.84「测试绕过 registerAuth 中间件」同类）。**修法另立 `fix-zhiyu-fleet-bridge-route-order`**：把桥注册移到 catch-all 之前，或把 catch-all 提到所有 zhiyu 路由之后，并补一条「按生产装配顺序」集成测试。
+
+**最终进度 12/23**：1.1–1.5、2.7、3.5、4.1、4.2、4.4、4.5、4.6 完成；2.1–2.6 / 3.1–3.4 / 4.3 BLOCKED（统一收敛为 O0 一条根因）。4.3 未勾——5.2 未完成不得假绿。解阻顺序：先修 O0 并出片 → 再跑 2.x/3.x → 最后勾 4.3。
+
+**顺手登记**：`frame-ancestors` 含 `http://` 源（`gateway/zhiyu/index.js:1023`，P2 硬化）；官网文案「两张服务智能体席位」vs 生产 4 个 agent 席（可能是「只一张开口」呈现口径，待核）；`app-navigation/spec.md:4` Purpose「including the Bots entry」残留为**跨单 deferral**（项目规则 + `skip_specs` 无 delta 通道，随下次归档提交一行 chore 改，不单独立案）。本单 `skip_specs: true`，`validate --strict` 绿，零源码改动。
+
+## §15.138 续 P0 修复全链上产：桥路由序归档入 spec，`zy_fleet_subs` 落下生产首行（fix-zhiyu-fleet-bridge-route-order，2026-11-07）
+
+**修复（paas `f7d593c5e` + `fb7fa7082`）**：`registerZhiyuRoutes` 加 opt-in `deferNotFound`（默认 false，9 套既有测试调用方零改动），兜底抽成返回对象上的 `registerNotFound()`；生产 `gateway/index.js` 传 true 并在 `registerFleetRoomBridge`（:889）之后、cell 代理（:1126）之前调 `zhiyu.registerNotFound()`（:918）。新增 `scripts/test-zhiyu-route-assembly.mjs` 5/5——含**负例回归闸**（兜底故意提前 → 四端点回 404，复现缺陷形状）与 `deferNotFound` 缺省对照；13 套 zhiyu 套件 **81/81** 绿、typecheck 绿、触碰面 biome 干净（全仓 lint 的 7 errors 属并发会话 `facet/*`、`studio-*` 在途，非本单）。
+
+**出片（公开免费线 tier1，未用 cheap-3 旁路）**：`fd-build-channel` 判 `scs001/platform-image-verify` 探针 success——记忆里「GH 计费墙」对 FindDataTechnology 私有号仍成立（2006/2000），但公开线免费无限，且 AGENTS.md 硬令禁止节点本地构建。快照闸初跑两道拦：并发会话提交的 `docs/supply-domain-roadmap.md:188`（`cheap-3`）→ EXCLUDE_PATHS（按 11-04 先例）；`scripts/test-facet-studio.mjs` 的 `sk-live-*` 测试占位常量 → `.gitleaks.toml` allowlist（按 lane-probe 先例）。重跑 1817 文件零禁品 + gitleaks clean。force-push 快照后**立即恢复**镜像仓三份 workflow（坑册：force-push 冲掉 `image-publish.yml`），恢复提交 `1f9335b` 触发 run 42256943637 全绿（build + 五道 smoke）。双推三端 `15634c240` 全等。
+
+**上产硬门 + 滚版**：relay `01:07:51 OK yizuo/platform:sha-1f9335b (4s)`；ccr `skopeo inspect --creds` 该 tag 解析成功、`Created 2026-11-06 17:00:22Z` 与构建吻合（RepoTags 计 249 不含该名=列表口径不可信，以 tag 解析+Created+relay 三证为准）、digest `sha256:5c862edc`。GitOps `4fbf889` **双清单**（demo 原落后两版对齐同镜像，其间 facet-proxy knob 已在 prod 验证）→ ArgoCD hard-refresh → 双 rollout 绿 → **双 pod imageID `5c862edcabe4` 逐字全等**。pod 内验单：`registerNotFound` ×4、`deferNotFound: true` :879、装配序 889→918→1126 与本地一致。
+
+**真机复验（O0 解除判据，专用房 `zy_1ad879f94b7f3248e3`，复验后已 end）**：修前 404 的端点现在 GET 订阅 **200** / POST 订阅 **201**（`fs_1793987849221_2qmcz2`「工单分诊集群·试跑」）/ DELETE 回读 200 / dryRun 召唤 **200**——`plan.summonable=[]` + `cockpitOnly=["分诊岗","处置岗"]`（如实分诊，不假装）；非自有团队同形 404、未匹配路径仍 404。**`zy_fleet_subs` 0→1 生产首行**；等 2 tick 后报数（seq 4）与健康迁移（seq 3，to=abnormal）事件行流入，均带 fleetId 来源标注 + `deepLink=true` 回驾驶舱，5/5 行 `visibility=shared` 零 private。公开演示房未触碰（day_turns 保持 8）；未跑计费回合。
+
+**收口**：`fix-zhiyu-fleet-bridge-route-order` 21/21 全勾 → `archive --yes` → `2026-11-07-fix-zhiyu-fleet-bridge-route-order`；`fleet-room-bridge` spec 新增「团队订阅与召唤端点在平台网关完整装配下可达」（4 场景）；全仓 **255/255** 绿。走查单 O0 标「已解除」，2.x/3.x/4.3 解锁（剩余项为记忆两腿回归、私窗/计费/IM 桥正向样本与归档件勾选，另窗执行）。**安全提醒：用户在对话明文提供的账号口令建议轮换。**

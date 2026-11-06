@@ -28,12 +28,12 @@
 
 - [x] 4.1 触碰面门禁；验证=`npm run typecheck` 绿、`npx biome check` 三个文件 0 error（初版 1 个 `noUnusedFunctionParameters` 已修 `req`→`_req`）。全仓 `npm run lint` 的 7 errors / 3 warnings 落点全在 `facet/*` 与 `scripts/studio-*` 等**并发会话在途改动**，与本次三个文件无关，已核。
 - [x] 4.2 `openspec validate fix-zhiyu-fleet-bridge-route-order --strict`；验证=`Change … is valid`，EXIT=0。
-- [ ] 4.3 提交改动并按仓内出片线滚 platform 镜像；验证=源提交 sha 与镜像 tag 对应、GitOps bump 后 pod `1/1 Running`（遇 GH Actions 计费墙按 §9.2 cheap-3 旁路）。【未执行：生产动作，需用户明确授权；本轮「apply」按本地代码+测试范围理解】
-- [ ] 4.4 出片后真机复验四条桥端点（POST 订阅 201 / GET 回读 / dryRun 召唤计划 / 非自有团队同形 404），记录 `zy_fleet_subs` 从 0 增长；验证=逐条证据落 `evidence.md`，与修复前 404 基线对照。【依赖 4.3】
-- [ ] 4.5 观察一轮拉取 tick（默认 60s）与频控/熔断纪律；验证=事件行流入或如实记「本轮未观测到」。【依赖 4.3】
-- [ ] 4.6 把 4.4/4.5 证据回填 `optimize-zhiyu-behavior-walkthrough/evidence.md` 与 `docs/registry-maintenance.md` §15.138，解锁该单 2.x/3.x/4.3；验证=两处更新在册。【依赖 4.4/4.5】
+- [x] 4.3 提交改动并按仓内出片线滚 platform 镜像；验证=源提交 sha 与镜像 tag 对应、GitOps bump 后 pod `1/1 Running`。→ 提交 `f7d593c5e`（修复）+ `fb7fa7082`（快照闸维护）；双推 origin/gitee `15634c240`；`make-public-snapshot --init` 全门绿 → 镜像仓 `85e946f` + 恢复提交 `1f9335b` → run 42256943637 全绿（build+五道 smoke+push）；relay `OK yizuo/platform:sha-1f9335b (4s)`；ccr skopeo 硬门 digest `sha256:5c862edc`；GitOps `4fbf889` 双清单 → ArgoCD hard-refresh → 双 rollout 绿 → 双 pod imageID `5c862edcabe4` 逐字全等。
+- [x] 4.4 出片后真机复验四条桥端点；验证=逐条证据落 `evidence.md`。→ 专用房 `zy_1ad879f94b7f3248e3`（owner `aloadtree@gmail.com`）：GET subscriptions **200**（修前 404）、POST 订阅 **201**（`fs_1793987849221_2qmcz2`）、DELETE 回读 200、dryRun 召唤 **200**（summonable 空 + cockpitOnly 分诊/处置岗如实分诊）；非自有团队同形 404、未匹配路径仍 404（兜底未丢）；`zy_fleet_subs` 从 0 → 1（生产首行）。公开演示房未触碰（day_turns 保持 8）。
+- [x] 4.5 观察一轮拉取 tick 与频控/熔断纪律；验证=事件行流入或如实记录。→ 等 2 个 tick 后空间流出现两条桥事件行：`bridge=health to=abnormal deepLink=true`、`bridge=report deepLink=true`（带来源标注+驾驶舱深链），全部 `visibility=shared` 零 private 行；密集合并/熔断丢弃语义由 3.x 测试与 `fleet-room-bridge.js:24/26/244` 在码覆盖（本轮无密集窗口，未触发合并路径）。
+- [x] 4.6 把 4.4/4.5 证据回填 `optimize-zhiyu-behavior-walkthrough/evidence.md` 与 `docs/registry-maintenance.md` §15.138，解锁该单 2.x/3.x/4.3；验证=两处更新在册。→ 见 §15.138 续记与本仓 evidence §6；走查单已解锁。
 
 ## 5. 收口
 
-- [ ] 5.1 确认 `optimize-zhiyu-behavior-walkthrough` 的 O0 可标「已解除」，其余 O1–O7 各自归属不变；验证=证据链闭环、零假绿。【依赖 4.4，当前 O0 仍 P0 未解除】
-- [ ] 5.2 `openspec archive fix-zhiyu-fleet-bridge-route-order`（`validate --strict` 先行）；验证=归档后 `openspec show fleet-room-bridge --type spec` 含新增需求与四场景。【依赖 5.1】
+- [x] 5.1 确认 `optimize-zhiyu-behavior-walkthrough` 的 O0 可标「已解除」，其余 O1–O7 各自归属不变；验证=证据链闭环、零假绿。→ O0 已解除（真机四端点 + 订阅落库 + 事件行三证）；O1–O7 归属不变，走查单已解锁 2.x/3.x/4.3。
+- [x] 5.2 `openspec archive fix-zhiyu-fleet-bridge-route-order`（`validate --strict` 先行）；验证=归档后 `openspec show fleet-room-bridge --type spec` 含新增需求与四场景。

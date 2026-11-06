@@ -11,16 +11,16 @@
 
 ## 2. 发布与跨域闭环
 
-- [ ] 2.1 Studio 发布接谦面既有发布闸（manifest 校验+注释层强制+身份落戳+版本不可变）；产物入 W1 统一目录（对账钉）
+- [x] 2.1 Studio 发布接谦面既有发布闸（manifest 校验+注释层强制+身份落戳+版本不可变）；产物入 W1 统一目录（对账钉）（进程内 publisher 复刻闸序 verdict shortCircuit+同名闸 twin+限速；对账钉测试=registry 读回 pack row+版本 immutable+manifest._casting.blueprintId）
 - [ ] 2.2 铸→部署跨域：部署动作深链进壹座 → install（reused 幂等）→ from-template（born paused）→ 团队页；无壹座会话如实引导
 - [ ] 2.3 壹座舰队详情「来源蓝图」芯片改链供给域 Studio 文档 URL（`_casting.blueprintId` 保留）
-- [ ] 2.4 AI 起草迁谦面：判官桥逻辑随迁、模型走谦面网关配置（sub2api 内网）、逐字段采用写门（未产字段逐字节不动）
+- [x] 2.4 AI 起草迁谦面：判官桥逻辑随迁、模型走谦面网关配置（sub2api 内网）、逐字段采用写门（未产字段逐字节不动）（studio-draft.js 同模块随 createStudioDraftRoutes 挂 /api/studio/draft；env 车道 LLM_* 生效、per-user 名册空→env-route 同 cell 进程已实证形态；逐字段采用写门在 AiDraftOverlay 单源组件）
 
 ## 3. 预览沙箱与晋升通道
 
-- [ ] 3.1 预览沙箱 v1：静态校验+manifest 组装+起草干跑；零持久化（回归钉：预览后存储无新增记录）
-- [ ] 3.2 配额三闸：每身份每日配额+单次时长/token 帽+匿名不给预览；超限显式语义码
-- [ ] 3.3 诚实降级：上游失败显式失败态+重试入口，不产占位草稿
+- [x] 3.1 预览沙箱 v1：静态校验+manifest 组装+起草干跑；零持久化（回归钉：预览后存储无新增记录）（facet/preview-sandbox.js；回归钉=blueprints 清单零新增）
+- [x] 3.2 配额三闸：每身份每日配额+单次时长/token 帽+匿名不给预览；超限显式语义码（preview_auth_required/preview_quota_exhausted/AbortSignal.timeout；语义码测试过）
+- [x] 3.3 诚实降级：上游失败显式失败态+重试入口，不产占位草稿（注入 failing fetchImpl 驱动 502 preview_lane_failed；静态+形状两腿如实返回）
 - [ ] 3.4 晋升通道（壹座侧）：实例→草稿 fork（preset/配置/skills），provenance 带来源实例与时间；确认界面列「未包含：记忆/会话历史」
 - [ ] 3.5 单向闸回归：编辑晋升草稿不动实例运行态（回归钉）
 

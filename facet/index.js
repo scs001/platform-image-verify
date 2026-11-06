@@ -30,6 +30,8 @@ import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
 import { initFacetMcpCatalog } from "./mcp-catalog.js";
+import { getRepoAnnotation, getRepoSkillAnnotation, loadRepoAnnotations } from "../lib/market-annotations.js";
+import { bundledJson } from "../paths.js";
 import { initSupplyCatalog } from "./supply-catalog.js";
 import { registerMcpRegistryJson } from "./mcp-registry-json.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
@@ -252,12 +254,24 @@ registerSupplyStoreRoutes(app, {
   projectionToken: (process.env.SUPPLY_STORE_PROJECTION_TOKEN || "").trim(),
   writeToken: (process.env.SUPPLY_STORE_WRITE_TOKEN || "").trim(),
 });
+// Repo annotation source rides the spine path too (finddata-supply-
+// annotations, the curated 23-entry track with source="finddata-supply-
+// annotations"): the bridge merges registry metadata.annotations + the repo
+// file per entry, and spine rows only carry the metadata half — the curated
+// repo file must be loaded and handed to catalogMcpEntries/catalogSkillEntries
+// through the same repoAnnotationFn seams the bridge contract fills. Skills
+// pass the `.annotation` unwrap, matching mapSkill's merge shape. Missing or
+// corrupt file → empty map → entries render unannotated, never a failure.
+loadRepoAnnotations(bundledJson("market-annotations.json"));
 await initFacetMcpCatalog(app, {
   resolveUser,
   ...(process.env.SUPPLY_STORE_CATALOG === "1"
     ? {
-        entriesFn: () => supplyStore.catalogMcpEntries(),
-        skillsFn: () => supplyStore.catalogSkillEntries(),
+        entriesFn: () => supplyStore.catalogMcpEntries({ repoAnnotationFn: getRepoAnnotation }),
+        skillsFn: () =>
+          supplyStore.catalogSkillEntries({
+            repoAnnotationFn: (name) => getRepoSkillAnnotation(name)?.annotation,
+          }),
       }
     : {}),
 });

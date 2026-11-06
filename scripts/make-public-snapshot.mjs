@@ -196,6 +196,9 @@ const EXCLUDE_PATHS = new Set([
   // 2026-11-04 禁品扫描拦下）：tailnet IP、cheap-8 节点名、双栈分裂取证——同 yongyi/
   // zhiyu 运维材料一类，真源在私有仓，属内部运维文档，不入公开快照。
   "docs/mcp-annotation-repo-source-receipt.md",
+  // 供给域路线图（2026-11-07 禁品扫描拦下）：Studio 迁入挂账段含 cheap-3 旁路
+  // 与出片/走查排期，属内部规划文档、非公开交付物，同 registry-maintenance 一类。
+  "docs/supply-domain-roadmap.md",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).

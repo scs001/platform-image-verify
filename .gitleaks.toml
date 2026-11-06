@@ -27,6 +27,10 @@ useDefault = true
     # DPAPI entropy/file-name constants ("platform-steward-v1") trip the
     # entropy heuristic; they name a custody folder, not a credential.
     '''supervisor/steward-identity\.js''',
+    # Studio publisher test fixtures (2026-11-07 public-snapshot gate hit):
+    # "sk-live-abcdef123456" / "sk-live-abc123456789" are literal placeholders
+    # in a node:test stub, same shape as the lane-probe fixture above.
+    '''scripts/test-facet-studio\.mjs''',
   ]
   # Docker rollback tag in the registry-fork patch README — tag-shaped, not a
   # credential (its entropy trips the generic-api-key rule).

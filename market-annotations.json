@@ -14702,33 +14702,6 @@
      "updatedAt": "2026-11-02"
     },
     "tools": {
-     "assets_find_logo": {
-      "canonical": {
-       "brief": "Finds company logo assets and returns the matching logo list."
-      },
-      "human": {
-       "en": {
-        "name": "Find company logo",
-        "summary": "Finds company logo assets and returns the matching logo list."
-       },
-       "es": {
-        "name": "Buscar el logotipo",
-        "summary": "Busca los recursos de logotipo de la empresa y devuelve la lista de logotipos encontrados."
-       },
-       "fr": {
-        "name": "Trouver le logo",
-        "summary": "Recherche les ressources de logo de l'entreprise et renvoie la liste des logos trouvés."
-       },
-       "ja": {
-        "name": "会社ロゴを検索",
-        "summary": "成果物から会社ロゴの素材を検索し、該当するロゴの一覧を返します。"
-       },
-       "zh": {
-        "name": "查找公司标识",
-        "summary": "在产物中查找公司标识素材，返回匹配的标识清单。"
-       }
-      }
-     },
      "assets_get": {
       "canonical": {
        "brief": "Reads full details of one asset, including lineage, variants and distribution, with a fresh signed download URL in hosted mode."
@@ -14753,33 +14726,6 @@
        "zh": {
         "name": "读取产物详情",
         "summary": "读取单个产物的完整详情，含血缘、变体与分发信息；托管模式下附带新的签名下载地址。"
-       }
-      }
-     },
-     "assets_get_scene_templates": {
-      "canonical": {
-       "brief": "Lists scene template components from the scenes source files and returns the template list."
-      },
-      "human": {
-       "en": {
-        "name": "List scene templates",
-        "summary": "Lists scene template components from the scenes source files and returns the template list."
-       },
-       "es": {
-        "name": "Listar plantillas de escena",
-        "summary": "Enumera los componentes de plantilla de escena de los archivos de código scenes y devuelve la lista de plantillas."
-       },
-       "fr": {
-        "name": "Lister les gabarits de scène",
-        "summary": "Énumère les composants de gabarit de scène des fichiers source scenes et renvoie la liste des gabarits."
-       },
-       "ja": {
-        "name": "シーンテンプレートを一覧",
-        "summary": "scenes のソースファイルからシーンテンプレートのコンポーネントを一覧し、テンプレートの一覧を返します。"
-       },
-       "zh": {
-        "name": "列出场景模板",
-        "summary": "从 scenes 源码文件列出场景模板组件，返回模板清单。"
        }
       }
      },
@@ -14810,60 +14756,6 @@
        }
       }
      },
-     "assets_list_common": {
-      "canonical": {
-       "brief": "Lists common assets in the downloads common folder and the Remotion public folder."
-      },
-      "human": {
-       "en": {
-        "name": "List common assets",
-        "summary": "Lists common assets found in the downloads common folder and the Remotion public folder."
-       },
-       "es": {
-        "name": "Listar recursos comunes",
-        "summary": "Enumera los recursos comunes de la carpeta común de descargas y de la carpeta pública de Remotion."
-       },
-       "fr": {
-        "name": "Lister les ressources communes",
-        "summary": "Énumère les ressources communes du dossier commun des téléchargements et du dossier public de Remotion."
-       },
-       "ja": {
-        "name": "共通素材を一覧",
-        "summary": "ダウンロードの共通フォルダと Remotion の公開フォルダにある共通素材を一覧します。"
-       },
-       "zh": {
-        "name": "列出公共素材",
-        "summary": "列出下载公共目录与 Remotion 公共目录中的公共素材。"
-       }
-      }
-     },
-     "assets_list_compositions": {
-      "canonical": {
-       "brief": "Lists the registered Remotion compositions with their ids and durations."
-      },
-      "human": {
-       "en": {
-        "name": "List compositions",
-        "summary": "Lists the registered Remotion compositions and returns each id and duration."
-       },
-       "es": {
-        "name": "Listar composiciones",
-        "summary": "Enumera las composiciones Remotion registradas y devuelve el identificador y la duración de cada una."
-       },
-       "fr": {
-        "name": "Lister les compositions",
-        "summary": "Énumère les compositions Remotion enregistrées et renvoie l'identifiant et la durée de chacune."
-       },
-       "ja": {
-        "name": "コンポジションを一覧",
-        "summary": "登録済みの Remotion コンポジションを一覧し、識別子と長さを返します。"
-       },
-       "zh": {
-        "name": "列出渲染组件",
-        "summary": "列出已注册的 Remotion 组件，返回标识与时长。"
-       }
-      }
-     },
      "assets_stats": {
       "canonical": {
        "brief": "Aggregates asset statistics by type, stage and platform and returns the aggregated result."
@@ -14888,141 +14780,6 @@
        "zh": {
         "name": "汇总产物统计",
         "summary": "按产物类型、阶段与平台汇总统计，返回聚合结果。"
-       }
-      }
-     },
-     "assets_validate_paths": {
-      "canonical": {
-       "brief": "Validates the staticFile asset paths referenced in Remotion source and returns the validation result."
-      },
-      "human": {
-       "en": {
-        "name": "Validate asset paths",
-        "summary": "Validates the staticFile asset paths referenced in Remotion source and returns the validation result."
-       },
-       "es": {
-        "name": "Validar rutas de recursos",
-        "summary": "Valida las rutas de recursos staticFile referenciadas en el código Remotion y devuelve el resultado."
-       },
-       "fr": {
-        "name": "Valider les chemins d'actifs",
-        "summary": "Valide les chemins d'actifs staticFile référencés dans le code Remotion et renvoie le résultat."
-       },
-       "ja": {
-        "name": "素材パスを検証",
-        "summary": "Remotion のソースで参照される staticFile 素材パスを検証し、検証結果を返します。"
-       },
-       "zh": {
-        "name": "校验素材路径",
-        "summary": "校验 Remotion 源码中引用的 staticFile 素材路径，返回校验结果。"
-       }
-      }
-     },
-     "brainstorm_content": {
-      "canonical": {
-       "brief": "Deprecated alias of the content plan generator; use orchestrate_brainstorm instead."
-      },
-      "human": {
-       "en": {
-        "name": "Draft plan (legacy)",
-        "summary": "Deprecated; use Draft content plan instead. It generates a structured content plan for a voiceover or an article."
-       },
-       "es": {
-        "name": "Crear plan (antiguo)",
-        "summary": "Obsoleto; use en su lugar Crear plan de contenido. Genera un plan de contenido estructurado para una locución o un artículo."
-       },
-       "fr": {
-        "name": "Élaborer un plan (obsolète)",
-        "summary": "Obsolète ; utilisez plutôt Élaborer un plan de contenu. Génère un plan de contenu structuré pour une voix off ou un article."
-       },
-       "ja": {
-        "name": "コンテンツ案作成（旧）",
-        "summary": "非推奨です。代わりに「コンテンツ案を作成」を使用してください。ナレーション動画や記事の構造化されたコンテンツ案を作成します。"
-       },
-       "zh": {
-        "name": "生成内容方案（旧名）",
-        "summary": "已废弃，改用「生成内容方案」；行为与为旁白视频或文章生成结构化方案相同。"
-       }
-      }
-     },
-     "create_cover_image": {
-      "canonical": {
-       "brief": "Deprecated alias of the brand cover generator; use generate_cover instead."
-      },
-      "human": {
-       "en": {
-        "name": "Create cover (legacy)",
-        "summary": "Deprecated; use Generate brand cover instead. It generates a brand-consistent cover image via Remotion."
-       },
-       "es": {
-        "name": "Crear portada (antiguo)",
-        "summary": "Obsoleto; use en su lugar Generar portada de marca. Genera una portada coherente con la marca mediante Remotion."
-       },
-       "fr": {
-        "name": "Créer une couverture (obsolète)",
-        "summary": "Obsolète ; utilisez plutôt Générer une couverture de marque. Génère via Remotion une couverture conforme à la marque."
-       },
-       "ja": {
-        "name": "表紙生成（旧）",
-        "summary": "非推奨です。代わりに「ブランド表紙を生成」を使用してください。Remotion を介してブランドに沿った表紙画像を生成します。"
-       },
-       "zh": {
-        "name": "生成封面（旧名）",
-        "summary": "已废弃，改用「生成品牌封面」；行为与经 Remotion 生成品牌一致的封面图相同。"
-       }
-      }
-     },
-     "create_voiceover": {
-      "canonical": {
-       "brief": "Deprecated alias of the voiceover orchestrator; use orchestrate_voiceover instead."
-      },
-      "human": {
-       "en": {
-        "name": "Create voiceover (legacy)",
-        "summary": "Deprecated; use Orchestrate voiceover instead. It creates a complete voiceover video by chaining speech synthesis, captions and Remotion rendering."
-       },
-       "es": {
-        "name": "Crear locución (antiguo)",
-        "summary": "Obsoleto; use en su lugar Orquestar locución. Crea un video de locución completo encadenando síntesis de voz, subtítulos y renderizado Remotion."
-       },
-       "fr": {
-        "name": "Créer une voix off (obsolète)",
-        "summary": "Obsolète ; utilisez plutôt Orchestrer la voix off. Crée une vidéo de voix off complète en enchaînant synthèse vocale, sous-titres et rendu Remotion."
-       },
-       "ja": {
-        "name": "ナレーション動画作成（旧）",
-        "summary": "非推奨です。代わりに「ナレーション動画を編成」を使用してください。音声合成、字幕、Remotion の描画をつないで完全な動画を作成します。"
-       },
-       "zh": {
-        "name": "编排旁白（旧名）",
-        "summary": "已废弃，改用「编排旁白视频」；行为与串联语音合成、字幕与 Remotion 渲染相同。"
-       }
-      }
-     },
-     "generate_cover": {
-      "canonical": {
-       "brief": "Generates a brand-consistent cover image via Remotion and returns the cover asset."
-      },
-      "human": {
-       "en": {
-        "name": "Generate brand cover",
-        "summary": "Generates a brand-consistent cover image via Remotion and returns the cover asset."
-       },
-       "es": {
-        "name": "Generar portada de marca",
-        "summary": "Genera mediante Remotion una imagen de portada coherente con la marca y devuelve el artefacto de portada."
-       },
-       "fr": {
-        "name": "Générer une couverture de marque",
-        "summary": "Génère via Remotion une image de couverture conforme à la marque et renvoie l'artefact de couverture."
-       },
-       "ja": {
-        "name": "ブランド表紙を生成",
-        "summary": "Remotion を介してブランドに沿った表紙画像を生成し、表紙の成果物を返します。"
-       },
-       "zh": {
-        "name": "生成品牌封面",
-        "summary": "经 Remotion 生成与品牌一致的封面图，返回封面产物。"
        }
       }
      },
@@ -15107,60 +14864,6 @@
        }
       }
      },
-     "get_content_details": {
-      "canonical": {
-       "brief": "Deprecated alias of the asset detail tool; use assets_get instead."
-      },
-      "human": {
-       "en": {
-        "name": "Get details (legacy)",
-        "summary": "Deprecated; use Get asset details instead. It reads one asset's lineage, variants and distribution, with a signed download URL in hosted mode."
-       },
-       "es": {
-        "name": "Obtener detalles (antiguo)",
-        "summary": "Obsoleto; use en su lugar Obtener detalles del artefacto. Lee el linaje, las variantes y la distribución de un artefacto."
-       },
-       "fr": {
-        "name": "Obtenir les détails (obsolète)",
-        "summary": "Obsolète ; utilisez plutôt Obtenir les détails d'un artefact. Lit la lignée, les variantes et la distribution d'un artefact."
-       },
-       "ja": {
-        "name": "成果物詳細取得（旧）",
-        "summary": "非推奨です。代わりに「成果物詳細を取得」を使用してください。単一の成果物の系譜、変種、配布情報を読み取ります。"
-       },
-       "zh": {
-        "name": "读取产物详情（旧名）",
-        "summary": "已废弃，改用「读取产物详情」；行为与读取单个产物的血缘、变体与分发信息相同。"
-       }
-      }
-     },
-     "list_all_content": {
-      "canonical": {
-       "brief": "Deprecated alias of the asset list tool; use assets_list instead."
-      },
-      "human": {
-       "en": {
-        "name": "List assets (legacy)",
-        "summary": "Deprecated; use List assets instead. It lists asset summaries with optional filters."
-       },
-       "es": {
-        "name": "Listar artefactos (antiguo)",
-        "summary": "Obsoleto; use en su lugar Listar artefactos. Enumera resúmenes de artefactos con filtros opcionales."
-       },
-       "fr": {
-        "name": "Lister les artefacts (obsolète)",
-        "summary": "Obsolète ; utilisez plutôt Lister les artefacts. Énumère les résumés d'artefacts avec filtres optionnels."
-       },
-       "ja": {
-        "name": "成果物一覧（旧）",
-        "summary": "非推奨です。代わりに「成果物を一覧」を使用してください。任意の条件で成果物の概要を一覧します。"
-       },
-       "zh": {
-        "name": "列出产物（旧名）",
-        "summary": "已废弃，改用「列出产物」；行为与按可选条件列出产物摘要相同。"
-       }
-      }
-     },
      "models_voices": {
       "canonical": {
        "brief": "Lists available generation models and voices per provider, including capabilities, current status and pricing notes."
@@ -15185,60 +14888,6 @@
        "zh": {
         "name": "查看模型与音色",
         "summary": "按提供方列出可用的生成模型与音色，返回能力（语速与字幕支持）、当前状态与价格说明。"
-       }
-      }
-     },
-     "orchestrate_brainstorm": {
-      "canonical": {
-       "brief": "Generates a structured content plan for a voiceover or an article and returns the section plan."
-      },
-      "human": {
-       "en": {
-        "name": "Draft content plan",
-        "summary": "Generates a structured content plan for a voiceover or an article and returns the section plan."
-       },
-       "es": {
-        "name": "Crear plan de contenido",
-        "summary": "Genera un plan de contenido estructurado para una locución o un artículo y devuelve el plan por secciones."
-       },
-       "fr": {
-        "name": "Élaborer un plan de contenu",
-        "summary": "Génère un plan de contenu structuré pour une voix off ou un article et renvoie le plan par sections."
-       },
-       "ja": {
-        "name": "コンテンツ案を作成",
-        "summary": "ナレーション動画または記事のための構造化されたコンテンツ案を作成し、区間の計画を返します。"
-       },
-       "zh": {
-        "name": "生成内容方案",
-        "summary": "为旁白视频或文章生成结构化内容方案，返回分节计划。"
-       }
-      }
-     },
-     "orchestrate_voiceover": {
-      "canonical": {
-       "brief": "Creates a complete voiceover video in one flow by chaining speech synthesis, captions and Remotion rendering, and returns the video asset."
-      },
-      "human": {
-       "en": {
-        "name": "Orchestrate voiceover",
-        "summary": "Creates a complete voiceover video in one flow, chaining speech synthesis, captions and Remotion rendering, and returns the video asset."
-       },
-       "es": {
-        "name": "Orquestar locución",
-        "summary": "Crea en un solo flujo un video de locución completo, encadenando síntesis de voz, subtítulos y renderizado Remotion, y devuelve el artefacto de video."
-       },
-       "fr": {
-        "name": "Orchestrer la voix off",
-        "summary": "Crée en un seul flux une vidéo de voix off complète, en enchaînant synthèse vocale, sous-titres et rendu Remotion, et renvoie l'artefact vidéo."
-       },
-       "ja": {
-        "name": "ナレーション動画を編成",
-        "summary": "音声合成、字幕、Remotion の描画をつないで完全なナレーション動画を一括で作成し、動画成果物を返します。"
-       },
-       "zh": {
-        "name": "编排旁白视频",
-        "summary": "一步生成完整旁白视频，串联语音合成、字幕与 Remotion 渲染，返回视频产物。"
        }
       }
      },
@@ -15323,33 +14972,6 @@
        }
       }
      },
-     "video_compose": {
-      "canonical": {
-       "brief": "Composes one video deterministically from a storyboard, where the same storyboard yields the same byte stream, covering intro/outro, slow pan-zoom and full-page HTML scenes."
-      },
-      "human": {
-       "en": {
-        "name": "Compose video",
-        "summary": "Composes one video from a storyboard deterministically, so the same storyboard yields the same byte stream; scenes cover intro and outro, slow pan-zoom and full-page HTML."
-       },
-       "es": {
-        "name": "Componer video",
-        "summary": "Compone un video desde un guion gráfico de forma determinista, con el mismo flujo de bytes para el mismo guion; cubre entrada y salida, paneo y zoom lentos y HTML de página completa."
-       },
-       "fr": {
-        "name": "Composer une vidéo",
-        "summary": "Compose une vidéo à partir d'un storyboard de façon déterministe, un même storyboard produisant le même flux d'octets ; scènes d'ouverture et de clôture, panoramique et zoom lents, HTML pleine page."
-       },
-       "ja": {
-        "name": "絵コンテから動画を合成",
-        "summary": "絵コンテから 1 本の動画を決定論的に合成し、同じ絵コンテは同じバイト列になります。冒頭と結尾、ゆっくりしたパンとズーム、全画面 HTML のシーンに対応します。"
-       },
-       "zh": {
-        "name": "按分镜合成视频",
-        "summary": "按分镜确定性合成单个视频，同一分镜重算得到同一字节流；支持片头片尾、慢移镜头与整页 HTML 场景。"
-       }
-      }
-     },
      "video_job_status": {
       "canonical": {
        "brief": "Polls an async video job by id, returning running, succeeded, failed or expired; success carries the asset id and a signed download URL."
@@ -15401,6 +15023,81 @@
        "zh": {
         "name": "按剧本合成旁白",
         "summary": "按分段时间线逐段合成旁白，返回长旁白产物；超出时间窗的段落给出改写建议，同剧本与幂等键重放不重复计费。"
+       }
+      }
+     },
+     "templates_list": {
+      "canonical": {
+       "brief": "List built-in templates (video types, cover layouts, document layouts); each entry carries inputs contract and runtime availability."
+      },
+      "human": {
+       "en": {
+        "name": "List templates",
+        "summary": "Discover built-in video/cover/doc templates with their input contracts."
+       },
+       "zh": {
+        "name": "模板目录",
+        "summary": "列出内置视频类型、封面版式与文档版式及其输入契约。"
+       }
+      }
+     },
+     "templates_get": {
+      "canonical": {
+       "brief": "Get one template's detail and input contract by id."
+      },
+      "human": {
+       "en": {
+        "name": "Get template",
+        "summary": "Fetch a single template's contract."
+       },
+       "zh": {
+        "name": "模板详情",
+        "summary": "按 id 取单个模板的输入契约说明。"
+       }
+      }
+     },
+     "render_video": {
+      "canonical": {
+       "brief": "Render a video: storyboard mode (seek-contract scene HTML) or type mode (five built-in HTML scene types); deterministic replay; narration audio and bgm mix supported. Identical behavior on hosted and local."
+      },
+      "human": {
+       "en": {
+        "name": "Render video",
+        "summary": "Deterministic frame-sequence video render from storyboard scenes or typed templates."
+       },
+       "zh": {
+        "name": "渲染视频",
+        "summary": "从 storyboard 场景或类型模板确定性渲染逐帧视频，支持旁白与 BGM 混流。"
+       }
+      }
+     },
+     "render_still": {
+      "canonical": {
+       "brief": "Render a single frame image: brand cover, declarative chart, or caller HTML with brand theme."
+      },
+      "human": {
+       "en": {
+        "name": "Render still",
+        "summary": "Single-frame brand render for covers/charts/graphics."
+       },
+       "zh": {
+        "name": "渲染单帧",
+        "summary": "品牌封面、声明式图表或自定义 HTML 的单帧渲染。"
+       }
+      }
+     },
+     "render_document": {
+      "canonical": {
+       "brief": "Render md/HTML source into paginated pdf and long-image with layout templates."
+      },
+      "human": {
+       "en": {
+        "name": "Render document",
+        "summary": "Paginated pdf + long-image from md/HTML."
+       },
+       "zh": {
+        "name": "渲染文档",
+        "summary": "md/HTML 源渲染为分页 PDF 与长图。"
        }
       }
      }

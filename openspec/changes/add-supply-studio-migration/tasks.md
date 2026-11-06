@@ -36,7 +36,7 @@
 ## 5. 数据迁移与验收
 
 - [x] 5.1 静窗迁移：blueprints.db → studio-docs（文档数+逐文档 content_json 相等对账；owner email 映射表落档；无谦面身份 owner 首访按邮箱认领）（scripts/studio-store-migrate.mjs 程序化对账件；生产实况=壹座库 0 行【特性上线数日无人存盘】→空搬 0/0 AGREE；owner 映射=同域 Logto 同邮箱同人，零映射表条目；壹座 blueprints.db 转只读归档随 4.6 端点退役生效——存储层结构性不可写已由卸载达成）
-- [ ] 5.2 漏斗验收：新谦面身份完成「注册→创作→预览→发布」全程零壹座依赖（端到端走查）——**API/行为层已覆盖**（test-facet-studio 13/13：身份/创建/预览/发布全链 facet 域 mock 跑通）；真机走查随镜像上产执行（挂账见 roadmap 注记）
+- [ ] 5.2 漏斗验收：新谦面身份完成「注册→创作→预览→发布」全程零壹座依赖（端到端走查）——**API/行为层已覆盖**（test-facet-studio 13/13：身份/创建/预览/发布全链 facet 域 mock 跑通）；真机走查随镜像上产执行（挂账见 roadmap 注记）。**上产实况（2026-11-07 凌晨）：镜像 sha-1f9335b（源 15634c240）已滚双角色（platform 先行三小时实证+facet 后滚，两处五冒烟门过、studio-docs.db 生产建库、/api/blueprints 壹座 401 退役、/studio 重定向 live）；走查前逮出真缺陷挂账：deployTeam 深链靶 `platform /packs?deployCastPack=` 无路由（App.tsx 无 /packs，catch-all → /chat；承接链 PacksPage 只活在已孤儿化的 AgentsPage 内）——修法两选：①deployTeam 改靶 facet `/#/packs`（市场面 facet 已有，但 installSurface=false 与装机承接语义冲突）②壹座补最小 install face 挂 `/packs`（PackMarketView initialDetailId=deployCastPack）。修复随本项漏斗走查一并出片**
 - [ ] 5.3 六客户端装包链路回归 + e2e（三栏/自动保存冲突/ribbon/深链/结构图环拒绝/跨域部署闭环/晋升）——**行为层已覆盖**（workspace 系 35 测：画布环拒绝/生命周期/校验；studio 系：深链/晋升/跨域）；浏览器级 e2e 随镜像上产执行；**trial 真执行通道接通为本项前置**
 - [ ] 5.4 机器面对账：studio 发布产物在 generated/catalog.json 出现且注释层形状合规——发布闸对账钉已测（cast→registry row+_casting 蓝图链）；catalog.json 投影对账随上产后跑
 - [ ] 5.5 文档收尾：词表登记、supply-domain-roadmap W2 状态注记、registry-maintenance.md 发布记录、validate --strict——词表五语已落（nav.agents+agents.market+tuning 三组）；roadmap 注记+maintenance §9.2 已落；strict 当前绿；**归档前终验=5.2/5.3/5.4 上产项清账**

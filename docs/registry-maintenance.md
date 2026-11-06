@@ -7456,3 +7456,11 @@ A2 四连拒与超时的共同上游（§15.130 挂着的 judge 换型裁决）�
 **真机复验（O0 解除判据，专用房 `zy_1ad879f94b7f3248e3`，复验后已 end）**：修前 404 的端点现在 GET 订阅 **200** / POST 订阅 **201**（`fs_1793987849221_2qmcz2`「工单分诊集群·试跑」）/ DELETE 回读 200 / dryRun 召唤 **200**——`plan.summonable=[]` + `cockpitOnly=["分诊岗","处置岗"]`（如实分诊，不假装）；非自有团队同形 404、未匹配路径仍 404。**`zy_fleet_subs` 0→1 生产首行**；等 2 tick 后报数（seq 4）与健康迁移（seq 3，to=abnormal）事件行流入，均带 fleetId 来源标注 + `deepLink=true` 回驾驶舱，5/5 行 `visibility=shared` 零 private。公开演示房未触碰（day_turns 保持 8）；未跑计费回合。
 
 **收口**：`fix-zhiyu-fleet-bridge-route-order` 21/21 全勾 → `archive --yes` → `2026-11-07-fix-zhiyu-fleet-bridge-route-order`；`fleet-room-bridge` spec 新增「团队订阅与召唤端点在平台网关完整装配下可达」（4 场景）；全仓 **255/255** 绿。走查单 O0 标「已解除」，2.x/3.x/4.3 解锁（剩余项为记忆两腿回归、私窗/计费/IM 桥正向样本与归档件勾选，另窗执行）。**安全提醒：用户在对话明文提供的账号口令建议轮换。**
+
+## §15.138 续二 复验连带抓出 O8：召唤「可召唤」半边生产恒空（立案 fix-zhiyu-summon-serving-face，2026-11-07）
+
+O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二个生产不可达**：`gateway/fleet-room-bridge.js:171` 对 `sampleFleets()` 返回的 HTTP **JSON** 调用 `.servingMembers?.(fleetId)`——JSON 上无函数，`serving` 恒 `[]`；全仓该标识符零生产者（唯一引用即此行），cell `/api/fleets/overview` 也无此字段。桥测试 `test-fleet-room-bridge.mjs:166` 的 stub 对第二路径参数故意返 null、断言恰是「summonable=[] 诚实降级」——**serving 正路径零覆盖**，与 O0 同款「单测全绿、生产永不达」。与 O0 的级别区别：dryRun「如实」保住（不假装可召），定 **P1**。
+
+**生产实况（只读 sqlite 取证，cheap-3 12 cell 库）**：`fleet_members target_kind='a2a'` 共 **10 支**（1da519d4 cell 7 支：万星机群席×4/取证-远端哨兵×2/外联部 p2 分身；3fdc7b8e 源岗；420a3344 源岗 wire-tester2；de7ec3a6 外联岗 p2walk1025），targetId 前缀两形态并存（`registry-packs-…`/`packs-…`，`pathToName` 有损清洗不可反解）——即今天对这些团队一键召唤永远召不到 spec 定义本体的「有 serving 部署的成员」。
+
+**修复设计（立案 `fix-zhiyu-summon-serving-face`，4 工件 strict 绿待 apply）**：不做 targetId 字符串反解——cell overview 的 `formation.members` 对 a2a 岗补 `targetId`+`servingPath`（从 entry.url=`${REGISTRY_URL}/agent<path>/` 解析，与 `lib/agent-serving.js:678` 部署 mint 的 `/packs/<packId>/<agentId><suffix>` 同源；外部 a2a url → null 如实排除）；gateway 给桥传 `servingDeployments` 窄缝（packs internal deployments，凭据纪律同 agent-lane）；桥按 **servingPath === agentPath 全等**对齐出真 summonable（ref=`packId:agentId`、onBehalfOf=deployedBy，多部署者 pathSuffix 天然唯一无歧义）；执行段（invite 握手/订阅随行/部分失败）零改动。测试双态：正路径（plan 非空逐成员带 ref）+ 降级态（保留现断言）。走查单 O8 行 + 2.6 注记同步；2.4/2.5 勾选（14/23）。

@@ -91,6 +91,26 @@ test("all four shell views render without a routing provider", async ({ page }) 
   expect(pageErrors, `page errors: ${pageErrors.join(" | ")}`).toEqual([]);
 });
 
+// Agent-count bucket filter (optimize-paas-module-audit N-10): the borrowed
+// market view keeps this state in the `agents` URL param because the shell
+// mounts it with NO Router ancestor — the write goes through
+// window.history, so it must land in the real query string (#/packs is the
+// hash route) and a reload must re-read it. Pins the exact regression class
+// behind the 2026-10-11 blank #/packs.
+test("pack agent-count filter rides the URL and survives a reload", async ({ page }) => {
+  await page.goto(`${base}/#/packs`);
+  await expect(page.getByTestId("pack-search-input")).toBeVisible({ timeout: 15000 });
+  const filter = page.getByTestId("pack-agent-size-filter");
+  await expect(filter).toBeVisible();
+
+  await filter.selectOption("2-3");
+  await expect.poll(() => new URL(page.url()).search).toContain("agents=2-3");
+
+  await page.reload();
+  await expect(page.getByTestId("pack-search-input")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("pack-agent-size-filter")).toHaveValue("2-3");
+});
+
 // ── Conditional views + data plane (add-facet-content-management) ────────────
 // The shell layer is exercised with a whoami route-injection (the browser
 // cannot present the proxy identity — that channel is server-to-server by

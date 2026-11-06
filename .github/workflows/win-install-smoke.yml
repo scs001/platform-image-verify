@@ -51,7 +51,7 @@ permissions:
 jobs:
   smoke:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - name: Download the published installer
         shell: pwsh
@@ -187,28 +187,37 @@ jobs:
             throw "packaged server.js did not reach /api/ready 200 within 6 minutes"
           }
           Write-Host "::notice::Phase B PASS — packaged backend serves /api/ready 200"
-
-      # ── Phase B+: the packaged runner hosts a real dsh child ───────────────
-      # Phase B proves the backend serves; Phase B+ proves the SERVING half:
-      # the packaged agent-runner — spawned exactly as the desktop supervisor
-      # spawns it (supervisor/descriptors.js runnerEnv: DSH_BIN through the
-      # bundled node, loopback, pod mode, seat-tagged sharding) — polls the
-      # Phase B server's local roster feed, materializes a private dsh home,
-      # and spawns the dsh child. The child must reach the READY handshake
-      # (health state "resident") and STAY ready ≥30s.
-      #
-      # This is the regression gate for the windows-admin drill (2026-11-06):
-      # a child that dies at spawn (0xc0000142-class, ssh/nohup poison) or
-      # during profile boot (inventory identity errors) never reaches
-      # "resident" — the health state stays "starting" until this leg times
-      # out with the runner's own logs in the failure output.
-      #
-      # Needs a tag that ships server/local-agent-feed.js + migration 106
-      # (v1.3.21+). LLM keys are deliberately NOT injected: residency is the
-      # assertion, not turns.
-      - name: Serve a pack through the packaged agent-runner (Phase B+)
-        shell: pwsh
-        run: |
+          # ── Phase B+: the packaged runner hosts a real dsh child ───────────────
+          # Runs INSIDE the Phase B step (same pwsh session): the GH Windows
+          # runner tears down step-spawned processes at step close, so a Phase B+
+          # step found the Phase B server dead 3s after its PASS notice
+          # (v1.3.28 first dispatch, run 42157057033: guards passed, first POST
+          # refused — nothing was listening on 47611). Same session = same
+          # lifetime as the windows-admin drill. Phase B proves the backend
+          # serves; this leg proves the SERVING half: the packaged agent-runner —
+          # spawned exactly as the desktop supervisor spawns it
+          # (supervisor/descriptors.js runnerEnv) — polls the local roster feed,
+          # materializes a private dsh home, and spawns the dsh child, which must
+          # reach the READY handshake (health "resident") and stay ready ≥30s.
+          # This is the regression gate for the 2026-11-06 drill: a child that
+          # dies at spawn (0xc0000142-class) or during profile boot never reaches
+          # "resident" — the poll times out with the runner's own logs attached.
+          # LLM keys are deliberately NOT injected: residency is the assertion.
+          # Runs INSIDE the Phase B step (same pwsh session): the GH Windows
+          # runner tears down step-spawned processes at step close, so a Phase B+
+          # step found the Phase B server dead 3s after its PASS notice
+          # (v1.3.28 first dispatch, run 42157057033: guards passed, first POST
+          # refused — nothing was listening on 47611). Same session = same
+          # lifetime as the windows-admin drill. Phase B proves the backend
+          # serves; this leg proves the SERVING half: the packaged agent-runner —
+          # spawned exactly as the desktop supervisor spawns it
+          # (supervisor/descriptors.js runnerEnv) — polls the local roster feed,
+          # materializes a private dsh home, and spawns the dsh child, which must
+          # reach the READY handshake (health "resident") and stay ready ≥30s.
+          # This is the regression gate for the 2026-11-06 drill: a child that
+          # dies at spawn (0xc0000142-class) or during profile boot never reaches
+          # "resident" — the poll times out with the runner's own logs attached.
+          # LLM keys are deliberately NOT injected: residency is the assertion.
           $node = "$env:APP_DIR\resources\node\node.exe"
           $appRoot = "$env:APP_DIR\resources\app"
           $dshEntry = "$appRoot\node_modules\@deepseek-ai\dsh\lib\bin.js"
@@ -231,7 +240,17 @@ jobs:
               id = "smoke-agent"
               name = "Smoke Agent"
               persona = "Phase B+ smoke agent — answers briefly."
-              serving = @{ protocol = "a2a" }
+              serving = @{
+                protocol = "a2a"
+                # Children spawn LAZILY — reconcile only starts the per-agent
+                # A2A listener; the dsh child materializes+spawns on the first
+                # TURN (acquire). The rhythm self-turn is that first touch:
+                # it fires one period after the scheduler's first tick and its
+                # LLM call fails (no keys by design) AFTER the child is up —
+                # park stays off because the CI store has no provider route
+                # (classify fails open). Exactly the residency the leg asserts.
+                rhythm = @(@{ every = "5m"; do = "smoke residency self-turn" })
+              }
             })
           }
           $body = @{ packId = "smoke-serving-pack"; version = 1; manifest = $manifest } | ConvertTo-Json -Depth 10
@@ -265,7 +284,7 @@ jobs:
           # 4. Poll /health until a hosted agent reaches the READY handshake
           #    (resident — or serving if a turn somehow lands). "starting"
           #    forever = spawn/boot regression.
-          $deadline = (Get-Date).AddMinutes(6)
+          $deadline = (Get-Date).AddMinutes(12)
           $ready = $false
           $last = "(no poll answered)"
           while ((Get-Date) -lt $deadline) {
@@ -289,7 +308,7 @@ jobs:
             Get-Content "$env:RUNNER_TEMP\runner-out.log" -Tail 60 | Write-Host
             Write-Host "--- runner stderr tail ---"
             Get-Content "$env:RUNNER_TEMP\runner-err.log" -Tail 60 | Write-Host
-            throw "no hosted agent reached the ready handshake within 6 minutes (last health: $last) — child spawn/boot regression"
+            throw "no hosted agent reached the ready handshake within 12 minutes (last health: $last) — child spawn/boot regression"
           }
 
           # 5. Survival: still ready ≥30s later — the drill's killer was a

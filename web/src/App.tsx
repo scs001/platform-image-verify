@@ -29,13 +29,17 @@ import { buildGMap, gKeyStep, type NavTarget } from "@/lib/gNav";
 import { ChatPage } from "@/pages/ChatPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { useSearchParams } from "react-router-dom";
 import { settingsPath } from "@/components/settings/sections";
 
 const DocumentsPage = lazy(() =>
   import("@/pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
 );
-const AgentsPage = lazy(() => import("@/pages/AgentsPage").then((m) => ({ default: m.AgentsPage })));
-const AgentStudioPage = lazy(() => import("@/pages/AgentStudioPage").then((m) => ({ default: m.AgentStudioPage })));
+// W2 (add-supply-studio-migration): /studio route retired — the AgentStudioPage
+// lazy import goes with it (the page module stays single-sourced for the facet
+// host, web/ tree alias `@`).
+const AgentMarketPage = lazy(() => import("@/pages/AgentMarketPage").then((m) => ({ default: m.AgentMarketPage })));
+const TuningPage = lazy(() => import("@/pages/TuningPage").then((m) => ({ default: m.TuningPage })));
 // 智能体工作室 (add-agent-studio): the visual agent builder — one surface,
 // four emit targets (D8 additive: entry from the agents page, v1).
 const TraceDetailPage = lazy(() =>
@@ -50,8 +54,23 @@ const MachinesPage = lazy(() => import("@/pages/MachinesPage").then((m) => ({ de
 // to the studio team mode. Step 2 executed 2026-10-31: the dead component is
 // removed after hermetic e2e (my tree ≈ base) + blueprint regression 26/0 —
 // the redirect itself stays and rides the rollout walkthrough.
-function BlueprintRouteRedirect() {
-  return <Navigate to="/studio?from=blueprint" replace />;
+// W2 redirects (add-supply-studio-migration 4.1/4.2): the creation surface
+// lives on the supply domain now. STUDIO_ORIGIN carries the facet host; unset
+// (pre-release builds) falls back to the in-domain routes for window-order
+// safety. Queries pass through untouched — ?doc= ids are migration-stable.
+const STUDIO_ORIGIN: string =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_STUDIO_ORIGIN ?? "https://facet.finddatatech.cloud";
+
+function studioHref(search: string) {
+  return `${STUDIO_ORIGIN}/#/studio${search}`;
+}
+
+function StudioRouteRedirect({ params = {} }: { params?: Record<string, string> }) {
+  const [sp] = useSearchParams();
+  const merged = new URLSearchParams(sp);
+  for (const [k, v] of Object.entries(params)) if (!merged.has(k)) merged.set(k, v);
+  const q = merged.toString();
+  return <Navigate to={studioHref(q ? `?${q}` : "")} replace />;
 }
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
@@ -318,7 +337,11 @@ export default function App() {
             <Route path="/knowledge" element={<DocumentsPage send={send} />} />
             <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/memory" element={<MemoryPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/agents" element={<AgentMarketPage />} />
+            {/* 原生调优面 (add-supply-studio-migration 4.4): tuning leaves the
+                dissolved four-zone facade — same candidate-review behavior,
+                its own doorway (skill-self-evolution contract untouched). */}
+            <Route path="/tuning" element={<TuningPage />} />
             <Route path="/apps" element={<AppCenterPage />} />
             <Route path="/bots" element={<Navigate to={settingsPath("channels")} replace />} />
             <Route path="/trace" element={<Navigate to={settingsPath("diagnostics")} replace />} />
@@ -339,13 +362,13 @@ export default function App() {
                 edits land in the cloud desired set; machines pull and apply. */}
             <Route path="/machines" element={<MachinesPage />} />
 
-            {/* 蓝图构造间 (add-blueprint-studio): the vertical-package authoring
-                surface (blueprint → cluster template → market). */}
-            {/* 智能体工作室 (add-agent-studio): the visual agent builder — one
-                composition surface emitting into the existing lifecycles. */}
-            <Route path="/studio" element={<AgentStudioPage />} />
+            {/* 蓝图构造间/智能体工作室 (add-blueprint-studio + add-agent-studio)
+                RETIRED (add-supply-studio-migration 4.1, W2): /studio 退役为
+                供给域重定向 — query 原样透传（?doc= 文档 id 跨迁移稳定，回归钉
+                在 e2e）。构建面唯一宿主=供给域 Studio（facet）。 */}
+            <Route path="/studio" element={<StudioRouteRedirect />} />
 
-            <Route path="/blueprints" element={<BlueprintRouteRedirect />} />
+            <Route path="/blueprints" element={<StudioRouteRedirect params={{ from: "blueprint" }} />} />
 
             {/* 萬星·智语 (add-zhiyu-room): rooms list + the room itself. */}
             <Route path="/zhiyu" element={<ZhiyuPage />} />
@@ -406,13 +429,16 @@ export default function App() {
               moved there): presets → the Creations area, packs → the Supply
               area. The legacy tab slugs canonicalize per add-agent-builder-hub
               D5 (surfaces.ts SURFACE_SLUG_ALIASES). */}
+          {/* Retired sections (add-supply-studio-migration 4.5): presets →
+              Settings 原生面; packs → the agent-market face (install panel).
+              MUST NOT 404 (e2e 回归钉). */}
           <Route
             path="/settings/presets"
-            element={<Navigate to="/agents?tab=agents" replace state={location.state} />}
+            element={<Navigate to={settingsPath("general")} replace state={location.state} />}
           />
           <Route
             path="/settings/packs"
-            element={<Navigate to="/agents?tab=market" replace state={location.state} />}
+            element={<Navigate to="/agents" replace state={location.state} />}
           />
           {/* Retired section (settings-connect-center): the search wiring moved
               into the connections section's search-service card. The slug stays

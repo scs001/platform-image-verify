@@ -63,7 +63,7 @@
     },
     "knowledge": "资料库",
     "resources": "成果",
-    "agents": "智能体构建器",
+    "agents": "智能体市场",
     "bots": "机器人",
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
@@ -3851,6 +3851,12 @@
       "creations": "我的创作",
       "tuning": "调优",
       "apps": "应用"
+    },
+    "market": {
+      "subtitle": "创作与发布已迁至供给域；这里承接装机与运行",
+      "openMarket": "打开智能体市场",
+      "openStudio": "打开 Studio",
+      "installed": "本机已装功能集"
     }
   },
   "hub": {
@@ -3870,5 +3876,11 @@
       "personaTitle": "persona 修订",
       "personaEmpty": "角色桶自调优在准备中：修订提议 → A/B 评测 → 人终审。上线后在此承接评审。"
     }
+  },
+  "tuning": {
+    "title": "调优",
+    "subtitle": "技能候选评审与 persona 修订（skill-self-evolution）",
+    "skillCandidates": "技能候选",
+    "personaAmendments": "Persona 修订"
   }
 }

@@ -63,7 +63,7 @@
     },
     "knowledge": "Library",
     "resources": "Outputs",
-    "agents": "Agent Builder",
+    "agents": "Agent Market",
     "bots": "Bots",
     "trace": "Trace",
     "openMenu": "Open navigation menu",
@@ -3851,6 +3851,12 @@
       "creations": "My Creations",
       "tuning": "Tuning",
       "apps": "Apps"
+    },
+    "market": {
+      "subtitle": "Creation and publishing moved to the supply domain; installs and runtime stay here",
+      "openMarket": "Open Agent Market",
+      "openStudio": "Open Studio",
+      "installed": "Installed packs on this machine"
     }
   },
   "hub": {
@@ -3870,5 +3876,11 @@
       "personaTitle": "Persona amendments",
       "personaEmpty": "Persona self-tuning is in preparation: amendment proposals → A/B evaluation → human final review. It will land here."
     }
+  },
+  "tuning": {
+    "title": "Tuning",
+    "subtitle": "Skill candidate review and persona amendments (skill-self-evolution)",
+    "skillCandidates": "Skill candidates",
+    "personaAmendments": "Persona amendments"
   }
 }

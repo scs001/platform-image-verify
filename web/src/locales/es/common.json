@@ -63,7 +63,7 @@
     },
     "knowledge": "Biblioteca",
     "resources": "Resultados",
-    "agents": "Constructor de Agentes",
+    "agents": "Mercado de Agentes",
     "bots": "Bots",
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
@@ -3851,6 +3851,12 @@
       "creations": "Mis creaciones",
       "tuning": "Ajuste",
       "apps": "Apps"
+    },
+    "market": {
+      "subtitle": "La creación y publicación se movieron al dominio de suministro; la instalación y ejecución quedan aquí",
+      "openMarket": "Abrir mercado de agentes",
+      "openStudio": "Abrir Studio",
+      "installed": "Packs instalados en esta máquina"
     }
   },
   "hub": {
@@ -3870,5 +3876,11 @@
       "personaTitle": "Revisiones de persona",
       "personaEmpty": "El autoajuste de persona está en preparación: propuestas de revisión → evaluación A/B → revisión final humana. Llegará aquí."
     }
+  },
+  "tuning": {
+    "title": "Ajuste",
+    "subtitle": "Revisión de candidatos de habilidades y enmiendas de persona (skill-self-evolution)",
+    "skillCandidates": "Candidatos de habilidades",
+    "personaAmendments": "Enmiendas de persona"
   }
 }

@@ -70,9 +70,6 @@ import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
 import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
-import { createBlueprintRoutes } from "./server/routes/blueprints.js";
-import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
-import { createStudioDraftRoutes } from "./server/routes/studio-draft.js";
 import { registerPackAuthorRoutes } from "./server/pack-author.js";
 import { createSkillEvolutionRoutes } from "./server/skill-evolution-routes.js";
 import { createPersonaEvolutionRoutes } from "./server/persona-evolution-routes.js";
@@ -362,17 +359,11 @@ createClusterRoutes(app, ctx);
 // Agent fleets (agent-fleet-core): fleet/post CRUD + materialization
 // reconcile over the task engine. Same auth semantics as clusters.
 createFleetRoutes(app, ctx);
-// Blueprint studio (add-blueprint-studio): vertical blueprint entity +
-// validate/approve/cast routes. 治包不治舰（design D1）——与 architect 的
-// 活舰编排互不引写路径；auth 语义与 fleets 同款（owner 作用域资产）。
-createBlueprintRoutes(app, ctx);
-// Studio AI drafting (add-studio-ai-drafting): the canvas's draft accelerator —
-// one authenticated drafting function, zero persistence, zero emit-mouth calls.
-createStudioDraftRoutes(app, ctx);
-// Builder bridges (add-builder-team-templates): the blueprint-author and
-// pack-author MCP children land validation-green drafts into the owner's
-// pools. Loopback-only credential (auth.js), owner resolved server-side.
-registerBlueprintAuthorRoutes(app, ctx);
+// Blueprint studio routes RETIRED (add-supply-studio-migration 4.6, W2): the
+// creation surface moved to the facet host (facet/studio.js mounts the same
+// modules there). 壹座 keeps only the promotion channel (fleets /promote) and
+// the fleet-detail source chip; the blueprint-author bridge retired with the
+// endpoints (the pack-author bridge is unmounted separately per d5784e8e).
 registerPackAuthorRoutes(app, ctx);
 // Skill self-evolution (add-skill-self-evolution): the propose face for the
 // in-cell MCP child (loopback bridge) + the owner's evaluate/promote/reject

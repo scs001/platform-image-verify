@@ -28,7 +28,10 @@ process.env.PLATFORM_DATA_DIR = tmp;
 
 const { initDb } = await import("../db.js");
 await initDb();
-const { registerBlueprintAuthorRoutes } = await import("../server/blueprint-author.js");
+// blueprint-author bridge RETIRED (add-supply-studio-migration 4.6): the
+// creation surface moved to the facet host; the bridge's consumers (agent-
+// builder drafting tools) retire with the blueprint endpoints. Pack-author
+// bridge stays (unmounted separately per d5784e8e was wanxing ops only).
 const { registerPackAuthorRoutes } = await import("../server/pack-author.js");
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -51,27 +54,7 @@ const call = (server, method, p, body) =>
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 
-// A green blueprint needs the full contract — reuse the shape the studio
 // corpus validates (boundary/dataSources/fleet/agents/monitoring/acceptance).
-function blueprintContent(over = {}) {
-  // Shape mirrored from the studio's DRAFT_SCHEMA / the validated corpus —
-  // the bridge reuses the chain, so the fixture must speak the same dialect.
-  return {
-    boundary: { name: "晨报情报站模板", oneLine: "每日晨报合成", outOfScope: "不实盘交易" },
-    dataSources: [{ ref: "websearch", note: "部委公告与政策流" }],
-    fleet: {
-      name: "晨报情报站",
-      members: [
-        { ref: "chief", title: "情报主编", target: { kind: "pack-preset", packId: "{{PACK_ID}}", presetId: "chief" }, kpiSlots: [{ key: "briefs", label: "简报数", unit: "份" }], cadence: { cron: "0 8 * * *", tz: "Asia/Shanghai", promptTemplate: "合成晨报 {{fleetContext}}" } },
-      ],
-    },
-    agents: [{ id: "chief", name: "情报主编", persona: "你是情报主编" }],
-    monitoring: { anomaly_criteria: ["晨报缺席"], escalate: { threshold: 3, severity_default: "high" }, notify: "proposal-channel" },
-    acceptance: [{ id: "posts-staffed", kind: "post-materialized" }, { id: "first-round", kind: "first-round-fired" }],
-    board: {},
-    ...over,
-  };
-}
 
 const PACK_MANIFEST = () => ({
   name: "周报工具包",
@@ -81,40 +64,13 @@ const PACK_MANIFEST = () => ({
   agents: [{ id: "digest", name: "周报员", persona: "你负责周报" }],
 });
 
-// ── blueprint-author bridge ─────────────────────────────────────────────────
+// ── blueprint-author bridge: RETIRED (add-supply-studio-migration 4.6) ──────
+// The bridge rode the blueprint endpoints; both retired with the W2 move to
+// the facet host. Its tests die with it (the pack bridge below survives).
 
-test("blueprint bridge: validate persists nothing; save refuses a red draft", async () => {
-  const server = httpApp((app) => registerBlueprintAuthorRoutes(app, { cellUserEmail: "owner@test" }));
-  try {
-    const bad = blueprintContent({ fleet: { name: "环", members: [{ ref: "a", title: "A", parentRef: "d", target: { kind: "pack-preset", packId: "{{PACK_ID}}", presetId: "a" } }, { ref: "b", title: "B", parentRef: "a", target: { kind: "pack-preset", packId: "{{PACK_ID}}", presetId: "a" } }, { ref: "c", title: "C", parentRef: "b", target: { kind: "pack-preset", packId: "{{PACK_ID}}", presetId: "a" } }, { ref: "d", title: "D", parentRef: "c", target: { kind: "pack-preset", packId: "{{PACK_ID}}", presetId: "a" } }] } });
-    const v = await call(server, "POST", "/api/blueprint-author/validate", { content: bad });
-    assert.equal(v.status, 200, "validate is a dry-run even for a red draft");
-    assert.equal(v.body.ok, false);
-    assert.ok((v.body.errors ?? []).length > 0, "errors are field-named by the existing validator");
 
-    const s = await call(server, "POST", "/api/blueprint-author/save", { content: bad });
-    assert.equal(s.status, 422, "a red draft refuses to land");
-    const pool = await call(server, "GET", "/api/blueprint-author/drafts");
-    assert.equal(pool.body.drafts.length, 0, "nothing landed in the pool");
-  } finally {
-    server.close();
-  }
-});
 
-test("blueprint bridge: a green save lands in the SAME pool the Studio writes", async () => {
-  const server = httpApp((app) => registerBlueprintAuthorRoutes(app, { cellUserEmail: "owner@test" }));
-  try {
-    const s = await call(server, "POST", "/api/blueprint-author/save", { content: blueprintContent() });
-    assert.equal(s.status, 201);
-    assert.equal(s.body.ok, true);
-    const pool = await call(server, "GET", "/api/blueprint-author/drafts");
-    assert.equal(pool.body.drafts.length, 1);
-    assert.equal(pool.body.drafts[0].name, "晨报情报站模板");
-    assert.equal(pool.body.drafts[0].status, "draft", "born a draft — approval is the owner's Studio gesture");
-  } finally {
-    server.close();
-  }
-});
+
 
 // ── pack-author bridge ──────────────────────────────────────────────────────
 

@@ -13,6 +13,10 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Blocks } from "lucide-react";
 import { Skeleton } from "@/components/ui/states-kit";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+// Supply-domain Studio origin (add-supply-studio-migration 2.3): the source-
+// blueprint chip links to the facet-hosted document. Vite env: VITE_STUDIO_ORIGIN.
+const STUDIO_ORIGIN: string =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_STUDIO_ORIGIN ?? "";
 import { useCronStore, useChatStore } from "@platform/core";
 import { useFleetStore } from "@/store/fleet-store";
 import { useListCache } from "@/hooks/useListCache";

@@ -63,7 +63,7 @@
     },
     "knowledge": "Bibliothèque",
     "resources": "Résultats",
-    "agents": "Constructeur d'Agents",
+    "agents": "Marché d'Agents",
     "bots": "Bots",
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
@@ -3851,6 +3851,12 @@
       "creations": "Mes créations",
       "tuning": "Ajustement",
       "apps": "Apps"
+    },
+    "market": {
+      "subtitle": "La création et la publication ont déménagé vers le domaine d'approvisionnement ; l'installation et l'exécution restent ici",
+      "openMarket": "Ouvrir le marché d'agents",
+      "openStudio": "Ouvrir Studio",
+      "installed": "Packs installés sur cette machine"
     }
   },
   "hub": {
@@ -3870,5 +3876,11 @@
       "personaTitle": "Révisions de persona",
       "personaEmpty": "L'auto-ajustement de la persona est en préparation : propositions de révision → évaluation A/B → révision finale humaine. Atterrira ici."
     }
+  },
+  "tuning": {
+    "title": "Réglage",
+    "subtitle": "Revue des candidatures de compétences et amendements de persona (skill-self-evolution)",
+    "skillCandidates": "Candidatures de compétences",
+    "personaAmendments": "Amendements de persona"
   }
 }

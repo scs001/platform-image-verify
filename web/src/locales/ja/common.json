@@ -63,7 +63,7 @@
     },
     "knowledge": "ライブラリ",
     "resources": "成果",
-    "agents": "エージェントビルダー",
+    "agents": "エージェントマーケット",
     "bots": "ボット",
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
@@ -3851,6 +3851,12 @@
       "creations": "作成物",
       "tuning": "チューニング",
       "apps": "アプリ"
+    },
+    "market": {
+      "subtitle": "作成と公開はサプライドメインへ；インストールと実行はこちら",
+      "openMarket": "エージェントマーケットを開く",
+      "openStudio": "Studio を開く",
+      "installed": "このマシンのインストール済みパック"
     }
   },
   "hub": {
@@ -3870,5 +3876,11 @@
       "personaTitle": "persona 改訂",
       "personaEmpty": "persona バケットの自己チューニングを準備中：改訂提案 → A/B 評価 → 人間による最終承認。公開後ここに表示されます。"
     }
+  },
+  "tuning": {
+    "title": "チューニング",
+    "subtitle": "スキル候補レビューと persona 修正 (skill-self-evolution)",
+    "skillCandidates": "スキル候補",
+    "personaAmendments": "Persona 修正"
   }
 }

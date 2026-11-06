@@ -60,6 +60,22 @@ const { db: studioDb } = registerStudioRoutes(app, {
   // Deferred trial deps are the production default (task 5.3 pending).
 });
 
+// Second app: same assembly but the sandbox's drafting leg rides a fetch stub
+// that always fails — the honest-degradation test drives THIS plane (post-boot
+// env overrides can't un-resolve the judge lane; dependency injection can).
+import { createPreviewSandboxRoutes } from "../facet/preview-sandbox.js";
+const failingApp = express();
+failingApp.use(express.json({ limit: "24mb" }));
+createPreviewSandboxRoutes(failingApp, {
+  resolveUser,
+  fetchImpl: async () => ({ ok: false, status: 502, json: async () => ({}) }),
+});
+const failingServer = http.createServer(failingApp);
+const failingBase = await new Promise((r) =>
+  failingServer.listen(0, "127.0.0.1", () => r(`http://127.0.0.1:${failingServer.address().port}`)),
+);
+after(() => failingServer.close());
+
 const server = http.createServer(app);
 const base = await new Promise((r) =>
   server.listen(0, "127.0.0.1", () => r(`http://127.0.0.1:${server.address().port}`)),
@@ -238,4 +254,59 @@ test("one-ticket identity: another facet identity sees nothing (owner scoping)",
   assert.equal(stranger.status, 404, "stranger gets 404 (existence not leaked)");
   const anon = await api("GET", `/api/blueprints/${id}`);
   assert.equal(anon.status, 401, "anonymous is 401");
+});
+
+// ── 3.x 预览沙箱（干跑三件套+三闸+诚实降级） ────────────────────────────────
+
+test("3.1 preview dry-run trio: green doc validates+assembles with zero persistence", async () => {
+  const email = "previewer@facet.test";
+  const before = studioDb.__testRows?.() ?? null;
+  const res = await api("POST", "/api/studio/preview", { email, body: { content: teamDoc() } });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body?.preview?.staticValidation?.ok, true);
+  assert.equal(res.body?.preview?.manifestPreview?.name, "盯梢台");
+  assert.equal(res.body?.preview?.draft, undefined, "no prompt → no drafting leg");
+  // 回归钉：预览不落库（blueprint rows unchanged for this identity）。
+  const list = await api("GET", "/api/blueprints", { email });
+  assert.equal((list.body?.blueprints ?? []).length, 0, "preview created zero document rows");
+});
+
+test("3.1 preview validation leg: credential-bearing content is rejected with findings", async () => {
+  const email = "previewer@facet.test";
+  const bad = teamDoc({ agents: [{ id: "leak", name: "漏", persona: "用 https://x.example.com?key=sk-live-abc123456789" }] });
+  const res = await api("POST", "/api/studio/preview", { email, body: { content: bad } });
+  assert.equal(res.status, 422);
+  assert.equal(res.body?.code, "preview_validation_failed");
+});
+
+test("3.2 quota: anonymous gets no preview; daily cap returns explicit code", async () => {
+  const anon = await api("POST", "/api/studio/preview", { body: { content: teamDoc() } });
+  assert.equal(anon.status, 401);
+  assert.equal(anon.body?.code, "preview_auth_required");
+  // Drive one identity to the cap with a low-limit env is not available post-
+  // boot; instead exhaust via repeated calls against the default 20.
+  const email = "quota-user@facet.test";
+  let last;
+  for (let i = 0; i < 21; i++) {
+    last = await api("POST", "/api/studio/preview", { email, body: { content: teamDoc() } });
+    if (last.status === 429) break;
+  }
+  assert.equal(last.status, 429, "daily cap answers 429");
+  assert.equal(last.body?.code, "preview_quota_exhausted");
+  const quota = await api("GET", "/api/studio/preview/quota", { email });
+  assert.equal(quota.body?.limit, 20);
+});
+
+test("3.3 honest degradation: drafting leg upstream failure is an explicit failed state, no placeholder draft", async () => {
+  const email = "degraded@facet.test";
+  const res = await fetch(`${failingBase}/api/studio/preview`, {
+    method: "POST",
+    headers: { ...identity(email), "content-type": "application/json" },
+    body: JSON.stringify({ content: teamDoc(), prompt: "起草一个盯梢台" }),
+  });
+  const body = await res.json().catch(() => null);
+  assert.equal(res.status, 502, JSON.stringify(body));
+  assert.equal(body?.code, "preview_lane_failed");
+  assert.equal(body?.preview?.draft, undefined, "no placeholder draft");
+  assert.equal(body?.staticValidation?.ok, true, "static+shape legs still honest");
 });

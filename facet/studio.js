@@ -27,6 +27,7 @@ import path from "node:path";
 import { createBlueprintRoutes, createFacetPublishClient } from "../server/routes/blueprints.js";
 import { createBlueprintDatabase } from "../server/routes/blueprints-db.js";
 import { createStudioDraftRoutes } from "../server/routes/studio-draft.js";
+import { createPreviewSandboxRoutes } from "./preview-sandbox.js";
 import { collectPublishVerdict } from "../gateway/packs.js";
 import { findAuthorPackByName } from "./publish-gate.js";
 
@@ -197,5 +198,7 @@ export function registerStudioRoutes(app, {
   // facet 数据目录为空 → rosterVisible=false → env 路由照发（同壹座 cell 进
   // 程的已实证形态）。
   createStudioDraftRoutes(app, ctx);
+  // 预览沙箱（task 3.x）：干跑三件套+三闸，零持久化。
+  createPreviewSandboxRoutes(app, { resolveUser });
   return { db };
 }

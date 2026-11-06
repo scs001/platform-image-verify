@@ -180,6 +180,14 @@ agent.finddatatech.cloud（供给域正门）
 W2 是最大工程，但 agent-builder-workspace 刚建成（11-01），在其生命周期最早期
 迁移，成本是最低点。
 
+> **W2 执行注记（2026-11-06，add-supply-studio-migration 代码面全落）**：谦面侧
+> Studio 骨架（studio-docs 宿主+凭据禁带闸+生命周期+发布闸进程内接线+预览沙箱
+> 三闸）、跨域闭环（deploy 深链+来源芯片改链+晋升通道）与壹座侧解体退役（/studio
+> 重定向、/agents 四区换装智能体市场、/tuning 原生面、蓝图端点退役）已全部实施；
+> 测试 13/13+workspace 系 35 绿。迁移=空搬（壹座库 0 行）。**挂账**：镜像出片
+> （GH 计费墙，cheap-3 旁路已建）→上产后跑真机漏斗走查（5.2）/六客户端装包
+> e2e（5.3）/机器面对账（5.4）→归档。trial 真执行通道（task 5.3 前接通）挂账。
+
 ## 8. 风险与挂账
 
 - **facet. 域退役兼容**：已分发客户端可能内嵌 marketplace.json 旧 URL——保留

@@ -7416,3 +7416,13 @@ A2 四连拒与超时的共同上游（§15.130 挂着的 judge 换型裁决）�
 **④ CATALOG 首翻实弹回归→回退→修复**：`SUPPLY_STORE_CATALOG=1` 翻转（GitOps f84073b）后 **23 条 `annotation` 全 null**——`catalogMcpEntries/catalogSkillEntries` 的 `repoAnnotationFn` 注入缝 facet/index.js 未接（bridge 双源合并的 repo 半边：finddata-supply-annotations 23 条；registry metadata 半边随迁移 metadata 整对象透传在位）。立即 git revert（aca8849）恢复 bridge 面（25 条/23 注释回验证）；修复 b0c47f756（facet/index.js 传 getRepoAnnotation + skills `.annotation` 解包对齐 mapSkill 形状+loadRepoAnnotations 装载）。
 
 **⑤ 出片列车中断=GH Actions 计费墙**：修复 push 后 image.yml dispatch 即死（"recent account payments have failed or your spending limit needs to be increased"，2s 0 log）——**fd-craw-private 全仓 Actions 11-04T22:57Z 后零成功**（live-supply-owner-acceptance 29 连败同因），fd-mcp-registry 最后成功 11-05T22:19Z（ab9b55e 构建即末班）→ 计费墙 11-05 深夜触发。旁路：**cheap-3 本地 docker 构建**（Jenkins→Harbor 旁路先例的直推版：git bundle 传树〔cheap-3 无 gitee 公钥〕→ amd64 build → 冒烟门 → 推 hkccr〔jenkins .docker/config 凭据在〕→ relay 回灌 ccr → GitOps bump）。**待用户：GitHub 账单/spending limit 处理，否则全项目列车线停摆**。
+
+## §9.2 W2 供给域 Studio 迁入（add-supply-studio-migration 代码面全落，2026-11-06）
+
+**① 谦面侧（facet/studio.js 装配）**：blueprint 全模块复用（routes/blueprints.js+blueprint-validate+studio-draft），`ctx.resolveUser` 注入缝接入谦面身份；store=FACET_DATA_ROOT/studio-docs.db（schema 与壹座 blueprints.db 逐字对齐，迁移对账口径=content_json 相等）；publisher=进程内（collectPublishVerdict shortCircuit 闸序+同名闸 twin（publish-gate.js 单一真源导出 findAuthorPackByName）+10/h 限速），resolveRefs=registry.list 进程内；trialDeps=诚实 503（trial_channel_pending，真执行通道挂 5.3 前接通）；预览沙箱（preview-sandbox.js）干跑三件套+三闸（匿名 401/日配额 429/时长帽 AbortSignal）语义码显式。
+
+**② 跨域闭环**：deployTeam runOrigin 分支→壹座 /packs?deployCastPack=（PackMarketView initialDetailId 直开 detail dialog）；FleetsPage 来源芯片→VITE_STUDIO_ORIGIN 跨域回链；壹座 POST /api/fleets/:id/promote（installed manifest 反向组蓝图+content._promotion provenance+excluded 显式）经 facetRequest 落 facet 草稿；单向闸=结构性（蓝图 API 无 fleet 回写面）。
+
+**③ 壹座侧退役**：server.js 卸蓝图三件套（routes 卸载、模块保留供 facet 装配与迁移读）；/studio→StudioRouteRedirect（query 透传）；/agents 四区解体→AgentMarketPage（市场深链+MyPacksView 装机面板，slug/testid/路由身份不变，layout 44 测绿）；/tuning 原生调优面（SkillCandidatesView+PersonaAmendmentsView 原样）；nav.agents 五语改「智能体市场」；legacy /settings/packs|presets 改靶不 404。
+
+**④ 迁移与验收**：壹座 blueprints.db 0 行（特性上线数日无人存盘）→空搬 0/0 AGREE（scripts/studio-store-migrate.mjs 程序化对账件留存）；**挂账**：GH 计费墙旁路（cheap-3 本地构建）出片→上产后跑真机漏斗走查（5.2）/六客户端装包 e2e（5.3）/机器面对账（5.4）→5.5 归档终验。测试：test-facet-studio 13/13+workspace 系 35 绿+layout 44 绿。

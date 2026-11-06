@@ -12,7 +12,7 @@ The server SHALL record every dsh runtime notification (session events and statu
 
 #### Scenario: ordinary turn captured
 - **WHEN** a chat turn runs to completion
-- **THEN** every dsh notification emitted during the turn SHALL exist as a trace row carrying the turn id, session id, seq, timestamp, method, event type, and raw payload
+- **THEN** every dsh notification emitted during the turn SHALL exist as a trace row carrying the turn id, session id, seq, timestamp, method, event type, and raw payload — with one deliberate exception: the `request/header` event stores its header identity (provider/model config) but not the per-turn tool-roster payload, whose full schema list is consumed in memory only and has no trace reader (storage-bound discipline, openspec: turn-tracing bounded storage)
 
 #### Scenario: trace store failure does not break chat
 - **WHEN** writing a trace row throws (e.g. disk error)

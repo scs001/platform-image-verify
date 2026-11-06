@@ -21,8 +21,12 @@ import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
 import { resolveJudgeLane } from "../blueprint-judge.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，
-// 与 routes 家族各面一致（fleets/clusters 同款）。
+// 与 routes 家族各面一致（fleets/clusters 同款）。ctx.resolveUser 注入缝
+// （add-supply-studio-migration 1.x）：宿主进程有自己的身份解析器时直接注入
+// （facet 侧=谦面 Logto/proxy 双通道），不传则走 platform 的 req.user/本地
+// owner 回落——platform 语义逐字节不变。
 function resolveUserFactory(ctx) {
+  if (typeof ctx?.resolveUser === "function") return ctx.resolveUser;
   return (req) =>
     req.user ?? (ctx?.authEnabled ? null : { email: ctx?.cellUserEmail || "owner@local", groups: [] });
 }

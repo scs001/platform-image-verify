@@ -18,13 +18,17 @@ import { DocsView } from "./DocsView";
 import { IntroView } from "./IntroView";
 import { McpCatalog } from "./McpCatalog";
 import { MineView } from "./MineView";
+import { StudioView } from "./StudioView";
 import { FilingFooter, PageFooter } from "./PageFooter";
 import { SiteMark } from "./SiteMark";
 
 // Conditional views (add-facet-content-management): #/mine needs a signed-in
 // viewer, #/curate needs an admin — an unauthorized deep link falls back to
 // the intro landing (the data plane rejects those calls anyway).
-type View = "intro" | "packs" | "mcp" | "docs" | "mine" | "curate";
+// studio (add-supply-studio-migration 1.6): the supply-domain creation face —
+// signed-in only (documents are owner-scoped; anonymous deep links fall back
+// to the intro landing, same gate as #/mine).
+type View = "intro" | "packs" | "mcp" | "docs" | "mine" | "curate" | "studio";
 
 type WhoamiUser = { email: string; groups: string[]; creator?: boolean; admin?: boolean } | null;
 
@@ -35,6 +39,7 @@ const VIEW_HASH: Record<View, string> = {
   docs: "#/docs",
   mine: "#/mine",
   curate: "#/curate",
+  studio: "#/studio",
 };
 
 /** Hash → view, gated by identity; unknown/empty/unauthorized fall back to intro. */
@@ -43,6 +48,7 @@ function viewFromHash(hash: string, user: WhoamiUser): View {
   if (hash === "#/mcp") return "mcp";
   if (hash === "#/docs") return "docs";
   if (hash === "#/mine") return user ? "mine" : "intro";
+  if (hash === "#/studio") return user ? "studio" : "intro";
   if (hash === "#/curate") return user?.admin ? "curate" : "intro";
   return "intro";
 }
@@ -129,6 +135,9 @@ export function App() {
     ["mcp", t("facetShell.tabs.mcp")],
     ["docs", t("facetShell.tabs.docs")],
     ...(user ? ([["mine", t("facetShell.tabs.mine")]] as [View, string][]) : []),
+    // Studio (add-supply-studio-migration 1.6): the creation face is a
+    // signed-in tab — the funnel entry the 壹座-side deep links resolve to.
+    ...(user ? ([["studio", t("facetShell.tabs.studio")]] as [View, string][]) : []),
     ...(user?.admin ? ([["curate", t("facetShell.tabs.curate")]] as [View, string][]) : []),
   ];
 
@@ -237,6 +246,7 @@ export function App() {
           {view === "docs" && <DocsView />}
           {view === "mine" && <MineView />}
           {view === "curate" && <CurateView />}
+          {view === "studio" && <StudioView />}
         </ErrorBoundary>
         {/* Spec: the intro landing carries the full marketing footer (ladder,
             brand, mission); the tool views carry the filing-only footer. */}

@@ -37,6 +37,7 @@ import { registerMcpRegistryJson } from "./mcp-registry-json.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
 import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
 import { registerSameNamePublishGate } from "./publish-gate.js";
+import { registerStudioRoutes } from "./studio.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.FACET_DATA_ROOT || process.env.DATA_ROOT || path.resolve("data");
@@ -154,6 +155,15 @@ registerPairingRoutes(app, {
 // it run first. One author, one name: a same-name republish is a structured
 // 409 naming the existing pack and the upgrade path; nothing is stored.
 registerSameNamePublishGate(app, { registry, resolveUser });
+
+// Supply-domain Studio (add-supply-studio-migration W2 1.x): the creation
+// surface moves here from the 壹座 face — document store (studio-docs.db,
+// blueprint schema byte-compatible for the migration), lifecycle/validation/
+// cast routes reused verbatim, in-process publish through the pack registry's
+// gate sequence, deferred trial channel (run-domain pending, task 5.3).
+// Mounted always; the web face routes in facet/web (task 1.6, single release
+// with the 壹座-side teardown).
+registerStudioRoutes(app, { resolveUser, registry, dataRoot: DATA_ROOT });
 
 registerPackRoutes(app, {
   registry,

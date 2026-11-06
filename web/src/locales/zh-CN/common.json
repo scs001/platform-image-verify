@@ -1598,7 +1598,8 @@
       "mcp": "MCP 服务",
       "mine": "我的智能体",
       "curate": "策展",
-      "docs": "文档"
+      "docs": "文档",
+      "studio": "Studio"
     },
     "langLabel": "语言",
     "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见",
@@ -1609,7 +1610,8 @@
       "retry": "重试登录",
       "dismiss": "关闭"
     },
-    "loggedInAs": "已登录：{{email}}"
+    "loggedInAs": "已登录：{{email}}",
+    "studioTitle": "Studio"
   },
   "facetDocs": {
     "title": "使用文档",

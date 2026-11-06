@@ -1598,7 +1598,8 @@
       "mcp": "Servicios MCP",
       "mine": "Mis agentes",
       "curate": "Curaduría",
-      "docs": "Docs"
+      "docs": "Docs",
+      "studio": "Studio"
     },
     "langLabel": "Idioma",
     "packsFootnote": "Navegación anónima; inicia sesión para publicar y suscribirte. Uso de la CLI:",
@@ -1609,7 +1610,8 @@
       "retry": "Reintentar el inicio de sesión",
       "dismiss": "Cerrar"
     },
-    "loggedInAs": "Sesión iniciada como {{email}}"
+    "loggedInAs": "Sesión iniciada como {{email}}",
+    "studioTitle": "Studio"
   },
   "facetDocs": {
     "title": "Documentación",

@@ -8,6 +8,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@platform/core": "file:../packages/core",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^26.3.6",
@@ -15,6 +16,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^17.0.11",
+    "react-router-dom": "^7.18.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {

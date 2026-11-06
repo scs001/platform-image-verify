@@ -115,7 +115,7 @@ async function runPublishToolGate(manifest) {
 // shortCircuit=false (validate) collects every gate's verdict in one pass.
 const CREATOR_GROUP_REQUIRED = "Creator group required";
 
-async function collectPublishVerdict(manifest, { shortCircuit = false, pricing = null, officialAuthor = false, env = process.env } = {}) {
+export async function collectPublishVerdict(manifest, { shortCircuit = false, pricing = null, officialAuthor = false, env = process.env } = {}) {
   const items = [];
   const push = (stage, status, body) => items.push({ stage, status, body });
   if (!manifest) {

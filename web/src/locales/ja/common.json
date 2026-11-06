@@ -1598,7 +1598,8 @@
       "mcp": "MCP サービス",
       "mine": "マイエージェント",
       "curate": "キュレーション",
-      "docs": "ドキュメント"
+      "docs": "ドキュメント",
+      "studio": "Studio"
     },
     "langLabel": "言語",
     "packsFootnote": "匿名で閲覧可能、ログイン後に公開と購読。CLI の使い方：",
@@ -1609,7 +1610,8 @@
       "retry": "再ログイン",
       "dismiss": "閉じる"
     },
-    "loggedInAs": "ログイン中：{{email}}"
+    "loggedInAs": "ログイン中：{{email}}",
+    "studioTitle": "Studio"
   },
   "facetDocs": {
     "title": "ドキュメント",

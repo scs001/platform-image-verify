@@ -22,7 +22,7 @@ const MAX_PAGES = 100; // pageSize is registry-capped at 100; a hard stop guards
 
 // Author-scoped, exact-name lookup across everything the author owns
 // (listed, unlisted, private — the author-self view widens both clauses).
-function findAuthorPackByName(registry, email, name) {
+export function findAuthorPackByName(registry, email, name) {
   const viewer = { email };
   for (let page = 1; page <= MAX_PAGES; page++) {
     const out = registry.list({ author: email, viewer, page, pageSize: 100 });

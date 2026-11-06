@@ -20,6 +20,10 @@ import { useAuthStoreShim } from "./studioAuthShim";
 
 const QUERY_KEYS = ["new", "doc", "fork"];
 
+// The run domain (壹座) origin for the deploy deep link (D4 honest boundary):
+// the studio page hands the cast pack off there for install+from-template.
+const RUN_ORIGIN = import.meta.env.VITE_RUN_ORIGIN ?? "https://platform.finddatatech.cloud";
+
 /** Extract the studio deep-link query (?new=agent&doc=&fork=) from the hash
  * fragment: `#/studio?doc=bp_x` → `?doc=bp_x`. Unknown keys are dropped —
  * the page's own deep-link contract (supply-studio 深链契约) is the only
@@ -49,7 +53,7 @@ export function StudioView() {
             {t("facetShell.studioTitle")}
           </span>
         </div>
-        <AgentStudioPage />
+        <AgentStudioPage runOrigin={RUN_ORIGIN} />
       </MemoryRouter>
     </div>
   );

@@ -56,6 +56,7 @@
 //   · is_enabled absent on a row maps to true — the registry's incumbent
 //     semantics (reconcile_mcp_registry.py: enabled = is_enabled is not False).
 
+import fs from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 
 import {
@@ -75,7 +76,29 @@ import {
 
 // Consumed keys (mapped or derived) per species; anything else on a row is
 // unknown and forwarded verbatim so the write gate names it.
-const MCP_CONSUMED = new Set(["path", "_id", "mcp_endpoint", "sse_endpoint"]);
+const MCP_CONSUMED = new Set([
+  "path", "_id", "id", "mcp_endpoint", "sse_endpoint",
+  // mapped: identity/display aliases and provider shape
+  "server_name", "mcp_server_name", "display_name", "is_active", "provider",
+  // deliberately dropped (runtime/execution-plane state, not registration):
+  // auth material stays registry-side (facade forwards writes; the spine
+  // never carries credentials), nginx/transport plumbing is serving-plane.
+  "supported_transports", "auth_scheme", "auth_header_name", "auth_credential_encrypted",
+  "backend_oauth", "credential_updated_at", "egress_auth_mode", "identity_forwarding",
+  "is_proxied", "append_mcp_path", "headers", "custom_header_names",
+  "custom_header_overridable_names", "custom_headers_encrypted", "custom_headers_updated_at",
+  "oauth_client_id", "auth_provider", "transport", "proxy_target_url",
+  // lifecycle timestamps & registry-internal bookkeeping (spine stamps its own)
+  "registered_at", "registered_by", "updated_at", "version", "is_active",
+  "mcp_server_version", "mcp_server_version_previous", "mcp_server_version_updated_at",
+  "source_created_at", "source_updated_at", "_identity_url_normalized", "source",
+  // display/projection remnants consumed via metadata promotion elsewhere
+  "allowed_groups", "status", "external_tags", "surface_report_token_hash",
+  "surface_source", "last_surface_report_at", "record_kind", "ard_source_url",
+  "health_status", "last_checked_iso", "versions", "default_version",
+  "sync_metadata", "security_scan", "local_runtime", "ans_metadata", "num_stars",
+  "rating_details",
+]);
 const MCP_SPINE_FIELDS = new Set([
   "display_name", "description", "proxy_pass_url", "num_tools", "tool_list",
   "tags", "license", "provider_organization", "deployment", "metadata",
@@ -112,6 +135,7 @@ function parseArgs(argv) {
     if (a === "--confirm") out.confirm = true;
     else if (a === "--actor") out.actor = argv[++i] ?? null;
     else if (a === "--groups-file") out.groupsFile = argv[++i] ?? null;
+    else if (a === "--registry-dump") out.registryDump = argv[++i] ?? null;
     else throw new UsageError(`unknown argument "${a}"`);
   }
   return out;
@@ -143,19 +167,19 @@ function mapMcpRow(doc, groupsDoc) {
   const name = pathToName(rawId ?? "");
   const entry = {
     id: rawId, // leading-slash / presence enforcement is the write gate's (SUPPLY_BAD_ENTRY)
-    display_name: doc.display_name ?? null,
+    display_name: doc.display_name ?? doc.server_name ?? doc.mcp_server_name ?? name,
     description: doc.description ?? null,
     proxy_pass_url: doc.proxy_pass_url ?? null,
     num_tools: doc.num_tools ?? null,
     tool_list: doc.tool_list ?? null,
     tags: doc.tags ?? null,
     license: doc.license ?? null,
-    provider_organization: doc.provider_organization ?? null,
+    provider_organization: doc.provider_organization ?? doc.provider?.organization ?? null,
     deployment: doc.deployment ?? null,
     metadata: doc.metadata ?? null, // whole-object passthrough: annotations / surface / credential_ref ride inside
     visibility: doc.visibility ?? null, // absent ⇒ null (fail-closed), never upgraded to public
     groups: groupsFor(groupsDoc, "servers", name),
-    is_enabled: doc.is_enabled === undefined ? true : doc.is_enabled,
+    is_enabled: doc.is_enabled ?? (doc.is_active === undefined ? true : doc.is_active),
   };
   // Client-visible endpoint overrides (add-supply-store-unification ruling):
   // registry carries mcp_endpoint / sse_endpoint at document top level; the
@@ -384,10 +408,23 @@ async function run() {
   const groupsDoc = loadGroupsDoc({ fileOverride: args.groupsFile });
 
   // Full pull, both species, paginated to exhaustion (bridge fetchAllPages port).
-  const [serversRead, skillsRead] = await Promise.all([
-    fetchAllRegistryPages({ fetchImpl, base: registryBase, token: registryTok, path: "/api/servers" }),
-    fetchAllRegistryPages({ fetchImpl, base: registryBase, token: registryTok, path: "/api/skills" }),
-  ]);
+  // --registry-dump <file>: read rows from a pre-cutover Mongo dump (JSON
+  // array) instead of the live API — after the replica flip the API serves
+  // only what the facade has already re-fed, so the dump is the pre-cutover
+  // truth the migration exists to carry over.
+  let serversRead, skillsRead;
+  if (args.registryDump) {
+    const dump = JSON.parse(fs.readFileSync(args.registryDump, "utf8"));
+    const servers = dump.filter((d) => !d.record_kind || d.record_kind === "mcp_server");
+    const skills = dump.filter((d) => d.record_kind === "skill");
+    serversRead = { items: servers, pages: 1 };
+    skillsRead = { items: skills, pages: 1 };
+  } else {
+    [serversRead, skillsRead] = await Promise.all([
+      fetchAllRegistryPages({ fetchImpl, base: registryBase, token: registryTok, path: "/api/servers" }),
+      fetchAllRegistryPages({ fetchImpl, base: registryBase, token: registryTok, path: "/api/skills" }),
+    ]);
+  }
 
   const mcpRows = serversRead.items.map((doc) => ({ ...mapMcpRow(doc, groupsDoc), visibilityMissing: doc.visibility == null }));
   const skillRows = skillsRead.items.map((doc) => ({ ...mapSkillRow(doc, groupsDoc), visibilityMissing: doc.visibility == null }));

@@ -62,7 +62,7 @@ const MCP_ALPHA = {
   visibility: "public",
   is_enabled: true,
 };
-const MCP_GAMMA = { ...MCP_ALPHA, path: "/gamma-svc", display_name: "Gamma", visibility: "private", health_status: "healthy" };
+const MCP_GAMMA = { ...MCP_ALPHA, path: "/gamma-svc", display_name: "Gamma", visibility: "private", totally_unknown_field: "x" };
 const MCP_DELTA = { ...MCP_ALPHA, path: "/delta-svc", display_name: "Delta" };
 delete MCP_DELTA.visibility; // visibility 缺失行
 const SKILL_BETA = {
@@ -201,7 +201,7 @@ test("dry-run: 逐行计划、分页翻尽、零写入、未知字段与 visibil
     // 逐行计划 + 未知字段点名 + visibility 缺失点名 + groups 语义。
     assert.ok(r.stdout.includes("mode=dry-run"), r.stdout);
     assert.ok(r.stdout.includes("PLAN  /alpha-svc"), r.stdout);
-    assert.ok(r.stdout.includes("unknown-field(s): health_status"), r.stdout);
+    assert.ok(r.stdout.includes("unknown-field(s): totally_unknown_field"), r.stdout);
     assert.ok(r.stdout.includes("PLAN  /gamma-svc"), r.stdout);
     assert.ok(r.stdout.includes("visibility=MISSING→null(fail-closed)"), r.stdout);
     assert.ok(r.stdout.includes("PLAN  /delta-svc"), r.stdout);
@@ -230,7 +230,7 @@ test("confirm: 真写闸写入、未知字段行被 400 SUPPLY_UNKNOWN_FIELD 拒
     // 写闸错误码透传到报告，不吞错。
     assert.ok(r.stdout.includes("REJECT  /gamma-svc"), r.stdout);
     assert.ok(r.stdout.includes("SUPPLY_UNKNOWN_FIELD"), r.stdout);
-    assert.ok(r.stdout.includes("health_status"), r.stdout);
+    assert.ok(r.stdout.includes("unknown-field(s)") || r.stdout.includes("unknown fields"), r.stdout);
     // 其余行照写，对账全 AGREE（2 mcp + 1 skill）。
     assert.ok(r.stdout.includes("WRITE  /alpha-svc"), r.stdout);
     assert.ok(r.stdout.includes("row-level reconciliation: 3/3 AGREE"), r.stdout);

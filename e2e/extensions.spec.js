@@ -10,6 +10,42 @@ function uniqueName(prefix) {
 }
 
 test.describe("Extensions Page - UI Rendering", () => {
+  // Danger-confirm primitive (optimize-paas-module-audit N-16):
+  // ConfirmDialog's `danger` variant is consumed by five pages but had no
+  // dedicated assertion. Pin the two spec'd invariants on a real consumer —
+  // cancel precedes confirm in DOM order (focus lands on the safe side), and
+  // the confirm button carries the destructive fill. Escape must cancel.
+  test("danger confirm: cancel is first, confirm is destructive, Escape cancels", async ({ page }) => {
+    await gotoExtensions(page);
+    const name = uniqueName("danger-confirm");
+    await page.getByTestId("add-mcp-btn").click();
+    await page.getByLabel(/name/i).fill(name);
+    await page.getByLabel(/http/i).click();
+    await page.getByLabel(/url/i).fill("http://localhost:9999/mcp");
+    await page.getByRole("button", { name: /^add$/i }).click();
+    const card = page.getByTestId("mcp-card").filter({ has: page.getByText(new RegExp(`^${name}$`, "i")) });
+    await expect(card).toBeVisible({ timeout: 5000 });
+
+    await card.getByTestId("mcp-delete-btn").click();
+    const dialog = page.getByRole("dialog").filter({ hasText: /delete/i });
+    await expect(dialog).toBeVisible();
+    const buttons = dialog.getByRole("button");
+    // First focusable is Cancel (safe default); last is the destructive Confirm.
+    await expect(buttons.nth(0)).toContainText(/cancel/i);
+    const confirm = buttons.last();
+    await expect(confirm).toHaveClass(/bg-destructive-deep/);
+
+    // Escape is equivalent to cancel: the card survives and the dialog closes.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(card).toBeVisible();
+
+    // Cleanup: this time confirm, and the card goes away.
+    await card.getByTestId("mcp-delete-btn").click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
+    await expect(card).not.toBeVisible({ timeout: 5000 });
+  });
+
   test("page loads with correct tab names (Enabled/Store)", async ({ page }) => {
     await gotoExtensions(page);
 
@@ -194,8 +230,8 @@ test.describe("Extensions Page - MCP Interaction Flow", () => {
     await expect(newCard.getByTestId("mcp-delete-btn")).toBeVisible();
 
     // Clean up: delete the server
-    page.on("dialog", (d) => d.accept());
     await newCard.getByTestId("mcp-delete-btn").click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
 
     // Should be gone
     await expect(newCard).not.toBeVisible({ timeout: 5000 });
@@ -232,8 +268,8 @@ test.describe("Extensions Page - MCP Interaction Flow", () => {
     await expect(newCard.getByTestId("mcp-disabled-badge")).not.toBeVisible();
 
     // Clean up
-    page.on("dialog", (d) => d.accept());
     await newCard.getByTestId("mcp-delete-btn").click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
   });
 
   test("install MCP from Store → appears in Enabled", async ({ page }) => {
@@ -267,8 +303,8 @@ test.describe("Extensions Page - MCP Interaction Flow", () => {
     await expect(newCard).toBeVisible({ timeout: 10000 });
 
     // Clean up
-    page.on("dialog", (d) => d.accept());
     await newCard.getByTestId("mcp-delete-btn").click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
   });
 });
 
@@ -305,8 +341,8 @@ test.describe("Extensions Page - Skill Interaction Flow", () => {
     await expect(newCard.getByRole("button", { name: /delete/i })).toBeVisible();
 
     // Clean up
-    page.on("dialog", (d) => d.accept());
     await newCard.getByRole("button", { name: /delete/i }).click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
     await expect(newCard).not.toBeVisible({ timeout: 5000 });
   });
 
@@ -340,8 +376,8 @@ test.describe("Extensions Page - Skill Interaction Flow", () => {
     await expect(toggle).toBeChecked({ timeout: 5000 });
 
     // Clean up
-    page.on("dialog", (d) => d.accept());
     await newCard.getByRole("button", { name: /delete/i }).click();
+    await page.getByRole("dialog").filter({ hasText: /delete/i }).getByRole("button").last().click();
   });
 });
 

@@ -21,17 +21,33 @@ test("@smoke chat turn saves history without duplicating text", async ({ page, r
   await expect(turn).toBeVisible({ timeout: 30000 });
   await expect(turn).toHaveAttribute("data-streaming", "false", { timeout: 45000 });
 
-  // The rendered turn includes a thinking block (reasoning) when the model
-  // emits reasoning_content; that's rendered but NOT persisted (only text
-  // blocks are), so strip it before comparing to the persisted answer —
-  // otherwise reasoning inflates the bubble ~30x and trips the ceiling.
+  // The rendered turn includes chrome that is rendered but NOT persisted:
+  // the reasoning block (reasoning_content), the collapsed activity-group
+  // chip ("Thought for 1s" — chat-activity-groups), the token usage footer
+  // (turn-usage — chat-usage-display), and the assistant-name header. Strip
+  // them before comparing to the persisted answer, otherwise legitimate
+  // chrome inflates the bubble and trips the ceiling. (07-22 original only
+  // stripped thinking-block; the chrome list grew with those features.)
   const bubbleText = await turn.evaluate((el) => {
     const clone = el.cloneNode(true);
     clone
-      .querySelectorAll('[data-testid="thinking-block"]')
+      .querySelectorAll(
+        [
+          '[data-testid="thinking-block"]',
+          '[data-testid="activity-group"]',
+          '[data-testid="turn-usage"]',
+          '[data-testid="turn-retry"]',
+          '[data-testid="turn-interrupted"]',
+          '[data-testid="turn-connection-lost"]',
+        ].join(","),
+      )
       .forEach((n) => {
         n.remove();
       });
+    // Drop the header row (assistant name + actions) — it is the article's
+    // first child div; the answer lives in the second (the content column).
+    const firstDiv = clone.querySelector(":scope > div");
+    if (firstDiv) firstDiv.remove();
     return (clone.textContent || "").trim();
   });
 

@@ -6,16 +6,17 @@
 ## Requirements
 
 ### Requirement: Deployment wires the registry market source
-The platform production deployment SHALL provide `REGISTRY_URL` (registry base URL) and `MARKET_REGISTRY_TOKEN` (bearer token for the registry API) to the server process. In the live layout (namespace `fd-prod`, env injected via `envFrom`) the URL lives in the `platform-config` ConfigMap and the token as a `platform-secrets` Secret key; the repo manifest (`k8s/deployment.yaml`, pre-Harbor single-container layout) SHALL carry the equivalent `env` entries with the token sourced from a Secret key. The token value SHALL NOT be committed to the repository in plaintext.
+The platform production deployment SHALL provide the unified supply catalog read path: `FACET_CATALOG_URL` (facet catalog base URL) and `FACET_CATALOG_TOKEN` (facet internal credential for the global read), plus the legacy direct-registry wiring `REGISTRY_URL` / `MARKET_REGISTRY_TOKEN` as the documented rollback. When both are configured the facet catalog SHALL win; the direct feed stays available only during the deprecation window and SHALL announce itself with a loud warning (`registry-bridge.js` `getCatalogSource`). In the live layout (namespace `fd-prod`, env injected via `envFrom`) the URLs live in the `platform-config` ConfigMap and the tokens as Secret keys; token values SHALL NOT be committed to the repository in plaintext. With no catalog source configured the market SHALL serve the bundled catalog (honest offline floor).
 
 #### Scenario: deployment carries registry URL and token
 - **WHEN** the production deployment is running with the wired configuration
-- **THEN** the platform process SHALL run with `REGISTRY_URL=https://mcp.finddatatech.cloud` and a non-empty `MARKET_REGISTRY_TOKEN`
+- **THEN** the platform process SHALL run with a non-empty `FACET_CATALOG_URL` and `FACET_CATALOG_TOKEN`
+- **AND** the legacy `REGISTRY_URL` / `MARKET_REGISTRY_TOKEN` SHALL remain configured as the rollback (unsetting `FACET_CATALOG_URL` falls back to the direct feed)
 
 #### Scenario: missing token does not block startup
-- **WHEN** the token key is absent or expired
-- **THEN** the platform SHALL still start and serve the bundled market catalog
-- **AND** registry-sourced entries SHALL be absent (or degrade to last-good) until a valid token is provided
+- **WHEN** the facet catalog token key is absent or expired
+- **THEN** the platform SHALL still start and serve the catalog's public projection subset (or the bundled market catalog when no source is reachable)
+- **AND** registry-sourced entries requiring the credential SHALL be absent until a valid token is provided
 
 ### Requirement: Deployed market reflects registry content
 With the wired configuration and a valid token, after the first registry refresh the production deployment's `GET /api/extensions/market` SHALL include the registry's enabled MCP servers and skills merged with (and name-colliding entries dropped in favor of) the bundled catalog, per the `extension-marketplace` specification. The Agents page SHALL list registry-sourced agents per the `agent-catalog` specification: `supported_protocol: "a2a"` entries as `a2a`-mode Agent Services (gateway route URL), others as link-mode agents.
@@ -32,6 +33,7 @@ With the wired configuration and a valid token, after the first registry refresh
 #### Scenario: registry outage keeps the store usable
 - **WHEN** the registry becomes unreachable after a successful refresh
 - **THEN** the deployed market SHALL keep serving the last-good registry entries with the bundled catalog, per the existing degradation requirement
+
 ### Requirement: Operator runbook documents token provisioning
 `DEPLOY.md` SHALL document how to obtain a registry service token (registry admin UI's token issuance), store it in the `platform-secrets` Secret as `market-registry-token`, restart the platform deployment, and verify the wiring by checking `GET /api/extensions/market` for registry entries and the boot log for the absence of the "registry source disabled" notice.
 

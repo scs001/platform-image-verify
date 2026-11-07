@@ -42,12 +42,16 @@ export function studioQueryFromHash(hash: string): string {
 }
 
 export function StudioView() {
+  // Hook call (add-supply-studio-migration 1.6): the shim mirrors the facet
+  // session into the shared auth store. It was previously rendered as
+  // `<useAuthStoreShim />` — lowercase JSX is a DOM tag to React, so the
+  // mount effect never ran; call it as the hook it is.
+  useAuthStoreShim();
   const { t } = useTranslation();
   const query = studioQueryFromHash(window.location.hash);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="facet-studio-face">
       <MemoryRouter initialEntries={[`/studio${query}`]}>
-        <useAuthStoreShim />
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <span className="text-sm font-medium text-muted-foreground">
             {t("facetShell.studioTitle")}

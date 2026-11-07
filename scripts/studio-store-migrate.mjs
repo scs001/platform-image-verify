@@ -17,9 +17,6 @@
 
 import Database from "better-sqlite3";
 import { createBlueprintDatabase } from "../server/routes/blueprints-db.js";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 
 function parseArgs(argv) {
   const out = { dryRun: true, actor: null, legacy: null, studio: null };

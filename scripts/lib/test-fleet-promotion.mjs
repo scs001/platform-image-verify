@@ -14,7 +14,7 @@ import { Router } from "express";
 
 const OWNER = "fleet-owner@facet.test";
 
-export async function createFleetPromotionTestHarness({ studioApp, studioBase }) {
+export async function createFleetPromotionTestHarness({ studioBase }) {
   const fleetRow = { id: `flt_${Date.now()}`, name: "", ownerEmail: OWNER, sourceTemplate: { packId: "pk_promo", version: 1 } };
   let manifest = null;
 

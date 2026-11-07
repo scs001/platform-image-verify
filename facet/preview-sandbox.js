@@ -48,7 +48,7 @@ export function createPreviewSandboxRoutes(app, { resolveUser, fetchImpl = fetch
     const user = resolveUser(req);
     if (!user) return res.status(401).json({ error: "Authentication required", code: "preview_auth_required" });
 
-    const { content, prompt, kind } = req.body ?? {};
+    const { content, prompt } = req.body ?? {};
     if (!content || typeof content !== "object" || Array.isArray(content)) {
       return res.status(400).json({ error: "content (blueprint object) is required", code: "preview_content_required" });
     }
@@ -83,7 +83,6 @@ export function createPreviewSandboxRoutes(app, { resolveUser, fetchImpl = fetch
       const text = String(prompt).trim();
       if (!text) return res.status(400).json({ error: "prompt cannot be blank when present", code: "preview_prompt_blank" });
       if (text.length > 4000) return res.status(413).json({ error: "prompt too long (max 4000 chars)", code: "preview_prompt_too_long" });
-      const draftKind = kind === "agent" ? "agent" : "team";
       const lane = resolveJudgeLane({});
       if (!lane) {
         // 诚实降级：车道缺席是显式失败态（校验+形状仍如实返回），不伪装成功。

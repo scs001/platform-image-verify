@@ -85,7 +85,7 @@ const ctx = {
         ];
       },
     },
-    billingSnapshots: (email, opts) => {
+    billingSnapshots: (email) => {
       snapCalls.count += 1;
       assert.equal(email, EMAIL);
       return [{ email, userId: 1, balanceUsd: 42.1, sampledAt: Date.now() - 60_000 }];
@@ -165,9 +165,7 @@ test("1.3 lex/wire 无凭据 → unconnected（零上游调用语义），状态
 test("1.4 lex 上游 401 → 凭据翻面 unconnected/expired；上游 500 → 仅 lex degraded", async () => {
   // 先给 lex 连接态（真凭据行），fetch 指向会 401 的本地 mock。
   lc.store({ email: EMAIL, line: "lex", token: lexJwt(), refreshToken: null });
-  let hits = 0;
   const up = http.createServer((req, res) => {
-    hits += 1;
     res.writeHead(req.url.includes("boom") ? 500 : 401);
     res.end("{}");
   });
@@ -181,7 +179,7 @@ test("1.4 lex 上游 401 → 凭据翻面 unconnected/expired；上游 500 → �
     const lex = lineOf(body, "lex");
     assert.equal(lex.status, "ok");
     assert.equal(lex.metrics.unconnected, "expired", "401 翻面如实呈现");
-      }
+  }
 
   // 重连后再打 500 → 仅 lex degraded，其余线照常
   lc.store({ email: EMAIL, line: "lex", token: lexJwt(), refreshToken: null });
@@ -189,7 +187,7 @@ test("1.4 lex 上游 401 → 凭据翻面 unconnected/expired；上游 500 → �
   // 用 fetch 替身在模块层不可行，这里用本地 server + env 覆盖不行 → 改为验证
   // degraded 形状经 helper 直调）。
   const { fetchLexUsageFor } = await import("../lib/board-adapters.js");
-  const degraded = await fetchLexUsageFor(EMAIL, { apiBase: lexBase, deps: { fetch: async (url) => ({ ok: false, status: 500, text: async () => "boom" }) } });
+  const degraded = await fetchLexUsageFor(EMAIL, { apiBase: lexBase, deps: { fetch: async () => ({ ok: false, status: 500, text: async () => "boom" }) } });
   assert.equal(degraded.status, "degraded");
 
   up.close();
@@ -224,7 +222,7 @@ test("1.5 萬星代读：mock facade → 按主人 email 过滤聚合；无 call
 
   // 无 caller 行 → 字段缺席（不出 turns:0 假零）
   up.close();
-  const up2 = http.createServer((req, res) => {
+  const up2 = http.createServer((_req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ byCaller: [{ callerId: "c9", email: "other@x", turns: 5, minutes: 5, usd: 5, pending: 0 }], byAgent: [] }));
   });

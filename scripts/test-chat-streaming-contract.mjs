@@ -86,7 +86,7 @@ test("silent turn emits settled text exactly once as fallback", () => {
 });
 
 test("finishTurn closes once: idempotent even if idle fires twice", () => {
-  const { ctx, sent, notify } = harness();
+  const { ctx, sent } = harness();
   ctx.turnStateFor(SESSION).isStreaming = true;
   ctx.finishTurn("ok", SESSION);
   ctx.finishTurn("ok", SESSION);

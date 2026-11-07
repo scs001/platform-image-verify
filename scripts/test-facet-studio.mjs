@@ -260,7 +260,6 @@ test("one-ticket identity: another facet identity sees nothing (owner scoping)",
 
 test("3.1 preview dry-run trio: green doc validates+assembles with zero persistence", async () => {
   const email = "previewer@facet.test";
-  const before = studioDb.__testRows?.() ?? null;
   const res = await api("POST", "/api/studio/preview", { email, body: { content: teamDoc() } });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body?.preview?.staticValidation?.ok, true);

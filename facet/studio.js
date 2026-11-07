@@ -17,14 +17,14 @@
 //                pack 发布同闸（见 publisher 的闸调用）。
 //   * resolveRefs = 进程内市场解析（registry.list by name），同 HTTP 分支
 //                语义（pick name 精确匹配的第一条）。
-//   * trialDeps = v1 诚实不可用（D3：真执行需要壹座运行域，v1 预览=干跑；
-//                trial 端点挂出、ribbon 投影与 409 语义保持，执行通道在
-//                壹座侧 trial-exec 落位后切换，挂账 task 5.3 前）。
+//   * trialDeps = 跨域 client（RUN_DOMAIN_BASE_URL 配置时：runWhole 交壹座
+//                trial-exec 执行整链，报告单体返回）或诚实 503 桩（未配置
+//                时，trial 端点挂出、ribbon 投影与 409 语义保持——task 5.3）。
 //
 // 设计锚：design.md D1（宿主）、D4（跨域边界）、D5（退役映射）。
 
 import path from "node:path";
-import { createBlueprintRoutes, createFacetPublishClient } from "../server/routes/blueprints.js";
+import { createBlueprintRoutes } from "../server/routes/blueprints.js";
 import { createBlueprintDatabase } from "../server/routes/blueprints-db.js";
 import { createStudioDraftRoutes } from "../server/routes/studio-draft.js";
 import { createPreviewSandboxRoutes } from "./preview-sandbox.js";
@@ -145,11 +145,14 @@ function createInProcessPackResolver({ registry }) {
   };
 }
 
-// ── v1 试跑依赖：诚实不可用 ──────────────────────────────────────────────────
-// D3：真执行需要壹座运行域（cell/凭据/舰队语境），v1 不含。trial 端点仍挂出
-// （ribbon 投影 + agent 409 + cast 前置 409 语义全保留），执行通道答显式 503
-// 语义码——不伪造、不静默。壹座侧 trial-exec 落位后由这里切换为跨域 client
-// （挂账 task 5.3 前）。
+// ── 试跑依赖：跨域 client 或诚实不可用 ──────────────────────────────────────
+// D3：真执行需要壹座运行域（cell/凭据/舰队语境）。两条形态：
+//   ① RUN_DOMAIN_BASE_URL 配置时 → createRemoteTrialDeps：runWhole 把整份蓝图
+//      交给壹座 trial-exec（共享内部凭据 x-facet-token，与 gateway/facet-proxy
+//      同一凭据反向使用），报告单体返回，文档与签字链仍落本侧 studio-docs.db。
+//   ② 未配置时 → createDeferredTrialDeps：trial 端点仍挂出（ribbon 投影 +
+//      agent 409 + cast 前置 409 语义全保留），执行通道答显式 503 语义码
+//      ——不伪造、不静默。
 function createDeferredTrialDeps() {
   const unavailable = () => {
     throw Object.assign(new Error("trial execution is not available on the supply-domain deployment yet (run-domain channel pending; see task 5.3)"), {
@@ -164,6 +167,36 @@ function createDeferredTrialDeps() {
     provision: unavailable,
     runTurn: unavailable,
     judge: unavailable,
+  };
+}
+
+function createRemoteTrialDeps({ base, token, fetchImpl = fetch } = {}) {
+  const cleanBase = (base || "").replace(/\/+$/, "");
+  // collectAndWait 的证据窗受平台 HTTP 请求顶棚（Node 默认 300s）约束——
+  // 请求体带 timeoutMs，服务端再夹到 [30s, 270s]；客户端放宽到 5 分钟整，
+  // 慢在收证而非连接。
+  return {
+    now: Date.now,
+    runWhole: async ({ blueprint, user }) => {
+      const res = await fetchImpl(`${cleanBase}/api/trial-exec`, {
+        method: "POST",
+        headers: {
+          "x-facet-token": token,
+          "x-facet-user": Buffer.from(JSON.stringify({ email: user?.email, groups: user?.groups ?? [] })).toString("base64url"),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ blueprint, timeoutMs: 270_000 }),
+        signal: AbortSignal.timeout(300_000),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw Object.assign(new Error(body?.error || `trial-exec failed (HTTP ${res.status})`), {
+          status: res.status,
+          code: body?.code || "trial_exec_remote_failed",
+        });
+      }
+      return body.report;
+    },
   };
 }
 
@@ -184,7 +217,10 @@ export function registerStudioRoutes(app, {
 }) {
   const db = studioDb ?? createStudioDocDatabase({ file: path.join(dataRoot, "studio-docs.db") });  const publisher = publishClient ?? createInProcessPublishClient({ registry, env });
   const resolver = packResolver ?? createInProcessPackResolver({ registry });
-  const trial = trialDeps ?? createDeferredTrialDeps();
+  const trial = trialDeps
+    ?? (env.RUN_DOMAIN_BASE_URL
+      ? createRemoteTrialDeps({ base: env.RUN_DOMAIN_BASE_URL, token: env.FACET_INTERNAL_TOKEN || "" })
+      : createDeferredTrialDeps());
   const ctx = { authEnabled: true, resolveUser };
 
   createBlueprintRoutes(app, ctx, {

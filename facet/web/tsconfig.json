@@ -9,9 +9,10 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "types": ["vite/client"],
     "paths": {
       "@/*": ["../../web/src/*"]
     }
   },
-  "include": ["src", "../../web/src/components/packs", "../../web/src/components/ui", "../../web/src/lib/packs-api.ts", "../../web/src/locales"]
+  "include": ["src", "../../web/src/types", "../../web/src/components/packs", "../../web/src/components/ui", "../../web/src/lib/packs-api.ts", "../../web/src/locales"]
 }

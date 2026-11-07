@@ -9,13 +9,42 @@
   `authoring_events` +1、`domain_proposal_events` pending→confirmed。
 - **柏讯侧是今天的提交目标**：交付前，本体草案由舰队的提案岗交给柏讯动作审批队列，再由人确认。
   这条链与「已发布本体的权威源是平台」相悖（C3 裁定），且其动作提案模型不认识业务域。
-- **待钉死的一点**：提案岗在生产里**具体**经哪条路径投递（MCP 工具 / HTTP 客户端 / 岗位脚本），
-  在写本设计时未做生产侧取证 —— 本 change 的任务 1.1 就是取证并把这个路径钉下来，写进
-  `design.md` 的「切换点」一节。**在此之前不要按猜测改代码**。
+- **取证已完成（2026-11-08，任务 1.1）**：出口链路、驱动位置与「不止一个出口」的情形见下节
+  「切换点」。取证同时修正了本 change 立项时的一个措辞 —— 它不是「往审批队列塞一条提案」，
+  而是**在客户租户里声明实体类型**，两件事的语义差别决定了切换的后果。
 
-## 切换点（D1）
+## 切换点（D1）—— 取证结果（2026-11-08）
 
-提案岗只有一个**出口函数**（提交一次草案），本 change 要求把这个出口的**目标**换掉，而不是新增一条并行通道：
+### 一个出口函数，两处驱动
+
+| 层 | 位置 | 事实 |
+|---|---|---|
+| 出口工具 | `wire-ops-mcp/wire_ops_mcp/tools_console.py:280` `wire_action_propose(action_type_id, values, source_ref=None)` | MCP 工具，POST `{target_cell}/api/v1/domain-actions/propose`；**即时返回 pending**，工具面结构性无 execute |
+| 上游实现 | `fd-wire/api/fd_wire_api/domain_actions/routes.py`（`/api/v1/domain-actions/propose`） | 落动作实例台账，owner 在柏讯控制台确认后才执行 |
+| 动作类型 | `fd-wire/api/fd_wire_api/domain_actions/builtins.py:41-50` `BUILTIN_ENTITY_DECLARE="entity-declare"` / `BUILTIN_RELATION_DECLARE="entity-relation-declare"`（内置、负数哨兵 id `-1`/`-2`） | 平台内置类型，不是客户自声明 |
+| 岗位驱动 | `fleet-packs/blueprints/ontology-builder/blueprint.json:121`（`agents[ob-deployer].promptTemplate`）、`:292`（persona）、`:311-313`（`allowTools` 声明 `wire_action_list/propose/status`） | **生产里真正决定投递的是这段提示词**，不是某个 if 分支 |
+| 执行落点 | 同上 `builtins.py` 确认执行 | 直调 `entities.service.create_entity` / `create_relationship`：写入**该客户租户的实体/关系元数据**，不写客户数据行 |
+
+### 「不止一个出口」的那一半
+
+`blueprint.json:121` 同时写着过渡态：**若内置动作类型尚未在册，当日改走 `escalate` 提案**
+（「过渡态：owner 手工落」）。任务是逐点覆盖，所以切换必须同时处理：
+
+1. `wire_action_propose` + `entity-declare` / `entity-relation-declare`（主路）；
+2. `escalate` 过渡态（备路）—— 否则内建类型一旦不可用，草案又悄悄回到人肉兜底，
+   而落点仍在客户租户，平台域提案箱拿不到任何东西。
+
+### 语义差别（决定了这个 change 的后果，必须记下来）
+
+今天的出口**按客户租户**声明实体类型：每个客户 cell 一份，owner 逐个确认，落点是该租户的元数据。
+C5 的目标**按平台域**收敛本体：一个域一份权威本体，域负责人确认进 `knowledge_units`，
+再经发布面（`ontology_publications` + 消费面拉取）下发。
+
+所以这不是「换个 URL」，是「本体权威源上移」的落实：**切换后舰队不再在客户租户里声明实体类型**，
+改为向平台域提案；客户侧拿到的本体改由发布面供给。`entity-declare` 类型本身留在柏讯
+（客户侧域动作仍有它的位置），本 change 只关停「舰队把本体草案发到那里」这条用法。
+
+### 出口形状
 
 - 入口保持一个：岗位每轮产出草案 → 出口函数 → `POST {BENCH_URL}/api/d/{domain}/proposals`。
 - 出口函数必须是**单函数命令式**、目标 URL 与凭据全部来自 env、`transport=` 注入缝供测试

@@ -44,6 +44,19 @@ export function resolveGatewayCredential({ ownerEmail, cloudMode }) {
 // One message/stream turn against `url`. Returns { text } (the accumulated
 // final). `onDelta` receives incremental text. Throws structured errors —
 // callers surface them as turn failures; nothing here retries.
+//
+// Deadline ownership (fix-a2a-call-timeout D1/D2): the bound aborts OUR
+// controller, never the caller's AbortSignal. An AbortSignal has no abort() —
+// the old timer called `signal?.abort()`, which (a) was a silent no-op for
+// every caller that passed no signal (the delegated lane hung forever) and
+// (b) threw an uncaught TypeError from a timer callback when a signal WAS
+// passed (no uncaughtException handler anywhere → process exit; the zhiyu
+// agent lane, which passes a never-aborted controller, was one 300s answer
+// away from that). A caller signal now only feeds cancellations IN.
+// `timeoutMs` is the caller's budget when given — never overridden by the
+// default, which only serves callers that pass neither a signal nor a budget.
+export const DEFAULT_A2A_TIMEOUT_MS = 300_000;
+
 export async function runA2aTurn(url, text, {
   contextId,
   depth = 0,
@@ -51,7 +64,7 @@ export async function runA2aTurn(url, text, {
   agentToken,
   onDelta,
   signal,
-  timeoutMs = 300_000,
+  timeoutMs = DEFAULT_A2A_TIMEOUT_MS,
   metadata = null, // optional A2A message.metadata (e.g. visitor_scope — add-zhiyu-room)
 } = {}) {
   if (!gatewayToken) {
@@ -72,7 +85,19 @@ export async function runA2aTurn(url, text, {
     throw new Error(`delegation depth bound (${DELEGATION_DEPTH_BOUND}) reached — refusing to chain further`);
   }
 
-  const timeout = setTimeout(() => signal?.abort(), timeoutMs);
+  const controller = new AbortController();
+  let timedOut = false;
+  // One-way: a caller abort cancels the call; our bound never aborts the
+  // caller's controller.
+  const onCallerAbort = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) onCallerAbort();
+    else signal.addEventListener("abort", onCallerAbort, { once: true });
+  }
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     const r = await fetch(url, {
       method: "POST",
@@ -90,7 +115,7 @@ export async function runA2aTurn(url, text, {
           },
         },
       }),
-      signal,
+      signal: controller.signal,
     });
     if (!r.ok) throw new Error(`A2A HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const ctype = r.headers.get("content-type") || "";
@@ -139,7 +164,25 @@ export async function runA2aTurn(url, text, {
       }
     }
     return { text: finalText || acc };
+  } catch (e) {
+    // Our bound fired: attribute it. The message carries the word "timeout" on
+    // purpose — classifyErrorKind (server/fleet-events.js) maps that pattern to
+    // the existing `timeout` kind, so turn ledgers gain attribution with no new
+    // error class. A caller-initiated abort keeps throwing the raw AbortError
+    // (human-chat treats "user stopped" as a silent finish — that must not turn
+    // into a timeout error).
+    if (timedOut) {
+      let host = url;
+      try { host = new URL(url).host; } catch { /* keep the raw url */ }
+      const err = new Error(`A2A call timeout after ${timeoutMs}ms — no complete response from ${host}`);
+      err.code = "a2a_timeout";
+      err.timeoutMs = timeoutMs;
+      err.cause = e;
+      throw err;
+    }
+    throw e;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", onCallerAbort);
   }
 }

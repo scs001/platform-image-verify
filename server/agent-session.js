@@ -368,6 +368,13 @@ async function switchModelTo(id, opts = {}) {
 // conversation without spending the entry's context window on history.
 const REMOTE_FORK_HISTORY_MAX = Number(process.env.REMOTE_FORK_HISTORY_MAX || 24);
 
+// Human-chat ceiling for one A2A turn (fix-a2a-call-timeout D4): ONE deadline,
+// owned by the A2A client. streamA2aChat used to run its own 300s timer and let
+// the client default to the same 300s — two timers at the same instant, where
+// survival depended on registration order (and the loser threw from a timer
+// callback). The value is unchanged; only the ownership moved.
+const A2A_HUMAN_TURN_MS = 300_000;
+
 // Agents the agent switcher offers: the local dsh session plus visible
 // chat-mode remote agents (link agents are external pages, not chat targets).
 function switchableAgents(user) {
@@ -751,7 +758,6 @@ async function streamA2aChat(entry, text, explicitSessionId = null) {
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
   ctx.activeRemoteTurnAbort.sessionId = sessionId;
-  const timeout = setTimeout(() => abort.abort(), 300_000);
   ctx.sendToViewers(sessionId, { type: "agent_start" });
   chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
 
@@ -766,6 +772,7 @@ async function streamA2aChat(entry, text, explicitSessionId = null) {
       gatewayToken,
       agentToken,
       signal: abort.signal,
+      timeoutMs: A2A_HUMAN_TURN_MS,
       onDelta: (delta) => {
         sent += delta.length;
         assistantText += delta;
@@ -782,7 +789,6 @@ async function streamA2aChat(entry, text, explicitSessionId = null) {
       ctx.sendToViewers(sessionId, { type: "error", message: err.message });
     }
   } finally {
-    clearTimeout(timeout);
     const ownsTurn = ctx.activeRemoteTurnAbort === abort;
     if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
     if (ctx.isStreamingFor(sessionId) && ownsTurn) ctx.finishTurn(undefined, sessionId);

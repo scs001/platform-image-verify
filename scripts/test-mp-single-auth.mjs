@@ -218,6 +218,18 @@ test("signed-in web session gets a 6-digit code (json + human page)", async () =
   const page = await html.text();
   assert.ok(/\d{6}/.test(page), "the human page shows a 6-digit code");
   assert.ok(page.includes("alice@corp.com"), "the page names the account");
+  // Shared-shape pin (openspec: miniprogram-auth): same whole-body comparison
+  // as the gateway suite, pinpointing the deployment shape that drifted if the
+  // page is ever edited in one host and not the other. (A verbatim re-copy is
+  // behaviourally identical and escapes it; that is a review concern.)
+  const { renderBindCodePage } = await import("../gateway/mp-bind-page.js");
+  const shownCode = page.match(/>(\d{6})</)?.[1];
+  assert.ok(shownCode, "the code is rendered as its own element");
+  assert.equal(
+    page,
+    renderBindCodePage({ code: shownCode, email: "alice@corp.com" }),
+    "the single-process server serves the shared bind-code page, not a copy",
+  );
 });
 
 // ── First sign-in (bind-code redemption) + persistence location ──────────────

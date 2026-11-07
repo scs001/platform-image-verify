@@ -15,6 +15,7 @@
 // JSON bodies arrive pre-parsed by server.js's global express.json().
 
 import * as cron from "../../cron.js";
+import { renderBindCodePage } from "../../gateway/mp-bind-page.js";
 
 export function registerMpRoutes(ctx) {
   const { app, mpAuth } = ctx;
@@ -30,17 +31,7 @@ export function registerMpRoutes(ctx) {
     if (req.accepts("json") && !req.accepts("html")) {
       return res.json({ code, ttlMs });
     }
-    res.type("html").send(`<!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>绑定小程序</title>
-<body style="font-family:system-ui;display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center;background:#f3f4f6">
-  <div style="text-align:center;background:#fff;padding:48px 64px;border-radius:16px;box-shadow:0 4px 16px rgba(0,0,0,.08)">
-    <div style="color:#6b7280;font-size:14px">微信小程序 · 登录绑定码（${user.email}）</div>
-    <div style="font-size:56px;letter-spacing:12px;font-weight:700;color:#111827;margin:24px 0">${code}</div>
-    <div style="color:#9ca3af;font-size:13px">5 分钟内有效，一次性使用。在小程序登录页输入此码完成绑定。</div>
-    <div style="margin-top:20px"><a href="/api/mp/bindcode" style="color:#2563eb;font-size:14px">刷新新码</a></div>
-  </div>
-</body>`);
+    res.type("html").send(renderBindCodePage({ code, email: user.email }));
   });
 
   // Silent login: wx.login code in, platform token out. A 404 with

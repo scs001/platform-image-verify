@@ -19,6 +19,9 @@ const GRID_ORDER = [
   "wanxing-connector",
   "lex",
   "wire",
+  // agents.json gained the CRM desk (add-crm-desk-pack-embed) without this
+  // list following; the grid renders it between the brand line and templates.
+  "crm-desk",
   "fleet-templates",
 ];
 
@@ -72,7 +75,7 @@ test("a revisit paints the catalog in full from cache — no placeholders (polis
   await expect(page.getByTestId("app-card-skeleton")).toHaveCount(0);
 });
 
-test("one grid renders eight cards in brand order, retired sections gone", async ({ page }) => {
+test("one grid renders ten cards in brand order, retired sections gone", async ({ page }) => {
   await pinLocaleEn(page);
   await page.goto("/apps");
   await expect(page.getByTestId("app-center-page")).toBeVisible({ timeout: 15000 });
@@ -95,9 +98,10 @@ test("one grid renders eight cards in brand order, retired sections gone", async
   await expect(page.getByTestId("app-card-yizuo-self")).toBeVisible();
   await expect(page.getByTestId("app-card-yizuo-open")).toHaveCount(0);
 
-  // Early lines (lex) wear the badge; live cards do not. wire joined the
-  // board lines (add-wire-line-board) and dropped its badge.
-  await expect(page.getByTestId("app-card-lex-early-badge")).toBeVisible();
+  // The badge follows the board, not the roadmap: every line has one now, so
+  // no card wears it (wire dropped it in add-wire-line-board, lex in
+  // add-lex-line-board — appCatalog.ts is the source of truth).
+  await expect(page.getByTestId("app-card-lex-early-badge")).toHaveCount(0);
   await expect(page.getByTestId("app-card-wire-early-badge")).toHaveCount(0);
   await expect(page.getByTestId("app-card-facet-early-badge")).toHaveCount(0);
 });

@@ -1038,6 +1038,12 @@ const MIGRATIONS = [
     // PRAGMA-guarded like every additive ALTER (a fresh DB never ran the ALTER
     // and a re-run must not throw "duplicate column").
     apply: (db) => {
+      // Table-guarded like v110's addCol: an ADD COLUMN on an absent base table
+      // must not take the whole database down (schema-migrations spec).
+      if (!migrationTableExists(db, "bots")) {
+        console.warn("[db] v111: skipped bots persona/allow_tools — table absent (legacy cell ledger)");
+        return;
+      }
       const cols = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
       if (!cols.has("persona")) db.exec("ALTER TABLE bots ADD COLUMN persona TEXT");
       if (!cols.has("allow_tools")) {
@@ -1194,7 +1200,7 @@ function runMigrations() {
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue;
     const apply = db.transaction(() => {
-      for (const stmt of m.statements ?? []) db.exec(stmt);
+      for (const stmt of m.statements ?? []) execMigrationStatement(stmt, m.version);
       if (m.apply) m.apply(db);
       db.prepare(
         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
@@ -1203,6 +1209,50 @@ function runMigrations() {
     apply();
     console.log(`[db] applied migration v${m.version}`);
   }
+}
+
+// ── ADD COLUMN is made idempotent, deliberately ─────────────────────────────
+//
+// schema-migrations spec (harden-legacy-cell-migrations): "任一迁移抛出未预期错误时，
+// 失败 SHALL 局限于该迁移，不得让整个数据库进入停用状态". The v100 fix repairs the
+// one table that was actually missing; this makes the whole class impossible.
+//
+// SQLite has no `ADD COLUMN IF NOT EXISTS`, and a cell ledger is not a faithful
+// record of DDL: legacy/compacted cell DBs record a version whose CREATE never
+// ran. An unguarded ADD COLUMN then throws `no such table`; each migration is one
+// transaction, so the throw aborts the run and initDb disables the ENTIRE
+// database — a cell loses sessions, packs, ledger and credentials because one
+// unrelated table is missing (2026-11-08: cell 2b043ce050ca134c).
+//
+// Only this one statement shape is tolerated: skip when the base table is absent
+// or the column is already there, and say which. Every other statement runs
+// verbatim — this is NOT an "ignore migration errors" switch and never swallows
+// a failure that could mean data loss.
+const ADD_COLUMN_RE = /^\s*ALTER\s+TABLE\s+"?([A-Za-z_][\w]*)"?\s+ADD\s+COLUMN\s+"?([A-Za-z_][\w]*)"?/i;
+
+function migrationTableExists(handle, table) {
+  return (
+    handle.prepare("SELECT count(*) AS c FROM sqlite_master WHERE type = 'table' AND name = ?").get(table).c === 1
+  );
+}
+
+function migrationColumns(handle, table) {
+  return new Set(handle.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+}
+
+function execMigrationStatement(sql, version) {
+  const match = ADD_COLUMN_RE.exec(sql);
+  if (!match) return db.exec(sql);
+  const [, table, column] = match;
+  if (!migrationTableExists(db, table)) {
+    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — table absent (legacy cell ledger)`);
+    return undefined;
+  }
+  if (migrationColumns(db, table).has(column)) {
+    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — column already present`);
+    return undefined;
+  }
+  return db.exec(sql);
 }
 
 function latestVersion() {

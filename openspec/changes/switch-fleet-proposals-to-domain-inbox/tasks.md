@@ -19,8 +19,8 @@
 ## 3. 切换
 
 - [x] 3.1 出口函数已建（`server/bench-proposal-mcp.js` 的 `bench_proposal_submit`，按 D2 组装 `source/kind/external_key/evidence/submitted_by`，无目标账号字段；`source` 必填 `fleet:<fleet>/<post>`，不发明任何 env 兜底）。**未落**：岗位提示词仍指旧出口（见 3.3 的前置）
-- [ ] 3.2 岗位配置新增 `BENCH_PROPOSAL_DOMAIN`（与岗位 `target` 同源）。**已落 repo 的一半**：`mcp.example.json` 增 `bench-proposal` 条目（含 BENCH_URL / BENCH_PROPOSAL_DOMAIN，凭据只经 env）。**未落**：生产 `mcp.json` 走 GitOps ConfigMap，需手工加条目并确认聚焦层 keep 集（`PACK_BASELINE_MCP=fleet,bench-proposal`），两者缺一则工具在回合里 tool_search 找不到
-- [ ] 3.3 柏讯侧本体类提案写入关停；客户侧域动作语义零变化
+- [x] 3.2 岗位配置新增 `BENCH_PROPOSAL_DOMAIN`（与岗位 `target` 同源）。**repo**：`mcp.example.json` 增 `bench-proposal` 条目；三项一律 `envRefs` 转发——dsh 子进程会擦除形似凭据的环境名（含 `*TOKEN*`），只写环境变量的 token 过不了这一跳（真缺陷，已加漂移测试）。**生产**：`fd-infra-deploy` `all-services/prod/platform.yaml` 增 mcp.json 行 + `BENCH_URL`/`BENCH_PROPOSAL_DOMAIN` env + `platform-secrets.BENCH_CONSUMER_TOKEN`；聚焦层 keep 集 = `mcp.json` 全部 server，无需改 `PACK_BASELINE_MCP`。**实证**：pod 内 stdio 探针 `initialize`+`tools/list` → `['bench_proposal_submit']`；`tools/call` → `{"id":1,"created":false,"result":"幂等命中"}`（复用探针键，零新增行）
+- [x] 3.3 柏讯侧本体类提案写入关停；客户侧域动作语义零变化。**已上产**：pack `YT87-2Axuu49I123zVYyhA` v9（2026-11-08 上架，市场回读确认）——提案员改 `bench_proposal_submit`，`wire-ops` 的 `wire_action_list/propose/status` 三工具摘除（只余 7 个只读），新增 `bench-proposal:["bench_proposal_submit"]`；词表纪律写进岗位（law/clause + cites_law/superseded_by/belongs_to_contract_type），`created=false` 记「幂等命中」，语义拒绝不重试；**出口未接线时停在本岗、不退回客户动作闸**（公开包在未接线的实例上不得悄悄把权威挪回租户）。客户侧内置域动作 `entity-declare`/`entity-relation-declare` 本体未改
 - [ ] 3.4 本轮报告字段：每条一条结果（新增 / 幂等命中 / 失败 + 对端语义），失败项标明草案仍保留
 
 > 上产顺序提醒：本 change 依赖 law-bench 的提交面返回 `created`（law-bench `525db08`，**需下一次出片才在线上**；

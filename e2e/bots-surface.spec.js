@@ -50,13 +50,18 @@ async function stubBotList(page) {
 }
 
 test.describe("bots platform grid", () => {
-  test("renders four platform tiles and the empty guidance", async ({ page }) => {
+  test("renders one tile per platform the adapter registry declares, plus the empty guidance", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/settings/channels");
     await expect(page.getByTestId("bots-page")).toBeVisible({ timeout: 15000 });
 
-    await expect(page.getByTestId("bot-platform-tile")).toHaveCount(4);
-    for (const platform of ["telegram", "feishu", "wecom", "wechat-oa"]) {
+    // The grid mirrors server/bots/adapter.js's BOT_TYPES, which grew a fifth
+    // platform (wecom-bot, a group-robot adapter) after this spec pinned four —
+    // so the count drifted red against a product that was working. Assert every
+    // declared type rather than a magic number, so the next adapter only has to
+    // land in one list.
+    await expect(page.getByTestId("bot-platform-tile")).toHaveCount(5);
+    for (const platform of ["telegram", "feishu", "wecom", "wechat-oa", "wecom-bot"]) {
       await expect(
         page.locator(`[data-testid="bot-platform-tile"][data-platform="${platform}"]`),
       ).toBeVisible();
@@ -68,7 +73,7 @@ test.describe("bots platform grid", () => {
   test("clicking a tile opens the add dialog with that type fixed", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/settings/channels");
-    await expect(page.getByTestId("bot-platform-tile")).toHaveCount(4, { timeout: 15000 });
+    await expect(page.getByTestId("bot-platform-tile")).toHaveCount(5, { timeout: 15000 });
 
     await page.locator('[data-testid="bot-platform-tile"][data-platform="telegram"]').click();
     await expect(page.getByTestId("bot-type")).toHaveValue("telegram");

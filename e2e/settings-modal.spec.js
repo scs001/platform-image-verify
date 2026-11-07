@@ -160,7 +160,11 @@ test.describe("settings modal", () => {
     await page.getByTestId("config-row-manage").last().click();
     await expect(page).toHaveURL(/\/agents$/);
     await expect(page.getByTestId("settings-panel")).toBeHidden();
-    await expect(page.getByTestId("agents-page")).toBeVisible({ timeout: 15000 });
+    // /agents renders the agent-market face since the W2 teardown dissolved the
+    // four-zone hub (0eb48a0d0); `agents-page` now only exists in the unrouted
+    // AgentsPage. What this test cares about is that the modal closed and the
+    // work surface behind it mounted.
+    await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15000 });
   });
 
   test("a section Manage link preserves what the modal was covering", async ({ page }) => {

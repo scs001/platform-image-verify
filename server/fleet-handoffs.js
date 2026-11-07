@@ -124,6 +124,12 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
   // group completion. Wave counter is provenance only (single wave per
   // upstream turn; further debate rounds are the judge's own dispatch_post
   // calls, depth is the hard bound).
+  //
+  // fix-fanout-aggregation: (D1) the no-judge branch used to pass no
+  // initiatorPreset, so the aggregator's persona re-anchor was a no-op and the
+  // summary was spoken by whatever the runtime last composed (the last fan-out
+  // target). (D2) every ignition now stamps its own group key — grouping by
+  // initiator alone merged a second wave into the first wave's summary.
   const fanouts = outgoingFanouts(fleet.orchestration, memberId);
   for (const e of fanouts) {
     const agg = e.aggregate ?? { kind: "all" };
@@ -133,6 +139,9 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
       ? String(out.text ?? "").slice(0, 2000) || "(upstream produced no text)"
       : `上游回合失败:${String(out?.error ?? "unknown").slice(0, 500)}——如实转述,不自动重试`;
     const rounds = Number.isInteger(e.rounds) ? e.rounds : 1;
+    // One key per (edge, ignition): unique by construction, survives restarts
+    // because it is persisted on the tasks.
+    const groupKey = `fanout:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
     for (const t of e.targets ?? []) {
       const target = db.getMember(t);
       if (!target || target.fleetId !== fleetId) continue;
@@ -163,9 +172,10 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `扇出 · ${target.title}`,
         origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1 }, "fanout") },
+        initiatorGroup: groupKey,
         ...(judge
           ? { initiator: `fleet:${fleetId}:${judge.id}`, initiatorPreset: rosterPresetId(judge.targetId) }
-          : { initiator: job.sessionId ?? null }),
+          : { initiator: job.sessionId ?? null, initiatorPreset: job.preset ?? null }),
         executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
       });
       dispatched.push({ to: target.id, taskId: task.id, wave: true, judge: judge?.id ?? null });

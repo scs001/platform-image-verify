@@ -27,27 +27,60 @@ let ctxRef = null;
 // finisher must not double-arm while the first chain is queued.
 const pendingInjection = new Set();
 
-function groupFor(initiator) {
+// The grouping key (fix-fanout-aggregation D2). One ignition wave is one group:
+// keying on `initiator` alone merged every wave the same session ever fired
+// into a single summary, so a second fan-out (or a debate round) talked over
+// the first. `initiatorGroup` is stamped per ignition by the fan-out seam;
+// legacy rows and the web-lane delegation tool have none and keep the old
+// session-scoped grouping.
+export function aggregationKey(task) {
+  const group = task?.initiatorGroup ?? null;
+  if (group) return group;
+  return task?.initiator ?? null;
+}
+
+function groupFor(key) {
   return engine.allRecords().filter(
-    (t) => t.trigger === "manual" && t.initiator === initiator && !t.aggregated,
+    (t) => t.trigger === "manual" && aggregationKey(t) === key && !t.aggregated,
   );
+}
+
+// Groups that are fully terminal and still un-injected, keyed by group key.
+// Exported for tests: the injection itself needs a live bridge, the decision
+// that there IS something to inject does not.
+export function readyGroups(records = engine.allRecords()) {
+  const byKey = new Map();
+  for (const t of records) {
+    if (t.trigger !== "manual" || t.aggregated) continue;
+    const key = aggregationKey(t);
+    if (!key) continue;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(t);
+  }
+  const ready = new Map();
+  for (const [key, group] of byKey) {
+    if (group.every((t) => TERMINAL.has(t.state))) ready.set(key, group);
+  }
+  return ready;
 }
 
 // Engine onFinished subscriber: only terminal manual finishes can empty a group.
 function armAggregation(task) {
-  if (task.trigger !== "manual" || !task.initiator) return;
+  if (task.trigger !== "manual") return;
   if (!TERMINAL.has(task.state)) return;
-  maybeInject(task.initiator);
+  const key = aggregationKey(task);
+  if (!key) return;
+  maybeInject(key);
 }
 
-function maybeInject(initiator) {
-  if (pendingInjection.has(initiator)) return;
-  const group = groupFor(initiator);
+function maybeInject(key) {
+  if (pendingInjection.has(key)) return;
+  const group = groupFor(key);
   if (!group.length) return;
   if (group.some((t) => !TERMINAL.has(t.state))) return;
-  pendingInjection.add(initiator);
+  pendingInjection.add(key);
   engine.chainTurn(() =>
-    runInjection(initiator).finally(() => pendingInjection.delete(initiator)),
+    runInjection(key).finally(() => pendingInjection.delete(key)),
   );
 }
 
@@ -96,7 +129,7 @@ export async function reanchorInitiatorPersona(ctx, initiator, wanted) {
   }
 }
 
-async function runInjection(initiator) {
+async function runInjection(key) {
   const ctx = ctxRef;
   if (!ctx?.dshBridge?.isReady()) return;
 
@@ -111,8 +144,12 @@ async function runInjection(initiator) {
     return; // the live turn wedged; the group re-arms on the next finish
   }
 
-  const group = groupFor(initiator);
+  const group = groupFor(key);
   if (!group.length) return; // everything deleted meanwhile — nothing to say
+  // The group key is an ignition id, not a session: the session the summary
+  // lands in comes from the tasks themselves (every task in a group shares it).
+  const initiator = group[0].initiator ?? null;
+  if (!initiator) return;
 
   // Persist the aggregated markers BEFORE prompting: a crash between here and
   // the prompt may lose one summary, but never duplicates it.
@@ -120,7 +157,10 @@ async function runInjection(initiator) {
   await engine.saveTasks();
 
   // The summary is the initiating persona's voice — re-anchor it (exported
-  // for tests).
+  // for tests). fix-fanout-aggregation D1: a no-judge fan-out used to arrive
+  // here with no initiatorPreset at all, so this call was a no-op and the
+  // summary was spoken by whatever the runtime last composed (the last fan-out
+  // target). The seam now always stamps the upstream post's preset.
   await reanchorInitiatorPersona(ctx, initiator, group[0].initiatorPreset);
 
   const described = await Promise.all(
@@ -191,13 +231,14 @@ export function attachDelegationAggregator(ctx) {
 // got its summary); groups with running/queued members wait for their finish
 // events. Chained, not inline — boot must not block on a summary.
 function rearmPending() {
-  const initiators = new Set(
+  const keys = new Set(
     engine
       .allRecords()
-      .filter((t) => t.trigger === "manual" && t.initiator && !t.aggregated)
-      .map((t) => t.initiator),
+      .filter((t) => t.trigger === "manual" && !t.aggregated)
+      .map((t) => aggregationKey(t))
+      .filter(Boolean),
   );
-  for (const initiator of initiators) {
-    maybeInject(initiator);
+  for (const key of keys) {
+    maybeInject(key);
   }
 }

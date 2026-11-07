@@ -69,9 +69,19 @@ test("3. the drafting lane is isolated from the emit mouths; per-field adoption 
   assert.ok(!/patchContent|updateBlueprint|createPackDraft|fetch\(/.test(overlay), "the overlay component never writes the document or the server");
 });
 
-test("4. the route is mounted on the authenticated /api namespace", () => {
-  assert.match(serverJs, /createStudioDraftRoutes\(app, ctx\)/, "mounted in server.js beside the routes family");
+test("4. the route keeps its /api/studio namespace and rides the host that mounts the studio surface", () => {
   assert.match(route, /app\.use\("\/api\/studio", router\)/, "under /api — the session middleware's namespace");
+  // add-supply-studio-migration 4.6 (W2) unmounted the blueprint studio trio
+  // from 壹座's server.js: the creation surface moved to the facet host, which
+  // mounts this same module. Pinning "server.js mounts it" would now pin a
+  // route the deployment deliberately does not have.
+  assert.ok(
+    !/createStudioDraftRoutes\(app, ctx\)/.test(serverJs),
+    "壹座's server.js no longer mounts the drafting bridge (4.6 retirement)",
+  );
+  assert.match(serverJs, /Blueprint studio routes RETIRED \(add-supply-studio-migration 4\.6/, "the retirement is stated in place");
+  const facetStudio = read("facet/studio.js");
+  assert.match(facetStudio, /createStudioDraftRoutes\(app, ctx\)/, "the facet host mounts it — the contract moved, it did not vanish");
 });
 
 test("5. i18n: drafting chrome in all five locales", () => {

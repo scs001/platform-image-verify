@@ -1,9 +1,24 @@
 // plaza real-browser acceptance (add-agent-materials-plaza v2): tab clicks,
 // three-domain doors, five-locale rendering + screenshots (task 4.1 evidence).
-// Run: node /tmp/plaza-browser-test.mjs   (uses the repo's playwright)
+// Run BY PATH:  node scripts/test-plaza-browser.mjs   (uses the repo's playwright)
+//
+// NOT a unit test. docs/registry-maintenance.md §9 commits to the same thing
+// ("playwright 依赖，不入 unit 冒烟"), yet the file name matches the unit lane's
+// `scripts/test-*.mjs` glob, so `npm run test:unit` used to spawn it: 20s of
+// live network plus assertions pinned to the catalog counts of one day
+// (75/197/13). The afternoon the supply catalog grew, that turned the whole unit
+// lane red for a reason unrelated to any code — a gate nobody can trust. Hence
+// the guard below: under the runner this script reports why it does not apply
+// and exits clean; run it by path for the real acceptance.
 
 import { chromium } from "playwright";
 import fs from "node:fs";
+
+// node --test runs every test file in a child with NODE_TEST_CONTEXT set.
+if (process.env.NODE_TEST_CONTEXT) {
+  console.log("SKIP: live browser acceptance — run it by path (node scripts/test-plaza-browser.mjs), not under `node --test`");
+  process.exit(0);
+}
 
 const BASE = "https://agent.finddatatech.cloud";
 const SHOT = "/tmp/plaza-shots";

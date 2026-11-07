@@ -45,8 +45,11 @@ test("official packs exist and include the wire assistant", () => {
   assert.ok(manifests.some((m) => m.file === "wire-assistant-manifest.json"));
 });
 
-test("no official pack whitelists any wire write tool (tool_risk universe, 17 names)", () => {
-  assert.equal(WIRE_WRITE_TOOLS.length, 17);
+test("no official pack whitelists any wire write tool (tool_risk universe, 18 gated names)", () => {
+  // 18 = the sources' declared tools minus `read`. Read names are mirrored in
+  // WIRE_TOOL_RISK but stay ungated, so a pack may declare them.
+  assert.equal(WIRE_WRITE_TOOLS.length, 18);
+  assert.equal(isWireWriteTool("wire_self_action_list"), false, "read stays outside the gate");
   const offenders = [];
   for (const { file, manifest } of manifests) {
     for (const [server, tool] of allowToolsOf(manifest)) {

@@ -19,6 +19,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const tmp = mkdtempSync(join(tmpdir(), "websearch-settings-test-"));
+// Lane 3 exercises the real db module, which resolves its file at import time
+// from DB_PATH (DEFAULT_DB_PATH otherwise). Pin it BEFORE any import chain can
+// pull db.js in: without this the test silently depends on whatever dev DB
+// happens to sit under the checkout, and answers 红/绿 by machine state.
+process.env.DB_PATH = join(tmp, "app.db");
 
 // ── Lane 1: resolver + mask ──────────────────────────────────────────────────
 

@@ -164,7 +164,10 @@ test("2.1 switch off → 404 line_boards_disabled", async () => {
 test("2.2 unknown line → 404 line_not_found with the available lines", async () => {
   process.env.LINE_BOARDS_ENABLED = "1";
   const res = mockRes();
-  await copilotRoute({ params: { line: "lex" }, user: { email: "o@test.example" } }, res);
+  // A genuinely unknown id: `lex` was this test's stand-in for "unknown" until
+  // it gained its own board adapter (add-lex-line-board), which made the case
+  // resolve 200. The subject is the unknown-line branch, not lex.
+  await copilotRoute({ params: { line: "no-such-line" }, user: { email: "o@test.example" } }, res);
   assert.equal(res.statusCode, 404);
   assert.equal(res.body.error, "line_not_found");
   assert.ok(res.body.availableLines.includes("facet"));

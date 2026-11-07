@@ -89,8 +89,10 @@ export function renderSnapshot(tools) {
     "// checkouts. Source of truth = each repo's tool-surface.json `tool_risk`.",
     "// (add-wire-line-board, design D2)",
     "",
-    "// Every wire write tool and its declared risk + hosting server. The key set",
-    "// doubles as the pack publish lint's write-tool blocklist.",
+    "// Every tool the two wire operation servers declare, with its risk and",
+    "// hosting server — a faithful mirror of the sources' `tool_risk`, `read`",
+    "// included. The gated subset below (risk !== read) is the pack publish",
+    "// lint's write-tool blocklist.",
     "export const WIRE_TOOL_RISK = Object.freeze({",
   ];
   for (const name of sorted) {
@@ -103,11 +105,21 @@ export function renderSnapshot(tools) {
     lines.push(`  "${action}": "${tool}",`);
   }
   lines.push("});", "");
-  lines.push("export const WIRE_WRITE_TOOLS = Object.freeze(Object.keys(WIRE_TOOL_RISK).sort());", "");
+  lines.push("// The gated universe: every declared tool whose risk is not `read`.");
+  lines.push("// Read stays outside the gate (its tier is auto), so mirroring those names");
+  lines.push("// here would be a real defect, not bookkeeping: a pack that declares a");
+  lines.push("// read-only tool is a read face, and isWireWriteTool() on that name would");
+  lines.push("// refuse it outright.");
+  lines.push("export const WIRE_WRITE_TOOLS = Object.freeze(");
+  lines.push("  Object.keys(WIRE_TOOL_RISK).filter((tool) => WIRE_TOOL_RISK[tool].risk !== \"read\").sort(),");
+  lines.push(");", "");
   lines.push("export function riskForTool(tool) {", "  return WIRE_TOOL_RISK[tool]?.risk ?? null;", "}", "");
   lines.push("export function serverForTool(tool) {", "  return WIRE_TOOL_RISK[tool]?.server ?? null;", "}", "");
   lines.push("export function toolForAction(actionId) {", "  return WIRE_ACTION_TOOLS[actionId] ?? null;", "}", "");
-  lines.push("export function isWireWriteTool(tool) {", "  return Object.hasOwn(WIRE_TOOL_RISK, tool);", "}", "");
+  lines.push("export function isWireWriteTool(tool) {");
+  lines.push("  const risk = WIRE_TOOL_RISK[tool]?.risk;");
+  lines.push("  return Boolean(risk) && risk !== \"read\";");
+  lines.push("}", "");
   return lines.join("\n");
 }
 

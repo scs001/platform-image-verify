@@ -53,8 +53,17 @@ test("A: the eight wire actions exist, line=wire, and match the snapshot tool + 
   assert.deepEqual(mismatches, [], `risk/tool drift:\n  ${mismatches.join("\n  ")}`);
 });
 
-test("A: snapshot covers exactly the 17 declared write tools and every action tool is one of them", () => {
-  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 17, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions + 产物看板/文档构建 add-wire-artifact-build-surface + 客户域动作提议 wire-domain-actions)");
+test("A: snapshot covers exactly the 18 declared gated tools and every action tool is one of them", () => {
+  // 18 = 16 write + 源包订阅 wire_market_subscribe (risk `cost`, still gated)
+  //      + wire_self_action_propose (自域动作提议, wire-ops-mcp). The two read
+  //      names the same surface declares (wire_self_action_list/status) are
+  //      mirrored in WIRE_TOOL_RISK but must NOT be in the gate.
+  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 18, "gated-tool universe size (12 + add-pack-subscribe-actions + add-wire-artifact-build-surface + wire-domain-actions + self-actions)");
+  assert.deepEqual(
+    snapshot.WIRE_WRITE_TOOLS.filter((tool) => snapshot.riskForTool(tool) === "read"),
+    [],
+    "read never enters the gate — a read face must stay allowed in a copilot pack",
+  );
   assert.deepEqual(snapshot.WIRE_WRITE_TOOLS, [...snapshot.WIRE_WRITE_TOOLS].sort(), "sorted");
   for (const [action, tool] of Object.entries(snapshot.WIRE_ACTION_TOOLS)) {
     assert.ok(snapshot.isWireWriteTool(tool), `${action} → ${tool} missing from tool_risk`);

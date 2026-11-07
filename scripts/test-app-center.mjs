@@ -208,10 +208,12 @@ test("unified-grid copy exists in all five locales; retired headings gone (2.4)"
 
 // ── add-wire-line-board (app-center MODIFIED: 柏讯加入看板线) ─────────────────
 
-test("wire is no longer 'early'; lex still is (add-wire-line-board 7.1)", () => {
+test("no board line carries an 'early' badge; lex joined wire as live (add-lex-line-board)", () => {
   const byId = Object.fromEntries(APP_LINES.map((l) => [l.id, l]));
   assert.equal(byId.wire.status, "live", "wire has a real board now — no early badge");
-  assert.equal(byId.lex.status, "early");
+  // lex gained its own board (add-lex-line-board) after this test was written:
+  // the same rule applies — the badge follows the board, not the roadmap.
+  assert.equal(byId.lex.status, "live", "lex has a real board too — same rule as wire");
   assert.equal(byId.facet.status, "live");
   assert.equal(byId.wanxing.status, "live");
 });

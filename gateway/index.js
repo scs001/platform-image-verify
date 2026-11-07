@@ -1046,6 +1046,32 @@ app.get("/api/ops/pack-usage", async (req, res) => {
   });
 });
 
+// ── Trial-exec service channel (add-supply-studio-migration 5.3) ────────────
+// The supply domain's Studio calls the run domain headlessly over the shared
+// internal credential (x-facet-token, timing-safe inside the route). Machine
+// callers hold no Logto session, so the identity catch-all below would 401
+// them before any route sees the request — route the prefix to the platform
+// owner's cell with machine headers, exactly like the bot relay above (the
+// gateway is the routing terminator: the cell-side route re-verifies the
+// credential itself; the gateway secret only attributes origin). Without an
+// owner configured the prefix answers 404 — the channel's inert semantics.
+app.all("/api/trial-exec", express.json({ limit: "8mb" }), async (req, res) => {
+  const ownerEmail = process.env.BOTS_RELAY_OWNER_EMAIL || "";
+  if (!ownerEmail) return res.status(404).json({ error: "trial-exec not configured" });
+  try {
+    // groups stay empty: this only re-targets an existing owner (relay rule).
+    const cell = await registry.ensure({ email: ownerEmail, groups: [] });
+    proxyHttp(req, res, {
+      host: "127.0.0.1",
+      port: cell.port,
+      headers: machineHeaders(req, SECRET),
+    });
+  } catch (err) {
+    console.error(`[gateway] trial-exec cell start failed for ${ownerEmail}: ${err.message}`);
+    res.status(503).json({ error: "trial-exec owner workspace failed to start" });
+  }
+});
+
 app.all(/^\/api\/bots\/relay\//, async (req, res) => {
   const ownerEmail = process.env.BOTS_RELAY_OWNER_EMAIL || "";
   if (!ownerEmail) return res.status(404).json({ error: "relay not configured" });

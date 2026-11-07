@@ -19,6 +19,12 @@ import {
 import { resolvePackReferences } from "../pack-manifest-source.js";
 import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
 import { resolveJudgeLane } from "../blueprint-judge.js";
+import {
+  classifyCastAdmission,
+  isStalePointerAnswer,
+  sameNameCandidates,
+  mayAdoptSameNamePack,
+} from "../blueprint-cast-state.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，
 // 与 routes 家族各面一致（fleets/clusters 同款）。ctx.resolveUser 注入缝
@@ -331,32 +337,14 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (blueprint.content?.kind === "agent") {
       return res.status(409).json({ error: "agent-kind documents are not castable — emit a preset or a market draft instead", kind: "agent" });
     }
-    // 重新封印（add-blueprint-llm-assertions）：可售闸读的是 manifest 里的试跑报告，
-    // 而试跑必须在铸造之后（先有包才能装台）——签完字若不重铸，市场里那份永远没有
-    // 签字。故允许铸造态下再铸一版，条件是：草稿自批准后未改（version 未变）、
-    // 批准人就是本人、且报告已由本人签过名。其余情形一律仍要求先批准。
-    const reseal =
-      blueprint.status === "cast" &&
-      blueprint.approvedBy === user.email &&
-      blueprint.trialReport?.signoff?.by === user.email &&
-      blueprint.trialReport.signoff.reportRanAt === blueprint.trialReport.ranAt;
-    // 前置闸的第二例外（2026-10-30 真机补刀）：reseal 只解锁「绿+签」那一半——而
-    // 市场包 id 失效时，坏试跑会把旧报告**覆盖**成 errors=['trial aborted: Pack
-    // version not found'] 且签字消失，此时 reseal 必不成立，cast 在门口就被 409 拦死，
-    // 下面的 404→重建自愈根本轮不到跑——蓝图照样永久卡死。故：最新报告带着陈旧指针
-    // 错误时，同样允许铸造态再铸（这正是修指针的入口），批准人本人纪律不变。
-    const pointerStale =
-      blueprint.status === "cast" &&
-      Boolean(blueprint.castPackId) &&
-      Array.isArray(blueprint.trialReport?.errors) &&
-      blueprint.trialReport.errors.some((e) => /Pack (version )?not found/i.test(String(e)));
-    // 首铸自引用自愈（2026-10-31 全链走查实录）：首铸时 castPackId 尚不存在，
-    // {{PACK_ID:self}} 解析不出就原样封进 v1 manifest——试跑舰队成员 preset 解析
-    // 不出（target 空），回合不起、判红，且报告不带 Pack-not-found（pointerStale
-    // 救不了）→ 死锁。故：铸出物 manifest 仍带未解析 self 占位时允许铸造态再铸
-    // （第二铸 selfPackId 已知，占位补齐），批准人本人纪律不变。判据读市场铸出物
-    // 本身（精确、不误伤 pointerStale/reseal 的负例）。
-    let selfPendingFirstCast = false;
+    // 铸造准入（把五刀的例外收敛成一张表，见 server/blueprint-cast-state.js）：
+    // ① 普通路径=草稿已批准；② 重新封印（add-blueprint-llm-assertions，报告绿+本人签字，
+    // 否则市场里那份永远没有签字）；③ 陈旧指针自愈（2026-10-30 真机，坏试跑把报告覆盖成
+    // Pack-not-found 且签字消失，reseal 必不成立→门口即 409，下面的重建自愈永远轮不到）；
+    // ④ 首铸自引用自愈（2026-10-31 走查，首铸 castPackId 尚不存在，{{PACK_ID:self}} 原样封进
+    // v1→试跑 target 空、回合不起，且报告不带 Pack-not-found）。判据全在纯函数里，此处只做
+    // ④ 需要的那一次 getPack（前置条件与旧写法逐条相同：铸造态 + 有指针 + 本人批准 + 有该 API）。
+    let castPackManifest = null;
     if (
       blueprint.status === "cast" &&
       blueprint.castPackId &&
@@ -364,9 +352,14 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
       typeof publisher.getPack === "function"
     ) {
       const castPack = await publisher.getPack({ packId: blueprint.castPackId, user });
-      selfPendingFirstCast = Boolean(castPack?.manifest && JSON.stringify(castPack.manifest).includes("{{PACK_ID:self}}"));
+      castPackManifest = castPack?.manifest ?? null;
     }
-    if (blueprint.status !== "approved" && !reseal && !pointerStale && !selfPendingFirstCast) {
+    const admission = classifyCastAdmission({
+      blueprint,
+      userEmail: user.email,
+      castPackManifest,
+    });
+    if (!admission.allowed) {
       return res.status(409).json({ error: `blueprint is '${blueprint.status}' — approval must come first` });
     }
     if (blueprint.approvedBy !== user.email) {
@@ -405,38 +398,21 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     if (missing.length) {
       return res.status(409).json({ error: `dependency pack references unresolved (drift): ${missing.join(", ")}`, missing });
     }
-    // 陈旧指针自愈（2026-10-30 生产实录）：市场的 packId 是每部署随机铸造的
-    // （gateway/packs.js randomBytes），改名/重建流程换 id 后，蓝图记的旧 id 在
-    // 市场里 404——此后试跑一律 `Pack version not found`，而「再铸」又要求先有
-    // 绿色签字报告（只能由试跑产出）→ 死锁，蓝图永久卡死。故：以旧 id 发版被
-    // 404 拒时，如实再发一枚新包并把指针改到新 id（不是静默换名，而是承认旧包
-    // 已不存在、重新建这一份），cast 响应里 `rebuilt: true` 让调用方与台账可见。
+    // 发版 + 自愈链（判定在 server/blueprint-cast-state.js，此处只有副作用）：
+    // ① 按已知指针续版；② 指针失效（404，或真机形态「409 同名包已存在」——facet 对
+    //    「死指针 + 同名活包」先撞同名闸，404-only 的判据在真机永远进不去）→ 无指针重发
+    //    一枚新包；③ 重发又撞同名闸时，若那枚同名包 provenance 证明是本蓝图自己的活包则
+    //    认回并在其下发新版（别人的/官方种子占回本名的，一律不碰、409 原样透传）。
     let published = await publisher.publish({ manifest, packId: blueprint.castPackId ?? undefined, user });
     let rebuilt = false;
     let reclaimedPackId = null;
-    // 真机实测（2026-10-30）：facet 对「已失效的旧 id + 同名活包存在」的组合先撞同名闸
-    // → 回 409 而不是 404，所以 404 分支根本进不去（旧版三刀在此漏）。故 404 与「409 且
-    // 文案含同名包提示」都算陈旧指针形态，走同一套重建/认回。
-    const sameNameHint = (r) => r?.status === 409 && /同名包已存在/.test(String(r?.body?.error ?? r?.error ?? ""));
-    if (!published.ok && (published.status === 404 || sameNameHint(published)) && blueprint.castPackId) {
+    if (isStalePointerAnswer(published) && blueprint.castPackId) {
       published = await publisher.publish({ manifest, user });
       rebuilt = published.ok;
-      // 第三刀（2026-10-30 真机实录）：重建被「同名包已存在」409 拒——旧 id 失效但
-      // 本蓝图**自己的活包**仍占着名（改名/重建时新 id 早发出来了，只是指针没跟上）。
-      // 盲发新包撞闸 → 指针仍卡死。正确自救=认回自己名下那枚同名活包并在其下发新版。
-      // 认回必须证provenance：读那枚包的 manifest._casting.blueprintId 必须等于本蓝图，
-      // 否则它是**别人的／另一款同名产品**（如官方种子占回本名），一律不碰、如实透传 409。
       if (!published.ok && published.status === 409 && typeof publisher.getPack === "function") {
-        const hint = String(published.body?.packId ?? published.body?.error ?? published.error ?? "").match(/\b([A-Za-z0-9_-]{16,})\b/);
-        const candidates = [...new Set([
-          ...(published.body?.packId ? [published.body.packId] : []),
-          ...(hint ? [hint[1]] : []),
-        ])];
-        for (const candidate of candidates) {
+        for (const candidate of sameNameCandidates(published)) {
           const row = await publisher.getPack({ packId: candidate, user });
-          const ownerBlueprint = row?.manifest?._casting?.blueprintId;
-          const authorEmail = row?.authorEmail ?? row?.author_email ?? null;
-          if (ownerBlueprint !== blueprint.id || (authorEmail && authorEmail !== user.email)) continue;
+          if (!mayAdoptSameNamePack({ row, blueprintId: blueprint.id, userEmail: user.email })) continue;
           const adopt = await publisher.publish({ manifest, packId: candidate, user });
           if (adopt.ok) {
             published = adopt;

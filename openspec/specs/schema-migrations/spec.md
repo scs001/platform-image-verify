@@ -1,7 +1,11 @@
 # schema-migrations Specification
 
 ## Purpose
-TBD - created by archiving change harden-legacy-cell-migrations. Update Purpose after archive.
+
+定义平台与 cell 数据库的 schema 演进纪律：迁移是有序、幂等、可重跑的，且每一步只对自己
+声明的那一处结构负责。存在的理由是一次线上事故——cell 账本自带压缩过的历史，版本号会与
+旧谱系相撞，于是「账本记过 N ⇒ N 的结构在」不成立；一条裸 `ALTER` 就足以让整格数据库
+停用。本能力把「缺结构就补结构，而不是停止服务」写成可验收的规则。
 
 ## Requirements
 

@@ -108,97 +108,23 @@ const isExempt = (p) => AUTH_EXEMPT_PREFIXES.some((prefix) => p.startsWith(prefi
 // the exemption never widens beyond the cell's own node.
 const isLoopback = (addr) =>
   addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
-const isInternalCronBridge = (req) =>
-  (req.path === "/api/cron" || req.path.startsWith("/api/cron/")) &&
-  isLoopback(req.socket?.remoteAddress);
 
-// The chart-bind bridge (`chart_bind`, openspec: add-chart-data-binding) is the
-// same shape: a dsh-plugin tool in the cell's own child declaring the data call
-// behind the chart this turn produced. Loopback is its credential, and the
-// route it reaches only ever acts on the platform's CURRENT turn — it cannot
-// name another session's chart, and a non-loopback caller still faces the gate.
-const isInternalChartBridge = (req) =>
-  req.path === "/api/resources/bind-declared" && isLoopback(req.socket?.remoteAddress);
+// A bridge caller is the cell's OWN child: loopback AND carrying no proxied
+// identity. Both halves are required. In hosted mode the gateway proxies every
+// real user into their cell from 127.0.0.1 while injecting `x-forwarded-email`
+// (gateway/index.js:1107 + gateway/proxy.js:59), so a loopback address alone
+// does not tell the child apart from the owner: a real user whose UI gesture
+// lands on a bridge path (the fleet drawer's "run now" hits /api/cron/:id/run,
+// the board's propose hits /api/actions/propose) would be stamped with the
+// bridge's machine identity — and where a route trusts an internal caller's
+// body for the acting identity (/api/actions/propose reads `proposerEmail`),
+// that is an identity the caller chooses. The absent header is the
+// discriminator; a child calls loopback directly and never carries it.
+const isInternalChild = (req) =>
+  isLoopback(req.socket?.remoteAddress) && !req.headers["x-forwarded-email"];
 
-// The delegation bridge (openspec: add-agent-delegation-tools) — same
-// credential model as the cron bridge: the in-cell delegation MCP child drives
-// the task engine's manual path over /api/delegation. Loopback only; everyone
-// else still faces the full gate.
-const isInternalDelegationBridge = (req) =>
-  req.path.startsWith("/api/delegation/") && isLoopback(req.socket?.remoteAddress);
-
-// The fleet-architect bridge (agent-fleet-architect) — same credential model:
-// the in-cell architect MCP child reads/drafts/applies fleet structure over
-// /api/fleet-architect. Loopback only; the routes resolve the acting OWNER
-// from the cell context server-side, so the caller cannot name one.
-const isInternalFleetArchitectBridge = (req) =>
-  req.path.startsWith("/api/fleet-architect/") && isLoopback(req.socket?.remoteAddress);
-
-// The builder bridges (add-builder-team-templates) — the blueprint-author and
-// pack-author MCP children land VALIDATION-GREEN drafts into the owner's
-// pools over /api/blueprint-author and /api/pack-author. Loopback only; the
-// bridges resolve the acting owner from the cell context server-side (same
-// model as the architect bridge), and neither carries any approve/publish/
-// mint verb — the owner's gates in the Studio and the pack editor are the
-// only paths to effect.
-const isInternalBuilderBridges = (req) =>
-  (req.path.startsWith("/api/blueprint-author/") || req.path.startsWith("/api/pack-author/")) &&
-  isLoopback(req.socket?.remoteAddress);
-
-// The skill-evolution bridge (add-skill-self-evolution) — the in-cell MCP
-// child landing skill CANDIDATES over /api/skill-evolution. Loopback only;
-// the route's write face is propose-only (evaluate/promote/reject are the
-// owner's REST gestures and still face the full gate from this child's
-// perspective — they require a real user, which the stamp below is not).
-// Scoped to the propose verb AND to credential-less callers: the gateway
-// proxies a real owner's requests over loopback TOO (always carrying
-// x-forwarded-email), so a bare path check would stamp the owner's own
-// evaluate/promote/reject — the absence of identity headers is what tells
-// the child apart from a proxied human.
-const isInternalSkillEvolutionBridge = (req) =>
-  req.method === "POST" &&
-  req.path === "/api/skill-evolution/propose" &&
-  isLoopback(req.socket?.remoteAddress) &&
-  !req.headers["x-forwarded-email"];
-
-// The persona-evolution bridge (add-persona-self-evolution) — the role-bucket
-// twin of the skill-evolution bridge: the in-cell MCP child landing persona
-// CANDIDATES over /api/persona-evolution. Same credential model: propose is
-// the child's only verb, loopback plus no identity headers (a proxied human
-// always rides the gateway's x-forwarded-email and is NOT stamped, so the
-// owner's evaluate/promote/reject keep their real identity and the
-// human-only verbs never take this door).
-const isInternalPersonaEvolutionBridge = (req) =>
-  req.method === "POST" &&
-  req.path === "/api/persona-evolution/propose" &&
-  isLoopback(req.socket?.remoteAddress) &&
-  !req.headers["x-forwarded-email"];
-
-// The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
-// — the fourth bridge, same credential model: the dsh child's tool ingests
-// workspace files the CURRENT turn produced. Loopback is its credential, and
-// the route resolves the session server-side, so a caller cannot name another
-// session; a non-loopback caller still faces the full gate.
-const isInternalSaveBridge = (req) =>
-  req.path === "/api/resources/save-declared" && isLoopback(req.socket?.remoteAddress);
-
-// The actions bridge (openspec: add-wire-line-board D4) — the in-cell actions
-// MCP child creating a proposal on behalf of the user named in its per-user
-// profile env. Loopback is its credential and the scope is deliberately ONE
-// verb: a forged caller can only create a *pending* proposal; approve / reject /
-// query never take this door and still require the owner's real session.
-const isInternalActionsBridge = (req) =>
-  req.method === "POST" && req.path === "/api/actions/propose" && isLoopback(req.socket?.remoteAddress);
-
-// The fleet bridges (`report_status` / `escalate` / `dispatch` / the deputy
-// decision tools, openspec: agent-fleet-report-lane + agent-fleet-decision-lane
-// + agent-fleet-decision-delegate) — the in-cell fleet MCP child reporting for,
-// escalating from, dispatching as, or ruling as the post the CURRENT turn runs
-// under. Loopback is their credential; every route attributes SERVER-side
-// (running cluster task or live preset — the caller cannot name a post), and
-// the deputy routes additionally require the attributed post to BE the fleet's
-// configured deputy (deputyGuard), so a forged loopback caller still cannot act
-// as another member; everyone else faces the full gate.
+// The verbs/paths the fleet MCP child drives (agent-fleet-report-lane +
+// agent-fleet-decision-lane + agent-fleet-decision-delegate).
 const FLEET_BRIDGE_PATHS = new Set([
   "/api/fleets/report",
   "/api/fleets/escalate",
@@ -207,8 +133,105 @@ const FLEET_BRIDGE_PATHS = new Set([
   "/api/fleets/deputy/resolve",
   "/api/fleets/deputy/escalate-to-owner",
 ]);
-const isInternalFleetBridge = (req) =>
-  req.method === "POST" && FLEET_BRIDGE_PATHS.has(req.path) && isLoopback(req.socket?.remoteAddress);
+
+// Every bridge the gate opens, in one table: the identity each stamps, how it
+// matches, and its scope. Each matcher composes the SAME `isInternalChild`
+// guard, so a new bridge cannot arrive with a weaker caller test — the failure
+// this table fixes was five inline copies of one guard, one of which was
+// missing the identity half for eight of ten bridges.
+//
+// `match` receives the request; `note` is the route-side attribution that keeps
+// a forged loopback caller from acting as anyone it names.
+const INTERNAL_BRIDGES = [
+  {
+    // The cron MCP child (stdio, spawned by the dsh runtime inside this cell)
+    // drives the engine over /api/cron.
+    email: "cron@internal",
+    match: (req) => req.path === "/api/cron" || req.path.startsWith("/api/cron/"),
+    note: "routes act on this cell's own jobs",
+  },
+  {
+    // `chart_bind` (add-chart-data-binding): a dsh-plugin tool declaring the data
+    // call behind the chart this turn produced. Only ever acts on the CURRENT
+    // turn's chart — it cannot name another session's.
+    email: "chart-bridge@internal",
+    match: (req) => req.path === "/api/resources/bind-declared",
+    note: "acts on the current turn's chart only",
+  },
+  {
+    // The delegation MCP child (add-agent-delegation-tools) drives the task
+    // engine's manual path.
+    email: "delegation@internal",
+    match: (req) => req.path.startsWith("/api/delegation/"),
+    note: "task engine's manual path, cell-scoped",
+  },
+  {
+    // The architect MCP child (agent-fleet-architect) reads/drafts/applies fleet
+    // structure; routes resolve the acting owner from the cell context.
+    email: "fleet-architect@internal",
+    match: (req) => req.path.startsWith("/api/fleet-architect/"),
+    note: "acting owner resolved server-side from the cell context",
+  },
+  {
+    // The blueprint-author and pack-author MCP children
+    // (add-builder-team-templates) land VALIDATION-GREEN drafts into the owner's
+    // pools; neither carries an approve/publish/mint verb — the owner's gates in
+    // the Studio and the pack editor stay the only paths to effect.
+    email: "builder-author@internal",
+    match: (req) =>
+      req.path.startsWith("/api/blueprint-author/") || req.path.startsWith("/api/pack-author/"),
+    note: "draft landing only — no approve/publish/mint verb",
+  },
+  {
+    // The skill-evolution MCP child (add-skill-self-evolution) lands CANDIDATES;
+    // propose-only, because evaluate/promote/reject are the owner's gestures and
+    // require a real user (which this stamp is not).
+    email: "skill-evolution@internal",
+    match: (req) => req.method === "POST" && req.path === "/api/skill-evolution/propose",
+    note: "propose verb only — evaluate/promote/reject need a real user",
+  },
+  {
+    // The persona-evolution twin (add-persona-self-evolution), same shape.
+    email: "persona-evolution@internal",
+    match: (req) => req.method === "POST" && req.path === "/api/persona-evolution/propose",
+    note: "propose verb only, same rule as the skill lane",
+  },
+  {
+    // `save_to_library` (add-save-to-library-tool): the dsh child ingests
+    // workspace files the CURRENT turn produced; the route resolves the session
+    // server-side.
+    email: "save-bridge@internal",
+    match: (req) => req.path === "/api/resources/save-declared",
+    note: "session resolved server-side",
+  },
+  {
+    // The actions MCP child (add-wire-line-board D4) creates a proposal for the
+    // user named in its per-user profile env. ONE verb, and only a *pending*
+    // proposal: approve/reject/query never take this door. Because the route
+    // trusts `proposerEmail` from an internal caller, this entry is exactly why
+    // the child guard must exclude identity-bearing proxied requests.
+    email: "actions-bridge@internal",
+    match: (req) => req.method === "POST" && req.path === "/api/actions/propose",
+    note: "one verb, pending proposals only; proposer comes from the child's profile env",
+  },
+  {
+    // The fleet MCP child (agent-fleet-report-lane + -decision-lane +
+    // -decision-delegate) reports for / escalates from / dispatches as / rules as
+    // the post the CURRENT turn runs under. Every route attributes server-side
+    // from the running cluster task or live preset, and the deputy routes also
+    // require the attributed post to BE the fleet's deputy (deputyGuard).
+    email: "fleet-bridge@internal",
+    match: (req) => req.method === "POST" && FLEET_BRIDGE_PATHS.has(req.path),
+    note: "post attributed server-side; deputy routes guarded by deputyGuard",
+  },
+];
+
+// The bridge identity for this request, or null when nothing bridges it.
+export function internalBridgeEmail(req) {
+  if (!isInternalChild(req)) return null;
+  const hit = INTERNAL_BRIDGES.find((bridge) => bridge.match(req));
+  return hit ? hit.email : null;
+}
 
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";
@@ -317,44 +340,9 @@ export function withRoles(ctx, user) {
 // Install the HTTP auth gate. forward_auth trusts proxy-injected identity;
 // logto verifies the signed session cookie and ignores those headers.
 export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
-    if (isInternalCronBridge(req)) {
-      req.user = { email: "cron@internal", internal: true };
-      return next();
-    }
-    if (isInternalChartBridge(req)) {
-      req.user = { email: "chart-bridge@internal", internal: true };
-      return next();
-    }
-    if (isInternalDelegationBridge(req)) {
-      req.user = { email: "delegation@internal", internal: true };
-      return next();
-    }
-    if (isInternalFleetArchitectBridge(req)) {
-      req.user = { email: "fleet-architect@internal", internal: true };
-      return next();
-    }
-    if (isInternalBuilderBridges(req)) {
-      req.user = { email: "builder-author@internal", internal: true };
-      return next();
-    }
-    if (isInternalSkillEvolutionBridge(req)) {
-      req.user = { email: "skill-evolution@internal", internal: true };
-      return next();
-    }
-    if (isInternalPersonaEvolutionBridge(req)) {
-      req.user = { email: "persona-evolution@internal", internal: true };
-      return next();
-    }
-    if (isInternalSaveBridge(req)) {
-      req.user = { email: "save-bridge@internal", internal: true };
-      return next();
-    }
-    if (isInternalActionsBridge(req)) {
-      req.user = { email: "actions-bridge@internal", internal: true };
-      return next();
-    }
-    if (isInternalFleetBridge(req)) {
-      req.user = { email: "fleet-bridge@internal", internal: true };
+    const bridgeEmail = internalBridgeEmail(req);
+    if (bridgeEmail) {
+      req.user = { email: bridgeEmail, internal: true };
       return next();
     }
     const headerUser = userFromHeaders(req.headers, ctx.headerTrust);

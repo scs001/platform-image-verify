@@ -3364,6 +3364,7 @@
       "settings": "Ajustes",
       "privateWindow": "Ventana privada",
       "privateEmpty": "Tu canal privado con tu apoderado (solo visible para ustedes dos).",
+      "privatePlaceholder": "Instruye a tu gemelo aquí…",
       "composerPlaceholder": "Escribe algo… @nombre para dirigirte a un agente",
       "send": "Enviar",
       "answering": "respondiendo",

@@ -3364,6 +3364,7 @@
       "settings": "Réglages",
       "privateWindow": "Fenêtre privée",
       "privateEmpty": "Votre canal privé avec votre mandataire (visible par vous deux seulement).",
+      "privatePlaceholder": "Donne un ordre à ton jumeau ici…",
       "composerPlaceholder": "Dites quelque chose… @nom pour viser un agent",
       "send": "Envoyer",
       "answering": "répond",

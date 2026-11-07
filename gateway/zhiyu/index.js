@@ -739,6 +739,39 @@ export function registerZhiyuRoutes(app, {
 
   // ── Messages & live stream ─────────────────────────────────────────────────
 
+  // The private window send face (add-zhiyu-private-window-send): a member
+  // exchanges with their OWN duty facade — every row lands on the member's
+  // private档 (never the shared stream), the facade's answer rides the same
+  // 档 through dispatchPrivateTurn, and guests/non-members have no user seat
+  // to reach it. Absent facade → readable refusal, nothing persisted.
+  app.post("/api/zhiyu/rooms/:id/private", express.json({ limit: "16kb" }), (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (auth.room.status !== "active") return res.status(409).json({ error: "room ended" });
+    if (!auth.myUser) return res.status(403).json({ error: "active user seat required" });
+    const content = String(req.body?.content ?? "").trim();
+    if (!content) return res.status(400).json({ error: "content required" });
+    if (content.length > 16_000) return res.status(400).json({ error: "content too long" });
+    const facade = store
+      .membersOf(auth.room.id)
+      .find((m) => m.kind === "facade" && m.onBehalfOf === auth.myUser.ref && m.state === "active");
+    if (!facade) {
+      return res.status(409).json({ error: "值守分身未在场——先入场或呼叫分身后再用私窗" });
+    }
+    const { row } = store.messageAppend({
+      roomId: auth.room.id,
+      kind: "human",
+      senderMemberId: auth.myUser.id,
+      visibility: `private:${auth.myUser.id}`,
+      content,
+    });
+    applyTakeOver(auth);
+    void Promise.resolve(
+      router.dispatchPrivateTurn({ room: auth.room, sender: auth.myUser, message: row }),
+    ).catch((err) => console.error(`[zhiyu] private turn failed for ${auth.room.id}:`, err));
+    res.json({ message: row });
+  });
+
   app.post("/api/zhiyu/rooms/:id/messages", express.json({ limit: "32kb" }), (req, res) => {
     const auth = authorize(req, res, req.params.id);
     if (!auth) return;

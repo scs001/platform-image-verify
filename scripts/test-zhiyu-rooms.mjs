@@ -309,3 +309,126 @@ test("4.4 speaking is implicit take-over: facade steps back to listening", async
   // a facade's principal never joined is unreachable through the user gate.
   srv.close();
 });
+
+// ── add-zhiyu-private-window-send: the send face ───────────────────────────
+
+test("4.5 private send: exchange lands private档; shared reads exclude; -private settle + budget", async () => {
+  const settles = [];
+  const { srv, base, zhiyu } = await boot({
+    hooks: {
+      callAgent: async () => ({ text: "私窗回答：口径是 42" }),
+      settleTurn: async (_member, usage) => settles.push(usage),
+    },
+  });
+  const a = cli(base, "a@x");
+  const b = cli(base, "b@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "私窗间" })).body.room.id;
+  const inv = await a.post(`/api/zhiyu/rooms/${roomId}/invites`, { kind: "user", ref: "b@x" });
+  await b.post(`/api/zhiyu/invites/${inv.body.invite.id}/accept`);
+  // A's own duty facade (policy owner is the onBehalfOf principal).
+  await a.put("/api/zhiyu/policies/facade", { facadeInvite: "auto_accept" });
+  await a.post(`/api/zhiyu/rooms/${roomId}/invites`, { kind: "facade", ref: "pack:agent:a", onBehalfOf: "a@x" });
+  const aMember = (await a.get(`/api/zhiyu/rooms/${roomId}`)).body.myMemberId;
+
+  const sent = await a.post(`/api/zhiyu/rooms/${roomId}/private`, { content: "私窗吩咐一" });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.message.kind, "human");
+  assert.equal(sent.body.message.visibility, `private:${aMember}`);
+
+  // The facade answers on the same档 (fire-and-forget dispatch — poll).
+  let answer = null;
+  for (let i = 0; i < 60 && !answer; i++) {
+    const msgs = (await a.get(`/api/zhiyu/rooms/${roomId}/messages`)).body.messages;
+    answer = msgs.find((m) => m.kind === "agent" && m.content === "私窗回答：口径是 42") ?? null;
+    if (!answer) await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.ok(answer, "facade answer lands in the member's private window");
+  assert.equal(answer.visibility, `private:${aMember}`, "answer rides the same private档 as the ask");
+  assert.equal(answer.replyToSeq, sent.body.message.seq);
+  assert.equal(answer.meta?.mode, "private");
+
+  // Billing: settles on the facade seat with the -private attribution suffix;
+  // the room's daily budget counted the turn (room-overhead口径).
+  assert.equal(settles.length, 1);
+  assert.ok(settles[0].usageId.endsWith("-private"), `usage id carries private scope: ${settles[0].usageId}`);
+  assert.ok(settles[0].minutes >= 1);
+  assert.equal(zhiyu.store.roomDayTurnsPeek(roomId), 1);
+
+  // Shared read surfaces exclude BOTH rows: the other member sees neither.
+  const forB = (await b.get(`/api/zhiyu/rooms/${roomId}/messages`)).body.messages;
+  assert.ok(!forB.some((m) => m.content === "私窗吩咐一" || m.content === "私窗回答：口径是 42"));
+  // The member's own read shows the full exchange.
+  const forA = (await a.get(`/api/zhiyu/rooms/${roomId}/messages`)).body.messages;
+  assert.ok(forA.some((m) => m.content === "私窗吩咐一"));
+  assert.ok(forA.some((m) => m.content === "私窗回答：口径是 42"));
+  srv.close();
+});
+
+test("4.6 private send: no active user seat → 403; nothing persists", async () => {
+  const { srv, base, zhiyu } = await boot();
+  const a = cli(base, "a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "" })).body.room.id;
+  const aMember = (await a.get(`/api/zhiyu/rooms/${roomId}`)).body.myMemberId;
+  // A guest in the wild rides the widget/IM lanes and never holds a user
+  // seat; inside this kernel the gate's exact shape is "member without an
+  // active user seat" — simulate it by demoting A's own seat off active.
+  zhiyu.store.memberSetState(aMember, "pending");
+  const before = zhiyu.store.messagesAfter(roomId, 0, { viewerMemberId: null }).length;
+  const refused = await a.post(`/api/zhiyu/rooms/${roomId}/private`, { content: "不该出现" });
+  assert.equal(refused.status, 403);
+  const after = zhiyu.store.messagesAfter(roomId, 0, { viewerMemberId: null }).length;
+  assert.equal(after, before, "refusal persists nothing");
+  srv.close();
+});
+
+test("4.7 private send: facade absent → readable 409; nothing persists", async () => {
+  const { srv, base, zhiyu } = await boot();
+  const a = cli(base, "a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "" })).body.room.id;
+  const count = () => zhiyu.store.messagesAfter(roomId, 0, { viewerMemberId: null }).length;
+  const before = count();
+  // No facade invited at all.
+  const noFacade = await a.post(`/api/zhiyu/rooms/${roomId}/private`, { content: "有人吗" });
+  assert.equal(noFacade.status, 409);
+  assert.ok(String(noFacade.body.error).includes("值守分身未在场"));
+  assert.equal(count(), before, "absent-facade refusal persists nothing");
+  srv.close();
+});
+
+test("4.8 private send: room over daily budget → honest refusal on the private档", async () => {
+  const { srv, base, zhiyu } = await boot({
+    hooks: { callAgent: async () => ({ text: "回答" }) },
+  });
+  const a = cli(base, "a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "", dailyBudgetTurns: 1 })).body.room.id;
+  await a.put("/api/zhiyu/policies/facade", { facadeInvite: "auto_accept" });
+  await a.post(`/api/zhiyu/rooms/${roomId}/invites`, { kind: "facade", ref: "pack:agent:a", onBehalfOf: "a@x" });
+  const aMember = (await a.get(`/api/zhiyu/rooms/${roomId}`)).body.myMemberId;
+  // A plain agent seat burns the budget: A's OWN facade can't (speaking is
+  // take-over — the shared round makes the facade step back to listening and
+  // the broadcast skips it), which is exactly why the private lane exists.
+  zhiyu.store.memberAdd({ roomId, kind: "agent", ref: "pk:agent", display: "值岗智能体" });
+  // Burn the day's single turn through a shared round (poll, not a fixed
+  // sleep — the round is fire-and-forget).
+  await a.post(`/api/zhiyu/rooms/${roomId}/messages`, { content: "占一天预算" });
+  let burned = 0;
+  for (let i = 0; i < 60 && !burned; i++) {
+    burned = zhiyu.store.roomDayTurnsPeek(roomId);
+    if (!burned) await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.equal(burned, 1);
+  // The private lane is gated by the same ceiling: refusal event lands on
+  // the member's private档, the shared stream stays clean.
+  const over = await a.post(`/api/zhiyu/rooms/${roomId}/private`, { content: "私窗也要过闸" });
+  assert.equal(over.status, 200, "the ask itself is accepted; the refusal is an event row");
+  for (let i = 0; i < 40; i++) {
+    const msgs = (await a.get(`/api/zhiyu/rooms/${roomId}/messages`)).body.messages;
+    if (msgs.some((m) => m.meta?.event === "budget_exhausted")) {
+      assert.equal(msgs.find((m) => m.meta?.event === "budget_exhausted").visibility, `private:${aMember}`);
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.equal(zhiyu.store.roomDayTurnsPeek(roomId), 1, "no second turn consumed");
+  srv.close();
+});

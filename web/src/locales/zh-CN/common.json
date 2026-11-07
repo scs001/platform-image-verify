@@ -3364,6 +3364,7 @@
       "settings": "设置",
       "privateWindow": "私窗",
       "privateEmpty": "你和你的分身在这里的私下对话（仅你们可见）。",
+      "privatePlaceholder": "在私窗里吩咐你的分身…",
       "composerPlaceholder": "说点什么…@名字点名智能体",
       "send": "发送",
       "answering": "正在作答",

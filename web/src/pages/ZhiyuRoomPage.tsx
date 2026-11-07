@@ -337,6 +337,24 @@ export function ZhiyuRoomPage() {
     }
   };
 
+  // Private window composer (add-zhiyu-private-window-send): member-only —
+  // guests have no user seat and the endpoint refuses them server-side too.
+  const [privateDraft, setPrivateDraft] = useState("");
+  const [privateBusy, setPrivateBusy] = useState(false);
+  const sendPrivate = async () => {
+    const content = privateDraft.trim();
+    if (!content || privateBusy) return;
+    setPrivateBusy(true);
+    try {
+      await jcall("POST", `/api/zhiyu/rooms/${roomId}/private`, { content });
+      setPrivateDraft("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPrivateBusy(false);
+    }
+  };
+
   // @mention completion on the last @ fragment.
   const mentionFragment = useMemo(() => {
     const m = /(^|\s)@([^\s@]{0,30})$/.exec(composer);
@@ -488,6 +506,25 @@ export function ZhiyuRoomPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {me && me.kind === "user" && (
+              <div className="mt-2 flex gap-2" data-testid="zhiyu-private-composer">
+                <Input
+                  value={privateDraft}
+                  onChange={(e) => setPrivateDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendPrivate();
+                    }
+                  }}
+                  placeholder={t("zhiyu.room.privatePlaceholder")}
+                  className="h-8 text-sm"
+                />
+                <Button size="sm" onClick={() => void sendPrivate()} disabled={privateBusy || !privateDraft.trim()}>
+                  {privateBusy ? "…" : t("zhiyu.room.send")}
+                </Button>
+              </div>
             )}
           </div>
         )}

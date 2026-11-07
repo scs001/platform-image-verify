@@ -129,7 +129,11 @@ export function createRoomRouter({
 
   // One agent turn: in-flight guard → dispatch → pass detect → settle row /
   // honest failure event. Returns one of 'answered' | 'passed' | 'failed'.
-  async function runTurn({ room, target, sender, message, mode }) {
+  // visibility (add-zhiyu-private-window-send): "shared" (space rounds) or
+  // `private:<user id>` (the private window lane) — every persisted row and
+  // overlay event of the turn rides THIS档, so a private exchange never
+  // leaks into the shared stream by construction.
+  async function runTurn({ room, target, sender, message, mode, visibility = "shared" }) {
     const key = `${room.id}:${target.id}`;
     const display = target.display || target.ref;
     if (inFlight.has(key)) {
@@ -137,12 +141,13 @@ export function createRoomRouter({
         roomId: room.id,
         kind: "event",
         content: "",
+        visibility,
         meta: { event: "agent_busy", memberId: target.id, display },
       });
       return "failed";
     }
     inFlight.add(key);
-    overlay.emit(room.id, { type: "agent_start", roomId: room.id, memberId: target.id, display, visibility: "shared" });
+    overlay.emit(room.id, { type: "agent_start", roomId: room.id, memberId: target.id, display, visibility });
     const startedAt = Date.now();
     try {
       const { text } = await callAgent(target, {
@@ -152,7 +157,7 @@ export function createRoomRouter({
         // opens from this turn bind to (room, asker).
         scopeSeed: `room:${room.id}:${sender.ref}`,
         onDelta: (delta) =>
-          overlay.emit(room.id, { type: "agent_delta", roomId: room.id, memberId: target.id, display, delta, visibility: "shared" }),
+          overlay.emit(room.id, { type: "agent_delta", roomId: room.id, memberId: target.id, display, delta, visibility }),
       });
       const trimmed = String(text ?? "").trim();
       if (!trimmed || trimmed.startsWith(PASS_MARK)) {
@@ -160,9 +165,10 @@ export function createRoomRouter({
           roomId: room.id,
           kind: "event",
           content: "",
+          visibility,
           meta: { event: "pass", memberId: target.id, display },
         });
-        overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "pass" });
+        overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "pass", visibility });
         return "passed";
       }
       const { row } = store.messageAppend({
@@ -170,6 +176,7 @@ export function createRoomRouter({
         kind: "agent",
         senderMemberId: target.id,
         fromAgent: 1,
+        visibility,
         content: trimmed,
         replyToSeq: message.seq,
         meta: { mode },
@@ -196,13 +203,14 @@ export function createRoomRouter({
         // a guest-triggered answer is traceable to the guest seat via the
         // trigger seq AND the seat's own suffix.
         const guestTag = sender?.kind === "guest" ? "-guest" : "";
+        const privateTag = visibility !== "shared" ? "-private" : "";
         try {
-          await settleTurn(target, { usageId: `zyr-${room.id}-${row.seq}-${target.id}${guestTag}`, minutes });
+          await settleTurn(target, { usageId: `zyr-${room.id}-${row.seq}-${target.id}${guestTag}${privateTag}`, minutes });
         } catch (err) {
           console.warn(`[zhiyu] settle failed for ${target.ref} in ${room.id} (seq ${row.seq}): ${err.message}`);
         }
       }
-      overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "answered", seq: row.seq });
+      overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "answered", seq: row.seq, visibility });
       return "answered";
     } catch (err) {
       const insolvent = /402|quota|insufficient|balance|欠费|余额/i.test(String(err?.message ?? ""));
@@ -210,6 +218,7 @@ export function createRoomRouter({
         roomId: room.id,
         kind: "event",
         content: "",
+        visibility,
         meta: {
           event: insolvent ? "agent_declined_insolvent" : "agent_failed",
           memberId: target.id,
@@ -217,7 +226,7 @@ export function createRoomRouter({
           reason: String(err?.message ?? "unknown").slice(0, 200),
         },
       });
-      overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "failed" });
+      overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "failed", visibility });
       return "failed";
     } finally {
       inFlight.delete(key);
@@ -277,6 +286,44 @@ export function createRoomRouter({
     }
   }
 
+  // The private window lane (add-zhiyu-private-window-send): a member↔their
+  // own facade 1:1 exchange. Everything persisted here rides the member's
+  // private档 (runTurn visibility), the room's daily budget still counts (the
+  // room is the spend), and the billing settles on the facade's deployment key
+  // with a `-private` attribution suffix. Not a broadcast round: no @ parsing,
+  // no solicit, no reply-cap accounting (one question → at most one answer).
+  async function dispatchPrivateTurn({ room, sender, message }) {
+    const fresh = store.roomGet(room.id);
+    if (!fresh || fresh.status !== "active") return false;
+    const facade = store
+      .membersOf(room.id)
+      .find((m) => m.kind === "facade" && m.onBehalfOf === sender.ref && m.state === "active");
+    if (!facade) return false;
+    const visibility = `private:${sender.id}`;
+    // Same daily-budget gate as the broadcast round (spec: 计费与配额挂钩) —
+    // the private lane counts against the room ceiling too, and the honest
+    // refusal rides the member's private档, never the shared stream.
+    if (fresh.dailyBudgetTurns != null && store.roomDayTurnsPeek(room.id) >= fresh.dailyBudgetTurns) {
+      store.messageAppend({
+        roomId: room.id,
+        kind: "event",
+        content: "",
+        visibility,
+        meta: { event: "budget_exhausted", effective: fresh.dailyBudgetTurns },
+      });
+      return false;
+    }
+    const outcome = await runTurn({
+      room: fresh,
+      target: facade,
+      sender: { ref: sender.ref, display: sender.display, id: sender.id, kind: sender.kind },
+      message,
+      mode: "private",
+      visibility,
+    });
+    return outcome === "answered";
+  }
+
   // System-directed single turn (call/announce lanes): bypasses the answer
   // cap and the broadcast rules — it is a room-level instruction, not part
   // of any member-triggered round. Directive turns ride the same in-flight
@@ -298,5 +345,5 @@ export function createRoomRouter({
     return outcome === "answered";
   }
 
-  return { onHumanMessage, directiveTurn, resolveMentions, buildPrompt, promptWithMemory, roomContextId, overlay, PASS_MARK };
+  return { onHumanMessage, directiveTurn, dispatchPrivateTurn, resolveMentions, buildPrompt, promptWithMemory, roomContextId, overlay, PASS_MARK };
 }

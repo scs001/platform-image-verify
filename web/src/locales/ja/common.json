@@ -3364,6 +3364,7 @@
       "settings": "設定",
       "privateWindow": "プライベート窓",
       "privateEmpty": "あなたと代理だけの非公開チャネル（二人だけに可視）。",
+      "privatePlaceholder": "私窗で分身に指示…",
       "composerPlaceholder": "話しかけてみましょう…@名前でエージェント指名",
       "send": "送信",
       "answering": "回答中",

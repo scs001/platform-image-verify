@@ -3364,6 +3364,7 @@
       "settings": "Settings",
       "privateWindow": "Private window",
       "privateEmpty": "Your private side-channel with your proxy (only visible to you two).",
+      "privatePlaceholder": "Instruct your duty twin here…",
       "composerPlaceholder": "Say something… @name to address an agent",
       "send": "Send",
       "answering": "answering",

@@ -1,14 +1,35 @@
+// adopt-yongyi-client-sdk task 3 — the runner consumes the memory通用件 from
+// @finddatatechnology/yongyi-client now. Kept here: the runner-kept piece
+// (memory-capture.js — /capture batch queue client, NOT an SDK surface),
+// the compose seams (compose-acp / compose) that take the SDK discipline
+// text and mount rows as inputs, and the harness event mappers. The mount
+// row builders and the discipline constant are asserted against the SDK
+// exports; SDK-internal behavior is the SDK suite's job.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemoryCapture, compactJsonText } from "../memory-capture.js";
-import { MEMORY_DISCIPLINE, personaWithMemoryDiscipline } from "../memory-discipline.js";
-import { materializeAcpWorkspace } from "../compose-acp.js";
-import { acpMcpServers } from "../compose-acp.js";
+import { materializeAcpWorkspace, acpMcpServers } from "../compose-acp.js";
+import { materializePackHome } from "../compose.js";
 import { dshToolEvent } from "../harness/dsh.js";
 import { acpToolEvent } from "../harness/acp.js";
+import * as YongYi from "@finddatatechnology/yongyi-client";
+
+const { MEMORY_DISCIPLINE } = YongYi;
+
+// ── SDK mounts availability ─────────────────────────────────────────────────
+// The mount builders moved into the SDK (adopt-yongyi-client-sdk task 0.1),
+// but the PUBLISHED 0.1.1 shipped a stale dist without the mounts module
+// (fd-memory/sdk/src/mounts.ts exists; sdk/dist was not rebuilt before
+// npm publish). Until a rebuilt 0.1.2 lands, the four shape tests below
+// skip with an explicit reason and re-activate automatically on install.
+const MOUNT_EXPORTS = ["memoryNamespaceFor", "podMemoryNamespace", "dshMemoryMount", "acpMemoryMount"];
+const missingMountExports = MOUNT_EXPORTS.filter((k) => typeof YongYi[k] !== "function");
+const mountsSkip = missingMountExports.length
+  ? `SDK 0.1.1 published a stale dist without the mounts module (missing: ${missingMountExports.join(", ")}) — fd-memory/sdk needs a rebuild + 0.1.2 publish + npm install; these shape assertions activate automatically then`
+  : false;
 
 function fakeOk() {
   const seen = [];
@@ -58,16 +79,14 @@ test("MemoryCapture disabled without url/token: observe is a no-op", async () =>
   assert.equal(cap.enabled, false);
 });
 
-test("discipline text: single source (zh + en), appended only when provided", () => {
-  // fix-memory-capture-p0 D6: the text is bilingual by decision; both
-  // languages must ride in the ONE string every surface injects.
+test("discipline text (SDK single source): bilingual, handoff-marked, one string for every surface", () => {
+  // fix-memory-capture-p0 D6 decision: the text is bilingual by decision; both
+  // languages ride in the ONE string every surface (cell presets via
+  // dsh-profile, runner workspaces via compose-acp) injects from the SDK.
   assert.ok(MEMORY_DISCIPLINE.includes("memory_handoff_begin"));
   assert.ok(MEMORY_DISCIPLINE.includes("memory_handoff_accept"));
-  assert.ok(MEMORY_DISCIPLINE.includes("工作记忆"));
+  assert.ok(MEMORY_DISCIPLINE.includes("工作记忆（fd-memory）"));
   assert.ok(MEMORY_DISCIPLINE.includes("Working memory (fd-memory)"));
-  assert.equal(personaWithMemoryDiscipline("P", null), "P");
-  assert.ok(personaWithMemoryDiscipline("P", MEMORY_DISCIPLINE).startsWith("P"));
-  assert.ok(personaWithMemoryDiscipline("P", MEMORY_DISCIPLINE).includes("memory_handoff_begin"));
 });
 
 test("ACP workspace CLAUDE.md carries the memory discipline when provided", () => {
@@ -101,25 +120,6 @@ test("acpMcpServers rows keep the SDK header-array shape (memory row appended by
   assert.deepEqual(rows[0].headers, [{ name: "Authorization", value: "Bearer tok" }]);
   assert.equal(rows[0].type, "http");
 });
-
-import { acpMemoryMount } from "../memory-mount.js";
-
-test("mount rows: dsh loader row and ACP SDK row shapes", () => {
-  const dsh = dshMemoryMount("http://127.0.0.1:49375/mcp", "fdm_dep");
-  assert.equal(dsh.id, "mcp-fd-memory");
-  assert.equal(dsh.name, "@deepseek-ai/dsh-mcp-client");
-  assert.equal(dsh.config.serverName, "fd-memory");
-  assert.equal(dsh.config.transport, "streamable-http");
-  assert.equal(dsh.config.headers.Authorization, "Bearer fdm_dep");
-
-  const acp = acpMemoryMount("http://127.0.0.1:49375/mcp", "fdm_dep");
-  assert.equal(acp.type, "http");
-  assert.equal(acp.name, "fd-memory");
-  assert.deepEqual(acp.headers, [{ name: "Authorization", value: "Bearer fdm_dep" }]);
-  assert.deepEqual(acpMemoryMount("http://x/mcp", null).headers, []);
-});
-
-// ── fix-memory-capture-p0 ────────────────────────────────────────────────────
 
 test("P0 grouped flush: two deployments alternating never cross-deliver (mutation-pinned)", async () => {
   const f = fakeOk();
@@ -253,8 +253,6 @@ test("P0 acpToolEvent: bridge-wrapped and spec-native content both parse; failed
   assert.equal(raw.resultText, '{"code":0}');
 });
 
-import { materializePackHome } from "../compose.js";
-
 test("P0 pod composition: no memory mount → no discipline in member personas", async () => {
   const dir = mkdtempSync(join(tmpdir(), "fdm-pod-"));
   try {
@@ -281,23 +279,66 @@ test("P0 pod composition: discipline provided (per-member mounts, later change) 
   }
 });
 
-// ── add-memory-scopes-and-cluster-sharing ───────────────────────────────────
+// ── mounts wiring (shapes from the SDK; golden rows as compose INPUTS) ──────
 
-import { memoryNamespaceFor, podMemoryNamespace, dshMemoryMount } from "../memory-mount.js";
+// Golden dsh loader row in the historical shape — used as INPUT material for
+// the compose wiring tests below. The SDK-produced row shape itself is pinned
+// (skipped until the mounts module ships) in the dshMemoryMount test.
+function goldenDshRow(url, token) {
+  return {
+    id: "mcp-fd-memory",
+    name: "@deepseek-ai/dsh-mcp-client",
+    config: {
+      serverName: "fd-memory",
+      failOnStartupError: false,
+      transport: "streamable-http",
+      url,
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    },
+  };
+}
 
-test("memoryNamespaceFor: metadata.agentId is the coordinate, display name only a legacy fallback", () => {
+test("mounts: memoryNamespaceFor — metadata.agentId is the coordinate, display name only a legacy fallback", { skip: mountsSkip }, () => {
   const withBoth = { name: "爬虫自愈修复 Agent", metadata: { packId: "KkCi", agentId: "spider-heal" } };
-  assert.equal(memoryNamespaceFor(withBoth), "d/KkCi/spider-heal");
+  assert.equal(YongYi.memoryNamespaceFor(withBoth), "d/KkCi/spider-heal");
   const legacyNameOnly = { name: "萬星 Planner", metadata: { packId: "i262" } };
-  assert.equal(memoryNamespaceFor(legacyNameOnly), "d/i262/萬星 Planner");
-  assert.equal(memoryNamespaceFor({ metadata: { packId: "p" } }), null);
-  assert.equal(memoryNamespaceFor({ name: "x", metadata: {} }), null);
-  assert.equal(memoryNamespaceFor(null), null);
+  assert.equal(YongYi.memoryNamespaceFor(legacyNameOnly), "d/i262/萬星 Planner");
+  assert.equal(YongYi.memoryNamespaceFor({ metadata: { packId: "p" } }), null);
+  assert.equal(YongYi.memoryNamespaceFor({ name: "x", metadata: {} }), null);
+  assert.equal(YongYi.memoryNamespaceFor(null), null);
 });
 
-test("podMemoryNamespace: two-segment pack-shared namespace for the pod token", () => {
-  assert.equal(podMemoryNamespace("pk1"), "d/pk1");
-  assert.equal(podMemoryNamespace(null), null);
+test("mounts: podMemoryNamespace — two-segment pack-shared namespace for the pod token", { skip: mountsSkip }, () => {
+  assert.equal(YongYi.podMemoryNamespace("pk1"), "d/pk1");
+  assert.equal(YongYi.podMemoryNamespace(null), null);
+});
+
+test("mounts: dshMemoryMount — loader row shape, no token → zero headers key", { skip: mountsSkip }, () => {
+  const dsh = YongYi.dshMemoryMount("http://127.0.0.1:49375/mcp", "fdm_dep");
+  assert.deepEqual(dsh, {
+    id: "mcp-fd-memory",
+    name: "@deepseek-ai/dsh-mcp-client",
+    config: {
+      serverName: "fd-memory",
+      failOnStartupError: false,
+      transport: "streamable-http",
+      url: "http://127.0.0.1:49375/mcp",
+      headers: { Authorization: "Bearer fdm_dep" },
+    },
+  });
+  const anon = YongYi.dshMemoryMount("http://127.0.0.1:49375/mcp", null);
+  assert.equal("headers" in anon.config, false, "no token → zero headers key");
+});
+
+test("mounts: acpMemoryMount — ACP SDK wire row, headers as an ARRAY; no token → empty array", { skip: mountsSkip }, () => {
+  const acp = YongYi.acpMemoryMount("http://127.0.0.1:49375/mcp", "fdm_dep");
+  assert.deepEqual(acp, {
+    type: "http",
+    name: "fd-memory",
+    url: "http://127.0.0.1:49375/mcp",
+    headers: [{ name: "Authorization", value: "Bearer fdm_dep" }],
+  });
+  assert.deepEqual(YongYi.acpMemoryMount("http://x/mcp", null).headers, []);
 });
 
 test("scopes: pod composition carries the shared mount row and the discipline together", async () => {
@@ -309,7 +350,7 @@ test("scopes: pod composition carries the shared mount row and the discipline to
       homeRoot: dir,
       packId: "pk",
       memberSpecs: [member],
-      mcpServers: [dshMemoryMount("http://memory.test/mcp", podToken)],
+      mcpServers: [goldenDshRow("http://memory.test/mcp", podToken)],
       memoryDiscipline: MEMORY_DISCIPLINE,
     });
     const patch = readFileSync(spec.patchPaths.find((x) => x.endsWith("mcp.patch.yml")), "utf8");

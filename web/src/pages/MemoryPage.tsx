@@ -273,6 +273,12 @@ export function MemoryPage() {
             ))}
           </div>
         ) : null}
+        {/* Standalone portal hint (adopt-yongyi-client-sdk task 4): self-hosted /
+            other-harness Yongyi has its own human-facing portal. Low-key footer
+            line; the /memory panel itself stays the native React view. */}
+        <p className="mt-4 text-xs text-muted-foreground" data-testid="memory-standalone-portal-hint">
+          {t("memory.standalonePortalHint")}
+        </p>
       </div>
     </div>
   );

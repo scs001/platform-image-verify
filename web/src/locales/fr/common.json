@@ -3500,6 +3500,7 @@
     },
     "openInLibrary": "Ouvrir dans la bibliothèque",
     "projects": "Projets",
+    "standalonePortalHint": "Un Yongyi déployé seul ou via un autre harness embarque son propre portail humain : lancez `yongyi serve` puis ouvrez `/portal`.",
     "deployer": {
       "open": "Mémoire",
       "openHint": "Voir la mémoire de ce poste",

@@ -19,7 +19,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { clusterMemoryFor, digestTimeoutMs, chatMemoryBlockFor } from "../server/cluster-memory.js";
+import { clusterMemoryFor, digestTimeoutMs, chatMemoryBlockFor } from "@finddatatechnology/yongyi-client";
 
 const realFetch = globalThis.fetch;
 

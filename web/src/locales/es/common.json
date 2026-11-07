@@ -3500,6 +3500,7 @@
     },
     "openInLibrary": "Abrir en la biblioteca",
     "projects": "Proyectos",
+    "standalonePortalHint": "Un Yongyi desplegado de forma independiente o a través de otro harness incluye su propio portal para personas: ejecuta `yongyi serve` y abre `/portal`.",
     "deployer": {
       "open": "Memoria",
       "openHint": "Ver la memoria de este puesto",

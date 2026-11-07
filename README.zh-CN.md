@@ -111,6 +111,7 @@ Logto 控制台需要注册两个应用，并启用 organizations / organization
 - **`dsh-profile.js`** — 写 dsh profile（`settings.yaml`、MCP patch、skills patch）。
 - **`documents.js`** — 第一方文档 RAG（LlamaIndex.TS + PageIndex + SQLite）。
 - **`chat-history.js`** — 只读聊天持久化（每个 turn 镜像到 SQLite）。
+- **`cell-memory.js`** — cell 侧记忆联邦客户端，对接 fd-memory（永忆）。通用记忆件已下沉为 npm 包 `@finddatatechnology/yongyi-client`（壹座消费 SDK）。
 - **`resources.js`** — 第一方资源库：自动收录对话里生成的图表（```echarts 围栏），用户可另存工作区文件；字节放在 `resources-store/`，经 `/api/files?root=resources` 只读伺服。
 - **`server/routes/external-services.js`** — 目录中 `external-service` 应用的 `/external/:appId` 反向代理。**token 留在服务端**。
 - **`gateway/`** — 托管身份网关：每个登录身份对应一个 per-user cell（拉起、守护、路由）。

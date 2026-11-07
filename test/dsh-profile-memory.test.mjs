@@ -1,6 +1,11 @@
-// fix-memory-capture-p0 D6 — cell preset persona carries the (single-source,
-// bilingual) memory-discipline text when the cell memory mount is configured,
-// and the composition stays byte-identical when it is not.
+// adopt-yongyi-client-sdk task 3 (was fix-memory-capture-p0 D6) — the cell
+// preset persona carries the (single-source, bilingual) memory-discipline
+// text when the cell memory mount is configured, and the composition stays
+// byte-identical when it is not. The single source is now the SDK constant
+// (@finddatatechnology/yongyi-client) — both the cell presets and the
+// runner consume the exact same bytes from that one import, so this file
+// pins the dsh-profile assembly: suffix === MEMORY_DISCIPLINE byte-exact
+// when mounted, byte-identical absence when not.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
@@ -15,8 +20,7 @@ process.env.DSH_HOME = mkdtempSync(join(tmpdir(), "fdm-presets-"));
 for (const k of ["CELL_MEMORY_ENABLED", "CELL_MEMORY_URL", "CELL_MEMORY_PLATFORM_TOKEN", "CELL_MEMORY_DATA"]) delete process.env[k];
 
 const { writePresetsPatchSync } = await import("../dsh-profile.js");
-const { MEMORY_DISCIPLINE: CELL_TEXT } = await import("../cell-memory.js");
-const { MEMORY_DISCIPLINE: RUNNER_TEXT } = await import("../agent-runner/memory-discipline.js");
+const { MEMORY_DISCIPLINE, memoryMcpEntry } = await import("@finddatatechnology/yongyi-client");
 
 const extraPresets = [
   { id: "custom1", name: "Custom One", description: "d", persona: "你是自定义一号。" },
@@ -37,11 +41,15 @@ function personaRows(patchPath) {
   return rows;
 }
 
-test("P0 cell: single-source discipline is bilingual and identical on both surfaces", () => {
-  assert.equal(CELL_TEXT, RUNNER_TEXT);
-  assert.ok(CELL_TEXT.includes("工作记忆"));
-  assert.ok(CELL_TEXT.includes("Working memory (fd-memory)"));
-  assert.ok(CELL_TEXT.includes("memory_handoff_begin"));
+test("P0 cell: the SDK discipline is the single source — bilingual, handoff-marked, mcp row builder exported beside it", () => {
+  // one string feeds both surfaces now (cell presets here, runner CLAUDE.md
+  // via compose-acp) — the cross-surface identity is the import itself.
+  assert.equal(typeof MEMORY_DISCIPLINE, "string");
+  assert.ok(MEMORY_DISCIPLINE.includes("工作记忆（fd-memory）"));
+  assert.ok(MEMORY_DISCIPLINE.includes("Working memory (fd-memory)"));
+  assert.ok(MEMORY_DISCIPLINE.includes("memory_handoff_begin"));
+  // the mcp row dsh-profile pushes through writeMcpPatch stays the SDK product
+  assert.deepEqual(memoryMcpEntry("http://127.0.0.1:49999", "fdm_x").config.serverName, "fd-memory");
 });
 
 test("P0 cell: mount off → presets patch carries no discipline (byte-identical baseline)", () => {
@@ -55,7 +63,7 @@ test("P0 cell: mount off → presets patch carries no discipline (byte-identical
   process.env.__p0BaselinePatch = p;
 });
 
-test("P0 cell: mount on → every persona preset carries the discipline in the suffix", () => {
+test("P0 cell: mount on → every persona preset suffix IS the SDK discipline, byte-exact", () => {
   process.env.CELL_MEMORY_ENABLED = "1";
   process.env.CELL_MEMORY_URL = "http://127.0.0.1:49999";
   process.env.CELL_MEMORY_PLATFORM_TOKEN = "plat";
@@ -64,9 +72,14 @@ test("P0 cell: mount on → every persona preset carries the discipline in the s
   const rows = personaRows(p);
   assert.ok(rows.length >= 3);
   for (const r of rows) {
-    assert.ok(r.suffix.includes("memory_handoff_begin"), `${r.preset} missing discipline`);
+    assert.equal(r.suffix, MEMORY_DISCIPLINE, `${r.preset} suffix must be the SDK discipline, byte-exact`);
+    assert.ok(r.suffix.includes("memory_handoff_begin"));
     assert.ok(r.suffix.includes("Working memory (fd-memory)"));
   }
+  // the mcp row itself never rides the presets patch — it goes to the MCP
+  // patch via writeMcpPatch/cellMemoryMount; presets only carry the text.
+  const text = readFileSync(p, "utf8");
+  assert.ok(!text.includes("id: mcp-fd-memory"));
 });
 
 test("P0 cell: mount off again → identical bytes to the baseline write", () => {

@@ -20,7 +20,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { registerZhiyuRoutes } from "../gateway/zhiyu/index.js";
-import { chatMemoryInjectionFor, chatMemoryBlockFor, clusterMemoryFor } from "../server/cluster-memory.js";
+import { chatMemoryInjectionFor, chatMemoryBlockFor, clusterMemoryFor } from "@finddatatechnology/yongyi-client";
 
 const realFetch = globalThis.fetch;
 

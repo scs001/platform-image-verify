@@ -107,6 +107,7 @@ The per-cell env matrix (`PLATFORM_DATA_DIR`, `DSH_HOME`, `MCP_CONFIG_PATH`, `PO
 - **`dsh-profile.js`** — writes dsh profile (`settings.yaml`, MCP patch, skills patch).
 - **`documents.js`** — first-party document RAG (LlamaIndex.TS + PageIndex + SQLite).
 - **`chat-history.js`** — read-only chat persistence (mirrors each turn to SQLite).
+- **`cell-memory.js`** — cell-side memory federation client for fd-memory (Yongyi). The shared memory toolkit has been sunk into the `@finddatatechnology/yongyi-client` npm package; this repo consumes it as an SDK.
 - **`resources.js`** — first-party resource library: charts generated in chat are captured automatically (```echarts fences) and users can save workspace files; bytes live under `resources-store/` and are served read-only via `/api/files?root=resources`.
 - **`server/routes/external-services.js`** — `/external/:appId` reverse proxy for catalog `external-service` apps. **Tokens stay server-side.**
 - **`gateway/`** — hosted identity gateway: fronts one per-user cell per login identity (spawn, supervise, route).

@@ -31,8 +31,7 @@ import { deriveFullModeToolScope, customPresetToolScope, capByOperatorFace } fro
 import { OPERATOR_TOOL_FACES } from "./lib/operator-tool-face.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
-import { cellMemoryMount, cellMemoryConfig } from "./cell-memory.js";
-import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
+import { cellMemoryMount, cellMemoryConfig, MEMORY_DISCIPLINE } from "@finddatatechnology/yongyi-client";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");

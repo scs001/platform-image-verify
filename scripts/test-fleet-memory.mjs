@@ -22,7 +22,7 @@ const {
   fleetProjectId,
   createFleetMemoryCapture,
   createHealthFlipTracker,
-} = await import("../server/fleet-memory.js");
+} = await import("@finddatatechnology/yongyi-client");
 
 function fakeMemory() {
   const facts = [];

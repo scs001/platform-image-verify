@@ -5,7 +5,7 @@
 // 的 visibility 读面（/memory）：scope/layer/tier/tag/time 筛选语义与
 // fd-memory 现状全同，本层只做身份解析与透传，不再多建一套查询语言。
 
-import { cellMemoryConfig, personTokenFor } from "../../cell-memory.js";
+import { cellMemoryConfig, personTokenFor } from "@finddatatechnology/yongyi-client";
 
 function intParam(v, def, min, max) {
   const n = Number(v);

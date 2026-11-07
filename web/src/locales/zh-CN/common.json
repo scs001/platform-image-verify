@@ -3500,6 +3500,7 @@
     },
     "openInLibrary": "在成果中打开",
     "projects": "项目",
+    "standalonePortalHint": "独立部署或其它 harness 接入的永忆，自带人面门户：`yongyi serve` 后访问 `/portal`。",
     "deployer": {
       "open": "记忆",
       "openHint": "查看该岗位的记忆",

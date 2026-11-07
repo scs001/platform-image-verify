@@ -18,7 +18,7 @@ import express from "express";
 import { EventEmitter } from "node:events";
 import { createZhiyuStore } from "./store.js";
 import { createRoomRouter } from "./room-router.js";
-import { chatMemoryBlockFor } from "../../server/cluster-memory.js";
+import { chatMemoryBlockFor } from "@finddatatechnology/yongyi-client";
 import { newWidgetToken, newSiteSecret, verifyWidgetToken, hostAllowed, signGuestPass, verifyGuestPass, verifyIdentify, guestRefFor } from "./guest-auth.js";
 import { registerZhiyuImBridge } from "./im-bridge.js";
 

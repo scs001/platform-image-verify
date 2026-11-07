@@ -8,8 +8,8 @@ import { test } from "node:test";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createFleetMemoryCapture, createHealthFlipTracker, memberProjectId } from "../server/fleet-memory.js";
-import { memberTokenFor, memberCachePath } from "../cell-memory.js";
+import { createFleetMemoryCapture, createHealthFlipTracker, memberProjectId } from "@finddatatechnology/yongyi-client";
+import { memberTokenFor, memberCachePath } from "@finddatatechnology/yongyi-client";
 
 const cfgFor = (dataRoot) => ({ url: "http://mem.test", platformToken: "plat", dataRoot });
 
@@ -116,7 +116,7 @@ test("client: writeFact routes token+project by partition, metadata triple on th
       }
       return { ok: true, status: 200, json: async () => ({ block: "" }) };
     };
-    const { fleetMemoryFor } = await import("../server/fleet-memory.js");
+    const { fleetMemoryFor } = await import("@finddatatechnology/yongyi-client");
     const m = await fleetMemoryFor({ CELL_MEMORY_ENABLED: "1", CELL_MEMORY_URL: "http://mem.test", CELL_MEMORY_PLATFORM_TOKEN: "p", CELL_MEMORY_DATA: data }, "o@x", fetchImpl);
     assert.ok(m, "client alive");
     await m.writeFact({ fleetId: "f9", memberId: "clerk", kind: "turn", partition: "own", title: "回合成功", body: "b" });
@@ -157,7 +157,7 @@ test("client: readDigest composes own ∪ shared ∪ legacy f/ with per-source l
       }
       return { ok: true, status: 200, json: async () => ({}) };
     };
-    const { fleetMemoryFor } = await import("../server/fleet-memory.js");
+    const { fleetMemoryFor } = await import("@finddatatechnology/yongyi-client");
     const m = await fleetMemoryFor({ CELL_MEMORY_ENABLED: "1", CELL_MEMORY_URL: "http://mem.test", CELL_MEMORY_PLATFORM_TOKEN: "p", CELL_MEMORY_DATA: data }, "o@x", fetchImpl);
     const out = await m.readDigest("f9", "clerk", "查询", { budget: 1200 });
     // own renders, shared empty drops, legacy renders — labels are zh

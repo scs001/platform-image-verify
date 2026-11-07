@@ -6,7 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
-import { chatPromptWithMemory } from "./cluster-memory.js";
+import { chatPromptWithMemory } from "@finddatatechnology/yongyi-client";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { userFromHeaders, mpUserFromToken, normalizeSsoEmail, withRoles } from "./auth.js";
 

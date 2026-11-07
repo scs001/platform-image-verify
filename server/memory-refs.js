@@ -5,7 +5,7 @@
 // 车道），手势与自动落页都经这里，单写纪律成立。degrade-open：任何记忆未
 // 配置或请求失败 → null / 静默跳过，绝不阻塞入仓或回话。
 
-import { cellMemoryConfig, personTokenFor } from "../cell-memory.js";
+import { cellMemoryConfig, personTokenFor } from "@finddatatechnology/yongyi-client";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 
 export function memoryRefSlug(id) {
@@ -21,7 +21,7 @@ export function summaryForResource(resource) {
 
 // { writeReference, mutateReference } | null — same per-owner token cache
 // story as clusterMemoryFor (one mint per owner via /admin/mint, stored on
-// disk by cell-memory.js).
+// disk by the SDK's token cache).
 export async function memoryRefClientFor(env, ownerEmail, fetchImpl = fetch) {
   const cfg = cellMemoryConfig(env);
   if (!cfg || !ownerEmail) return null;

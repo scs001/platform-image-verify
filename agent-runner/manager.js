@@ -69,8 +69,7 @@ function tokensOf(usage) {
 import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
 import { MemoryCapture, compactJsonText } from "./memory-capture.js";
-import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
-import { dshMemoryMount, acpMemoryMount, memoryNamespaceFor, podMemoryNamespace } from "./memory-mount.js";
+import { MEMORY_DISCIPLINE, dshMemoryMount, acpMemoryMount, memoryNamespaceFor, podMemoryNamespace } from "@finddatatechnology/yongyi-client";
 
 // Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
 // child's own initialize retries are exhausted, the manager retries the

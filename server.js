@@ -30,7 +30,7 @@ import { createMpAuth } from "./gateway/mp-auth.js";
 import { createAppAuth } from "./gateway/app-auth.js";
 import { createMpBindings } from "./gateway/mp-bindings.js";
 import { storeDir } from "./paths.js";
-import { cellMemoryConfig, memberTokenFor } from "./cell-memory.js";
+import { cellMemoryConfig, memberTokenFor } from "@finddatatechnology/yongyi-client";
 import { registerDocumentRoutes } from "./server/routes/documents.js";
 import { registerMiscRoutes, registerStaticAndFallback } from "./server/routes/misc.js";
 import { registerLlmRoutes } from "./server/routes/llm.js";
@@ -81,7 +81,7 @@ import { renderChatFleetContext } from "./server/fleet-chat-context.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
-import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "./server/fleet-memory.js";
+import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "@finddatatechnology/yongyi-client";
 import { igniteFleetEdges } from "./server/fleet-handoffs.js";
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import { readSignalPolicy, revalidateMandate, recordDisposition } from "./server/fleet-turn-mandate.js";
@@ -100,6 +100,7 @@ import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
+import { createTrialExecRoutes } from "./server/routes/trial-exec.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
 import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
@@ -418,6 +419,11 @@ registerMemoryRoutes(ctx);
 // Pack marketplace cell side (drafts + subscribe/upgrade/uninstall) — a plain
 // /api route family, before the static fallback.
 registerCellPackRoutes(ctx);
+// Trial-exec service channel (add-supply-studio-migration 5.3): the run-domain
+// half of the cross-domain trial lane — facet's Studio trial route forwards
+// here over the shared internal credential (x-facet-token); the report returns
+// in one body and the doc of record stays on the facet side (D1).
+createTrialExecRoutes(app);
 // Focus overlay (add-focus-overlay): the 资源微调 panel's GET/PUT — same
 // placement rule as the pack routes.
 registerOverlayRoutes(ctx);

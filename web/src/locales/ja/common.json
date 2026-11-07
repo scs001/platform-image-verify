@@ -3500,6 +3500,7 @@
     },
     "openInLibrary": "成果で開く",
     "projects": "プロジェクト",
+    "standalonePortalHint": "単独デプロイまたは他のハーネス経由で接続した Yongyi には、人物向けポータルが内蔵されています。`yongyi serve` を実行して `/portal` を開いてください。",
     "deployer": {
       "open": "記憶",
       "openHint": "このポストの記憶を見る",

@@ -18,7 +18,7 @@ import * as dshProfile from "../dsh-profile.js";
 import { parseToolResult } from "./dsh-events.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
-import { clusterMemoryFor, memoryInjectionFor } from "./cluster-memory.js";
+import { clusterMemoryFor, memoryInjectionFor } from "@finddatatechnology/yongyi-client";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 import { classifyErrorKind } from "./fleet-events.js";
 import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
@@ -1039,7 +1039,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, startedAt 
   // ── memory hook ① (add-memory-scopes-and-cluster-sharing; digest upgrade
   // add-cluster-digest-injection) ────────────────────────────────────────────
   // After member resolution, inject the cluster's shared memory into every
-  // member's task prompt through the three-rung ladder in cluster-memory.js:
+  // member's task prompt through the three-rung ladder (SDK digestLadder):
   // digest face (server-rendered, continuation-eval proven) → title list →
   // nothing. Degrade open at every rung: memory never fails a task.
   let taskPrompt = job.prompt;

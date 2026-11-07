@@ -3500,6 +3500,7 @@
     },
     "openInLibrary": "Open in library",
     "projects": "Projects",
+    "standalonePortalHint": "Yongyi deployed standalone or through another harness ships its own human-facing portal: run `yongyi serve` and open `/portal`.",
     "deployer": {
       "open": "Memory",
       "openHint": "View this post's memory",

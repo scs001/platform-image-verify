@@ -23,5 +23,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 4.1 出片滚版 → 已在产（快照取自远端线 7613d4e7a → GHA `sha-aeb58e6`，digest `sha256:d0beeaa9`；
+      fd-infra-deploy 双 bump（`88617c3` platform + `6acafc7` facet——并发线中途改过 facet 的起点 tag，
+      两次提交分别对齐同一个镜像）→ ArgoCD → 两 rollout 完成；镜像内 `test-fleet-orchestration` = 17/17 绿）
 - [ ] 4.2 观察项：滚版后看一条真实定时派发的回执是否落在派发岗会话

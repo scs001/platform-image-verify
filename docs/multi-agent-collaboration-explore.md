@@ -324,6 +324,10 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 
 第 2 层 防重复花钱
   ⑦ add-fleet-ignition-idem    点火幂等（key = runId + turnId + edge），重跑/重试不翻倍
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-ignition-idem/`
+                               （镜像 sha-0b02f37；键 = `回合身份:边种类:目标岗`，回合身份取账本 turnId、缺席退执行序号；
+                               键写进 `origin.fleet.ignition`，判定回读已落库任务、无新存储、跨重启成立；
+                               已知边界两条见 design（下游任务被删/重启恢复轮次）；镜像内 18/18 绿）**
   ⑧ add-fleet-run-budget       整 run 预算闸 + 取消 run 入口
 
 第 3 层 要设计

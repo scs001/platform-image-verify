@@ -318,6 +318,9 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                runId 无 ledger 时为 null；无 judge 波带 `initiatorPreset: job.preset`；
                                镜像内 5/5 绿 + 全量扫 3869/3869 零红）**
   ⑥ fix-dispatch-delivery      定时车道 initiator 改用派发岗会话（web 车道行为不变）
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-dispatch-delivery/`
+                               （镜像 sha-aeb58e6；initiator 改按归因分支取：在飞回合→镜像会话、运行中任务→任务会话、
+                               聊天车道→指针；并补 initiatorPreset + 每派发独立分组键；镜像内 17/17 绿）**
 
 第 2 层 防重复花钱
   ⑦ add-fleet-ignition-idem    点火幂等（key = runId + turnId + edge），重跑/重试不翻倍

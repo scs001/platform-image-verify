@@ -9,7 +9,12 @@ import { pinLocaleEn } from "./helpers.js";
 // the app center; the legacy ?tab=apps deep link falls back to the first
 // visible tab.
 
+// W2 teardown (0eb48a0d0) retired the /agents four-zone hub (AgentsPage →
+// AgentMarketPage) but never synced this spec — every assertion on
+// agents-page testids has been dead since. Marked fixme rather than deleted
+// until the hub spec is rewritten against AgentMarketPage (separate batch).
 test.describe("agents page hub areas", () => {
+  test.skip(true, "W2 retired the /agents hub this spec asserts on (0eb48a0d0); rewrite against AgentMarketPage");
   test("default area is Build", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/agents");
@@ -111,7 +116,7 @@ test.describe("agents page hub areas", () => {
   });
 });
 
-test("8.1 back-link: a studio-sourced skill candidate shows the source-doc chip that reaches the workspace", async ({ page }) => {
+test.skip("8.1 back-link (facet-host studio flow; 壹座 /studio retired to redirect — assert moved with the page)", async ({ page }) => {
   await pinLocaleEn(page);
   // Seed a candidate WITH a source doc id (the studio proposal path) and one
   // WITHOUT (the cell MCP path — honest absence, no chip) directly via the API.
@@ -130,4 +135,27 @@ test("8.1 back-link: a studio-sourced skill candidate shows the source-doc chip 
   for (const id of [linkedId, bareId]) {
     await page.request.post(`/api/skill-evolution/candidates/${id}/reject`, { data: { reason: "e2e cleanup" } });
   }
+});
+
+// ── /packs install face (add-supply-studio-migration 5.2 fix) ────────────────
+// facet studio's deployTeam deep link lands on /packs?deployCastPack=<id> —
+// the route must exist (previously the catch-all bounced it to /chat) and
+// render the pack marketplace surface with the market tab active. This is a
+// mount check: the detail dialog's API fan-out is covered by pack specs.
+test.describe("packs install face", () => {
+  test("/packs mounts the marketplace page instead of falling to chat, deep link param rides", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.goto("/packs?deployCastPack=cast_probe_pack");
+    await expect(page).toHaveURL(/\/packs\?deployCastPack=cast_probe_pack$/);
+    await expect(page.getByTestId("packs-page")).toBeVisible();
+    await expect(page.getByTestId("packs-tabs")).toContainText("Market");
+    // Not the chat catch-all: no composer.
+    await expect(page.locator("textarea[data-testid='composer-input']")).toHaveCount(0);
+  });
+
+  test("/packs without params still mounts (direct navigation)", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.goto("/packs");
+    await expect(page.getByTestId("packs-page")).toBeVisible();
+  });
 });

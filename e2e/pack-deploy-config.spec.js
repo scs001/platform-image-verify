@@ -106,7 +106,7 @@ function installGatewayMock(page, state) {
 
 async function openDeployForm(page) {
   await pinLocaleEn(page);
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs?tab=market");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("packs-tab-market").click(); // market tab, then the card
   await page.getByTestId(`pack-card-${PACK.id}`).click();

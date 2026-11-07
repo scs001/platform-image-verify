@@ -39,6 +39,12 @@ const DocumentsPage = lazy(() =>
 // lazy import goes with it (the page module stays single-sourced for the facet
 // host, web/ tree alias `@`).
 const AgentMarketPage = lazy(() => import("@/pages/AgentMarketPage").then((m) => ({ default: m.AgentMarketPage })));
+// Pack install face (add-supply-studio-migration 5.2 fix): /packs answers the
+// facet studio deployTeam deep link (?deployCastPack=<id>) — the market tab
+// opens its detail dialog straight on the cast pack and the from-template
+// flow installs on THIS machine. The market browsing half stays on the facet
+// domain (/agents links there); this route is the install+承接 half.
+const PacksPage = lazy(() => import("@/pages/PacksPage").then((m) => ({ default: m.PacksPage })));
 const TuningPage = lazy(() => import("@/pages/TuningPage").then((m) => ({ default: m.TuningPage })));
 // 智能体工作室 (add-agent-studio): the visual agent builder — one surface,
 // four emit targets (D8 additive: entry from the agents page, v1).
@@ -338,6 +344,9 @@ export default function App() {
             <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/memory" element={<MemoryPage />} />
             <Route path="/agents" element={<AgentMarketPage />} />
+            {/* deployTeam 深链靶 (add-supply-studio-migration 5.2 fix): facet
+                studio 的 deploy handoff 落这里打开装包+从模板流。 */}
+            <Route path="/packs" element={<PacksPage />} />
             {/* 原生调优面 (add-supply-studio-migration 4.4): tuning leaves the
                 dissolved four-zone facade — same candidate-review behavior,
                 its own doorway (skill-self-evolution contract untouched). */}

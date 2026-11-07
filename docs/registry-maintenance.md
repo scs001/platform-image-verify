@@ -7464,3 +7464,23 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 **生产实况（只读 sqlite 取证，cheap-3 12 cell 库）**：`fleet_members target_kind='a2a'` 共 **10 支**（1da519d4 cell 7 支：万星机群席×4/取证-远端哨兵×2/外联部 p2 分身；3fdc7b8e 源岗；420a3344 源岗 wire-tester2；de7ec3a6 外联岗 p2walk1025），targetId 前缀两形态并存（`registry-packs-…`/`packs-…`，`pathToName` 有损清洗不可反解）——即今天对这些团队一键召唤永远召不到 spec 定义本体的「有 serving 部署的成员」。
 
 **修复设计（立案 `fix-zhiyu-summon-serving-face`，4 工件 strict 绿待 apply）**：不做 targetId 字符串反解——cell overview 的 `formation.members` 对 a2a 岗补 `targetId`+`servingPath`（从 entry.url=`${REGISTRY_URL}/agent<path>/` 解析，与 `lib/agent-serving.js:678` 部署 mint 的 `/packs/<packId>/<agentId><suffix>` 同源；外部 a2a url → null 如实排除）；gateway 给桥传 `servingDeployments` 窄缝（packs internal deployments，凭据纪律同 agent-lane）；桥按 **servingPath === agentPath 全等**对齐出真 summonable（ref=`packId:agentId`、onBehalfOf=deployedBy，多部署者 pathSuffix 天然唯一无歧义）；执行段（invite 握手/订阅随行/部分失败）零改动。测试双态：正路径（plan 非空逐成员带 ref）+ 降级态（保留现断言）。走查单 O8 行 + 2.6 注记同步；2.4/2.5 勾选（14/23）。
+
+## §15.138 续三 出片事故与正规重发：主仓全史 3 分钟暴露于公开镜像仓（2026-11-07，fix-zhiyu-summon-serving-face 4.x 执行中）
+
+**事故**：O8 修复出片时，`make-public-snapshot.mjs` 漏带 `--init` 旗标——快照目录无 `.git`，嵌套 cwd 下的 `git add -A` 命中父仓（paas 主仓）并提交 fb14d9449（卷入并发会话未跟踪文件），随后 `git push mirror HEAD:main --force` 把**主仓全部 2486 提交历史**推上公开仓 `scs001/platform-image-verify`。暴露窗口约 3 分钟，处置：① 立即 force-push 顶回正规快照点 1f9335b40（P0 期干净快照，树验无 DEPLOY/k8s/openspec）——公开仓 ref 上私有对象恢复不可达；② 主仓 `git reset a4452ccbb`（mixed）撤误提交，并发会话文件原样回工作树零丢失；③ origin/gitee 核对未受染（误提交从未推送）。
+
+**暴露面定性（全史 gitleaks 8 条逐一核原文）**：7 条无害（OAuth clientId=公开标识、注释明写的 representative dummy key、e2e stub 常量、纯 env 变量名）；1 条实质=2026-07-14 归档件 `LITELLM_API_KEY`（192.168.1.4 内网 LiteLLM，公网不可路由）→ 若服务仍在须轮换。另 DEPLOY.md/k8s 拓扑/内网名窗口内可取（低概率非零）；GitHub 对 force-push 掉的对象可按 SHA 短期直取（官方无即时 GC，在意则提 Support）。
+
+**根因双坑叠加**：runbook §2 明写「发布方式：无历史快照——私仓历史不出门」且每次发布须 `--init` 产单 commit 快照仓（remote 需重加）；无 `--init` 时快照目录无 .git，嵌套 cwd 的 git 操作静默命中父仓。**配方钉死：出片永远 `node scripts/make-public-snapshot.mjs --init`，且 push 前必查 `git rev-parse --show-toplevel` 等于快照目录自身。**
+
+**正规重发**：`--init` 产 6fbcf38（snapshot of a4452ccbb，1820 文件零禁品+gitleaks clean）→ restore workflows 4d2dbfb → CI image run 42316905465。
+
+## §15.138 续四 O8 修复上产+真机复验：serving face 上线、vacant 如实排除；正路径阻于新 O9（2026-11-07）
+
+**上产**：CI run 42316905465 绿 → relay `08:26:31 OK yizuo/platform:sha-4d2dbfb (4s)` → ccr skopeo 硬门（digest `f3bf4f10`，Created 00:16Z 吻合）→ GitOps `4f97953` 双清单 → ArgoCD hard-refresh → **双 pod imageID `f3bf4f10` 逐字全等**。注意 prod 前版已是 law-bench/platform:sha-5254a72（并发会话的 lex 线 + 镜像 home 迁移）；本版 a4452ccbb 为其超集（含 6f0dbdb19 lex 内容），home 回写 yizuo（scs001 镜像仓构建有 yizuo 写权），两 home 并存期 relay repos.conf 两行都在。
+
+**真机复验（专用房 `zy_f510e046f10d83f440`，dryRun 纯读，用后即 end）**：新镜像 serving face 上线——own 账号 overview 的 formation.members 对 7 支 a2a 岗如实列出 targetId、servingPath；dryRun 200 `summonable=[]` + cockpitOnly 10 岗如实。vacant 岗排除是正确行为（目录条目已不在 → servingPath=null → 不假装可召）。
+
+**O9（新缺陷，P1，另立 change）**：正路径三层环境阻塞——① `doFacetRefresh`（registry-bridge.js:484）只拉 mcp+skills 不拉 agents，cell 目录 a2a-mode 条目=0，facet 统一后全部 a2a 岗 vacant（**add-supply-catalog-unification 的隐藏代价**）；② 本平台 pack_deployments 仅 1 行（ops-seed demo），a2a 岗的 pack 部署在萬星面账本（账本分家——部署/召唤的跨面对账要归一）；③ facet pod Error/Pending（并发会话处置中，台账缝 ECONNREFUSED，缝的 null 降级按设计生效）。O8 的 join 正路径由 bridge 10/10 + assembly 7/7 测试覆盖；生产解锁依赖 O9。
+
+**走查单状态**：2.6 注记更新（O8 修复上产、执行半边待 O9）；O8 行改「修复已上产」、O9 行新增。4.3/4.4 未勾（零假绿）。**台账附记**：出片事故（续三）后主仓误提交 fb14d9449 已 reset 撤销，origin/gitee 从未受染。

@@ -19,10 +19,10 @@
 
 ## 4. 出片与真机
 
-- [ ] 4.1 提交（只 add 本单文件）+ 双推 + 公开免费线快照闸出片（force-push 后恢复镜像 workflows）
-- [ ] 4.2 relay → ccr skopeo 硬门 → GitOps 双清单 bump → ArgoCD 滚版 → 双 pod imageID 核对
-- [ ] 4.3 真机复验：对含现役 a2a 岗的团队（如万星机群席）dryRun → plan.summonable 非空且 ref=`packId:agentId`；外部地址/无对齐行岗如实排除；persona 岗 cockpitOnly 不变
-- [ ] 4.4 执行级召唤一次（至多一队）：invites 按策略发起、逐成员结果如实、订阅随行；复验后清理测试房间
+- [x] 4.1 提交（只 add 本单文件）+ 双推 + 公开免费线快照闸出片（force-push 后恢复镜像 workflows）→ 提交 `a4452ccbb` 双推 origin+gitee 全等；**首推出事故**：快照漏 `--init` 旗标、嵌套 cwd 的 git 操作命中父仓，误把主仓全史 force-push 上公开镜像仓——约 3 分钟窗口内顶回正规快照点 1f9335b40 封堵（暴露面定性=8 findings 里 1 条实键且为内网 LAN 地址，台账 §15.138 续三全录）；正规重发 `--init` 快照 6fbcf38 + restore workflows **4d2dbfb** → CI image run 42316905465 **绿**
+- [x] 4.2 relay → ccr skopeo 硬门 → GitOps 双清单 bump → ArgoCD 滚版 → 双 pod imageID 核对 → relay `08:26:31 OK yizuo/platform:sha-4d2dbfb (4s)`；ccr `skopeo inspect --creds` 解析成功（Created 00:16Z 吻合、digest `f3bf4f10`）；GitOps `4f97953` 双清单（prod 回写 yizuo home + demo 对齐；前版 law-bench 5254a72 回滚可用）→ ArgoCD hard-refresh → **双 pod imageID `f3bf4f10` 逐字全等**（platform-5b65776fd4-tlltg / platform-demo-7fcfcc6896-qfczb）
+- [ ] 4.3 真机复验：对含现役 a2a 岗的团队（如万星机群席）dryRun → plan.summonable 非空且 ref=`packId:agentId`；外部地址/无对齐行岗如实排除；persona 岗 cockpitOnly 不变 → **PARTIAL / 未勾 2026-11-07**：serving face 上线实证（新镜像 formation.members 带 targetKind/targetId/servingPath，own 账号 7 支 a2a 岗全部如实列出）；dryRun 真机 200（专用房 `zy_f510e046f10d83f440`，用后即 end）`summonable=[]` + cockpitOnly 10 岗如实——vacant 岗排除是**正确行为**；**正路径被三层环境阻塞（新缺陷 O9）**：①facet catalog 源 `doFacetRefresh` 只拉 mcp+skills 不拉 agents → cell 目录 a2a 条目=0 → 全部 a2a 岗 vacant → servingPath=null；②本平台部署台账仅 1 行（ops-seed demo），a2a 岗的 pack 部署登记在萬星面账本（分家）；③facet pod Error/Pending（并发会话处置中）→ 台账缝 ECONNREFUSED。正路径由测试全覆盖（bridge 10/10 + assembly 7/7）
+- [ ] 4.4 执行级召唤一次（至多一队）：invites 按策略发起、逐成员结果如实、订阅随行；复验后清理测试房间 → **BLOCKED 2026-11-07：无 summonable 成员存在（O9 三层阻塞）**；执行段代码已在正路径测试真跑（inviteCreate 断言 ref/onBehalfOf/订阅随行，且当场抓出执行段两处死点已修）
 
 ## 5. 收口
 

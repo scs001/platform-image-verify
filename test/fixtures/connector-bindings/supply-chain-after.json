@@ -37,12 +37,12 @@
    "surface": "库存快照只读（日终账实对账）+ 出入库事件回传",
    "direction": "read-only",
    "credential": "BYOK：ERP_BYOK_WMS_*",
-   "note": "编排层零写 WMS；台账单向同步（中台→WMS 由客户既有链路承担）",
+   "note": "编排层零写 WMS；台账单向同步（中台→WMS 由客户既有链路承担）。optional=false 曾表示「仓配是垂直核心」，但 provider=wms 不是连接器目录里的 service id（目录无 wms；最近项 wangdian 只有 read 面），非 optional 只会让安装门永久挂一条用户无从处理的未解决项——客户接任何账号都关不上。故在客户 WMS 品牌与接口形态确认前暂标 optional；确认后改真 service id 并恢复非 optional。",
    "provider": "wms",
    "allowOperations": [
     "read"
    ],
-   "optional": false
+   "optional": true
   },
   {
    "key": "payments-merchant",

@@ -59,6 +59,12 @@ const AUTH_EXEMPT_PREFIXES = [
   // exactly like the cron/ops bridges above — the route verifies that token
   // itself, so the session gate must not intercept it first.
   "/local-registry/",
+  // Trial-exec service channel (add-supply-studio-migration 5.3): the supply
+  // domain's Studio calls the run domain headlessly over the shared internal
+  // credential (x-facet-token, timing-safe compared in the route) — same
+  // convention as /api/ops/: the route carries its own authentication, so the
+  // session gate must not intercept it first. Inert (401) with no token.
+  "/api/trial-exec",
 ];
 
 export function normalizeAuthPath(value, fallback) {

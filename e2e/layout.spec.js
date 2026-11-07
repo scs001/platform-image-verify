@@ -299,9 +299,11 @@ test.describe("workbench layout (logto mode)", () => {
     expect(after.json.resolvedLayout.nav).not.toContain("tasks");
   });
 
-  test("a hidden Agents nav tab keeps /agents deep links resolving (builder hub)", async ({ page, context }) => {
+  test("a hidden Agents nav tab keeps /agents deep links resolving (market facade)", async ({ page, context }) => {
     // add-agent-builder-hub 4.2: deployment-hide the Agents tab entirely; the
-    // hub route survives hiding (hidden surfaces keep their routes).
+    // route survives hiding (hidden surfaces keep their routes). W2 teardown
+    // (0eb48a0d0): /agents now renders AgentMarketPage (the four-zone hub is
+    // dissolved) — the route-resolves assertion rides the facade's testids.
     const hide = await api("/api/layout/config", { method: "PUT", cookie: adminCookie, body: { hidden: ["tasks", "apps", "agents"] } });
     expect(hide.status).toBe(200);
 
@@ -310,9 +312,8 @@ test.describe("workbench layout (logto mode)", () => {
     await page.goto(`${BASE}/chat`);
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await expect(page.getByTestId("nav-agents")).toHaveCount(0);
-    await page.goto(`${BASE}/agents?tab=supply`);
-    await expect(page.getByTestId("agents-page")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("supply-section")).toBeVisible();
+    await page.goto(`${BASE}/agents`);
+    await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15000 });
 
     // Restore the chain's state for any later steps.
     const restore = await api("/api/layout/config", { method: "PUT", cookie: adminCookie, body: { hidden: ["tasks", "apps"] } });

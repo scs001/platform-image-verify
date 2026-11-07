@@ -32,7 +32,11 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const page = read("web/src/pages/AgentStudioPage.tsx");
 const app = read("web/src/App.tsx");
-const agentsPage = read("web/src/pages/AgentsPage.tsx");
+// W2 teardown (0eb48a0d0) retired the /agents four-zone hub: AgentsPage is an
+// orphaned module (zero importers — kept for the migration window only) and
+// the market facade is AgentMarketPage. Assertions that read the hub now read
+// the market page.
+const agentsPage = read("web/src/pages/AgentMarketPage.tsx");
 const bucketsEditor = read("web/src/components/studio/AgentBucketsEditor.tsx");
 const ribbon = read("web/src/components/studio/LifecycleRibbon.tsx");
 const lifecycleLib = read("web/src/lib/workspace-lifecycle.ts");
@@ -90,16 +94,20 @@ test("the working document is persisted: ephemeral StudioDoc retired, blueprint 
   assert.match(page, /Blueprint\b/, "the open document is a persisted Blueprint");
 });
 
-test("second host retired: no BlueprintTeamMode, routes redirect, hub carries entry + board", () => {
+test("second host retired: no BlueprintTeamMode, routes redirect, market facade carries the studio entry (W2 teardown shape)", () => {
   assert.ok(!fs.existsSync(path.join(root, "web/src/components/studio/BlueprintTeamMode.tsx")), "team-mode host removed");
   assert.ok(!fs.existsSync(path.join(root, "web/src/pages/BlueprintStudioPage.tsx")), "old blueprint page removed");
   assert.ok(!page.includes("BlueprintTeamMode") && !app.includes("BlueprintTeamMode"), "no imports of the retired host");
-  assert.match(app, /path="\/studio"/, "App.tsx mounts /studio");
-  assert.match(app, /BlueprintRouteRedirect/, "the /blueprints route still resolves");
-  assert.match(app, /to="\/studio\?from=blueprint"/, "old route redirects into the workspace");
-  assert.match(agentsPage, /agents-studio-link/, "AgentsPage carries the entry link");
-  assert.match(agentsPage, /build-docs-board/, "the build zone hosts the recent-documents board");
-  assert.match(agentsPage, /\/api\/blueprints/, "the board reads the EXISTING blueprint list endpoint (no new endpoint)");
+  // W2 (add-supply-studio-migration 4.1/4.2): /studio is a redirect to the
+  // supply domain (StudioRouteRedirect → STUDIO_ORIGIN/#/studio); the old
+  // in-domain BlueprintRouteRedirect is gone. /blueprints rides the same
+  // redirect with from=blueprint.
+  assert.match(app, /path="\/studio" element=\{<StudioRouteRedirect \/>\}/, "App.tsx mounts /studio as the supply-domain redirect");
+  assert.match(app, /path="\/blueprints" element=\{<StudioRouteRedirect params=\{\{ from: "blueprint" \}\} \/>\}/, "the /blueprints route redirects via the same StudioRouteRedirect");
+  assert.ok(!app.includes("to=\"/studio?from=blueprint\""), "no in-domain redirect target (W2 retargeted it)");
+  // W2 4.2: the market facade carries the studio deep link (was AgentsPage
+  // agents-studio-link); the hub build-zone board is retired with the hub.
+  assert.match(agentsPage, /agent-market-studio/, "AgentMarketPage carries the studio entry link");
 });
 
 test("deep links: doc / fork / new all seeded from search params; skills ride the persisted document", () => {
@@ -136,8 +144,12 @@ test("kind (batch 2): dual create entries, agent documents carry no team ribbon,
   assert.match(lib, /ws-library-kind-/, "the library marks the kind badge");
 });
 
-test("route entry: lazy mount like other work surfaces; hub link reachable", () => {
-  assert.match(app, /AgentStudioPage = lazy/, "lazy-loaded like the other work surfaces");
+test("single-sourced page module: the 壹座 host lazily imports it no more (facet is the only host, via the @ alias)", () => {
+  // W2 4.1/4.6: the 壹座 host retired its lazy AgentStudioPage import (the
+  // /studio route is the redirect); the page module stays single-sourced for
+  // the facet host (facet/web alias `@` → web/src).
+  assert.ok(!app.includes("AgentStudioPage = lazy"), "壹座 App.tsx no longer lazy-imports the studio page");
+  assert.ok(fs.existsSync(path.join(root, "facet/web/src/StudioView.tsx")), "facet StudioView (the sole host) exists");
 });
 
 test("i18n: studio chrome + the full workspace subtree exist in all five locales", () => {

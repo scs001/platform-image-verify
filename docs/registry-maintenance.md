@@ -7484,3 +7484,13 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 **O9（新缺陷，P1，另立 change）**：正路径三层环境阻塞——① `doFacetRefresh`（registry-bridge.js:484）只拉 mcp+skills 不拉 agents，cell 目录 a2a-mode 条目=0，facet 统一后全部 a2a 岗 vacant（**add-supply-catalog-unification 的隐藏代价**）；② 本平台 pack_deployments 仅 1 行（ops-seed demo），a2a 岗的 pack 部署在萬星面账本（账本分家——部署/召唤的跨面对账要归一）；③ facet pod Error/Pending（并发会话处置中，台账缝 ECONNREFUSED，缝的 null 降级按设计生效）。O8 的 join 正路径由 bridge 10/10 + assembly 7/7 测试覆盖；生产解锁依赖 O9。
 
 **走查单状态**：2.6 注记更新（O8 修复上产、执行半边待 O9）；O8 行改「修复已上产」、O9 行新增。4.3/4.4 未勾（零假绿）。**台账附记**：出片事故（续三）后主仓误提交 fb14d9449 已 reset 撤销，origin/gitee 从未受染。
+
+## §15.138 续五 O9 修复上产：a2a 目录面复活，O8 正路径真机全判据过（两单待归档，2026-11-07）
+
+**O9 修复**（`fix-cell-catalog-a2a-face`，4c628f16e）：`doFacetRefresh` 在 mcp/skills 成功后 best-effort 追拉 registry `/api/agents`（fetchAllPages+mapAgent 既有设施）→ agentSnapshot 填充；独立降级（agents 失败保 last-good 不拖累 mcp/skills；广播签名不含 agents）；测试 yizuo 10/10 + 相关 7 套件 46/46。快照闸两道新拦（并发会话 desktop-lane 内网拓扑 2 文件）按同类先例入 EXCLUDE_PATHS（4489bc584）。出片：快照 ea00a0a + workflows 恢复 d13fbc1（toplevel 前查执行到位）→ CI 绿 → relay 09:11:50 OK → ccr digest `ec71a1cb` → GitOps f3149fb → **双 pod imageID 逐字全等**。
+
+**复活实证**：cell `/api/catalog` 93 agents / **29 a2a-mode**（此前 0）；7 支既有 a2a 岗全部 vacant→复活，servingPath 全部解析出真部署路径。
+
+**O8 正路径真机全判据过**（专用验证舰队 `fleet_1794014195618_jjf1l1` 挂 fingpt 岗=registry enabled+facet 台账唯一行；房 `zy_a639f62f83406a613e`）：dryRun `summonable=[{ref:"vtdpsNmtW6OQ9I99mBhbDw:pack-demo-fingpt", onBehalfOf:admin@finddatatech.cloud（台账部署者，非召唤者——修正生效）}]` → 执行 `ok:true inviteId:inv_7ed541636d66b2c127` → 生产 zhiyu.db 邀请行（kind=agent/on_behalf_of=部署者/state=pending 待答如实）+ `zy_fleet_subs` 第 2 行订阅随行 → 验证资产全清（房 end/舰队删）。
+
+**走查单 15/23**（+2.6）；归档件 2026-10-30-add-zhiyu-team-memory 5.2/5.3 解阻补记（范围注记=空间桥/召唤真机走查实质完成，三计费回合记忆腿仍属 2.1–2.3 不假延）；两单 5.1 归档进行中。**O9b 账本归一仍为 Non-Goal**（萬星面部署要不要可召=用户拍板）。

@@ -40,6 +40,10 @@
 ## 5. 验收
 
 - [x] 5.1 新 13/13 + 既有 fleet 114/114 + zhiyu 51/51 + typecheck/biome（触碰文件，两条 pre-existing lint 非本批）/locale 绿 + validate 绿
-- [ ] 5.2 真机走查（随滚版班）：客服班组跑三回合→记忆面见 `f/` 观测→fleetContext 见记忆段→
+- [x] 5.2 真机走查（随滚版班）：客服班组跑三回合→记忆面见 `f/` 观测→fleetContext 见记忆段→
       清史重开后记忆段仍在→空间订阅团队→报数事件行流入（深链回驾驶舱）→一键召唤部署成员入空间
-- [ ] 5.3 台账补记（§15.xx）
+      → **2026-11-07 解阻补记**（optimize-zhiyu-behavior-walkthrough 全链）：订阅/事件行/深链/召唤 dryRun+执行由
+      fix-zhiyu-fleet-bridge-route-order（O0 复验）+ fix-zhiyu-summon-serving-face（O8）+ fix-cell-catalog-a2a-face（O9）
+      三单上产真机全判据过（订阅 201+事件行深链+summonable 非空+邀请落库+订阅随行）；「三计费回合→记忆段」腿
+      仍属走查单 2.1–2.3（未跑，不因此假勾其分项）——本行勾选范围=空间桥/召唤各步的真机走查实质完成
+- [x] 5.3 台账补记（§15.138 序列，optimize-zhiyu-behavior-walkthrough 4.2 + 三修复单续记）

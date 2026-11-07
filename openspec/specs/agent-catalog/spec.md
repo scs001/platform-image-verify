@@ -26,11 +26,13 @@ The catalog SHALL accept entries of three types: `agent-local` (the built-in age
 
 ### Requirement: Dual-source configuration with cloud precedence
 
-The catalog SHALL merge five optional sources: a local `agents.json` file (sibling of `mcp.json`, gitignored), a cloud JSON document fetched from `AGENTS_CONFIG_URL` (same schema, top-level `agents` and `apps` arrays), agent entries from the configured mcp-gateway-registry (`GET /api/agents`, using the market registry env vars), agent entries from packs installed in the cell (openspec: pack-installation), and agent entries from the cell's user-defined presets (openspec: custom-presets). Registry agent entries SHALL be adapted to `agent-remote` entries in `link` mode (external URL) unless the registry entry declares an OpenAI-compatible endpoint, in which case `chat` mode applies with `baseUrl` and `model` mapped and the key resolved from an env var reference; a registry entry whose `supported_protocol` is `a2a` SHALL instead map to an `a2a`-mode entry whose `url` is the gateway route (`{registry}/agent/{path}/`), regardless of any external URL it carries. Registry group membership SHALL map to the catalog entry's `roles` (no groups ⇒ visible to everyone). Pack-sourced entries SHALL be `agent-remote` `chat` entries carrying the pack's display fields and persona, with no endpoint or credential fields, and follow the same local persona-preset serving as other `chat` entries; the client-facing payload for pack-sourced entries SHALL additionally carry their `packId`, so picker surfaces can mark them as focused roles (openspec: pack-agent-scoping). Custom-preset entries SHALL be persona-only `chat` entries carrying their display fields and a `customPreset` marker with a resource summary, following the same local persona-preset serving and focus marking. On `id` collision the later source SHALL win, in the order built-in → registry → packs → user presets → `agents.json` → cloud: local overrides remote, and the cloud remains the live control plane even for ids first defined elsewhere. When the registry or cloud fetch fails, the server SHALL keep serving the last successfully fetched entries and log a warning; pack-sourced and custom-preset entries are local state and need no fetch.
+The catalog SHALL merge five optional sources: a local `agents.json` file (sibling of `mcp.json`, gitignored), a cloud JSON document fetched from `AGENTS_CONFIG_URL` (same schema, top-level `agents` and `apps` arrays), agent entries from the configured mcp-gateway-registry (`GET /api/agents`, using the market registry env vars), agent entries from packs installed in the cell (openspec: pack-installation), and agent entries from the cell's user-defined presets (openspec: custom-presets). Registry agent entries SHALL be adapted to `agent-remote` entries in `link` mode (external URL) unless the registry entry declares an OpenAI-compatible endpoint, in which case `chat` mode applies with `baseUrl` and `model` mapped and the key resolved from an env var reference; a registry entry whose `supported_protocol` is `a2a` SHALL instead map to an `a2a`-mode entry whose `url` is the gateway route (`{registry}/agent/{path}/`), regardless of any external URL it carries. Registry group membership SHALL map to the catalog entry's `roles` (no groups ⇒ visible to everyone). Pack-sourced entries SHALL be `agent-remote` `chat` entries carrying the pack's display fields and persona, with no endpoint or credential fields, and follow the same local persona-preset serving as other `chat` entries; the client-facing payload for pack-sourced entries SHALL additionally carry their `packId`, so picker surfaces can role-mark them (openspec: pack-agent-scoping). Custom-preset entries SHALL be persona-only `chat` entries carrying their display fields and a `customPreset` marker with a resource summary, following the same local persona-preset serving and focus marking. On `id` collision the later source SHALL win, in the order built-in → registry → packs → user presets → `agents.json` → cloud: local overrides remote, and the cloud remains the live control plane even for ids first defined elsewhere. When the registry or cloud fetch fails, the server SHALL keep serving the last successfully fetched entries and log a warning; pack-sourced and custom-preset entries are local state and need no fetch.
+
+**The registry agents leg is source-independent**: even when the market catalog's mcp/skills species are served by the unified facet catalog projection (a facet catalog URL configured), the registry agents leg SHALL still be read from the registry agents API (same market registry env vars), so `a2a`-mode entries remain available for fleet posts, room summoning, and picker surfaces. The agents leg SHALL degrade independently of the facet projection: an agents fetch failure SHALL keep last-good agents and warn without failing the mcp/skills refresh, and vice versa.
 
 #### Scenario: Cloud entry overrides local
 
-- **WHEN** `agents.json` defines an entry with id `junior` and the cloud document defines an entry with the same id
+- **WHEN** `agents.json` defines an entry with id `junior` and the cloud document defines the same id
 - **THEN** the merged catalog contains the cloud version of `junior`
 
 #### Scenario: Cloud outage does not clear the catalog
@@ -98,6 +100,16 @@ The catalog SHALL merge five optional sources: a local `agents.json` file (sibli
 
 - **WHEN** a user deletes a custom preset
 - **THEN** its entry disappears from `GET /api/catalog` and the picker, and its generated preset is pruned
+
+#### Scenario: Facet-served market still carries registry agents
+
+- **WHEN** the deployment configures a facet catalog URL (the mcp/skills species come from the facet projection) and the registry lists enabled `a2a` agents
+- **THEN** the merged catalog contains those agents as `a2a`-mode entries with gateway-route urls, and fleet posts targeting them resolve alive rather than vacant
+
+#### Scenario: Agents leg degrades independently of the facet projection
+
+- **WHEN** the facet projection refresh succeeds but the registry agents fetch fails (unreachable or unauthorized)
+- **THEN** the mcp/skills species still refresh, the catalog keeps last-good agents, and the server logs a warning — neither face is blocked by the other's failure
 
 ### Requirement: A2A agents chat over the A2A protocol
 

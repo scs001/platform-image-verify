@@ -17,7 +17,7 @@
 
 - [x] 3.1 `specs/connector-bindings/spec.md` ADDED「卸载包后其绑定行转为历史」+ 三个场景
 - [x] 3.2 `openspec validate deprecate-uninstalled-bindings --strict`
-- [ ] 3.3 `npm run test:unit` 全量（对比基线 3877/3870，两条既有红不得增加）
+- [x] 3.3 `npm run test:unit` 全量 3884 / pass 3877 / fail 2 / skip 5（比基线 3877/3870 净增 7 条测试、净增 7 绿；两条红仍是 HEAD 既有的 `test-pack-cell` 断言文案与 `test-supply-store-migrate` dual-read，未增加）
 - [ ] 3.4 并入出片线 `release/cell-session-persona`（gitee + origin）
 - [ ] 3.5 `openspec archive deprecate-uninstalled-bindings`
 

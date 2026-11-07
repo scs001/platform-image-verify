@@ -382,11 +382,36 @@ test("3.2 quota: anonymous gets no preview; daily cap returns explicit code", as
 
 test("3.3 honest degradation: drafting leg upstream failure is an explicit failed state, no placeholder draft", async () => {
   const email = "degraded@facet.test";
-  const res = await fetch(`${failingBase}/api/studio/preview`, {
-    method: "POST",
-    headers: { ...identity(email), "content-type": "application/json" },
-    body: JSON.stringify({ content: teamDoc(), prompt: "起草一个盯梢台" }),
-  });
+  // The lane must exist for the upstream-failure leg to be reachable at all
+  // (no lane resolves to 503 preview_lane_unavailable, a different behavior).
+  // Pin it here instead of inheriting the machine's roster: locally an
+  // llm-providers.json supplied one, while CI has neither roster nor env route
+  // and answered 503 — a green that only ever held on the developer's laptop.
+  const saved = {
+    base: process.env.LLM_BASE_URL,
+    model: process.env.LLM_MODEL,
+    judge: process.env.BLUEPRINT_JUDGE_MODEL,
+  };
+  process.env.LLM_BASE_URL = "http://127.0.0.1:9/v1";
+  process.env.LLM_MODEL = "honest-degradation-probe";
+  delete process.env.BLUEPRINT_JUDGE_MODEL;
+  let res;
+  try {
+    res = await fetch(`${failingBase}/api/studio/preview`, {
+      method: "POST",
+      headers: { ...identity(email), "content-type": "application/json" },
+      body: JSON.stringify({ content: teamDoc(), prompt: "起草一个盯梢台" }),
+    });
+  } finally {
+    for (const [k, v] of Object.entries({
+      LLM_BASE_URL: saved.base,
+      LLM_MODEL: saved.model,
+      BLUEPRINT_JUDGE_MODEL: saved.judge,
+    })) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
   const body = await res.json().catch(() => null);
   assert.equal(res.status, 502, JSON.stringify(body));
   assert.equal(body?.code, "preview_lane_failed");

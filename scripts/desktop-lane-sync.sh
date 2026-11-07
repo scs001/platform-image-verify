@@ -64,7 +64,11 @@ for ln in open(os.path.join(d, "latest.yml")).read().splitlines():
         folded.append(ln)
 yml = "\n".join(folded)
 checked = 0
-for m in re.finditer(r"- url: (\S+)\n\s+sha512: (\S+)", yml):
+# (harden-desktop-lane-relay) filenames may contain SPACES since 1.3.28
+# ("Platform Setup 1.3.28.exe") — (\S+) truncated at the first space and the
+# whole yml matched nothing ("yml has no file entries"). Capture lazily up to
+# end of line instead.
+for m in re.finditer(r"- url: (.*?)\n\s+sha512: (\S+)", yml):
     name, want = m.group(1), m.group(2)
     p = os.path.join(d, name)
     assert os.path.exists(p), f"missing {name}"
@@ -77,12 +81,14 @@ PY
 
 for f in "$WORK"/lane/*; do
   name=$(basename "$f")
+  # URL-encode the key (spaces at minimum) — a raw space breaks the PUT URL.
+  enc=$(python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))' "$name")
   # curl 7.88 does not auto-add x-amz-content-sha256 (RustFS rejects without
   # it) — sign it explicitly from the payload.
   PAYLOAD_SHA=$(openssl dgst -sha256 "$f" | awk '{print $NF}')
   code=$(curl -s -m 600 --aws-sigv4 "aws:amz:us-east-1:s3" --user "$RUSTFS_AK:$RUSTFS_SK" \
     -H "x-amz-content-sha256: $PAYLOAD_SHA" \
-    -X PUT "$RUSTFS/$BUCKET/$name" --data-binary "@$f" -o /dev/null -w "%{http_code}")
+    -X PUT "$RUSTFS/$BUCKET/$enc" --data-binary "@$f" -o /dev/null -w "%{http_code}")
   [ "$code" = "200" ] || { log "FAIL upload $name (http $code)"; exit 1; }
 done
 log "SYNCED version=$new (was ${cur:-none})"

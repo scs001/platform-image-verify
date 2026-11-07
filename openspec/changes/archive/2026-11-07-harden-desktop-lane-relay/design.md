@@ -54,4 +54,20 @@ v1.3.28 已于 11-07 手工旁路上 lane（Mac 直推 RustFS，sha512 全程校
 
 ## Open Questions
 
-- LANE-STALE 的告警消费面（接哪个巡检/看板）——待用户定，任务里挂独立项不阻塞。
+- LANE-STALE 的告警消费面——已落定最小面（exit code + LANE-CHECK/LANE-STALE 显式标记
+  + RELEASE_CHECKLIST 体检命令）；推送式告警总线本环境不存在，有告警面时再接入（tasks 3.4）。
+
+## 演练新增发现（实施期实录）
+
+- **D6（第四雷）**：sync 校验正则 `(\S+)` 对 1.3.28 起带空格的文件名截断——0.0.1-test
+  演练能过纯因旧命名无空格，11-02 的「全链演练通过」并未覆盖真命名形态。修复 + URL
+  编码 PUT（tasks 2.5）。
+- **D7**：paas main 的 release.yml publish job 缺 checkout（cc380bbdc 只落
+  desktop-v1.3.28 分支未进 main）——main 直出片会在 gen-desktop-latest-yml 复炸
+  v1.3.28 首班的 module-not-found。已随本 change 补入。
+- **D8**：1.3.19 装机无 updater（功能 11-02 才归档）——「旧版本客户端可升级」场景的
+  客户端侧能力从 1.3.28 起才存在；更老版本升级走手动安装，spec 场景约束的是「装有
+  updater 的客户端其后恒可见最新」。
+- **D9**：262MB exe 经 cheap3 curl PUT 到 RustFS 实测 ~198s——sync 单轮最长 5 文件
+  ×260MB+340MB+340MB，cron */10 无重叠风险（幂等 + 版本同即 exit 0），但 ssh 会话
+  式手动跑须给足超时。

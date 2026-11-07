@@ -35,6 +35,10 @@ useDefault = true
     # "sk-abc123def456ghi789" is a literal placeholder persona string whose only
     # job is to trip the credential-scan gate (asserting a 422) — never a key.
     '''scripts/test-trial-exec\.mjs''',
+    # Redaction-helper fixture (2026-11-08 public-snapshot gate hit): the test
+    # asserts redact() shreds a token-shaped STRING, so the literal has to look
+    # like a token — "abcdefgh1234" is a placeholder, never a credential.
+    '''scripts/test-bench-proposal-client\.mjs''',
   ]
   # Docker rollback tag in the registry-fork patch README — tag-shaped, not a
   # credential (its entropy trips the generic-api-key rule).

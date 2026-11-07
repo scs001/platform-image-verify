@@ -8,7 +8,7 @@ ERP 纵向 REST 服务面（`/erp/supply-chain/v1/*`）在平台 origin 下的�
 
 ### Requirement: 同源前缀转发
 
-平台 SHALL 把 `/erp/supply-chain/v1/*` 的全部方法（GET/POST/PUT/DELETE，含查询串）转发到配置的上游服务（`ERP_API_UPSTREAM`，缺省为集群内 Service），**路径与请求体保持原样**：不做路径前缀重写，请求体按原始字节转发（该前缀在全局 JSON body parser 之前被跳过）。代理 SHALL 在静态资源与 SPA 深链兜底之前挂载。
+平台 SHALL 把 `/erp/supply-chain/v1/*` 的全部方法（GET/POST/PUT/DELETE，含查询串）转发到配置的上游服务（`ERP_API_UPSTREAM`，缺省为集群内 Service 地址），**路径与请求体保持原样**：不做路径前缀重写，请求体按原始字节转发（该前缀在全局 JSON body parser 之前被跳过）。代理 SHALL 挂在**持有平台 origin 端口的那个进程**里，并早于该进程的静态资源与 SPA 深链兜底。
 
 #### Scenario: GET 页面集清单
 
@@ -24,6 +24,11 @@ ERP 纵向 REST 服务面（`/erp/supply-chain/v1/*`）在平台 origin 下的�
 
 - **WHEN** 浏览器直接访问一个 `/erp/supply-chain/v1/...` 路径
 - **THEN** 该请求由代理处理，MUST NOT 返回前端 `index.html`
+
+#### Scenario: 挂错进程即视为未实现
+
+- **WHEN** 部署以多租户网关形态运行（origin 端口由网关进程持有，业务进程只是其派生的 cell 子进程）
+- **THEN** 代理 MUST 挂在该网关进程内；仅挂在 cell 进程内不构成实现（首轮上产实测：`/erp/*` 返回 SPA `index.html` 1298 字节、POST 302）
 
 ### Requirement: 身份头剥离与服务端注入
 

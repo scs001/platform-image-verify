@@ -12,9 +12,9 @@
 
 ## 2. 部署与上产
 
-- [ ] 2.1 平台镜像出片（新 tag）并换片：`fd-infra-deploy/all-services/prod/platform.yaml`（image tag + 带外 env）
-- [ ] 2.2 带外 env：`ERP_API_UPSTREAM`（缺省集群内 Service）、`ERP_TENANT_ID=acme`、（可选）`ERP_IDENTITY_BINDINGS_FILE` / `ERP_DEFAULT_CUSTOMER`；键值不进 git
-- [ ] 2.3 上产验收（对应 finddata `serve-erp-vertical-api` 3.2，负向用例是硬门）：①带会话 `GET /erp/supply-chain/v1/pagesets` → 200 且四 key；②伪造 `X-ERP-Supplier` → 上游收到值来自绑定表或不存在；③无 cookie → 401 `AUTH_REQUIRED`；④未授权 grant → 403 `GRANT_REQUIRED`；⑤开票/售后 → 501 `NOT_IMPLEMENTED`
+- [x] 2.1 平台镜像出片（新 tag）并换片：`fd-infra-deploy/all-services/prod/platform.yaml`（image tag + 带外 env）
+- [x] 2.2 带外 env：`ERP_API_UPSTREAM`（**实为 ClusterIP `10.43.153.194`**，不是 `<svc>.<ns>.svc.cluster.local`——网关 pod 是 `dnsPolicy: Default` 走 mesh DNS，解析不了集群服务名，实测 000）、`ERP_TENANT_ID=acme`；键值不进 git（这两项无凭证，写进 manifest 并在注释里说明理由）。Service 侧显式 `clusterIP: 10.43.153.194` 钉死，避免 ArgoCD 重排后代理静默 502
+- [x] 2.3 上产验收（对应 finddata `serve-erp-vertical-api` 3.2，负向用例是硬门）：①带会话 `GET /erp/supply-chain/v1/pagesets` → **200 `ok` + 四 key**；②伪造 `X-ERP-Supplier` → 经代理 **401 “缺少供应商身份头”**（已剥离），同一伪造直连上游 **404 供应商档案不存在**（对照证明伪造本会生效）；改名租户：经代理 200（被覆盖）、直连 403 `TENANT_DENIED`；③无 cookie → **401 `AUTH_REQUIRED`**（GET/POST 皆拦）；④grant 闸 → 同镜像一次性 pod 收窄授权后 **403 `GRANT_REQUIRED` / 403 `PAGESET_FORBIDDEN`**（产上授权表全量授权走不到，故用收窄 pod 验同一张闸，探针已删）；⑤`se/leads` → **501 `NOT_IMPLEMENTED`**。出片链路：快照 `d546bfd` → hkccr → relay `OK law-bench/platform:sha-d546bfd` → ccr digest `sha256:857e33d0` → platform/facet 双滚 1/1。**出片两个坑**：私源→公开仓被 `fd-build-snapshot` 正当拒绝（须走 `make-public-snapshot`）；快照不携带 `image-publish.yml`，`--init` 后不手工拷回就只跑 build-check、**不出片**（DEPLOY.md 早有记载，本次仍踩）
 
 ## 3. 归档前门
 

@@ -50,8 +50,13 @@
 
 ## 6. 上线（不含在本 change 内）
 
-- [ ] 6.1 出片滚版走 `fd-build-channel pick platform`（需放行发布）
-- [ ] 6.2 观察项：滚版后按岗位统计 `turn_budget_exceeded` 的发生时长，确认声明 20min 的岗位不再在 621s 被杀
+- [x] 6.1 出片滚版走 `fd-build-channel pick platform` → 已在产
+  - 快照 `9e9d127c0` → GHA `sha-482b815`（hkccr `yizuo/platform` → 同 registry 重打进
+    `law-bench/platform:sha-482b815`，digest `sha256:193f4db7`，relay OK 03:55）
+  - fd-infra-deploy `778f392` 双 bump platform/facet → ArgoCD → 两 rollout 完成
+  - 镜像内实跑 `scripts/test-fleet-turn-budget.mjs` + `scripts/test-task-engine.mjs` = **38/38 绿**
+- 6.2 观察项（滚版后 7 天，非本 change 交付物）：按岗位统计 `turn_budget_exceeded` 的发生时长，
+  确认声明 20min 的岗位不再在 621s 被杀
 
 ## 7. 挂账（同源缺口，不在本 change）
 

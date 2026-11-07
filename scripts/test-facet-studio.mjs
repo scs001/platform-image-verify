@@ -200,6 +200,90 @@ test("1.3 lifecycle: agent-kind approve is an explicit 409 (server rejects, ribb
   assert.equal(approved.status, 409, "agent-kind approve is rejected with 409");
 });
 
+test("1.3-trial deferred stub: without RUN_DOMAIN_BASE_URL the trial answers 503 trial_channel_pending (honest degradation)", async () => {
+  const email = "creator-trial-stub@facet.test";
+  const created = await api("POST", "/api/blueprints", {
+    email,
+    body: { name: "试跑桩样本", content: teamDoc() },
+  });
+  const id = created.body?.blueprint?.id;
+  await api("POST", `/api/blueprints/${id}/approve`, { email, body: { expectVersion: 1 } });
+  const cast = await api("POST", `/api/blueprints/${id}/cast`, { email, body: {} });
+  assert.equal(cast.status, 200, JSON.stringify(cast.body));
+  // The harness mounts with no env (default registerStudioRoutes call) — the
+  // deferred stub is the production default when RUN_DOMAIN_BASE_URL is unset.
+  // The doc carries a real acceptance assertion so runTrial gets past the
+  // empty-assertions early return and reaches the (deferred) executor leg.
+  const withAssertion = teamDoc({ acceptance: [{ id: "a1", kind: "report-landed", target: "盯梢岗" }] });
+  const edited = await api("PUT", `/api/blueprints/${id}`, {
+    email,
+    body: { name: "试跑桩样本", expectVersion: 1, content: withAssertion },
+  });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  await api("POST", `/api/blueprints/${id}/approve`, { email, body: { expectVersion: 2 } });
+  const recast = await api("POST", `/api/blueprints/${id}/cast`, { email, body: {} });
+  assert.equal(recast.status, 200, JSON.stringify(recast.body));
+  const trial = await api("POST", `/api/blueprints/${id}/trial`, { email, body: {} });
+  assert.equal(trial.status, 503, JSON.stringify(trial.body));
+  assert.equal(trial.body?.code, "trial_channel_pending");
+});
+
+test("1.3-trial remote client: RUN_DOMAIN_BASE_URL routes the trial through the run-domain executor; report lands in THIS store", async () => {
+  // A stand-in trial-exec channel: same contract the 壹座 side serves
+  // (server/routes/trial-exec.js) — credential + payload gates, report body.
+  const execApp = express();
+  execApp.use(express.json({ limit: "8mb" }));
+  const execSeen = [];
+  execApp.post("/api/trial-exec", (req, res) => {
+    const token = String(req.headers["x-facet-token"] || "");
+    const bp = req.body?.blueprint;
+    if (!bp) return res.status(400).json({ error: "blueprint required" });
+    execSeen.push({ token, ownerEmail: bp.ownerEmail, castPackId: bp.castPackId, caller: req.headers["x-facet-user"] });
+    res.json({ report: { green: true, ranAt: 777, errors: [], assertions: [{ id: "a1", status: "pass", kind: "report-landed" }] } });
+  });
+  const execServer = http.createServer(execApp);
+  const execBase = await new Promise((r) => execServer.listen(0, "127.0.0.1", () => r(`http://127.0.0.1:${execServer.address().port}`)));
+  after(() => execServer.close());
+
+  // A second registerStudioRoutes with the env set — remote client selected.
+  const remoteTmp = mkdtempSync(path.join(tmpdir(), "facet-studio-remote-"));
+  after(() => rmSync(remoteTmp, { recursive: true, force: true }));
+  const remoteApp = express();
+  remoteApp.use(express.json({ limit: "24mb" }));
+  const { db: remoteDb } = registerStudioRoutes(remoteApp, {
+    resolveUser,
+    registry,
+    dataRoot: path.join(remoteTmp, "facet-data"),
+    env: { RUN_DOMAIN_BASE_URL: execBase, FACET_INTERNAL_TOKEN: "cross-token-123" },
+  });
+  const remoteServer = http.createServer(remoteApp);
+  const remoteBase = await new Promise((r) => remoteServer.listen(0, "127.0.0.1", () => r(`http://127.0.0.1:${remoteServer.address().port}`)));
+  after(() => remoteServer.close());
+
+  const email = "creator-trial-remote@facet.test";
+  const post = (url, body) => fetch(`${remoteBase}${url}`, { method: "POST", headers: { ...identity(email), "content-type": "application/json" }, body: JSON.stringify(body ?? {}) }).then((r) => r.json().then((j) => ({ status: r.status, body: j })));
+
+  const created = await post("/api/blueprints", { name: "试跑跨域样本", content: teamDoc() });
+  assert.ok([200, 201].includes(created.status), JSON.stringify(created.body));
+  const id = created.body.blueprint.id;
+  const approved = await post(`/api/blueprints/${id}/approve`, { expectVersion: 1 });
+  assert.equal(approved.status, 200, JSON.stringify(approved.body));
+  const cast = await post(`/api/blueprints/${id}/cast`, {});
+  assert.equal(cast.status, 200, JSON.stringify(cast.body));
+
+  const trial = await post(`/api/blueprints/${id}/trial`, {});
+  assert.equal(trial.status, 200, JSON.stringify(trial.body));
+  assert.equal(trial.body.report.green, true, "remote report returned in one body");
+  assert.equal(trial.body.blueprint.trialReport?.ranAt, 777, "report persisted in THIS store (saveTrialReport on facet)");
+
+  // The executor saw the shared credential, the cast pack, and the creator
+  // attribution (the payload fields the run domain keys install/provision on).
+  assert.equal(execSeen.length, 1);
+  assert.equal(execSeen[0].token, "cross-token-123");
+  assert.equal(execSeen[0].castPackId, cast.body.cast?.packId);
+  assert.equal(execSeen[0].ownerEmail, email);
+});
+
 test("2.1 publish gate: the in-process publisher runs collectPublishVerdict before the registry write", async () => {
   const email = "creator-gate@facet.test";
   // The same-name gate (registerSameNamePublishGate posture, enforced inside

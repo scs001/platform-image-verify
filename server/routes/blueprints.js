@@ -471,11 +471,31 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     }
     trialRunning.add(owned.blueprint.id);
     try {
-      const report = await runTrial({ blueprint: owned.blueprint, deps: trial });
+      // Cross-domain seam (add-supply-studio-migration 5.3): on the facet host
+      // the trial deps may carry runWhole — a remote executor that runs the
+      // whole 装一台跑一轮 on the run domain (壹座 trial-exec over the shared
+      // internal credential) and returns the report in one body. The doc of
+      // record stays here: saveTrialReport writes THIS store either way.
+      const report = typeof trial.runWhole === "function"
+        ? await trial.runWhole({ blueprint: owned.blueprint, user: owned.user })
+        : await runTrial({ blueprint: owned.blueprint, deps: trial });
+      // An aborted run (the deferred stub throws INSIDE runTrial's try; the
+      // remote client has no executor to reach) is a channel answer, not a
+      // report: do not persist a fake red trial over a real one.
+      if (report?.errors?.some((e) => /trial aborted:/.test(String(e)))) {
+        throw Object.assign(new Error(report.errors[0]), { status: 503, code: "trial_channel_pending" });
+      }
       const updated = store.saveTrialReport(owned.blueprint.id, report);
       res.json({ report, blueprint: updated });
     } catch (err) {
-      res.status(500).json({ error: err?.message || "trial run failed" });
+      // The deferred stub (and the remote client on transport failure) throw
+      // with a status+code: surface them verbatim — an honest channel answer,
+      // never a fake red report dressed up as a run.
+      if (err?.status && err?.code) {
+        res.status(err.status).json({ error: err?.message || "trial channel failed", code: err.code });
+      } else {
+        res.status(500).json({ error: err?.message || "trial run failed" });
+      }
     } finally {
       trialRunning.delete(owned.blueprint.id);
     }

@@ -45,17 +45,26 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      {/* testids + data-variant live on the shared component, so the contract
+          the spec states (danger variant, safe-side initial focus, Esc = cancel)
+          is assertable from ONE place instead of per call site. */}
+      <DialogContent className="max-w-md" data-testid="confirm-dialog" data-variant={variant}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description != null && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="confirm-dialog-cancel"
+            onClick={() => onOpenChange(false)}
+          >
             {cancelLabel}
           </Button>
           <Button
             type="button"
+            data-testid="confirm-dialog-confirm"
             variant={variant === "danger" ? "destructive" : "default"}
             onClick={() => {
               onConfirm()

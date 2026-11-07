@@ -1055,7 +1055,10 @@ app.get("/api/ops/pack-usage", async (req, res) => {
 // gateway is the routing terminator: the cell-side route re-verifies the
 // credential itself; the gateway secret only attributes origin). Without an
 // owner configured the prefix answers 404 — the channel's inert semantics.
-app.all("/api/trial-exec", express.json({ limit: "8mb" }), async (req, res) => {
+// NOTE: no gateway-side body parser — the raw stream must reach the cell
+// intact (proxyHttp pipes req; a gateway-side express.json consumes the body
+// and the cell's parser waits forever — found live, first probe).
+app.all("/api/trial-exec", async (req, res) => {
   const ownerEmail = process.env.BOTS_RELAY_OWNER_EMAIL || "";
   if (!ownerEmail) return res.status(404).json({ error: "trial-exec not configured" });
   try {

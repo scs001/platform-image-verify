@@ -52,6 +52,29 @@ C5 的目标**按平台域**收敛本体：一个域一份权威本体，域负�
 - 明确**不做**「双写」（柏讯 + 知验台同时写）。双写会让「谁的确认算数」变成长期悬念，
   正是本 change 要消灭的问题。
 
+## 切换前基线（D5 左值，2026-11-08 实测）
+
+在 `fd-prod` 的 `fd-wire-api` pod 内直接查库（`FD_WIRE_DATABASE_URL`）：
+
+```
+select type_id, status, count(*) from domain_action_instances group by 1,2;
+```
+
+| type_id | 含义 | status | 条数 |
+|---|---|---|---|
+| -1 | `entity-declare`（内置） | executed | 5 |
+| -2 | `entity-relation-declare`（内置） | executed | 6 |
+| | | **合计** | **11** |
+
+- **零条客户侧业务动作**：这个断面上今天的流量 100% 是本体类提案。
+- 来源标注全是本体舰队：`fleet=fleet_1793422472811_i28xac; post=m_1793422472811_lnok88`（声明提案员），
+  外加一条 `fleet=ontology-smoke;post=deployer;target=cell:drillcust00` 冒烟。
+- 没有 `pending` 行（11 条全 executed）—— 切换不会把任何人的待办留在柏讯。
+
+**判据**：切换后一轮真跑，此断面 `type_id in (-1,-2)` **增量必须为 0**；同时知验台对应域提案箱
+`+N` 且控制台可见。左值 = 11，右值 = 11（不增）。
+
+
 ## 身份行（D2）
 
 提交体字段（与 C5 提交面逐字对齐）：

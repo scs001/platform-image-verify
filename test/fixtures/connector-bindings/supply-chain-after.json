@@ -1,7 +1,7 @@
 {
  "schema": "erp-vertical-connector-pack/v1",
  "name": "仓配分销连接器包",
- "version": "1.0.0",
+ "version": "1.0.1",
  "description": "仓配分销模板·连接器 pack：外部系统对接全部经萬星连接器载体（多租户、凭证不出库）。金蝶云星空用目录 provider（接通验证归任务 3.1）；客户 WMS 无目录 provider 时按连接器 SDK 新增（open-connector-mt 独立立项）；支付渠道走商户侧连接器（只读流水+回调记录）；供应商门户/承运商门户对接经页面集与连接器（模板层只留推送/回流指令记录，零外部写入）。本包以机器字段声明每条连接契约（provider + 读/写单元），目录覆盖不到的自有系统由台账如实报 unwired，不内嵌 provider 实现",
  "tags": [
   "ERP",

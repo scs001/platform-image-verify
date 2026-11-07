@@ -15,6 +15,7 @@ import { stripReasoningLeak } from "./reasoning-leak.js";
 import crypto from "node:crypto";
 import { adapterForBot, validateCredentials } from "./bots/adapter.js";
 import { isGenericBotType, packBotMeta, PACK_BOT_CREDENTIAL_KEY } from "../lib/generic-bot-types.js";
+import { observeTurnTap } from "./observe-tap.js";
 
 // Trust-boundary guards (design D3). These bound an untrusted external caller's
 // reach into an agent, so they live here — before prompt() — not in the adapters.
@@ -688,6 +689,9 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
     console.log(`[bots] "${bot.name}" waited ${waited}ms for the runtime before starting the turn`);
   }
 
+  // durationMs starts at the agent turn proper (observe-tap): the readiness
+  // wait above is a pre-turn bounce, not part of the turn being captured.
+  const turnStartedAt = Date.now();
   const collected = collectTurn(ctx, sessionId, { bot, adapter, chatKey });
   const toolsOn = allowToolsFor(bot);
   const prompt = toolsOn ? text : NO_TOOLS_PREFIX + text;
@@ -699,6 +703,13 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   if (skillPreamble) blocks.push({ type: "text", text: skillPreamble });
   blocks.push({ type: "text", text: prompt });
   let result;
+  // Observe-tap outcome bookkeeping (add-platform-guaranteed-capture D1.2):
+  // promptSettled separates a prompt-throw (→ error) from a collector
+  // termination after the prompt landed — the collector only rejects through
+  // its own hard timeout / abort, i.e. the turn was cut short without an LLM
+  // conclusion (→ aborted).
+  let tapOutcome = null;
+  let promptSettled = false;
   // The streaming flag is what dsh-mcp-delivery's isStreaming() reads and what
   // bridge.exit's fan-out enumerates: the bot lane bypasses ctx.session.prompt
   // (which is what sets this flag for web turns), so without it a credential-
@@ -708,11 +719,13 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   ctx.setStreaming?.(sessionId, true);
   try {
     await ctx.dshBridge.prompt(sessionId, blocks);
+    promptSettled = true;
     result = await collected;
   } catch (e) {
     // Abandon the collector: a throw here (or a later unawaited timeout) must
     // not linger; abort disarms the hard timeout so it cannot fire into an
     // unhandled rejection after this function has already returned.
+    tapOutcome = promptSettled ? "aborted" : "error";
     if (typeof collected?.abort === "function") collected.abort();
     else ctx.sessionCollectors.delete(sessionId);
     collected?.catch?.(() => {});
@@ -720,6 +733,24 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
     return reply("Sorry — I could not complete that request.");
   } finally {
     ctx.setStreaming?.(sessionId, false);
+    // Platform-guaranteed capture (add-platform-guaranteed-capture D1.2): one
+    // L0 turn_outcome per bot turn into the deployment owner's person root —
+    // fire-and-forget, never awaited, never throws; delivery, the reply gate
+    // and the audit path are untouched. The gate check below runs AFTER the
+    // turn has completed, so a gate-withheld turn still reports ok here (the
+    // outcome records the turn, not the reply disposition). A legacy row
+    // without owner_email drops the tap inside (fail-open, same contract as
+    // the fleet capture).
+    observeTurnTap({
+      ownerEmail: bot.ownerEmail ?? null,
+      lane: "bot",
+      sessionId: chatKey,
+      agentId: bot.id,
+      outcome: tapOutcome ?? (result?.error ? "error" : "ok"),
+      durationMs: Date.now() - turnStartedAt,
+      title: text,
+      body: result?.text ?? "",
+    });
   }
 
   if (result.error) return reply(`Sorry — ${result.error}`);

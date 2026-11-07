@@ -20,6 +20,7 @@ import { createReasoningLeakFilter, stripReasoningLeak } from "./reasoning-leak.
 import * as chatHistory from "../chat-history.js";
 import * as trace from "./trace.js";
 import { recordPackUsage } from "./usage-telemetry.js";
+import { observeTurnTap } from "./observe-tap.js";
 import { turnErrorHint, toolFailureHint } from "./connect-guidance.js";
 import {
   parseToolSchemas,
@@ -226,6 +227,31 @@ export function attachDshEvents(ctx) {
       agentId: ctx.currentAgentId ?? "local",
       outcome: outcome ?? (T.error ? "error" : "ok"),
       startedAt: T.startedAt,
+    });
+    // Platform-guaranteed turn capture (add-platform-guaranteed-capture): one
+    // turn_outcome L0 observation per closed turn, fired beside the usage row
+    // above with the same failure isolation — observeTurnTap never throws and
+    // is never awaited, so the close below (done, buffer reset, sessions
+    // refresh, idle kick) is byte-identical with the tap on or off
+    // (CELL_MEMORY_OBSERVE_TAP=0 → zero requests). Read BEFORE the resets:
+    // origin carries owner + session only (the prompt text is not kept), so
+    // title falls back to the session id; body rebuilds the final text from
+    // this turn's replay buffer (text deltas only — never tool output, never
+    // raw events; observe-tap applies the truncation discipline). env stays
+    // process.env by design: ctx carries the parsed config subset, not the
+    // CELL_MEMORY_* keys.
+    observeTurnTap({
+      ownerEmail: T.origin?.user ?? null,
+      lane: "chat",
+      sessionId: sid,
+      agentId: ctx.currentAgentId ?? "local",
+      outcome: outcome ?? (T.error ? "error" : "ok"),
+      durationMs: Number.isFinite(T.startedAt) ? Date.now() - T.startedAt : undefined,
+      title: sid,
+      body: (ctx.turnBufferFor?.(sid)?.events ?? [])
+        .filter((e) => e?.type === "text" && typeof e.delta === "string")
+        .map((e) => e.delta)
+        .join(""),
     });
     // `done` closes the turn for exactly the clients viewing the session it
     // ran in (add-session-ownership); a foreign viewer never saw the turn and

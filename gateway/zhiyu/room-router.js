@@ -16,6 +16,8 @@
 
 import { EventEmitter } from "node:events";
 
+import { observeTurnTap } from "../../server/observe-tap.js";
+
 export function createRoomRouter({
   store,
   effectiveCap,
@@ -127,6 +129,35 @@ export function createRoomRouter({
     return `room:${roomId}:${member.ref}`;
   }
 
+  // Platform-guaranteed capture (add-platform-guaranteed-capture): every
+  // CONCLUDED seat turn lands one L0 turn_outcome through the shared tap —
+  // fire-and-forget (never awaited, never throws; observe-tap owns the
+  // fail-open contract), so the round protocol is byte-identical whether
+  // memory is up or down. Ownership is the ROOM's: host person token, room
+  // project via the tap's roomId dispatch — the mirror of「分身不带主人私人
+  // 记忆进空间」: room content never enters any member's personal default
+  // root. The private-window lane (member ↔ own facade, visibility
+  // private:*) is not captured at all — a member's private text must not
+  // sediment into the host's root either. The busy mark (no dispatch) is not
+  // a turn conclusion — nothing to capture. outcome mapping: answered→ok,
+  // passed→"passed" (process narrative kept distinct from a plain ok; the
+  // closed set is on the event type — metadata is free-form scalars),
+  // failed→error.
+  function captureTurnOutcome({ room, target, message, visibility, outcome, body, durationMs }) {
+    if (visibility !== "shared") return;
+    observeTurnTap({
+      ownerEmail: room.ownerEmail,
+      lane: "zhiyu",
+      sessionId: roomContextId(room.id, target),
+      agentId: target.ref,
+      outcome,
+      durationMs,
+      title: message?.content ?? "",
+      body,
+      roomId: room.id,
+    });
+  }
+
   // One agent turn: in-flight guard → dispatch → pass detect → settle row /
   // honest failure event. Returns one of 'answered' | 'passed' | 'failed'.
   // visibility (add-zhiyu-private-window-send): "shared" (space rounds) or
@@ -169,6 +200,10 @@ export function createRoomRouter({
           meta: { event: "pass", memberId: target.id, display },
         });
         overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "pass", visibility });
+        captureTurnOutcome({
+          room, target, message, visibility,
+          outcome: "passed", body: PASS_MARK, durationMs: Date.now() - startedAt,
+        });
         return "passed";
       }
       const { row } = store.messageAppend({
@@ -211,6 +246,10 @@ export function createRoomRouter({
         }
       }
       overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "answered", seq: row.seq, visibility });
+      captureTurnOutcome({
+        room, target, message, visibility,
+        outcome: "ok", body: trimmed, durationMs: Date.now() - startedAt,
+      });
       return "answered";
     } catch (err) {
       const insolvent = /402|quota|insufficient|balance|欠费|余额/i.test(String(err?.message ?? ""));
@@ -227,6 +266,12 @@ export function createRoomRouter({
         },
       });
       overlay.emit(room.id, { type: "agent_done", roomId: room.id, memberId: target.id, outcome: "failed", visibility });
+      captureTurnOutcome({
+        room, target, message, visibility,
+        outcome: "error",
+        body: String(err?.message ?? "unknown").trim().slice(0, 200) || "unknown",
+        durationMs: Date.now() - startedAt,
+      });
       return "failed";
     } finally {
       inFlight.delete(key);

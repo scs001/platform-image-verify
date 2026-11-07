@@ -296,11 +296,13 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 第 0 层 修谎：把「声明了但没兑现」的旋钮变成事实（改几行）
   ① fix-fleet-turn-budget      去 task-engine:683 硬编码，让 resolveTurnBudgetMs 生效
                                → 一次修好 cadence.turnTimeoutMs + budgetPerEdgeMin
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-fleet-turn-budget/`
+                               （镜像 sha-482b815；边>岗>默认 + [2min,30min] 夹紧；镜像内 38/38 绿）**
   ② fix-member-config-complete 建岗接 4 字段 + effort:null 清等级
   ③ fix-a2a-call-timeout       内部定时器改持 AbortController（不是 signal）并在无 signal 时自建一个
                                控制器；超时落 failed 不落 hang。证据见 §7.1 E1-E4
-                               **→ 已立项并实施完：`openspec/changes/fix-a2a-call-timeout/`
-                               （15/15、strict 绿、989 单测无新增红；待滚版上产）**
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-a2a-call-timeout/`
+                               （15/15、strict 绿；镜像 sha-7fa7e37，A2A 超时归因两处实弹）**
 
 第 1 层 协同质量：不动基建，纯 prompt/账本层
   ④ add-fleet-edge-context     派发/接棒/扇出/唤醒四类回合接上（裁短版）上下文

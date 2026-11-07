@@ -162,8 +162,11 @@ test("rename persists; delete removes the card and the row", async ({ page }) =>
     "Renamed by E2E",
   );
 
-  page.on("dialog", (dialog) => void dialog.accept());
+  // Themed danger ConfirmDialog (web-operate-states) instead of a native one.
   await page.locator(`[data-resource-id="${chart.id}"]`).getByTestId("resource-delete").click();
+  const confirmDelete = page.getByTestId("confirm-dialog");
+  await expect(confirmDelete).toBeVisible();
+  await page.getByTestId("confirm-dialog-confirm").click();
   await expect(page.locator(`[data-resource-id="${chart.id}"]`)).toHaveCount(0);
 
   const handle = db();

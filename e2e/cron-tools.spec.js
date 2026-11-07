@@ -152,8 +152,11 @@ test.describe("Cron MCP surface", () => {
       expect(pausedInStore).toBe(true);
 
       // Delete from the card (confirm auto-accepted) → job gone.
-      page.on("dialog", (d) => d.accept());
+      // Themed danger ConfirmDialog (web-operate-states batch ③) — a native
+      // window.confirm no longer exists here, so page.on("dialog") would wait
+      // forever and the job would never be removed.
       await card.getByTestId("cron-tool-card-delete").click();
+      await page.getByTestId("confirm-dialog-confirm").click();
       await page.waitForFunction(
         (id) => !window.__cronStore?.getState?.().jobs.some((j) => j.id === id),
         jobId,

@@ -286,6 +286,26 @@ test("the tool surfaces a refusal as an error carrying its kind", async () => {
   assert.match(out.content[0].text, /forbidden/);
 });
 
+// ── credential channel ───────────────────────────────────────────────────────
+
+test("an lbk_ key rides X-API-Key and never Bearer", async () => {
+  // Live probe 2026-11-08: the child held a valid lbk_ key but the client sent
+  // `Authorization: Bearer`, and the peer 401s on a present-but-invalid Bearer
+  // instead of falling through to the API key. Exactly one header must go out.
+  const { authHeaders } = await import("../lib/bench-proposal-client.js");
+  const h = authHeaders("lbk_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG");
+  assert.deepEqual(Object.keys(h), ["x-api-key"]);
+  assert.equal(h.authorization, undefined, "Bearer must be absent for an api key");
+});
+
+test("a non-lbk_ token is treated as a Logto JWT", async () => {
+  const { authHeaders } = await import("../lib/bench-proposal-client.js");
+  const h = authHeaders("eyJhbGciOiJSUzI1NiJ9.payload.sig");
+  assert.deepEqual(Object.keys(h), ["authorization"]);
+  assert.equal(h.authorization, "Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig");
+  assert.equal(h["x-api-key"], undefined);
+});
+
 // ── the shipped config row ───────────────────────────────────────────────────
 
 test("the example row forwards all three vars via envRefs", () => {

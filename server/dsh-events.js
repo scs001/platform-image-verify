@@ -93,13 +93,23 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
           config = JSON.parse(fs.readFileSync(mcpPath, "utf8")).mcpServers?.[serverName];
         } catch { /* no mcp.json / unreadable — nothing more to look up */ }
       }
+      // A connector binding row is GENERATED per session (`connector:<slot>`),
+      // never stored, so there is no record to look up: synthesize the config
+      // from the name. The slot identifies exactly one binding even when two
+      // packs declare the same key, so the 401 marks that row alone.
+      if (!config && serverName.startsWith("connector:")) {
+        const slot = serverName.slice("connector:".length);
+        if (slot) config = { credentialRef: "connector-binding", slot };
+      }
       const entry = credentialRefs.refFor(config);
       if (!entry) return;
       const owner = ctx.runtimeOwnerEmail;
       const invalidate = () => {
         // false ⇒ already stale: the profile was re-applied then, so a run of
         // 401s costs exactly one re-apply.
-        if (!entry.markInvalid(owner)) return;
+        // `config` selects WHICH row of a per-row ref failed: a connector
+        // binding row marks its own binding stale and nothing else.
+        if (!entry.markInvalid(owner, config)) return;
         console.warn(
           `[${entry.refName}] 401 from MCP server "${serverName}" — credential for ${owner || "the machine owner"} marked invalid`,
         );
@@ -118,15 +128,15 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
             .catch((e) => console.warn(`[ciyuan-account] credential store rewrite after stale mark failed: ${e.message}`));
         }
       };
-      // Refresh-first for ID-token lines (add-line-credential-renewal D4): a
-      // stored refresh token means the 401 may be plain expiry — one
-      // server-side refresh recovers the NEXT round (this one is already
-      // spent). Only rows without refresh capability, or with a rejected
-      // refresh, fall through to invalidation.
+        // Refresh-first for ID-token lines (add-line-credential-renewal D4): a
+        // stored refresh token means the 401 may be plain expiry — one
+        // server-side refresh recovers the NEXT round (this one is already
+        // spent). Only rows without refresh capability, or with a rejected
+        // refresh, fall through to invalidation.
       if (typeof entry.renewOn401 === "function") {
         let outcome = "no-refresh";
         try {
-          outcome = await entry.renewOn401(owner);
+          outcome = await entry.renewOn401(owner, config);
         } catch {
           outcome = "failed";
         }

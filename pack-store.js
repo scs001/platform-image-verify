@@ -25,6 +25,7 @@ import * as db from "./db.js";
 import * as skillMaterialize from "./skill-materialize.js";
 import * as extensionStore from "./extension-store.js";
 import * as credentialRefs from "./credential-refs.js";
+import { isMarketInstallableEntry } from "./registry-bridge.js";
 import * as bots from "./server/bots.js";
 import { validatePackManifest, skillScriptFiles } from "./lib/pack-manifest.js";
 import {
@@ -274,7 +275,10 @@ async function installMcpRef(ref, { user }) {
   const name = ref.registryName;
   const item = { name, status: "unavailable" };
   const entry = await extensionStore.findMarketMcpEntry(name);
-  if (entry && entry.origin === "registry") {
+  // Market entries install the same way whichever channel sourced the catalog
+  // (fix-facet-catalog-install-parity) — the origin label is a channel fact,
+  // not an admission decision.
+  if (isMarketInstallableEntry(entry)) {
     if (!extensionStore.visibleToUser(entry, user)) {
       return { ...item, reason: `requires group: ${(entry.groups ?? []).join(", ")}` };
     }
@@ -307,7 +311,9 @@ async function installMcpRef(ref, { user }) {
     return { name, status: "installed" };
   }
   if (entry) {
-    return { ...item, reason: "not a registry server (packs may only reference registry entries or bind a local server of the same name)" };
+    // Only installer-shipped starters reach here now: a pack may reference a
+    // market entry (either channel) or bind a local server of the same name.
+    return { ...item, reason: "not a market server (an installer-shipped starter; packs may only reference market entries or bind a local server of the same name)" };
   }
   // No market entry: a local row of this name is a binding (registry entries
   // take precedence when both exist — the branch above).
@@ -317,7 +323,7 @@ async function installMcpRef(ref, { user }) {
   return {
     name,
     status: "awaiting-local-binding",
-    reason: "no registry entry and no local server of this name yet — install or connect one to activate this reference",
+    reason: "no market entry and no local server of this name yet — install or connect one to activate this reference",
   };
 }
 
@@ -426,6 +432,42 @@ export async function installPack({ packId, version, manifest, user, confirm = f
   // keeps every existing caller's behaviour identical.
   const provenance = source === "bundle" ? "bundle" : "market";
   report.source = provenance;
+  // Connector binding gate (add-connector-bindings D7): a pack that declares
+  // external systems is resolved at install time, per identity. Missing
+  // non-optional bindings mean the pack must NOT be presented as connected —
+  // the report carries the per-binding state so the surface can render one row
+  // per unmet binding with the right fix. A pack without declarations reports
+  // nothing here (byte-identical to before).
+  if ((manifest.connector_bindings ?? []).length > 0) {
+    try {
+      const grants = await import("./connector-grants.js");
+      // The pack record is written *below*, so the gate must be told what the
+      // manifest declares instead of reading it back from the database.
+      const { bindings: rows, gate } = await grants.refreshPackBindings({
+        email: user?.email ?? null,
+        packId,
+        declarations: manifest.connector_bindings ?? [],
+        packVersion: String(ver),
+      });
+      report.connector = {
+        ...gate,
+        bindings: rows.map((row) => ({
+          bindingKey: row.bindingKey,
+          provider: row.provider,
+          operations: row.operations,
+          connectionId: row.connectionId,
+          connectionName: row.connectionName,
+          status: row.status,
+          reason: row.reason,
+          optional: row.optional,
+        })),
+      };
+    } catch (e) {
+      // The gate is advisory at install: a connector outage must not fail an
+      // install, but it must not report "connected" either.
+      report.connector = { connected: false, unresolved: [], optionalUnmet: [], pendingGrant: [], error: e?.message || String(e) };
+    }
+  }
   const installed = db.upsertInstalledPack({
     packId,
     name: manifest.name,

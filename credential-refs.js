@@ -9,8 +9,13 @@
 // Every entry must satisfy the registry contract used by the three consumers:
 //   refName            the literal `credentialRef` value
 //   isRef(config)      does this config carry our ref?
-//   liveToken(email)   the injectable token or null (= omit the server)
-//   markInvalid(email) 401 handler: true when state changed (= re-apply once)
+//   liveToken(email, config)
+//                      the injectable token or null (= omit the server). config
+//                      is passed because a ref may resolve DIFFERENT tokens for
+//                      different rows of the same ref — `connector-binding`
+//                      does exactly that (one scoped PAT per binding slot). The
+//                      single-token refs simply ignore the second argument.
+//   markInvalid(email, config) 401 handler: true when state changed (= re-apply once)
 //   staleEvent         the WS event clients refresh on after invalidation
 //
 // registry-credentials stays the module of record for its ref (its exports are
@@ -18,6 +23,7 @@
 
 import * as registryCredentials from "./registry-credentials.js";
 import * as connectorCredentials from "./connector-credentials.js";
+import * as connectorBindings from "./connector-bindings.js";
 import * as facetMarketCredentials from "./facet-market-credentials.js";
 import * as lineCredentials from "./line-credentials.js";
 import * as paperTradingCredentials from "./paper-trading-credentials.js";
@@ -112,6 +118,18 @@ const REFS = new Map(
       markInvalid: (email) => chatwootCredentials.markInvalid(email),
       staleEvent: "chatwoot_credential_stale",
     },
+    {
+      // add-connector-bindings D4: one connector MCP row per authorized binding,
+      // each with that BINDING's scoped token — the single global `connector` row
+      // is retired (its mcp.json entry survives as a url-only template). The
+      // token resolves by slot, so two rows never share one, and a 401 marks
+      // exactly the row that failed.
+      refName: connectorBindings.CONNECTOR_BINDING_CREDENTIAL_REF,
+      isRef: (config) => config?.credentialRef === connectorBindings.CONNECTOR_BINDING_CREDENTIAL_REF,
+      liveToken: (email, config) => connectorBindings.liveTokenBySlot(email, config?.slot),
+      markInvalid: (email, config) => connectorBindings.markSlotInvalid(email, config?.slot),
+      staleEvent: "connector_credential_stale",
+    },
   ].map((entry) => [entry.refName, entry]),
 );
 
@@ -191,6 +209,7 @@ const KNOWN_CONNECT_PANELS = new Map([
   ["lex", "line-lex"],
   ["wanxing-caller", "ciyuan-account"],
   [chatwootCredentials.CHATWOOT_CREDENTIAL_REF, "chatwoot"],
+  [connectorBindings.CONNECTOR_BINDING_CREDENTIAL_REF, "connector-bindings"],
 ]);
 
 // The registry entry for a config's `credentialRef`, or null for an absent or
@@ -211,18 +230,23 @@ export function isCredentialRef(config) {
 // A name the table does not list falls back to the line-credentials store so a
 // registered action can name any ref the platform stores (wanxing-deployer is
 // preflight-only today and lives there alone).
-export function liveTokenForRef(refName, email) {
+//
+// `config` is optional and only matters for a ref whose token depends on the
+// row it is attached to (connector-binding). Callers that hold a config must
+// pass it; callers that only have a name keep the single-token behaviour.
+export function liveTokenForRef(refName, email, config = null) {
   if (typeof refName !== "string" || !refName) return null;
   const entry = REFS.get(refName);
-  if (entry) return entry.liveToken(email) || null;
+  if (entry) return entry.liveToken(email, config) || null;
   return lineCredentials.liveToken(email, refName) || null;
 }
 
 // The 401 handler for a ref name; true when state changed (= re-apply once).
-export function invalidateRef(refName, email) {
+// `config` selects WHICH row of a per-row ref failed (connector-binding).
+export function invalidateRef(refName, email, config = null) {
   if (typeof refName !== "string" || !refName) return false;
   const entry = REFS.get(refName);
-  if (entry) return Boolean(entry.markInvalid(email));
+  if (entry) return Boolean(entry.markInvalid(email, config));
   return Boolean(lineCredentials.markInvalid(email, refName));
 }
 
@@ -230,29 +254,37 @@ export function invalidateRef(refName, email) {
 // object where each carried server either gained an Authorization header or was
 // dropped, plus per-ref diagnostics for the omission warnings. Grouped by ref
 // so one warning line covers all servers of the same ref (the registry shape).
+//
+// Resolution is PER SERVER, not per ref: a ref may hand out a different token
+// to each row (connector-binding: one scoped PAT per binding), so a single
+// per-ref token would collapse every binding onto one authority. For the
+// single-token refs the result is byte-identical to the old per-ref loop —
+// every row of that ref resolves to the same value.
 export function resolveCredentials(servers, email) {
   const out = { ...servers };
   const omitted = [];
   const injected = [];
   try {
     for (const entry of REFS.values()) {
-      const names = Object.entries(servers)
-        .filter(([, config]) => entry.isRef(config))
-        .map(([name]) => name);
-      if (names.length === 0) continue;
-      const token = entry.liveToken(email);
-      if (token) {
-        for (const name of names) {
+      const rows = Object.entries(servers).filter(([, config]) => entry.isRef(config));
+      if (rows.length === 0) continue;
+      const injectedNames = [];
+      const omittedNames = [];
+      for (const [name, config] of rows) {
+        const token = entry.liveToken(email, config);
+        if (token) {
           out[name] = {
             ...out[name],
             headers: { ...(out[name].headers || {}), Authorization: `Bearer ${token}` },
           };
+          injectedNames.push(name);
+        } else {
+          delete out[name];
+          omittedNames.push(name);
         }
-        injected.push({ ref: entry.refName, names });
-      } else {
-        for (const name of names) delete out[name];
-        omitted.push({ ref: entry.refName, names });
       }
+      if (injectedNames.length) injected.push({ ref: entry.refName, names: injectedNames });
+      if (omittedNames.length) omitted.push({ ref: entry.refName, names: omittedNames });
     }
   } catch (e) {
     // A resolver blowing up must never pass its servers through unauthenticated:

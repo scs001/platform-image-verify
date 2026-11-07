@@ -1173,6 +1173,34 @@
         "chatwoot": {
           "subtitle": "自分の Chatwoot テナント — トークンを貼り付ければ pack もデスクも自分のアカウントで動きます"
         }
+      },
+      "bindings": {
+        "title": "導入済みパックのコネクター要件",
+        "summary": "{{packs}} パック · {{bindings}} バインディング · {{unresolved}} 未解決 · {{unwired}} 機能ギャップ",
+        "optional": "任意",
+        "action": {
+          "connect": "接続する",
+          "grant": "権限を付与",
+          "reconnect": "再接続",
+          "revoke": "権限を取り消す"
+        },
+        "grantedAt": "{{when}} に付与",
+        "actionFailed": "操作を完了できませんでした：{{error}}",
+        "state": {
+          "satisfied": "接続済み",
+          "missing": "未接続",
+          "stale": "期限切れ",
+          "unwired": "機能ギャップ",
+          "undetermined": "未判定"
+        },
+        "hint": {
+          "unwired": "コネクターカタログがこのパックの宣言した操作をカバーしていないため、アカウント接続では解決できません。",
+          "undetermined": "カタログ情報を取得できないため、状態は未判定です。"
+        },
+        "operations": {
+          "read": "読",
+          "write": "書"
+        }
       }
     },
     "lines": {

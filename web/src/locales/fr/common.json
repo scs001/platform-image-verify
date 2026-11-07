@@ -1173,6 +1173,34 @@
         "chatwoot": {
           "subtitle": "Votre propre tenant Chatwoot — collez votre token ; l'agent et le bureau tournent sur votre compte"
         }
+      },
+      "bindings": {
+        "title": "Besoins de connecteur des packs installés",
+        "summary": "{{packs}} packs · {{bindings}} liaisons · {{unresolved}} à résoudre · {{unwired}} lacunes",
+        "optional": "Facultatif",
+        "action": {
+          "connect": "Connecter",
+          "grant": "Autoriser",
+          "reconnect": "Reconnecter",
+          "revoke": "Révoquer l’autorisation"
+        },
+        "grantedAt": "Autorisé {{when}}",
+        "actionFailed": "L’action n’a pas abouti : {{error}}",
+        "state": {
+          "satisfied": "Connecté",
+          "missing": "Non connecté",
+          "stale": "Expiré",
+          "unwired": "Lacune de capacité",
+          "undetermined": "Indéterminé"
+        },
+        "hint": {
+          "unwired": "Le catalogue de connecteurs ne couvre pas une opération déclarée par ce pack — aucun compte ne peut la combler.",
+          "undetermined": "Les faits du catalogue sont indisponibles, l'état reste indéterminé."
+        },
+        "operations": {
+          "read": "lecture",
+          "write": "écriture"
+        }
       }
     },
     "lines": {

@@ -1173,6 +1173,34 @@
         "chatwoot": {
           "subtitle": "Tu propio tenant de Chatwoot: pega tu token; el agente y el escritorio usan tu cuenta"
         }
+      },
+      "bindings": {
+        "title": "Necesidades de conector de tus paquetes instalados",
+        "summary": "{{packs}} paquetes · {{bindings}} vínculos · {{unresolved}} por resolver · {{unwired}} brechas",
+        "optional": "Opcional",
+        "action": {
+          "connect": "Conectar",
+          "grant": "Autorizar",
+          "reconnect": "Reconectar",
+          "revoke": "Revocar autorización"
+        },
+        "grantedAt": "Autorizado {{when}}",
+        "actionFailed": "La acción no se completó: {{error}}",
+        "state": {
+          "satisfied": "Conectado",
+          "missing": "Sin conectar",
+          "stale": "Caducado",
+          "unwired": "Brecha de capacidad",
+          "undetermined": "Indeterminado"
+        },
+        "hint": {
+          "unwired": "El catálogo de conectores no cubre una operación que declara este paquete: ninguna cuenta puede cerrarla.",
+          "undetermined": "Los datos del catálogo no están disponibles; el estado queda indeterminado."
+        },
+        "operations": {
+          "read": "lectura",
+          "write": "escritura"
+        }
       }
     },
     "lines": {

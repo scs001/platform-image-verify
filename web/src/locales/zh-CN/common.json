@@ -1173,6 +1173,34 @@
         "chatwoot": {
           "subtitle": "你自己的 Chatwoot 租户——粘贴你的 token，套件与嵌入都跑在你的账号上"
         }
+      },
+      "bindings": {
+        "title": "已装应用的连接器需求",
+        "summary": "{{packs}} 个应用 · {{bindings}} 条绑定 · {{unresolved}} 条待处理 · {{unwired}} 条能力缺口",
+        "optional": "可选",
+        "action": {
+          "connect": "去连接",
+          "grant": "去授权",
+          "reconnect": "重连",
+          "revoke": "撤销授权"
+        },
+        "grantedAt": "授权于 {{when}}",
+        "actionFailed": "操作未完成：{{error}}",
+        "state": {
+          "satisfied": "已连接",
+          "missing": "待连接",
+          "stale": "已失效",
+          "unwired": "能力缺口",
+          "undetermined": "未判定"
+        },
+        "hint": {
+          "unwired": "连接器目录没有覆盖该应用声明的操作，接账号也补不上。",
+          "undetermined": "暂时查不到目录事实，状态未判定。"
+        },
+        "operations": {
+          "read": "读",
+          "write": "写"
+        }
       }
     },
     "lines": {

@@ -81,18 +81,56 @@ export function listForClient(email) {
 // prefix + liveness probe); here any non-empty string is stored — this layer
 // trusts its caller the same way the registry layer does. patId comes from the
 // zero-paste mint response and powers best-effort revocation.
+//
+// The account is also the SOURCE of the built-in free-exploration binding
+// (add-connector-bindings D5): sessions only ever inject binding rows, so the
+// active account must have one, or connecting after the upgrade would store a
+// token that nothing injects. `chat:explore` mirrors the ACTIVE account token;
+// a non-active account stores no binding (switching to it later mirrors then).
 export function store({ email, slot = "default", token, patId = null }) {
   if (typeof token !== "string" || !token.trim()) return null;
-  const row = db.setConnectorCredential({ email: ownerKey(email), slot, token: token.trim(), patId });
-  return row ? projectRow(row) : null;
+  const key = ownerKey(email);
+  const row = db.setConnectorCredential({ email: key, slot, token: token.trim(), patId });
+  if (!row) return null;
+  mirrorExploreBinding(key);
+  return projectRow(row);
+}
+
+// Mirror the active account's token into the built-in explore binding. Called
+// after every change to the account set (store / setActive / disconnect) so the
+// binding never carries a token the account no longer has, and never outlives
+// it. A stale binding keeps its stale flag: a fresh paste clears it.
+function mirrorExploreBinding(key) {
+  const active = db.getActiveConnectorCredential(key);
+  if (!active || active.stale) {
+    if (active && active.stale) db.markConnectorBindingStale(key, db.CONNECTOR_EXPLORE_BINDING);
+    else db.deleteConnectorBinding(key, db.CONNECTOR_EXPLORE_BINDING);
+    return;
+  }
+  db.setConnectorBinding({
+    email: key,
+    slot: db.CONNECTOR_EXPLORE_BINDING,
+    token: active.token,
+    patId: active.patId ?? null,
+    purpose: "内置自由探索",
+    sourceAccount: active.slot,
+  });
 }
 
 export function setActive(email, slot) {
-  return db.setConnectorCredentialActive(ownerKey(email), slot);
+  const key = ownerKey(email);
+  const changed = db.setConnectorCredentialActive(key, slot);
+  if (changed) mirrorExploreBinding(key);
+  return changed;
 }
 
 export function disconnect(email, slot = "default") {
-  return db.deleteConnectorCredential(ownerKey(email), slot);
+  const key = ownerKey(email);
+  const removed = db.deleteConnectorCredential(key, slot);
+  // The binding is a mirror: once the account is gone the binding must not keep
+  // injecting its token.
+  if (removed) mirrorExploreBinding(key);
+  return removed;
 }
 
 // 401 from a connector MCP tool: the active PAT was revoked (or
@@ -103,7 +141,9 @@ export function disconnect(email, slot = "default") {
 export function markInvalid(email) {
   const key = ownerKey(email);
   if (!db.getActiveConnectorCredential(key)) return false;
-  return db.markConnectorCredentialStale(key);
+  const changed = db.markConnectorCredentialStale(key);
+  if (changed) db.markConnectorBindingStale(key, db.CONNECTOR_EXPLORE_BINDING);
+  return changed;
 }
 
 // The token to inject into the effective profile, or null when there is none

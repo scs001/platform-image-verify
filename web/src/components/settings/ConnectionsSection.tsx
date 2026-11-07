@@ -23,6 +23,7 @@ import { PaperTradingConnectPanel } from "@/components/extensions/PaperTradingCo
 import { CiyuanAccountConnectPanel } from "@/components/extensions/CiyuanAccountConnectPanel";
 import { ChatwootConnectPanel } from "@/components/extensions/ChatwootConnectPanel";
 import { SearchServiceCard } from "./SearchServiceCard";
+import { ConnectorBindingsView } from "./ConnectorBindingsView";
 
 const GLOSSARY_BRANDS = ["ciyuan", "facet", "connector", "wire", "lex"] as const;
 
@@ -135,12 +136,20 @@ export function ConnectionsSection() {
         </CardAnchor>
       </section>
 
+      {/* 连接器：先答「我装的包还缺什么」（绑定视图），再答「我拿什么去连」
+          （账号区）。账户区保留「打开连接器控制台」入口，绑定写的是需求，
+          账号写的是供给，两者顺序固定 —— add-connector-bindings 6.2。
+          `connector-bindings` 是范围指引（chat-connect-guidance 6.3）用的别名
+          panel id：授权卡要落在这张卡的绑定区，所以两个 id 都算命中。 */}
       <CardAnchor
-        ids={["connector"]}
-        active={isActive("connector")}
+        ids={["connector", "connector-bindings"]}
+        active={isActive("connector", "connector-bindings")}
         subtitleKey="settings.connections.cards.connector.subtitle"
       >
-        <ConnectorConnectPanel />
+        <div className="flex flex-col gap-3">
+          <ConnectorBindingsView className="px-1" />
+          <ConnectorConnectPanel />
+        </div>
       </CardAnchor>
 
       <CardAnchor

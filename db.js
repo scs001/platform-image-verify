@@ -1062,6 +1062,65 @@ const MIGRATIONS = [
       `ALTER TABLE persona_candidates ADD COLUMN source_doc_id TEXT`,
     ],
   },
+  {
+    // add-connector-bindings D3：凭据表分两类行 + 绑定台账。
+    //
+    //   kind='account'  connector 账号（v25 起的既有形状：一个身份 N 个账号，
+    //                   其中一个是 active 的）。注入决策只看这一类。
+    //   kind='binding'  按包绑定铸出的窄面令牌。slot 即 binding key，与账号名
+    //                   同处一槽位，故主键必须带上 kind——否则用户的账号名与
+    //                   包的绑定 key 同名时会互相覆盖。
+    //
+    // purpose 记该行的用途标签（内置自由探索 / pack:binding），source_account
+    // 记该绑定令牌由哪个账号铸造，供失效时回溯来源（不自动改选）。
+    //
+    // 台账独立成表：凭据行是「密文 + 生命周期」，台账是「声明 + 解析结论」，
+    // 读路径相反（凭据永不返回明文，台账要进 GET /api/connections 投影）。
+    version: 114,
+    apply: (db) => {
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(user_connector_credentials)").all().map((c) => c.name)
+      );
+      if (!cols.has("kind")) {
+        db.exec(`CREATE TABLE user_connector_credentials_v114 (
+          email TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'account',
+          slot TEXT NOT NULL,
+          token TEXT NOT NULL,
+          pat_id TEXT,
+          purpose TEXT,
+          source_account TEXT,
+          stale INTEGER NOT NULL DEFAULT 0,
+          active INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (email, kind, slot)
+        )`);
+        // Every pre-114 row is an account row; nothing is dropped or renamed.
+        db.exec(`INSERT INTO user_connector_credentials_v114
+            (email, kind, slot, token, pat_id, purpose, source_account, stale, active, updated_at)
+          SELECT email, 'account', slot, token, pat_id, NULL, NULL, stale, active, updated_at
+          FROM user_connector_credentials`);
+        db.exec(`DROP TABLE user_connector_credentials`);
+        db.exec(`ALTER TABLE user_connector_credentials_v114 RENAME TO user_connector_credentials`);
+      }
+      db.exec(`CREATE TABLE IF NOT EXISTS connector_binding_ledger (
+        email TEXT NOT NULL,
+        pack_id TEXT NOT NULL,
+        pack_version TEXT,
+        binding_key TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        operations TEXT NOT NULL,
+        connection_id TEXT,
+        status TEXT NOT NULL,
+        optional INTEGER NOT NULL DEFAULT 0,
+        granted_at TEXT,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (email, pack_id, binding_key)
+      )`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_connector_binding_ledger_status
+        ON connector_binding_ledger(email, status)`);
+    },
+  },
 ];
 
 function nowIso() {
@@ -1107,17 +1166,49 @@ function latestVersion() {
 
 // ── Init / degradation ───────────────────────────────────────────────────────
 
+// The path the open handle points at. Needed to tell "re-init the same
+// database" (reuse the handle, re-run migrations) from "switch databases"
+// (close, then open the other file).
+let openedDbPath = null;
+
 export async function initDb() {
   const dbPath = process.env.DB_PATH
     ? path.resolve(process.env.DB_PATH)
     : DEFAULT_DB_PATH;
   try {
     await fs.mkdir(path.dirname(dbPath), { recursive: true });
-    db = new Database(dbPath);
+    // Re-open policy, and why it is not "just open another handle":
+    //   same path — REUSE the handle and re-run migrations. This is the
+    //     migration-test path (drop a table, roll the version back, init again)
+    //     and it must keep the caller's getDb() handle usable. Opening a
+    //     second connection to the same file while the first is live is what
+    //     produced `disk I/O error` here (two WAL connections, one of them
+    //     holding a stale -shm mapping).
+    //   different path — CLOSE the old handle first. Statements and callers
+    //     aimed at the previous database must fail loudly rather than quietly
+    //     write into whichever file the handle still had open.
+    if (db && openedDbPath !== dbPath) {
+      try {
+        db.close();
+      } catch { /* already closed */ }
+      db = null;
+    }
+    // Statements prepared against a pre-migration shape must not survive a
+    // re-init even on the same handle.
+    stmtCache.clear();
+    if (!db) {
+      db = new Database(dbPath);
+      openedDbPath = dbPath;
+    }
+    db.pragma("journal_mode = WAL");
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
     runMigrations();
     dbReady = true;
+    // add-connector-bindings: pre-change accounts become the built-in
+    // free-exploration binding. Idempotent, runs on every boot so an account
+    // connected before this release still gains its binding on upgrade.
+    backfillConnectorExploreBinding();
     // Legacy-owner assignment (add-session-ownership): idempotent, runs on
     // every boot so setting SESSION_LEGACY_OWNER later still claims the
     // ownerless remainder on the next restart.
@@ -2057,7 +2148,7 @@ export function getConnectorCredential(email, slot = "default") {
   const name = normalizeSlot(slot);
   if (!key || !name) return null;
   const row = stmt(
-    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND slot = ?"
+    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND slot = ?"
   ).get(key, name);
   return row ? { ...row, stale: !!row.stale, active: !!row.active } : null;
 }
@@ -2067,7 +2158,7 @@ export function listConnectorCredentials(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return [];
   return stmt(
-    "SELECT slot, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? ORDER BY slot"
+    "SELECT slot, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND kind = 'account' ORDER BY slot"
   )
     .all(key)
     .map((row) => ({ ...row, stale: !!row.stale, active: !!row.active }));
@@ -2078,7 +2169,7 @@ export function getActiveConnectorCredential(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
   const row = stmt(
-    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND active = 1"
+    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND active = 1"
   ).get(key);
   return row ? { ...row, stale: !!row.stale, active: !!row.active } : null;
 }
@@ -2091,9 +2182,9 @@ export function setConnectorCredential({ email, slot = "default", token, patId =
   const name = slot != null && String(slot).trim() === "" ? "default" : normalizeSlot(slot);
   if (!key || !name || !token) return null;
   const wasActive = !!stmt(
-    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND slot = ? AND active = 1"
+    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND slot = ? AND active = 1"
   ).get(key, name);
-  const hasAnyActive = !!stmt("SELECT 1 FROM user_connector_credentials WHERE email = ? AND active = 1").get(key);
+  const hasAnyActive = !!stmt("SELECT 1 FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND active = 1").get(key);
   // A fresh store clears the stale flag: the user just replaced the credential,
   // so the next profile write may use it. A brand-new account becomes active
   // when the user has no active account yet (first connect); an existing
@@ -2101,9 +2192,9 @@ export function setConnectorCredential({ email, slot = "default", token, patId =
   // never silently flips injection.
   const active = wasActive || !hasAnyActive ? 1 : 0;
   stmt(
-    `INSERT INTO user_connector_credentials (email, slot, token, pat_id, stale, active, updated_at)
-     VALUES (@email, @slot, @token, @patId, 0, @active, @updatedAt)
-     ON CONFLICT(email, slot) DO UPDATE SET
+    `INSERT INTO user_connector_credentials (email, kind, slot, token, pat_id, stale, active, updated_at)
+     VALUES (@email, 'account', @slot, @token, @patId, 0, @active, @updatedAt)
+     ON CONFLICT(email, kind, slot) DO UPDATE SET
        token = excluded.token,
        pat_id = excluded.pat_id,
        stale = 0,
@@ -2119,12 +2210,12 @@ export function setConnectorCredentialActive(email, slot) {
   const name = normalizeSlot(slot);
   if (!key || !name) return false;
   const target = stmt(
-    "SELECT stale FROM user_connector_credentials WHERE email = ? AND slot = ?"
+    "SELECT stale FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND slot = ?"
   ).get(key, name);
   if (!target || target.stale) return false;
   db.transaction(() => {
-    stmt("UPDATE user_connector_credentials SET active = 0 WHERE email = ? AND active = 1").run(key);
-    stmt("UPDATE user_connector_credentials SET active = 1 WHERE email = ? AND slot = ?").run(key, name);
+    stmt("UPDATE user_connector_credentials SET active = 0 WHERE email = ? AND kind = 'account' AND active = 1").run(key);
+    stmt("UPDATE user_connector_credentials SET active = 1 WHERE email = ? AND kind = 'account' AND slot = ?").run(key, name);
   })();
   return true;
 }
@@ -2135,9 +2226,9 @@ export function deleteConnectorCredential(email, slot = "default") {
   const name = normalizeSlot(slot);
   if (!key || !name) return false;
   const wasActive = !!stmt(
-    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND slot = ? AND active = 1"
+    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND slot = ? AND active = 1"
   ).get(key, name);
-  const changes = stmt("DELETE FROM user_connector_credentials WHERE email = ? AND slot = ?")
+  const changes = stmt("DELETE FROM user_connector_credentials WHERE email = ? AND kind = 'account' AND slot = ?")
     .run(key, name).changes;
   // No auto-reselect (design D2): deleting the active account intentionally
   // leaves the user with no active account; they pick the next one explicitly.
@@ -2151,13 +2242,223 @@ export function markConnectorCredentialStale(email, slot) {
   if (slot === undefined) {
     // Legacy single-row call sites (agent-session 401 handler): flip whichever
     // row is active.
-    return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0 AND active = 1")
+    return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND kind = 'account' AND stale = 0 AND active = 1")
       .run(nowIso(), key).changes > 0;
   }
   const name = normalizeSlot(slot);
   if (!name) return false;
-  return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND slot = ? AND stale = 0")
+  return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND kind = 'account' AND slot = ? AND stale = 0")
     .run(nowIso(), key, name).changes > 0;
+}
+
+// ── Connector binding rows + ledger (add-connector-bindings D3) ──────────────
+//
+// Binding rows live in the same table as accounts (kind='binding'), so their
+// tokens share one lifecycle (stale flag, revocation, encryption-at-rest) with
+// the account they came from. slot is the binding key here — `chat:explore` for
+// the built-in free-exploration binding, `<packId>:<bindingKey>` for pack ones.
+
+export const CONNECTOR_EXPLORE_BINDING = "chat:explore";
+
+export function getConnectorBinding(email, slot) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return null;
+  const row = stmt(
+    "SELECT slot, token, pat_id AS patId, purpose, source_account AS sourceAccount, stale, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND kind = 'binding' AND slot = ?"
+  ).get(key, name);
+  return row ? { ...row, stale: !!row.stale } : null;
+}
+
+export function listConnectorBindings(email) {
+  if (!dbReady) return [];
+  const key = normalizeIdentityEmail(email);
+  if (!key) return [];
+  return stmt(
+    "SELECT slot, pat_id AS patId, purpose, source_account AS sourceAccount, stale, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND kind = 'binding' ORDER BY slot"
+  )
+    .all(key)
+    .map((row) => ({ ...row, stale: !!row.stale }));
+}
+
+export function setConnectorBinding({ email, slot, token, patId = null, purpose = null, sourceAccount = null }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name || !token) return null;
+  stmt(
+    `INSERT INTO user_connector_credentials (email, kind, slot, token, pat_id, purpose, source_account, stale, active, updated_at)
+     VALUES (@email, 'binding', @slot, @token, @patId, @purpose, @sourceAccount, 0, 0, @updatedAt)
+     ON CONFLICT(email, kind, slot) DO UPDATE SET
+       token = excluded.token,
+       pat_id = excluded.pat_id,
+       purpose = excluded.purpose,
+       source_account = excluded.source_account,
+       stale = 0,
+       updated_at = excluded.updated_at`
+  ).run({ email: key, slot: name, token, patId, purpose, sourceAccount, updatedAt: nowIso() });
+  return getConnectorBinding(key, name);
+}
+
+export function deleteConnectorBinding(email, slot) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return false;
+  return stmt("DELETE FROM user_connector_credentials WHERE email = ? AND kind = 'binding' AND slot = ?")
+    .run(key, name).changes > 0;
+}
+
+export function markConnectorBindingStale(email, slot) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return false;
+  return stmt(
+    "UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND kind = 'binding' AND slot = ? AND stale = 0"
+  ).run(nowIso(), key, name).changes > 0;
+}
+
+// One ledger row per (identity, pack, binding key). status is the resolved
+// state (satisfied / missing / stale / unwired / undetermined); operations is a
+// JSON array of operation classes so the status face can say *what* is
+// missing without re-reading the pack.
+export function upsertConnectorBindingLedgerRow({
+  email,
+  packId,
+  packVersion = null,
+  bindingKey,
+  provider,
+  operations = [],
+  connectionId = null,
+  status,
+  optional = false,
+  grantedAt = null,
+}) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key || !packId || !bindingKey || !provider || !status) return null;
+  stmt(
+    `INSERT INTO connector_binding_ledger
+       (email, pack_id, pack_version, binding_key, provider, operations, connection_id, status, optional, granted_at, updated_at)
+     VALUES (@email, @packId, @packVersion, @bindingKey, @provider, @operations, @connectionId, @status, @optional, @grantedAt, @updatedAt)
+     ON CONFLICT(email, pack_id, binding_key) DO UPDATE SET
+       pack_version = excluded.pack_version,
+       provider = excluded.provider,
+       operations = excluded.operations,
+       connection_id = excluded.connection_id,
+       status = excluded.status,
+       optional = excluded.optional,
+       granted_at = COALESCE(excluded.granted_at, connector_binding_ledger.granted_at),
+       updated_at = excluded.updated_at`
+  ).run({
+    email: key,
+    packId,
+    packVersion,
+    bindingKey,
+    provider,
+    operations: JSON.stringify(operations),
+    connectionId,
+    status,
+    optional: optional ? 1 : 0,
+    grantedAt,
+    updatedAt: nowIso(),
+  });
+  return getConnectorBindingLedgerRow(key, packId, bindingKey);
+}
+
+function decodeLedgerRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    operations: safeJsonArray(row.operations),
+    optional: !!row.optional,
+  };
+}
+
+function safeJsonArray(value) {
+  try {
+    const parsed = JSON.parse(String(value ?? "[]"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getConnectorBindingLedgerRow(email, packId, bindingKey) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const row = stmt(
+    `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
+            operations, connection_id AS connectionId, status, optional,
+            granted_at AS grantedAt, updated_at AS updatedAt
+     FROM connector_binding_ledger WHERE email = ? AND pack_id = ? AND binding_key = ?`
+  ).get(key, packId, bindingKey);
+  return decodeLedgerRow(row);
+}
+
+export function listConnectorBindingLedger(email, packId) {
+  if (!dbReady) return [];
+  const key = normalizeIdentityEmail(email);
+  if (!key) return [];
+  const rows = packId
+    ? stmt(
+        `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
+                operations, connection_id AS connectionId, status, optional,
+                granted_at AS grantedAt, updated_at AS updatedAt
+         FROM connector_binding_ledger WHERE email = ? AND pack_id = ? ORDER BY binding_key`
+      ).all(key, packId)
+    : stmt(
+        `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
+                operations, connection_id AS connectionId, status, optional,
+                granted_at AS grantedAt, updated_at AS updatedAt
+         FROM connector_binding_ledger WHERE email = ? ORDER BY pack_id, binding_key`
+      ).all(key);
+  return rows.map(decodeLedgerRow);
+}
+
+export function deleteConnectorBindingLedgerRow(email, packId, bindingKey) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM connector_binding_ledger WHERE email = ? AND pack_id = ? AND binding_key = ?")
+    .run(key, packId, bindingKey).changes > 0;
+}
+
+/**
+ * Built-in free-exploration binding (add-connector-bindings, 存量迁移).
+ *
+ * Pre-change connector credentials were a single full-authority PAT injected as
+ * one global `connector` row. The binding-only injection model needs that
+ * capability to *be* a binding, so every identity that already has an active
+ * account gets one: slot `chat:explore`, the account's token (unchanged scope =
+ * unchanged behavior), purpose `内置自由探索`.
+ *
+ * Idempotent by construction — the existence check and the insert run in one
+ * transaction, and an existing row is never overwritten (a user may have
+ * re-granted it narrower on purpose).
+ */
+export function backfillConnectorExploreBinding() {
+  if (!dbReady) return 0;
+  const accounts = stmt(
+    "SELECT email, slot, token FROM user_connector_credentials WHERE kind = 'account' AND active = 1"
+  ).all();
+  let inserted = 0;
+  for (const account of accounts) {
+    const exists = stmt(
+      "SELECT 1 FROM user_connector_credentials WHERE email = ? AND kind = 'binding' AND slot = ?"
+    ).get(account.email, CONNECTOR_EXPLORE_BINDING);
+    if (exists) continue;
+    stmt(
+      `INSERT INTO user_connector_credentials (email, kind, slot, token, pat_id, purpose, source_account, stale, active, updated_at)
+       VALUES (?, 'binding', ?, ?, NULL, ?, ?, 0, 0, ?)`
+    ).run(account.email, CONNECTOR_EXPLORE_BINDING, account.token, "内置自由探索", account.slot, nowIso());
+    inserted += 1;
+  }
+  if (inserted) console.log(`[db] backfilled ${inserted} built-in connector binding row(s)`);
+  return inserted;
 }
 
 // ── User search credentials (add-search-byok) ────────────────────────────────

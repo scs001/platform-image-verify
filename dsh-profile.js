@@ -735,7 +735,7 @@ async function toMcpClientEntry(name, config, scopedEnv = null, ownerEmail = nul
         const refs = await import("./credential-refs.js");
         for (const [envName, ref] of Object.entries(config.credentialEnv)) {
           if (typeof ref !== "string" || !ref) continue;
-          const token = refs.liveTokenForRef(ref, ownerEmail);
+          const token = refs.liveTokenForRef(ref, ownerEmail, config);
           if (token) entry.config.env = { ...(entry.config.env || {}), [envName]: token };
         }
       } catch (e) {
@@ -920,6 +920,44 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     console.warn(`[dsh-profile] DB MCP read failed; mcp.json/OC only: ${e?.message || e}`);
   }
 
+  // ── Connector injection: one row per binding (add-connector-bindings D4) ──
+  // The baseline `connector` row stops being a server and becomes a TEMPLATE:
+  // it supplies the transport (url) and nothing else, and the global row is
+  // deleted. Every connector row a session gets is a BINDING —
+  // `connector:<slot>` — carrying that binding's own scoped token, so one
+  // revoked binding cannot take the others' capability with it and no row ever
+  // rides a full-authority token that the user did not grant for it.
+  //
+  // Carve-out: with no owning identity (auth off / machine owner) there is no
+  // one to resolve bindings for, so the template row stays exactly as it was —
+  // deleting it would remove the connector capability from auth-off installs.
+  const connectorTemplate = servers.connector;
+  if (connectorTemplate && ownerEmail) {
+    delete servers.connector;
+    try {
+      const bindings = await import("./connector-bindings.js");
+      const dbModule = await import("./db.js");
+      const installedPacks = dbModule.isDbReady() ? dbModule.listInstalledPacks().map((pack) => pack.packId) : [];
+      const rows = bindings.injectionRows(ownerEmail, { installedPacks });
+      for (const row of rows) {
+        servers[row.name] = {
+          ...connectorTemplate,
+          // The template's own credentialRef is the retired single-token ref;
+          // the binding row carries its slot instead and resolves through the
+          // `connector-binding` ref.
+          credentialRef: bindings.CONNECTOR_BINDING_CREDENTIAL_REF,
+          slot: row.slot,
+        };
+      }
+      if (rows.length === 0) {
+        console.log(`[dsh-profile] connector: no authorized binding for ${ownerEmail} — no connector row injected`);
+      }
+    } catch (e) {
+      // Fail closed: the retired global row must not come back as a fallback.
+      console.warn(`[dsh-profile] connector binding injection failed for ${ownerEmail}: ${e?.message || e}`);
+    }
+  }
+
   // requiresEnv omission (add-crm-desk-bridge D4): an entry whose declared env
   // names are ALL absent from the deployment env is omitted entirely — a
   // server that cannot start (its child exits on missing env) must not ride
@@ -936,7 +974,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
       userEnvRefs = await import("./credential-refs.js");
     } catch { userEnvRefs = null; }
   }
-  const userHasRef = (ref) => Boolean(ownerEmail && userEnvRefs?.liveTokenForRef(ref, ownerEmail));
+  const userHasRef = (ref, config = null) => Boolean(ownerEmail && userEnvRefs?.liveTokenForRef(ref, ownerEmail, config));
   for (const [name, config] of Object.entries(servers)) {
     const required = Array.isArray(config?.requiresEnv) ? config.requiresEnv.filter((v) => typeof v === "string" && v) : [];
     if (!required.length) continue;
@@ -944,7 +982,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     const present = required.filter(
       (v) =>
         (process.env[v] != null && process.env[v] !== "") ||
-        (credentialEnv[v] && userHasRef(credentialEnv[v])),
+        (credentialEnv[v] && userHasRef(credentialEnv[v], config)),
     );
     if (present.length === 0) {
       delete servers[name];
@@ -1022,7 +1060,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
         for (const [name, config] of credentialServers) {
           const refsNeeded = [...new Set(Object.values(config.credentialEnv).filter((v) => typeof v === "string" && v))];
           if (!refsNeeded.length) continue;
-          if (!refsNeeded.every((ref) => userEnvRefs.liveTokenForRef(ref, ownerEmail))) {
+          if (!refsNeeded.every((ref) => userEnvRefs.liveTokenForRef(ref, ownerEmail, config))) {
             delete servers[name];
             console.log(`[dsh-profile] omitting MCP server "${name}": owner has no live credential for [${refsNeeded.join(", ")}]`);
           }

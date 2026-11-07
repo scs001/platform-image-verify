@@ -295,32 +295,100 @@ function patchNames() {
   return patchEntries().map((e) => e.config.serverName);
 }
 
-test("3.2 the mcp.json connector row injects/omits with the owner's PAT", async () => {
+test("2.5b a 401 on a connector binding row marks only that binding (add-connector-bindings 4.3)", async () => {
+  const email = "binding401@x.test";
+  // Two bindings on two packs, deliberately sharing the binding KEY: the slot
+  // (pack + key) is what the row name carries, so the 401 must land on one.
+  const bindings = await import("../connector-bindings.js");
+  for (const [packId, token] of [["pack-a", "oct_alpha"], ["pack-b", "oct_beta"]]) {
+    db.upsertInstalledPack({ packId, name: packId, version: "1.0.0", manifest: {}, report: {}, source: "market" });
+    db.upsertConnectorBindingLedgerRow({
+      email, packId, packVersion: "1.0.0", bindingKey: "kingdee-cloud", provider: "kingdee",
+      operations: ["read"], connectionId: "conn", status: "satisfied",
+    });
+    db.setConnectorBinding({ email, slot: bindings.bindingSlot(packId, "kingdee-cloud"), token });
+  }
+
+  const broadcasts = [];
+  const updateCalls = [];
+  const ctx = eventsCtx({ broadcast: (m) => broadcasts.push(m) });
+  ctx0 = ctx;
+  ctx.runtimeOwnerEmail = email;
+  ctx.dshUpdateMcp = (_o, groups, owner) => { updateCalls.push({ groups, owner }); return Promise.resolve(); };
+
+  const fire = (toolName) =>
+    ctx.handleDshEvent(toolEvent("c9", toolName, "HTTP 401 Unauthorized"));
+
+  // The row name is the synthesized config: `connector:<pack>:<key>`.
+  fire("mcp__connector:pack-a:kingdee-cloud__kingdee_list_bills");
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(updateCalls.length, 1, "profile re-applied once");
+  assert.equal(broadcasts.some((m) => m.type === "connector_credential_stale"), true, "clients pinged");
+  // Only pack-a's binding flipped; pack-b keeps its live token.
+  assert.equal(bindings.liveBindingToken(email, "pack-a", "kingdee-cloud"), null);
+  assert.equal(bindings.liveBindingToken(email, "pack-b", "kingdee-cloud"), "oct_beta");
+  assert.equal(
+    bindings.listBindings(email, "pack-a").find((row) => row.bindingKey === "kingdee-cloud").status,
+    "stale",
+  );
+  assert.equal(
+    bindings.listBindings(email, "pack-b").find((row) => row.bindingKey === "kingdee-cloud").status,
+    "satisfied",
+  );
+
+  // A second 401 on the same row is not a second re-apply.
+  fire("mcp__connector:pack-a:kingdee-cloud__kingdee_list_bills");
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(updateCalls.length, 1, "already stale ⇒ no second re-apply");
+});
+
+test("2.6 a 401 from a non-binding server leaves binding credentials alone", async () => {
+  const email = "binding401other@x.test";
+  const bindings = await import("../connector-bindings.js");
+  db.setConnectorBinding({ email, slot: "chat:explore", token: "oct_explore_ok" });
+
+  const ctx = eventsCtx({});
+  ctx0 = ctx;
+  ctx.runtimeOwnerEmail = email;
+  ctx.handleDshEvent(toolEvent("c10", "mcp__some-other-server__do_thing", "HTTP 401 Unauthorized"));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(bindings.liveTokenBySlot(email, "chat:explore"), "oct_explore_ok");
+});
+
+test("3.2 the connector injects as the built-in binding row, not a global row", async () => {
   const email = "inject@x.test";
   const row = JSON.parse(fs.readFileSync(process.env.MCP_CONFIG_PATH, "utf8")).mcpServers.connector;
+  // add-connector-bindings D4: the mcp.json `connector` row is a TEMPLATE, and
+  // every injected row is a binding (`connector:<slot>`). The built-in
+  // free-exploration binding is the slot the active account mirrors into.
+  const EXPLORE_ROW = "connector:chat:explore";
 
-  // No credential ⇒ omitted (warning path), the baseline row itself intact.
+  // No credential ⇒ nothing to inject (warning path), the template intact, and
+  // the retired global row is gone even though mcp.json still carries it.
   await writePatch({ ownerEmail: email });
-  assert.equal(patchNames().includes("connector"), false, "no PAT ⇒ omitted");
+  assert.equal(patchNames().includes(EXPLORE_ROW), false, "no PAT ⇒ no binding row");
+  assert.equal(patchNames().includes("connector"), false, "the global connector row is retired");
   assert.equal(patchNames().includes("file-server"), true, "non-ref baseline kept");
   assert.deepEqual(JSON.parse(fs.readFileSync(process.env.MCP_CONFIG_PATH, "utf8")).mcpServers.connector, row, "mcp.json untouched");
 
-  // PAT present ⇒ injected with the Bearer header; refreshed PAT flows on the
-  // next write; invalidation drops it again — no reinstall anywhere.
+  // PAT present ⇒ the built-in binding row carries the Bearer header; a
+  // refreshed PAT flows on the next write; invalidation drops it again — no
+  // reinstall anywhere.
   connectorCredentials.store({ email, token: PAT });
   await writePatch({ ownerEmail: email });
-  assert.equal(patchEntry("connector").config.headers.Authorization, `Bearer ${PAT}`);
+  assert.equal(patchEntry(EXPLORE_ROW).config.headers.Authorization, `Bearer ${PAT}`);
 
   const FRESH = `oct_${"c".repeat(32)}`;
   connectorCredentials.store({ email, token: FRESH });
   await writePatch({ ownerEmail: email });
-  assert.equal(patchEntry("connector").config.headers.Authorization, `Bearer ${FRESH}`);
+  assert.equal(patchEntry(EXPLORE_ROW).config.headers.Authorization, `Bearer ${FRESH}`);
 
   connectorCredentials.markInvalid(email);
   await writePatch({ ownerEmail: email });
-  assert.equal(patchNames().includes("connector"), false, "invalidated ⇒ omitted");
+  assert.equal(patchNames().includes(EXPLORE_ROW), false, "invalidated ⇒ omitted");
 
-  // Auth off: the machine owner's PAT resolves the same baseline row.
+  // Auth off: no identity to resolve bindings for, so the deployment row stays
+  // exactly as it was (the one carve-out from the retirement).
   connectorCredentials.store({ email: null, token: PAT });
   await writePatch({ ownerEmail: null, userGroups: null });
   assert.equal(patchEntry("connector").config.headers.Authorization, `Bearer ${PAT}`);
@@ -330,6 +398,7 @@ test("3.2 the mcp.json connector row injects/omits with the owner's PAT", async 
 
 test("2.3 registry and connector inject independently in one patch write", async () => {
   const email = "both-inject@x.test";
+  const EXPLORE_ROW = "connector:chat:explore";
   connectorCredentials.store({ email, token: PAT });
   registryCredentials.store({ email, token: REG_TOKEN });
   extensionStore.addMcpServer({
@@ -339,13 +408,13 @@ test("2.3 registry and connector inject independently in one patch write", async
   try {
     // Both live.
     await writePatch({ ownerEmail: email });
-    assert.equal(patchEntry("connector").config.headers.Authorization, `Bearer ${PAT}`);
+    assert.equal(patchEntry(EXPLORE_ROW).config.headers.Authorization, `Bearer ${PAT}`);
     assert.equal(patchEntry("reg-db").config.headers.Authorization, `Bearer ${REG_TOKEN}`);
     // Registry goes stale: its row drops, connector keeps its header.
     registryCredentials.markStale(email);
     await writePatch({ ownerEmail: email });
     assert.equal(patchNames().includes("reg-db"), false);
-    assert.equal(patchEntry("connector").config.headers.Authorization, `Bearer ${PAT}`);
+    assert.equal(patchEntry(EXPLORE_ROW).config.headers.Authorization, `Bearer ${PAT}`);
     assert.ok(extensionStore.getMcpServer("reg-db"), "registry record survives the omission");
   } finally {
     extensionStore.removeMcpServer("reg-db");
@@ -699,10 +768,16 @@ test("5.1 migration 25 reshapes legacy single rows to slot=default/active=1", ()
   )`);
   d.prepare(`INSERT INTO user_connector_credentials (email, token, stale, updated_at) VALUES (?, ?, 0, ?)`)
     .run("legacy@x.test", PAT, "2026-10-10T00:00:00.000Z");
-  d.exec(`DELETE FROM schema_migrations WHERE version = 25`);
+  // Roll back exactly the two migrations that rebuild this table: v25 (the
+  // single-row → slot/active shape) and v114 (the kind/purpose/source_account
+  // shape the accessors now read). Replaying every migration after 25 is not an
+  // option — later ones assume a fully-migrated database.
+  d.exec(`DELETE FROM schema_migrations WHERE version IN (25, 114)`);
   return db.initDb().then(() => {
     const row = d
-      .prepare(`SELECT slot, token, active, stale FROM user_connector_credentials WHERE email = ?`)
+      .prepare(
+        `SELECT slot, token, active, stale FROM user_connector_credentials WHERE email = ? AND kind = 'account'`
+      )
       .get("legacy@x.test");
     assert.deepEqual(row, { slot: "default", token: PAT, active: 1, stale: 0 });
     // Re-running is idempotent (slot column present → apply early-returns).

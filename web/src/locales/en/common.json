@@ -1186,6 +1186,34 @@
         "chatwoot": {
           "subtitle": "Your own Chatwoot tenant — paste your token; the agent and the desk embed run on your account"
         }
+      },
+      "bindings": {
+        "title": "Connector needs of your installed packs",
+        "summary": "{{packs}} packs · {{bindings}} bindings · {{unresolved}} to resolve · {{unwired}} capability gaps",
+        "optional": "Optional",
+        "action": {
+          "connect": "Connect",
+          "grant": "Grant access",
+          "reconnect": "Reconnect",
+          "revoke": "Revoke access"
+        },
+        "grantedAt": "Granted {{when}}",
+        "actionFailed": "The action did not complete: {{error}}",
+        "state": {
+          "satisfied": "Connected",
+          "missing": "Not connected",
+          "stale": "Expired",
+          "unwired": "Capability gap",
+          "undetermined": "Undetermined"
+        },
+        "hint": {
+          "unwired": "The connector catalog does not cover an operation this pack declares — no account can close it.",
+          "undetermined": "Catalog facts are unavailable right now, so the state is undetermined."
+        },
+        "operations": {
+          "read": "read",
+          "write": "write"
+        }
       }
     },
     "lines": {

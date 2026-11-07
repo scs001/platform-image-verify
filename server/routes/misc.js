@@ -172,6 +172,60 @@ function registerRoleRoutes(ctx) {
   });
 }
 
+// Binding ledger projection for the connection-center card
+// (add-connector-bindings 6.1). Token-free by construction: the fields below are
+// copied one by one, so a ledger row growing a column can never leak it.
+//
+// `deprecated` rows (a binding the pack no longer declares) are listed — the
+// card may want to say "this grant is orphaned" — but they are excluded from
+// the counts, which answer "what does my installed set still need".
+async function projectBindingLedger(email) {
+  // The ledger is keyed by ownerKey, not by the raw identity: with auth off
+  // there is no email and every credential module (and therefore every row the
+  // user actually granted) lives under the machine-owner key. Dropping null
+  // here skipped the projection entirely in exactly that deployment.
+  const ownerEmail = connectorCredentials.ownerKey(email);
+  if (!ownerEmail) return null;
+  let bindings;
+  try {
+    bindings = await import("../../connector-bindings.js");
+  } catch {
+    return null; // module absent — the card simply has no binding view
+  }
+  let ledger;
+  try {
+    ledger = bindings.listBindings(email);
+  } catch {
+    return null; // no DB: absence of evidence, not "you have zero bindings"
+  }
+  if (!Array.isArray(ledger)) return null;
+  // `granted` is asked of the credential, not inferred from the ledger: a row
+  // can be satisfied and still un-granted, and the card has to offer "grant"
+  // or "revoke" depending on exactly that. `grantedAt` is display only.
+  const rows = ledger.map((row) => ({
+    packId: row.packId,
+    key: row.bindingKey,
+    provider: row.provider,
+    operations: Array.isArray(row.operations) ? [...row.operations] : [],
+    status: row.status,
+    optional: !!row.optional,
+    granted: Boolean(bindings.liveBindingToken(email, row.packId, row.bindingKey)),
+    grantedAt: row.grantedAt ?? null,
+  }));
+  const active = rows.filter((row) => row.status !== "deprecated" && row.status !== "undetermined");
+  const packs = new Set(active.map((row) => row.packId));
+  // "Unresolved" = the user (or the platform) still owes this binding something.
+  // `undetermined` is excluded on purpose: it means we could not ask, and
+  // counting an outage as work-to-do would be a lie in the other direction.
+  const unresolved = active.filter((row) => !row.optional && row.status !== "satisfied").length;
+  // "Unwired" is a separate count because it is a different promise: the user
+  // cannot close these by connecting anything — the catalog does not cover what
+  // the pack declares (connector-bindings spec, `unwired` MUST NOT degrade to
+  // `missing`). The card renders it as a capability gap, not as a todo.
+  const unwired = active.filter((row) => row.status === "unwired").length;
+  return { rows, summary: { packs: packs.size, bindings: active.length, unresolved, unwired } };
+}
+
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
   registerRoleRoutes(ctx);
@@ -687,9 +741,23 @@ export function registerMiscRoutes(ctx) {
     // Connector is multi-slot: any live slot counts as connected; slots that
     // all went stale still show as stale (reconnect, not first connect).
     const slots = connectorCredentials.listForClient(email);
-    if (slots.some((s) => s.connected)) items.push(entry("connector", "萬星·连接器", "connected"));
-    else if (slots.length > 0) items.push(entry("connector", "萬星·连接器", "stale", "stale"));
-    else items.push(entry("connector", "萬星·连接器", "disconnected"));
+    const connectorItem =
+      slots.some((s) => s.connected)
+        ? entry("connector", "萬星·连接器", "connected")
+        : slots.length > 0
+          ? entry("connector", "萬星·连接器", "stale", "stale")
+          : entry("connector", "萬星·连接器", "disconnected");
+    // Binding projection (add-connector-bindings 6.1): what the user's packs
+    // DECLARE, resolved per binding, so the card can say "N packs need M
+    // bindings, K unresolved" and deep-link each one. Built field-by-field on
+    // purpose — a ledger row also carries the resolved connection id and the
+    // grant's stamp, and neither belongs in a status payload.
+    const bindings = await projectBindingLedger(email);
+    if (bindings) {
+      connectorItem.bindings = bindings.rows;
+      connectorItem.bindingSummary = bindings.summary;
+    }
+    items.push(connectorItem);
 
     for (const [line, name] of [
       ["wire-customer", "柏讯（操作）"],

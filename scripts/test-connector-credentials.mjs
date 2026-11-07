@@ -276,13 +276,23 @@ test("2.2 resolveCredentials never cross-resolves the two refs", async () => {
 });
 
 // ── 2.3 / 3.2 Effective-profile injection ────────────────────────────────────
-
-const PATCH_FILE = path.join(
-  process.env.DSH_HOME, "profiles", process.env.DSH_PROFILE || "platform", "mcp.patch.yml",
-);
+//
+// The patch path is computed from the SAME private home the writer is aimed at,
+// and the writer is aimed explicitly via `dirs` instead of relying on env being
+// read lazily. That reliance is a landmine: this file sets DATABASE/dev paths
+// AFTER its static imports, so any import chain that loads dsh-profile.js (a
+// later `cron.js` gained exactly one) freezes the module's path constants to
+// the developer's REAL ~/.dsh — the assertions then read a temp file while the
+// writer quietly rewrote a live profile.
+const PRIVATE_DIRS = {
+  dshHome: process.env.DSH_HOME,
+  profileName: process.env.DSH_PROFILE || "platform",
+  mcpConfig: process.env.MCP_CONFIG_PATH,
+};
+const PATCH_FILE = path.join(PRIVATE_DIRS.dshHome, "profiles", PRIVATE_DIRS.profileName, "mcp.patch.yml");
 async function writePatch(opts) {
   fs.rmSync(PATCH_FILE, { force: true });
-  await writeMcpPatch(opts);
+  await writeMcpPatch({ ...opts, dirs: PRIVATE_DIRS });
 }
 function patchEntries() {
   if (!fs.existsSync(PATCH_FILE)) return [];

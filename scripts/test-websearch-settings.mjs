@@ -250,7 +250,13 @@ test("stored relay pair reaches the patch; scoped master still wins", async () =
   };
 
   // stored layer (no scoped master): stored values win over env
-  await writeMcpPatch({ ownerEmail: "u@test.dev" });
+  // `dirs` names the private home AND the mcp.json explicitly: this file sets
+  // DSH_HOME/MCP_CONFIG_PATH inside the test, but dsh-profile.js freezes its path
+  // constants at import — any earlier import chain (cron.js now has one) makes
+  // the module read the deployment default instead, and the write silently
+  // targets a home nobody reads.
+  const PRIVATE = { dshHome: home, profileName: "platform", mcpConfig: process.env.MCP_CONFIG_PATH };
+  await writeMcpPatch({ ownerEmail: "u@test.dev", dirs: PRIVATE });
   assert.equal(envOf().SEARCH_RELAY_URL, "http://stored-relay.test:4597");
   assert.equal(envOf().SEARCH_RELAY_TOKEN, "stored-relay-token");
 
@@ -258,7 +264,13 @@ test("stored relay pair reaches the patch; scoped master still wins", async () =
   // stored URL must STILL land (regression: an early-return dropped it)
   process.env.SEARCH_RELAY_SCOPED_MASTER = "unit-master";
   try {
-    await writeMcpPatch({ ownerEmail: "u@test.dev" });
+    // `dirs` names the private home AND the mcp.json explicitly: this file sets
+  // DSH_HOME/MCP_CONFIG_PATH inside the test, but dsh-profile.js freezes its path
+  // constants at import — any earlier import chain (cron.js now has one) makes
+  // the module read the deployment default instead, and the write silently
+  // targets a home nobody reads.
+  const PRIVATE = { dshHome: home, profileName: "platform", mcpConfig: process.env.MCP_CONFIG_PATH };
+  await writeMcpPatch({ ownerEmail: "u@test.dev", dirs: PRIVATE });
     assert.match(envOf().SEARCH_RELAY_TOKEN, /^wsrc-cell-[0-9a-f]{12}-[0-9a-f]{24}$/);
     assert.equal(envOf().SEARCH_RELAY_URL, "http://stored-relay.test:4597", "stored URL survives token derivation");
   } finally {

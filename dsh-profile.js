@@ -261,6 +261,7 @@ export function targetPaths(dirs) {
     settings: join(profileDir, "cordis.patch.yml"),
     credentials: join(home, ".credentials.yaml"),
     presetsPatch: join(profileDir, "presets.patch.yml"),
+    mcpPatch: join(profileDir, "mcp.patch.yml"),
   };
 }
 
@@ -893,11 +894,23 @@ export function authorizationHeadersChanged(prev, next) {
   return false;
 }
 
-export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false, workspace = null, enrichmentEnabled = true } = {}) {
+export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false, workspace = null, enrichmentEnabled = true, dirs = null } = {}) {
+  // `dirs` re-aims this writer at a private home — the same contract every
+  // other writer here honors through targetPaths (settings/credentials/
+  // presets/tool-filter/overlay). It is not cosmetic: without it the path
+  // constants are frozen at import time, so a caller that sets DSH_HOME after
+  // an unrelated import chain has already loaded this module writes the
+  // developer's REAL ~/.dsh profile instead of its own temp one (that is
+  // exactly how the unit lane overwrote a live profile). mcp.json is read from
+  // the same private home unless the caller names the file outright.
+  const mcpJsonPath = dirs ? (dirs.mcpConfig ?? join(dirs.dshHome, "mcp.json")) : MCP_CONFIG_PATH;
+  const patchPath = dirs
+    ? join(dirs.dshHome, "profiles", dirs.profileName ?? PROFILE_NAME, "mcp.patch.yml")
+    : MCP_PATCH_PATH;
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
   try {
-    mcpJsonServers = JSON.parse(readFileSync(MCP_CONFIG_PATH, "utf8")).mcpServers || {};
+    mcpJsonServers = JSON.parse(readFileSync(mcpJsonPath, "utf8")).mcpServers || {};
   } catch { /* no MCP config or parse error — MCP disabled via file */ }
 
   // Merge: mcp.json base → DB (enabled overrides, disabled drops).
@@ -1289,13 +1302,13 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   if (enrichmentEnabled && !scope.publicFacing) {
     try {
       const { getCanonicalBriefs } = await import("./extension-store.js");
-      writeToolDescriptionOverlay(await getCanonicalBriefs());
+      writeToolDescriptionOverlay(await getCanonicalBriefs(), { dirs });
     } catch (e) {
-      writeToolDescriptionOverlay(null);
+      writeToolDescriptionOverlay(null, { dirs });
       console.warn(`[dsh-profile] tool-description overlay unavailable: ${e?.message || e}`);
     }
   } else {
-    writeToolDescriptionOverlay(null);
+    writeToolDescriptionOverlay(null, { dirs });
   }
 
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
@@ -1312,7 +1325,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     console.log("[dsh-profile] no MCP servers configured; skipping --patch");
     return null;
   }
-  mkdirSync(dirname(MCP_PATCH_PATH), { recursive: true });
+  mkdirSync(dirname(patchPath), { recursive: true });
   // Wrap entries in an `insert` list — a bare `{id, config}` is treated by
   // cordis-plugin-include as an override-by-id on an EXISTING entry, and since
   // these mcp-client entries don't exist in the base bundle they'd be warned +
@@ -1322,11 +1335,11 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // Mode 0600 is the atomic-write default now — the patch carries resolved
   // credential values (Authorization headers, per-cell env) and is readable
   // by the cell owner alone (add-mcp-credential-hygiene D4).
-  atomicWriteTextSync(MCP_PATCH_PATH, yaml.dump([{ insert: entries }]));
+  atomicWriteTextSync(patchPath, yaml.dump([{ insert: entries }]));
   console.log(
-    `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${MCP_PATCH_PATH}`,
+    `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${patchPath}`,
   );
-  return MCP_PATCH_PATH;
+  return patchPath;
 }
 
 // Per-member MCP patch (add-member-knowledge-profile): the fleet member's

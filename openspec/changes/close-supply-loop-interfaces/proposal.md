@@ -20,8 +20,8 @@
 
 ## Impact
 
-- **paas**：`lib/supply-instance-report.js`（新）、`server.js` 挂载（回报调度：部署变更后置登记，失败降级）、`server/routes/wanxing-fleet.js` 部署写路径后置 hook（零行为变更，仅追加登记调用）。
-- **fd-wanxing（facade 侧）**：脊柱写闸 `instances/{upsert,patch,delete}` 路由族（照 mcp-servers 族形状，actor/source 审计同构）；`SPINE_INSTANCES_ENABLED` 缺省关，开=true 才启用。
+- **paas**：`gateway/supply-store.js`（instances 表+路由族+投影段）、`lib/supply-instance-report.js`（新）、`server/routes/wanxing-fleet.js` 部署写路径后置 hook（零行为变更，仅追加登记调用）。
+- **paas/facet（供给域 facade 侧，架构勘验纠正：写闸真源=paas `gateway/supply-store.js` registerSupplyStoreRoutes，非 fd-wanxing）**：`spine_instances` 表 + `instances/{upsert,patch,delete}` 路由族（照 mcp-servers 族同构，actor/source 审计同闸）；`SPINE_INSTANCES_ENABLED` 缺省关，开=true 才启用。fd-wanxing 本单零触碰（实例状态读源在壹座本地 fleet 库）。
 - **脊柱 schema**：`spine_instances` 表（instance_id 主键 / status / runner_id / source_pack_id / provenance JSON / TTL）——与 mcp_servers/skills 同库同闸。
-- **不触碰**：promote 端点行为（只成文不改码）、六本账边界、创作面位置、W3 域名归一、五线 slug。
+- **不触碰**（fd-wanxing 全仓零触碰——实例状态读源在壹座本地 fleet 库，`localFleetSnapshot()` 既有）：promote 端点行为（只成文不改码）、六本账边界、创作面位置、W3 域名归一、五线 slug。
 - **验证**：脊柱登记处读得到萬星实例状态带 provenance；全链 grep 证「无回写运行态路径」；promote 回归钉绿；登记通道断开时部署面无感。

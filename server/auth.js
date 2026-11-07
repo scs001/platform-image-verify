@@ -37,7 +37,10 @@ import {
 //     client's device pairing (add-device-pairing-auth), same situation: no
 //     browser session; each call authenticates through the bind code or the
 //     device key's challenge signature. Inert (503) without MP_TOKEN_SECRET.
-const AUTH_EXEMPT_PREFIXES = [
+// Exported for the trust-boundary ledger check (scripts/test-auth-trust-boundary.mjs):
+// the spec's prefix table and this array are two sides of one contract, and the
+// check is what keeps them from drifting apart.
+export const AUTH_EXEMPT_PREFIXES = [
   // Chart rendering asset for the mobile client's WebView (ChartView): a
   // <script src> fetch carries no Authorization header and no session cookie,
   // so an authenticated gate 401s it and every chart silently degrades

@@ -4,8 +4,19 @@
 // ops tooling) asks "which packs are actually used, by whom, how much" and
 // gets the weekly-active answer directly. Fail-closed: without a configured
 // PACK_USAGE_TOKEN the endpoint answers 503, and no credential ever reads data.
+//
+// The bearer is compared through `secretMatches` — the shared constant-time
+// compare. The gate exempts `/api/ops/` because this route authenticates
+// itself; a plain `!==` here would be the only secret comparison on the
+// platform that leaks a byte-by-byte timing signal.
 
+import { secretMatches } from "../auth.js";
 import { packUsageAggregate } from "../usage-telemetry.js";
+
+const bearerOf = (header) => {
+  const raw = String(header || "");
+  return raw.startsWith("Bearer ") ? raw.slice(7) : "";
+};
 
 export function registerPackUsageRoutes(ctx) {
   const { app } = ctx;
@@ -15,7 +26,7 @@ export function registerPackUsageRoutes(ctx) {
     if (!token) {
       return res.status(503).json({ error: "pack usage surface not configured on this deployment" });
     }
-    if (req.headers.authorization !== `Bearer ${token}`) {
+    if (!secretMatches(bearerOf(req.headers.authorization), token)) {
       return res.status(401).json({ error: "ops credential required" });
     }
     return res.json(packUsageAggregate(req.query.days));

@@ -54,6 +54,22 @@ export function getCatalogSource() {
   return "none";
 }
 
+// "Is this entry a market entry?" — the ONE judgment every consumer (pack
+// install, preset→draft conversion, market install) branches on
+// (fix-facet-catalog-install-parity). The catalog's sourcing channel decides
+// the origin label (`registry` from the legacy feed, `facet-catalog` from the
+// projection) but NOT the entry's standing: both serve the same first-party
+// market species, with the same group gate and the same credential-shaped
+// install. Comparing against "registry" by hand is what silently turned the
+// whole chain off when the deployment moved to the facet projection.
+// `bundled` (installer-shipped stdio starters) is deliberately NOT a market
+// entry — a pack reference to one keeps the local-binding rule.
+const MARKET_ORIGINS = new Set(["registry", "facet-catalog"]);
+
+export function isMarketInstallableEntry(entry) {
+  return Boolean(entry) && MARKET_ORIGINS.has(entry.origin);
+}
+
 // Optional visibility mapping: {servers:{<name>:[groups]}, skills:{...},
 // agents:{...}}. Absent file ⇒ every entry is group-less (visible to all).
 // Resolved at READ time — see catalog.js (cwd overlay may land after boot).
@@ -441,6 +457,11 @@ function mapAgent(a) {
 // the placeholder keeps requiresConfig === true (same posture as mapServer).
 function mapFacetServer(r) {
   if (!r?.name) return null;
+  // A facet row may declare which stored credential its server needs
+  // (credential-refs); pass it through unchanged so the install path resolves
+  // the right ref instead of defaulting every entry to the market credential.
+  // Absent ⇒ no field at all (payload stays byte-identical to before).
+  const credentialRef = r.credentialRef ?? r.metadata?.credentialRef ?? null;
   return {
     name: r.name,
     displayName: r.displayName || r.name,
@@ -454,6 +475,7 @@ function mapFacetServer(r) {
     installInstructions: "Served through your MCP gateway. Fill in your gateway access token.",
     origin: "facet-catalog",
     groups: Array.isArray(r.requiredGroups) ? r.requiredGroups : [],
+    ...(credentialRef ? { credentialRef } : {}),
     // The global read carries the raw annotation object (facet attaches
     // `annotations` only for internal reads); the public projection carries
     // the locale-projected `annotation` only. Absent → null (raw rendering).
@@ -482,6 +504,32 @@ function mapFacetSkill(r) {
   };
 }
 
+// Fill `toolList` on facet-sourced entries from the depth endpoint. Bounded
+// concurrency (the refresh runs on a 300 s TTL, so a few seconds is free) and
+// fully degradable: a server whose depth call fails keeps no toolList, which is
+// exactly what the market served before this ran.
+const FACET_DEPTH_CONCURRENCY = 4;
+
+async function attachFacetToolLists(servers, grab) {
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < servers.length) {
+      const entry = servers[cursor++];
+      try {
+        const doc = await grab(`/api/mcp-catalog/${encodeURIComponent(entry.name)}?locale=zh-CN`);
+        const tools = Array.isArray(doc?.tools)
+          ? doc.tools.map((t) => t?.name).filter((n) => typeof n === "string" && n)
+          : [];
+        if (tools.length > 0) entry.toolList = tools;
+      } catch {
+        // One unreachable depth endpoint must not cost the whole refresh.
+      }
+    }
+  };
+  const lanes = Math.min(FACET_DEPTH_CONCURRENCY, servers.length);
+  await Promise.all(Array.from({ length: lanes }, worker));
+}
+
 async function doFacetRefresh() {
   const headers = { Accept: "application/json" };
   if (FACET_CATALOG_TOKEN) headers["x-facet-internal-token"] = FACET_CATALOG_TOKEN;
@@ -499,6 +547,14 @@ async function doFacetRefresh() {
   ]);
   const mcpServers = (mcpDoc.servers ?? []).map(mapFacetServer).filter(Boolean);
   const skills = (skillDoc.skills ?? []).map(mapFacetSkill).filter(Boolean);
+  // The projection's LIST endpoint carries no tool surface (fix-facet-catalog-
+  // install-parity): only the per-server depth endpoint knows the tools. The
+  // pack editor's allowlist picker reads `toolList` off the market payload, so
+  // without this a facet deployment can only author `fullSurface` packs.
+  // Measured: 27 servers, ~95 ms each, ~2.7 s sequential against a 300 s TTL —
+  // run it bounded and let any failure degrade that one entry to "no surface"
+  // (the pre-change behavior) instead of failing the refresh.
+  await attachFacetToolLists(mcpServers, grab);
   if (mcpServers.length === 0 && skills.length === 0) {
     // Same last-good posture as the registry channel: an empty answer is not
     // trusted over a previously good snapshot.

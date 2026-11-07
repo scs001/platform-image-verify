@@ -55,6 +55,7 @@ import { registerFleetMachineRoutes } from "./gateway/fleet-machines-routes.js";
 import { startDesiredMergeLoop } from "./server/fleet-desired-merge.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
+import { registerConnectorBindingRoutes } from "./server/routes/connector-bindings.js";
 import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
 import { registerLineCredentialRoutes } from "./server/routes/line-credentials.js";
 import { registerChatwootCredentialRoutes } from "./server/routes/chatwoot-credentials.js";
@@ -113,6 +114,9 @@ import { matrixGate } from "./lib/dsh-matrix-verify.js";
 import { registerActionsRoutes } from "./server/routes/actions.js";
 import { startActionExpiryJob } from "./lib/action-expiry.js";
 import { registerBoardRoutes } from "./server/routes/boards.js";
+// ERP 纵向 REST 服务面同源代理（add-erp-supply-chain-gateway-proxy）：
+// 客户端 X-ERP-* 一律剥离、服务端按会话注入、无会话 401（fail-closed）。
+import { ERP_PROXY_PREFIX, registerErpProxyRoutes } from "./server/routes/erp-proxy.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "localhost";
@@ -228,6 +232,10 @@ const packJsonBodyParser = express.json({ limit: "24mb" });
 const PACK_BODY_PREFIXES = ["/api/packs", "/api/pack-drafts", "/api/mypacks"];
 app.use((req, res, next) => {
   if (req.path.startsWith(WEBHOOK_PREFIX) || req.path.startsWith(RELAY_PREFIX)) return next();
+  // ERP 代理转发的是「原始请求」：body 若先被 json parser 吃掉，代理只能拿到
+  // 重新序列化的对象（丢字节、丢重复键）。故该前缀跳过解析，由 erp-proxy.js
+  // 自己读原始流（add-erp-supply-chain-gateway-proxy）。
+  if (req.path.startsWith(ERP_PROXY_PREFIX)) return next();
   const parser = PACK_BODY_PREFIXES.some((p) => req.path === p || req.path.startsWith(p + "/"))
     ? packJsonBodyParser
     : jsonBodyParser;
@@ -276,6 +284,10 @@ registerAuth(ctx);
 // Route registration. Order is semantic: app /api routes first, then the
 // static SPA + deep-link fallback and /external/:appId.
 registerDocumentRoutes(ctx);
+// ERP 代理必须早于静态 SPA 兜底（registerMiscRoutes 里挂 express.static +
+// 深链 fallback）：否则 GET /erp/... 会被前端 fallback 抢走返回 index.html。
+// 它自带会话闸（无会话 401），不依赖全局闸对 /erp 的判断。
+registerErpProxyRoutes(ctx);
 registerMiscRoutes(ctx);
 registerLlmRoutes(ctx);
 registerExtensionRoutes(ctx);
@@ -354,6 +366,9 @@ registerPackUsageRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the
 // registry credential endpoints.
 registerConnectorRoutes(ctx);
+// Connector BINDINGS (add-connector-bindings): the per-binding status face, the
+// declarative one-dialog grant, the progressive grant-off-a-rejection, revoke.
+registerConnectorBindingRoutes(ctx);
 // Dynamic cluster management (agent-cluster-platform): REST API for creating,
 // managing, and operating dynamic agent clusters assembled from pack agents.
 createClusterRoutes(app, ctx);

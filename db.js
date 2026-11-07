@@ -832,27 +832,27 @@ const MIGRATIONS = [
     // stored API token — discovered lazily via /api/v1/profile and cached so
     // the platform-API SSO login endpoint can be addressed per user.
     //
-    // An `apply` rather than a bare statement since 2026-11-08: a compacted cell
-    // ledger can record v35 without its CREATE ever having run (cells
-    // 2b043ce050ca134c and 0f483a072f22ae37 both do), so the plain ALTER would
-    // throw `no such table` and abort the whole run — the cell then serves with
-    // no database at all. Re-establish the table here so the column has
-    // somewhere to land, which also restores the credential store for those
-    // cells (an absent chatwoot table means the feature is simply unavailable).
-    apply: (handle) => {
-      if (!migrationTableExists(handle, "user_chatwoot_credentials")) {
-        handle.exec(`CREATE TABLE IF NOT EXISTS user_chatwoot_credentials (
-          email TEXT PRIMARY KEY,
-          token TEXT NOT NULL,
-          login_email TEXT,
-          login_password TEXT,
-          stale INTEGER NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL
-        )`);
-        console.warn("[db] v100: recreated user_chatwoot_credentials (compacted ledger skipped its CREATE)");
-      }
-      if (!migrationColumns(handle, "user_chatwoot_credentials").has("chatwoot_user_id")) {
-        handle.exec("ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER");
+    // Guarded, not a bare ALTER: a cell whose ledger already records v35 can
+    // still be missing the table (compacted/legacy cell DB — cell
+    // 2b043ce050ca134c is one: 42 tables at v37, no user_chatwoot_credentials).
+    // A bare ALTER there throws `no such table`, runMigrations aborts, initDb
+    // catches and disables the WHOLE database — every feature of that cell,
+    // not just the Chatwoot one. Recreate the v35 shape, then add the column
+    // only when it is absent; both steps are no-ops on a healthy database.
+    apply: (db) => {
+      db.exec(`CREATE TABLE IF NOT EXISTS user_chatwoot_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        login_email TEXT,
+        login_password TEXT,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`);
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(user_chatwoot_credentials)").all().map((c) => c.name)
+      );
+      if (!cols.has("chatwoot_user_id")) {
+        db.exec(`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`);
       }
     },
   },
@@ -1036,13 +1036,12 @@ const MIGRATIONS = [
     // unrelated credential edit. `allow_tools` defaults to 0 = the spec's
     // no-tools posture; the deployment env is only a ceiling on top of it.
     // PRAGMA-guarded like every additive ALTER (a fresh DB never ran the ALTER
-    // and a re-run must not throw "duplicate column"), and — since 2026-11-08 —
-    // table-guarded too: a cell whose compacted ledger claims a version without
-    // its CREATE must skip this, not lose its whole database (same discipline
-    // as v110's addCol, same incident class as v100).
+    // and a re-run must not throw "duplicate column").
     apply: (db) => {
+      // Table-guarded like v110's addCol: an ADD COLUMN on an absent base table
+      // must not take the whole database down (schema-migrations spec).
       if (!migrationTableExists(db, "bots")) {
-        console.warn("[db] v111: skipped bots persona/allow_tools — table absent (compacted ledger)");
+        console.warn("[db] v111: skipped bots persona/allow_tools — table absent (legacy cell ledger)");
         return;
       }
       const cols = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
@@ -1214,22 +1213,21 @@ function runMigrations() {
 
 // ── ADD COLUMN is made idempotent, deliberately ─────────────────────────────
 //
-// SQLite has no `ADD COLUMN IF NOT EXISTS`, and a cell's ledger is NOT a faithful
-// record of DDL: old cells carry a COMPACTED `schema_migrations` (see the v100
-// note below), so a version can be recorded without its `CREATE TABLE` ever
-// having run. An unguarded `ALTER TABLE … ADD COLUMN` on such a database throws
-// `no such table`; because each migration is one transaction, that aborts the
-// WHOLE run — `initDb` then reports `[db] disabled` and the cell serves with NO
-// database at all.
+// schema-migrations spec (harden-legacy-cell-migrations): "任一迁移抛出未预期错误时，
+// 失败 SHALL 局限于该迁移，不得让整个数据库进入停用状态". The v100 fix repairs the
+// one table that was actually missing; this makes the whole class impossible.
 //
-// That is not hypothetical: on 2026-11-08 cell 2b043ce050ca134c (ledger v37, no
-// `user_chatwoot_credentials`) came up database-less exactly this way, and cell
-// 0f483a072f22ae37 (v54) was one wake-up away from the same fate.
+// SQLite has no `ADD COLUMN IF NOT EXISTS`, and a cell ledger is not a faithful
+// record of DDL: legacy/compacted cell DBs record a version whose CREATE never
+// ran. An unguarded ADD COLUMN then throws `no such table`; each migration is one
+// transaction, so the throw aborts the run and initDb disables the ENTIRE
+// database — a cell loses sessions, packs, ledger and credentials because one
+// unrelated table is missing (2026-11-08: cell 2b043ce050ca134c).
 //
-// So this one statement shape is tolerated: skip when the table is absent or the
-// column is already there, and say which. Everything else executes verbatim —
-// this is not an "ignore migration errors" switch, and it never swallows a
-// failure that could mean data loss.
+// Only this one statement shape is tolerated: skip when the base table is absent
+// or the column is already there, and say which. Every other statement runs
+// verbatim — this is NOT an "ignore migration errors" switch and never swallows
+// a failure that could mean data loss.
 const ADD_COLUMN_RE = /^\s*ALTER\s+TABLE\s+"?([A-Za-z_][\w]*)"?\s+ADD\s+COLUMN\s+"?([A-Za-z_][\w]*)"?/i;
 
 function migrationTableExists(handle, table) {
@@ -1247,7 +1245,7 @@ function execMigrationStatement(sql, version) {
   if (!match) return db.exec(sql);
   const [, table, column] = match;
   if (!migrationTableExists(db, table)) {
-    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — table absent (compacted ledger)`);
+    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — table absent (legacy cell ledger)`);
     return undefined;
   }
   if (migrationColumns(db, table).has(column)) {
@@ -2573,6 +2571,21 @@ export function deleteConnectorRoleMapping(email, role) {
   const name = typeof role === "string" ? role.trim() : "";
   if (!key || !name) return false;
   return stmt("DELETE FROM connector_role_mappings WHERE email = ? AND role = ?").run(key, name).changes > 0;
+}
+
+/**
+ * Every ledger row of one pack, across all identities (harden: uninstall).
+ *
+ * The ledger is keyed by (email, pack_id, binding_key) and grants are per
+ * identity, while an installed pack is per deployment — so "this pack is gone"
+ * has to reach rows the uninstaller does not know the owners of. Returns the
+ * distinct emails that still hold rows for the pack.
+ */
+export function listConnectorBindingLedgerEmails(packId) {
+  if (!dbReady || !packId) return [];
+  return stmt("SELECT DISTINCT email FROM connector_binding_ledger WHERE pack_id = ? ORDER BY email")
+    .all(packId)
+    .map((row) => row.email);
 }
 
 export function deleteConnectorBindingLedgerRow(email, packId, bindingKey) {

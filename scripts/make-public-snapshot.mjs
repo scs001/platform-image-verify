@@ -154,6 +154,11 @@ const EXCLUDE_PATHS = new Set([
   // credential naming + tailnet RustFS curl checks — internal ops doc, same
   // class as the lane scripts above.
   "RELEASE_CHECKLIST.md",
+  // supply-store skills backfill (2026-11-07 scan hit): internal ops script —
+  // names the retired compose Mongo volume/node (cheap-1) as its truth source;
+  // spine migration tooling, no product surface, same class as the lane
+  // scripts above.
+  "scripts/supply-store-skills-backfill.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state
   "scripts/test-ops-console-board.mjs",
   // internal ops test: fleet-scheduler fixtures carry tailnet IPs and cluster

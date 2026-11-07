@@ -35,9 +35,13 @@
 
 - [ ] 5.1 提审提交：四端提审材料终稿（类目/隐私声明/演示账号与审核员路径）随首个提审窗提交——验证：材料留档；审核反馈回填本单
 - [x] 5.2 移动端凭证三面验收：四端任一页面的抓包、本地存储、日志审计均无外部系统凭证字段；端上只持会话 PAT——验证：三面检查记录留档（交接材料 §三判据）；实测记录见 6.3 注记：请求头构造点仅 `Authorization`(会话 PAT) + `X-ERP-Staff/Supplier/Carrier`（源码级全量枚举，客户端全树无 appid/secret/证书/私钥字段）；本地存储键集封闭为 BASE/EMAIL/KEY/PRE_DEMO/SURFACE_BINDINGS/TOKEN 六类零凭证；服务端三包 print/logger 对 secret|password|api_key|private_key|token|credential|dsn|database_url 零命中，`config.py` 敏感字段全 `repr=False`
-- [ ] 5.3 挂账核对：Q-A 订阅模板（用户行动）、Q-B WMS 未定、Q-C 310 点回填、Q-D ICP 定性——逐项在 tasks 留痕状态，MUST NOT 伪装已通
+- [x] 5.3 挂账核对：Q-A 订阅模板（用户行动）、Q-B WMS 未定、Q-C 310 点回填、Q-D ICP 定性——逐项在 tasks 留痕状态，MUST NOT 伪装已通。**本项=状态核对，不代表四问已解**；逐条实证（2026-11-08）：
+  - **Q-A 微信订阅消息模板：未办（用户行动，无进展）**。实证 `grep -rn "requestSubscribeMessage|subscribeMessage|tmplIds" miniapp/src` 零命中——端上根本没接订阅消息 API，所以「未办」不是文案口径而是代码事实：预警/单据通知目前没有任何触达通道，页面不宣称会推送。
+  - **Q-B 锚点客户 WMS 品牌与接口形态：仍未定**。实证连接器目录 `open-connector-mt/src/providers` 1595 个 provider 中 `wms|warehouse` 匹配 **0**（WMS 无任何适配器），故 SP/CP 外部执行状态一律按现状呈现，SP 对账三端点与 CP 运费单保持后端 501 如实渲染，不摆假回执。
+  - **Q-C 310 点逐条映射：未回填**。实证 `miniapp/src/pagesets/registry.ts` 中 `blueprint` 字段**0 处**——页面集 manifest 的 `blueprint` 段仍是功能域级（UE 7/SE 3/SP 4/CP 4 域），310 点清单资产化后才逐条回填；页面注册与授权判定不依赖该段，故不阻塞提审。
+  - **Q-D ICP 定性：待公司侧定夺（未决）**。实证 `docs/compliance-opening-assessment.md` §1.2 原文仍为「需法务定性…**待公司侧定夺**」；提审材料按现行形态整理（域名备案已在，经营性许可未办），定性变化时增补。
 
 ## 6. 收尾
 
 - [x] 6.1 `openspec validate add-erp-miniapp-pagesets --strict` 通过（含三个 spec delta）——验证：exit=0
-- [ ] 6.2 提交自查：paas 单仓点名文件提交（miniapp + openspec + docs），勿 `-A`（并行会话纪律）——验证：无并行会话文件卷入
+- [x] 6.2 提交自查：paas 单仓点名文件提交（miniapp + openspec + docs），勿 `-A`（并行会话纪律）——验证：无并行会话文件卷入。**已提交 `2a486246d`（release/cell-session-persona，push gitee）**，113 文件/8592 插入：`miniapp/{package.json,tsconfig.json,src/app.css,src/app.config.ts,src/lib/auth.ts,src/pages/cron/index.tsx,src/components/ConfirmGate/confirm-gate.ts,src/pagesets/*,src/pages/{ue,se,sp,cp}/*}` + `openspec/changes/add-erp-miniapp-pagesets/*` + `docs/{pageset-base-v1.md,erp-pagesets-submission-draft.md}`；逐路径 `git add --`，提交前核过 `git diff --cached --name-only`（113 项全在本单范围）、密钥模式扫描零命中；**并发会话的 `pack-store.js`/`dsh-profile.js` 脏文件与另外 59 项他人在飞改动一律未卷入**。门：tsc 0 错 / `biome check src` 141 文件 0 / `test:unit` 74 passed。

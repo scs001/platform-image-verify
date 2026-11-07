@@ -228,6 +228,21 @@ test.describe("session ownership (two users, auth on)", () => {
       await page.reload();
       await expect(page.getByTestId("status-text")).toHaveText("Connected", { timeout: 15_000 });
     }
+    // The sidebar groups sessions under their project (add-web-project-container)
+    // and a group only auto-opens when it holds the CURRENT session. After a
+    // reload there is no current session, so every group renders collapsed and
+    // no row is in the DOM at all — the rows are hidden, not missing (the API
+    // assertions above already proved the data). Open the group first.
+    for (const page of [alicePage, bobPage]) {
+      const groupToggle = page.getByTestId("workspace-group-toggle").first();
+      await expect(groupToggle).toBeVisible({ timeout: 15_000 });
+      // Deliberately conditional: a group holding the current session opens by
+      // itself, and clicking blindly would COLLAPSE that one.
+      if ((await groupToggle.getAttribute("aria-expanded")) !== "true") {
+        await groupToggle.click();
+        await expect(groupToggle).toHaveAttribute("aria-expanded", "true");
+      }
+    }
     await expect(alicePage.getByTestId("session-row")).toHaveCount(1, { timeout: 15_000 });
     await expect(bobPage.getByTestId("session-row")).toHaveCount(1, { timeout: 15_000 });
     await expect(alicePage.locator('[data-testid="session-row"]')).toContainText("alice owns");

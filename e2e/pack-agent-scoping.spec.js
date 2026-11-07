@@ -493,15 +493,31 @@ test("a tool allowlist materializes the filter config; role narrowing clips; ful
   // effective set (pack three minus the role's two), and the scope module
   // ships beside it for the child's preset bridge.
   await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp");
+  // The document is the tool-scope projection: a top-level `mcpTools` (the
+  // active filter the child consumes) PLUS a per-preset `byPreset` section
+  // (whose tools each role keeps when it is the one running — pinned
+  // independently by scripts/test-full-mode-tool-scope-integration.mjs). The
+  // whole-object equality here predated `byPreset` and went red on a correct
+  // document, so assert the two parts rather than the object identity.
   await expect
-    .poll(() => toolFilterOf(), { timeout: 20_000 })
-    .toEqual({ mcpTools: { "e2e-registry-mcp": ["read", "search"] } });
+    .poll(() => toolFilterOf()?.mcpTools, { timeout: 20_000 })
+    .toEqual({ "e2e-registry-mcp": ["read", "search"] });
+  await expect
+    .poll(() => toolFilterOf()?.byPreset?.[AGENT_ID]?.mcpTools, { timeout: 20_000 })
+    .toEqual({ "e2e-registry-mcp": ["read", "search"] });
   expect(fs.existsSync(patchPath("platform-tool-scope.js"))).toBe(true);
 
   // Full mode composes with NO filtering — the empty mapping is what the
   // bridge no-ops on, byte-identical to the pre-change surface.
   await switchPreset(page, "standard");
-  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({ mcpTools: {} });
+  await expect.poll(() => toolFilterOf()?.mcpTools, { timeout: 20_000 }).toEqual({});
+  // Full mode narrows nobody at the top level. The per-preset section STAYS:
+  // `byPreset` says what each role keeps when IT is the one running, which is a
+  // property of the role, not of the current selection — it clears when the pack
+  // that declared it goes away, not when another preset is selected.
+  await expect
+    .poll(() => Object.keys(toolFilterOf()?.byPreset ?? {}), { timeout: 20_000 })
+    .toEqual([AGENT_ID]);
   expect(mcpServersOf()).toContain("e2e-registry-mcp");
 });
 
@@ -521,7 +537,7 @@ test("a legacy pack without allowlists focuses with an empty filter (7.2)", asyn
   await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp-2");
   // No declarations anywhere: the filter is the empty mapping, never stale
   // residue from an earlier focused session (self-healing composition).
-  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({ mcpTools: {} });
+  await expect.poll(() => toolFilterOf()?.mcpTools, { timeout: 20_000 }).toEqual({});
   await switchPreset(page, "standard");
 });
 
@@ -543,9 +559,12 @@ test("an awaiting-local-binding reference activates on later install, no reinsta
     .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
-  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({
-    mcpTools: { [LOCAL_BIND_MCP]: ["local_read"] },
-  });
+  // Same document shape as everywhere else in this file: the active filter is
+  // the top-level `mcpTools`; `byPreset` carries the role's own section beside
+  // it. Assert the half this test is about.
+  await expect
+    .poll(() => toolFilterOf()?.mcpTools, { timeout: 20_000 })
+    .toEqual({ [LOCAL_BIND_MCP]: ["local_read"] });
   expect(mcpServersOf()).not.toContain(LOCAL_BIND_MCP);
 
   // The user installs a local server of that name: the MCP CRUD rewrite
@@ -556,7 +575,7 @@ test("an awaiting-local-binding reference activates on later install, no reinsta
   });
   expect(r.ok(), await r.text()).toBeTruthy();
   await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain(LOCAL_BIND_MCP);
-  expect(toolFilterOf()).toEqual({ mcpTools: { [LOCAL_BIND_MCP]: ["local_read"] } });
+  expect(toolFilterOf()?.mcpTools).toEqual({ [LOCAL_BIND_MCP]: ["local_read"] });
 
   await switchPreset(page, "standard");
 });

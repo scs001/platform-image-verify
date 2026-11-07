@@ -55,5 +55,9 @@
 
 ## 6. 上线
 
-- [ ] 6.1 出片滚版（`fd-build-channel pick platform`）
-- [ ] 6.2 观察项：滚版后看一条真实接棒/派发回合的 prompt 体积与该岗下一轮的产出质量
+- [x] 6.1 出片滚版 → 已在产（快照取自远端线 `gitee/release/cell-session-persona` f5ceb4a84
+      → GHA `sha-cf1f2f0` 直落 `law-bench`；digest `sha256:19a50119`；fd-infra-deploy `d174f27`
+      双 bump → ArgoCD → 两 rollout 完成；镜像内 `test-fleet-report-lane`+`test-bots-event-wake`
+      = 47/47、`test-fleet-orchestration` = 17/17）
+- 6.2 观察项（滚版后，非本 change 交付物）：看一条真实接棒/派发回合的 prompt 体积与
+      该岗下一轮的产出质量；确认 8KB 池在真实舰队规模下够用

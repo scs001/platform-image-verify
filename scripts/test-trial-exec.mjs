@@ -16,13 +16,14 @@ process.env.FACET_INTERNAL_TOKEN = "e2e-trial-exec-token";
 
 const { createTrialExecRoutes } = await import("../server/routes/trial-exec.js");
 
-const SERVER = { app: null, base: null, setImpl: null, setDeps: null };
+const SERVER = { app: null, base: null, setDeps: null };
 {
   const app = express();
   app.use(express.json({ limit: "8mb" }));
-  let runTrialImpl = async ({ blueprint }) => ({ green: true, blueprintId: blueprint.id, ranAt: 1234, errors: [], assertions: [] });
+  // Only the deps seam is live: runTrial itself is the real one (the route
+  // module imports it directly), so an impl-swap seam would be dead weight —
+  // it was, and lint caught it (noUnusedVariables).
   let depsFactory = () => ({ marker: "live" });
-  SERVER.setImpl = (fn) => { runTrialImpl = fn; };
   SERVER.setDeps = (f) => { depsFactory = f; };
 
   // Mount with a wrapped runTrial: the route module imports runTrial directly,

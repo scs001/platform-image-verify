@@ -75,7 +75,6 @@ test("回滚杆语义：CELL_MEMORY_RECALL_UI=0 时 sendMemoryRecall 的前置�
   // fd-memory 读）。这里钉 env 键名本身：键一改，回滚杆静默失效。
   const { server, calls } = mockMemory();
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const base = `http://127.0.0.1:${server.address().port}`;
   const data = mkdtempSync(join(tmpdir(), "yongyi-recall-"));
   dirs.push(data);
   try {

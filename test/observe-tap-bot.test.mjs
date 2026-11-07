@@ -168,7 +168,9 @@ test("成功回合：/observe 收 lane=bot 事件（agentId=botId、sessionId=ch
 
 test("prompt 抛错：outcome=error，用户仍收到 sorry 兜底回复，body 走缺省过程叙事", async () => {
   const chatKey = "chat-prompt-throw";
-  const ctx = makeCtx(botRow(), async () => {
+  // makeCtx installs the bot bridge as a module-level side effect; the returned
+  // handle is not read here (handleMessage resolves it from module state).
+  makeCtx(botRow(), async () => {
     throw new Error("bridge exploded");
   });
 
@@ -198,7 +200,7 @@ test("LLM 错误帧（platform/stream finish error）：result.error → outcome
 
 test("硬超时（回合被截断、无 LLM 结论）：outcome=aborted", async () => {
   const chatKey = "chat-aborted";
-  const ctx = makeCtx(botRow(), async () => {
+  makeCtx(botRow(), async () => {
     // prompt 落地但回合永不 idle：collector 200ms 硬超时拒绝
   });
 

@@ -250,7 +250,7 @@ test("1.3-trial remote client: RUN_DOMAIN_BASE_URL routes the trial through the 
   after(() => rmSync(remoteTmp, { recursive: true, force: true }));
   const remoteApp = express();
   remoteApp.use(express.json({ limit: "24mb" }));
-  const { db: remoteDb } = registerStudioRoutes(remoteApp, {
+  registerStudioRoutes(remoteApp, {
     resolveUser,
     registry,
     dataRoot: path.join(remoteTmp, "facet-data"),

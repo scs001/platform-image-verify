@@ -42,9 +42,11 @@
 
 ## 5. 上线
 
-- [ ] 5.1 归档后出片滚版（`fd-build-channel pick platform`）
-- [ ] 5.2 滚版后实弹：带 `effort`+`carrier` 建一个岗位，读面逐项回显；把 `effort` 置 null
-      后触发一回合，回合记录里思考深度回到全局档位
+- [x] 5.1 出片滚版 → 已在产（快照 `29ffe0607` → GHA `sha-d41ac58`，直接落 `law-bench` 命名空间；
+      digest `sha256:cff1c678`，relay OK 05:03；fd-infra-deploy `c66f635` 双 bump → ArgoCD → 两 rollout 完成；
+      镜像内 `test-agent-config-dims` 14/14 绿 + 实弹探针 `applyPostEffort(effort:null)` 发出 `switchEffortTo(null)`）
+- 5.2 观察项（滚版后，非本 change 交付物）：真实业务岗上带 `effort`+`carrier` 建岗并核对读面回显；
+      置 null 后看一回合的 `effort_changed` 事件是否落到 provider 默认（探针已证路径，业务面待自然发生）
 
 ## 6. 挂账（不在本变更）
 

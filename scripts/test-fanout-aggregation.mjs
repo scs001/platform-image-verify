@@ -93,7 +93,7 @@ test("seam: a no-judge fan-out stamps the upstream persona AND its own group key
     preset: "roster:p-src",
     origin: { fleet: { fleetId: fleet.id, memberId: "agg_src", depth: 0 } },
   };
-  const wave1 = await igniteFleetEdges({ db: fleetDb, engine, job, out: { ok: true, text: "第一波产出" } });
+  const wave1 = await igniteFleetEdges({ db: fleetDb, engine, job, ledgerTurn: { turnId: "t_wave1" }, out: { ok: true, text: "第一波产出" } });
   assert.equal(wave1.length, 2);
   const t1 = wave1.map(({ taskId }) => engine.getTaskRecord(taskId));
   const key1 = t1[0].initiatorGroup;
@@ -105,7 +105,9 @@ test("seam: a no-judge fan-out stamps the upstream persona AND its own group key
   }
 
   // A second ignition from the SAME session must not join the first group.
-  const wave2 = await igniteFleetEdges({ db: fleetDb, engine, job, out: { ok: true, text: "第二波产出" } });
+  // A second ignition is a second TURN (its own ledger id) — add-fleet-ignition-idem
+  // dedupes per turn, so the same job object alone would (rightly) be refused.
+  const wave2 = await igniteFleetEdges({ db: fleetDb, engine, job, ledgerTurn: { turnId: "t_wave2" }, out: { ok: true, text: "第二波产出" } });
   const key2 = engine.getTaskRecord(wave2[0].taskId).initiatorGroup;
   assert.notEqual(key2, key1, "D2: a second wave is its own group");
 });

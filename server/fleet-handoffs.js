@@ -18,7 +18,41 @@
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./fleet-orchestration.js";
 import { derivedLaneCarrier } from "./fleet-events.js";
 
-export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) => id, chainFor = () => null }) {
+// ── Ignition identity (add-fleet-ignition-idem) ────────────────────────────
+//
+// Every hop an ignition creates is stamped with a key made of the UPSTREAM
+// TURN's identity, the edge kind and the target post. Re-entering the seam for
+// a turn that already ignited (a retried execution, a second finish callback,
+// a resumed round) must not create a second wave downstream — the same work
+// would run twice and the fleet would pay for it twice.
+//
+// The turn's identity: the run ledger's turnId when the ledger exists (that is
+// the value the rest of the platform attributes the run by), else the engine's
+// per-execution sequence. A DELIBERATE re-run of a post is a NEW turn with a
+// new id and ignites again on purpose — otherwise an operator could never
+// re-drive a broken chain; dedupe is per turn, not per post.
+export function ignitionTurnKey(job, ledgerTurn) {
+  if (ledgerTurn?.turnId) return ledgerTurn.turnId;
+  const seq = Number.isFinite(job?.roundSeq) ? job.roundSeq : 0;
+  return `${job?.id ?? "job"}:r${seq}`;
+}
+
+// Keys already fired, read back from the tasks themselves: every ignited task
+// carries `origin.fleet.ignition`, and records persist — so this needs no new
+// store and survives a restart. (A hop whose task was deleted can re-fire; the
+// work is gone then anyway.)
+function firedIgnitionKeys(engine) {
+  const keys = new Set();
+  try {
+    for (const t of engine.allRecords?.() ?? []) {
+      const key = t?.origin?.fleet?.ignition;
+      if (typeof key === "string" && key) keys.add(key);
+    }
+  } catch { /* an unreadable store means no dedupe — never a failed ignition */ }
+  return keys;
+}
+
+export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rosterPresetId = (id) => id, chainFor = () => null }) {
   const withChain = (fleet, edgeKind) => {
     const chain = chainFor(edgeKind);
     return chain ? { ...fleet, chain } : fleet;
@@ -44,6 +78,9 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
   const nextDepth = chainDepth + 1;
   const now = Date.now();
   const dispatched = [];
+  const turnKey = ignitionTurnKey(job, ledgerTurn);
+  const fired = firedIgnitionKeys(engine);
+  const hopKey = (edgeKind, targetId) => `${turnKey}:${edgeKind}:${targetId}`;
   for (const e of edges) {
     const target = db.getMember(e.to);
     if (!target || target.fleetId !== fleetId) continue;
@@ -85,11 +122,14 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
         });
         continue;
       }
+      const hk = hopKey("handoff", target.id);
+      if (fired.has(hk)) continue;
+      fired.add(hk);
       const task = engine.createManualTask({
         prompt: JSON.stringify(e.args),
         tool: target.targetId,
         sessionTitle: `接棒 · ${target.title}`,
-        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth }, "handoff") },
+        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk }, "handoff") },
         executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
       });
       dispatched.push({ to: target.id, taskId: task.id });
@@ -98,6 +138,9 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
     const summary = out?.ok === true
       ? String(out.text ?? "").slice(0, 2000) || "(upstream produced no text)"
       : `上游回合失败:${String(out?.error ?? "unknown").slice(0, 500)}——如实转述,不自动重试`;
+    const hk = hopKey("handoff", target.id);
+    if (fired.has(hk)) continue;
+    fired.add(hk);
     const task = engine.createManualTask({
       prompt:
         `【舰队接棒】上游岗位回合结束,依声明边接棒(链位 ${nextDepth}/${constraints.maxChainDepth})。\n` +
@@ -108,7 +151,7 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
         (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
       ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
       sessionTitle: `接棒 · ${target.title}`,
-      origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth }, "handoff") },
+      origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk }, "handoff") },
       executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
     });
     dispatched.push({ to: target.id, taskId: task.id });
@@ -163,6 +206,9 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
         });
         continue;
       }
+      const hk = hopKey("fanout", target.id);
+      if (fired.has(hk)) continue;
+      fired.add(hk);
       const task = engine.createManualTask({
         prompt:
           `【舰队并行扇出】上游岗位「${db.getMember(memberId)?.title ?? memberId}」回合结束,你与同波同伴并行接令(轮次 1/${rounds})。\n` +
@@ -171,7 +217,7 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
           (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `扇出 · ${target.title}`,
-        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1 }, "fanout") },
+        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1, ignition: hk }, "fanout") },
         initiatorGroup: groupKey,
         ...(judge
           ? { initiator: `fleet:${fleetId}:${judge.id}`, initiatorPreset: rosterPresetId(judge.targetId) }

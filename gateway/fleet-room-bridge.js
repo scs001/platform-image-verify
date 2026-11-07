@@ -84,6 +84,12 @@ export function registerFleetRoomBridge(app, {
   // The pull channel: (ownerEmail) => { fleets } — the wired default samples
   // the owner's own cell over the forged-identity channel; tests inject.
   sampleFleets,
+  // The deployment ledger seam (fix-zhiyu-summon-serving-face 2.1):
+  // async () => [{ packId, agentId, agentPath, deployedBy }] | null — the packs
+  // internal deployments rows, same source the zhiyu agent-lane resolves seats
+  // against. null (or a throw) = face unavailable → summonable honestly empty.
+  // The bridge itself never does HTTP; the wired seam lives in gateway/index.js.
+  servingDeployments = null,
   cockpitBase = "",
 }) {
   // ── subscription management (owner- or authorized-member-gated) ──────────
@@ -163,13 +169,33 @@ export function registerFleetRoomBridge(app, {
     const fleet = (overview?.fleets ?? []).find((f) => f.id === fleetId);
     if (!fleet) return res.status(404).json({ error: "not found" });
 
-    // Serving members come from the cell's serving face — the same source the
-    // catalog reads; persona posts (no serving contract) are named honestly
-    // as cockpit-only (spec: SHALL NOT 假装其在空间可对话).
+    // Serving members (fix-zhiyu-summon-serving-face 2.2): a2a posts from the
+    // overview's formation, joined to REAL pack deployments on the registry
+    // agent path (cell reports servingPath; the ledger carries agentPath —
+    // the same string minted at deploy time). The seat ref the zhiyu agent
+    // lane resolves is `${packId}:${agentId}` with onBehalfOf = the deployer.
+    // No aligned row (external a2a url, undeployed post) → honestly excluded;
+    // ledger face unavailable (null/throw) → summonable empty, plan still 200.
+    // (The old wiring called `.servingMembers?.(fleetId)` on the overview JSON
+    // — a function that never existed on any HTTP payload, so summonable was
+    // permanently empty in production while tests only asserted the degraded
+    // shape. Same "tests green, production unreachable" class as O0.)
     let serving = [];
-    try {
-      serving = (await sampleFleets(user.email, "/api/fleets/overview"))?.servingMembers?.(fleetId) ?? [];
-    } catch { /* serving face absent → empty, honestly */ }
+    const servingCandidates = (fleet.formation?.members ?? []).filter(
+      (m) => m.targetKind === "a2a" && m.servingPath,
+    );
+    if (servingCandidates.length > 0) {
+      try {
+        const rows = (await servingDeployments?.()) ?? null;
+        const byPath = new Map((rows ?? []).map((d) => [d.agentPath, d]));
+        serving = servingCandidates.flatMap((m) => {
+          const d = byPath.get(m.servingPath);
+          return d ? [{ ref: `${d.packId}:${d.agentId}`, title: m.title, targetId: m.targetId ?? null, onBehalfOf: d.deployedBy }] : [];
+        });
+      } catch {
+        serving = []; // ledger face unavailable → degrade honestly
+      }
+    }
     const plan = {
       fleetId,
       fleetName: fleet.name,
@@ -181,19 +207,42 @@ export function registerFleetRoomBridge(app, {
     const results = [];
     for (const member of plan.summonable) {
       try {
+        // Already seated → honest no-op (kernel invite route's 409 semantics),
+        // not a junk invite row for a member who is already in the room.
+        if (store.memberFor(req.params.id, "agent", member.ref)?.state === "active") {
+          results.push({ ref: member.ref, ok: false, error: "already a member" });
+          continue;
+        }
+        // idemKey is NOT NULL UNIQUE in the invites table — the kernel's own
+        // invite route keys `${roomId}:${kind}:${ref}` and bumps with a
+        // timestamp on collision; the bridge follows the same convention.
+        // (Execution could never have run without it: the old code path died
+        // on the NOT NULL constraint, masked by serving always being empty.)
+        const idemBase = `${req.params.id}:agent:${member.ref}`;
+        const idemKey = store
+          .invitesForRoom(req.params.id)
+          .some((v) => v.idemKey === idemBase)
+          ? `${idemBase}:${Date.now().toString(36)}`
+          : idemBase;
         const inv = store.inviteCreate({
           id: randomUUID(),
           roomId: req.params.id,
           kind: "agent",
           ref: member.ref,
           display: member.title ?? member.ref,
-          onBehalfOf: user.email,
+          // The deployer, not the summoner (fix-zhiyu-summon-serving-face):
+          // the seat lane resolves the deployment by packId:agentId AND
+          // deployedBy === onBehalfOf, so the invite must carry the ledger's
+          // deployer or the seat could never speak. Self-deployed posts
+          // (the common case) are the summoner themself — unchanged there.
+          onBehalfOf: member.onBehalfOf ?? user.email,
           historyGrant: "join_from",
           invitedBy: user.email,
           state: "pending",
+          idemKey,
           createdAt: Date.now(),
         });
-        results.push({ ref: member.ref, ok: true, inviteId: inv.id ?? inv.inviteId ?? null });
+        results.push({ ref: member.ref, ok: true, inviteId: inv.invite?.id ?? inv.id ?? inv.inviteId ?? null });
       } catch (err) {
         results.push({ ref: member.ref, ok: false, error: err.message });
       }

@@ -43,7 +43,14 @@ servingDeployments: async () => {
 
 ## D4 · 执行段零改动
 
-`plan.summonable` 之后的 invite 循环、`onBehalfOf`、订阅随行、部分失败逐成员——全部保留（既有握手与策略应答，spec「部分失败不掩盖」已有场景）。本案只换「summonable 从哪来」。
+`plan.summonable` 之后的 invite 循环、`onBehalfOf`、订阅随行、部分失败逐成员——语义全部保留（既有握手与策略应答，spec「部分失败不掩盖」已有场景）。本案只换「summonable 从哪来」。
+
+**实施偏离（2026-11-07 apply 实录）**：执行段并非「零改动」可达——正路径测试当场抓出执行段**从未可能跑通**的两处死点：
+1. `inviteCreate` 缺 `idemKey`（`zy_room_invites.idem_key NOT NULL UNIQUE`，缺省必撞 NOT NULL）——补 kernel 路由同款约定 `${roomId}:agent:${ref}` + 撞键时戳 bump；
+2. `onBehalfOf` 写死召唤者——席位 lane 按 `deployedBy === onBehalfOf` 匹配部署行（agent-lane），非部署者召唤的席位永远开不了口——改带台账部署者（自部署=召唤者本人，常态不变）；
+3. 顺手加在座守卫（kernel 409 同语义 `already a member`），防重复召唤堆垃圾 invite 行。
+
+三处均为执行段「首次可达」的必要最小修复，spec 语义零变化；O8 之下的这个次生缺陷已记入台账（执行段死点被 serving 恒空完全遮蔽）。
 
 ## D5 · 兼容与安全面
 

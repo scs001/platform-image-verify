@@ -128,3 +128,58 @@ test("fleets copilot focus: no architect installed → null (honest degrade)", a
     server.close();
   }
 });
+
+// fix-zhiyu-summon-serving-face 1.1/1.2: the overview formation carries the
+// a2a serving face (targetId + servingPath) so the gateway's room-summon plan
+// can join real pack deployments. The join key is the registry agent path,
+// parsed from the a2a catalog entry's url; non-conforming urls (external a2a
+// services) yield null — excluded honestly, never guessed.
+const { servingPathFromEntryUrl } = await import("../server/routes/fleets.js");
+
+test("servingPathFromEntryUrl: registry /agent<path>/ shape parses; external urls and junk yield null", () => {
+  assert.equal(servingPathFromEntryUrl("https://reg.example.test/agent/packs/p1/a1/"), "/packs/p1/a1");
+  assert.equal(servingPathFromEntryUrl("https://reg.example.test/agent/packs/p1/a1-suffix"), "/packs/p1/a1-suffix");
+  assert.equal(servingPathFromEntryUrl("https://external.example.test/a2a/endpoint"), null, "external a2a url — not a pack deployment");
+  assert.equal(servingPathFromEntryUrl("https://reg.example.test/other/path"), null, "pathname not under /agent/");
+  assert.equal(servingPathFromEntryUrl("not a url"), null, "malformed url");
+  assert.equal(servingPathFromEntryUrl(""), null);
+  assert.equal(servingPathFromEntryUrl(null), null);
+});
+
+test("overview formation.members: a2a posts carry targetId+servingPath; persona posts carry nulls", async () => {
+  const f = makeFleet("召唤面小队");
+  fleetDb.createMember({ id: "s1", fleetId: f.id, title: "万星机群席", parentId: null, targetKind: "a2a", targetId: "registry-packs-p1-mp", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "s2", fleetId: f.id, title: "分诊岗", parentId: null, targetKind: "persona", targetId: "persona-x", kpiSlots: [], cadence: null });
+  const app = express();
+  app.use(express.json());
+  app.use((req, _res, next) => {
+    req.user = { email: "owner@test", groups: [] };
+    next();
+  });
+  // Test-injected resolver stands in for the catalog: the a2a post resolves
+  // with a serving url; the persona post resolves without one.
+  createFleetRoutes(app, {
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    fleetTargetResolver: (m) => {
+      if (m.targetKind === "a2a") {
+        return { alive: true, label: "萬星机群席", clusterName: null, servingPath: "/packs/p1/mp-9" };
+      }
+      return { alive: true, label: "分诊岗", clusterName: null, servingPath: null };
+    },
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/api/fleets/overview`, { headers: { "x-test-user": "owner@test" } }).then((x) => x.json());
+    const row = r.fleets.find((x) => x.id === f.id);
+    const a2a = row.formation.members.find((m) => m.id === "s1");
+    const persona = row.formation.members.find((m) => m.id === "s2");
+    assert.equal(a2a.targetId, "registry-packs-p1-mp");
+    assert.equal(a2a.servingPath, "/packs/p1/mp-9");
+    assert.equal(persona.targetId, null, "non-a2a posts report null targetId");
+    assert.equal(persona.servingPath, null, "non-a2a posts report null servingPath — keys still present");
+  } finally {
+    server.close();
+  }
+});

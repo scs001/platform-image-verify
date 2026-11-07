@@ -157,28 +157,134 @@ test("dead cell: a null sample mutes the tick without error", async () => {
   assert.ok(true);
 });
 
-test("summon: plan separates serving from cockpit-only; execution invites + subscribes", async () => {
-  sample = overview([
-    fleetShape("fleet_ok", "客服班组", { stream: [{ title: "质检员", at: 1, summarySnip: "", metrics: {} }] }),
-  ]);
-  // The summon plan reads serving members from the second sample path arg —
-  // the wired gateway passes /api/fleets/overview; tests answer per-path.
-  const summonSample = async (_ownerEmail, p) => {
-    if (p === "/api/fleets/overview") return sample;
-    return null; // serving face absent in tests → the plan degrades honestly
-  };
-  const { registerFleetRoomBridge: reg } = await import("../gateway/fleet-room-bridge.js");
-  reg(express(), {
+// Summon plan test rig: each scenario registers a REAL server (the old shape
+// registered a throwaway app and then called the shared one — the per-scenario
+// seam never took effect; the degraded assertion passed only because no JSON
+// payload can carry a servingMembers function).
+function startSummonBridge({ servingDeployments }) {
+  const app2 = express();
+  app2.use(express.json({ limit: "1mb" }));
+  registerFleetRoomBridge(app2, {
     store,
     resolveUser: (_req) => ({ email: OWNER, groups: [] }),
     rejectUnauthenticated: (_q, r) => r.status(401).json({}),
-    sampleFleets: summonSample,
+    sampleFleets,
+    servingDeployments,
   });
-  const r = await call("POST", `/api/zhiyu/rooms/${room.id}/fleet-summon`, { fleetId: "fleet_ok", dryRun: true });
-  assert.equal(r.status, 200);
-  assert.deepEqual(r.body.plan.summonable, [], "no serving face → nothing summonable, honestly");
-  assert.deepEqual(r.body.plan.cockpitOnly, ["质检员"], "persona posts are named as cockpit-only");
-  assert.equal(r.body.plan.fleetName, "客服班组");
+  const server2 = http.createServer(app2);
+  server2.listen(0);
+  const call2 = (method, p, body) =>
+    fetch(`http://127.0.0.1:${server2.address().port}${p}`, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+  return { server2, call2 };
+}
+
+test("summon plan (positive): a2a posts join real deployments on servingPath; unaligned excluded; cockpitOnly honest", async () => {
+  sample = overview([
+    fleetShape("fleet_ok", "客服班组", {
+      formation: {
+        members: [
+          { id: "m-a2a", title: "萬星机群席", targetKind: "a2a", status: "on_duty", targetId: "registry-packs-p1-mp", servingPath: "/packs/p1/mp" },
+          { id: "m-ext", title: "外部哨", targetKind: "a2a", status: "on_duty", targetId: "registry-ext", servingPath: null },
+          { id: "m-gap", title: "漂移哨", targetKind: "a2a", status: "on_duty", targetId: "registry-packs-p9-gap", servingPath: "/packs/p9/gap" },
+        ],
+        edges: [],
+        truncated: false,
+      },
+      stream: [
+        { title: "萬星机群席", at: 1, summarySnip: "", metrics: {} },
+        { title: "质检员", at: 1, summarySnip: "", metrics: {} },
+      ],
+    }),
+  ]);
+  const { server2, call2 } = startSummonBridge({
+    servingDeployments: async () => [
+      { packId: "p1", agentId: "mp", agentPath: "/packs/p1/mp", deployedBy: OWNER },
+      { packId: "other", agentId: "row", agentPath: "/packs/other/row", deployedBy: "someone@test" },
+    ],
+  });
+  try {
+    const r = await call2("POST", `/api/zhiyu/rooms/${room.id}/fleet-summon`, { fleetId: "fleet_ok", dryRun: true });
+    assert.equal(r.status, 200);
+    assert.deepEqual(
+      r.body.plan.summonable,
+      [{ ref: "p1:mp", title: "萬星机群席", targetId: "registry-packs-p1-mp", onBehalfOf: OWNER }],
+      "the aligned deployment becomes the seat ref packId:agentId with the deployer as onBehalfOf",
+    );
+    assert.deepEqual(r.body.plan.cockpitOnly, ["萬星机群席", "质检员"], "persona posts named cockpit-only, stream verbatim");
+    assert.equal(r.body.plan.fleetName, "客服班组");
+  } finally {
+    server2.close();
+  }
+});
+
+test("summon execution: invites carry ref/onBehalfOf from the ledger; subscription rides along", async () => {
+  const summonRoom = store.roomCreate({ title: "召唤执行房", ownerEmail: OWNER });
+  const { server2, call2 } = startSummonBridge({
+    servingDeployments: async () => [{ packId: "p1", agentId: "mp", agentPath: "/packs/p1/mp", deployedBy: OWNER }],
+  });
+  try {
+    const r = await call2("POST", `/api/zhiyu/rooms/${summonRoom.id}/fleet-summon`, { fleetId: "fleet_ok" });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.results, [{ ref: "p1:mp", ok: true, inviteId: r.body.results[0]?.inviteId ?? null }]);
+    const inv = store.invitesForRoom(summonRoom.id).find((v) => v.id === r.body.results[0].inviteId);
+    assert.equal(inv.kind, "agent");
+    assert.equal(inv.ref, "p1:mp", "seat ref is packId:agentId — what the agent lane resolves");
+    assert.equal(inv.onBehalfOf, OWNER, "onBehalfOf is the ledger deployer (seat lane matches on it)");
+    assert.ok(store.fleetSubsOf(summonRoom.id).some((s) => s.fleetId === "fleet_ok"), "subscription rides along");
+  } finally {
+    server2.close();
+  }
+});
+
+test("summon plan (degrade): ledger face unavailable → summonable honestly empty, plan still 200", async () => {
+  const { server2, call2 } = startSummonBridge({ servingDeployments: async () => null });
+  try {
+    const r = await call2("POST", `/api/zhiyu/rooms/${room.id}/fleet-summon`, { fleetId: "fleet_ok", dryRun: true });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.plan.summonable, [], "no serving face → nothing summonable, honestly");
+    assert.deepEqual(r.body.plan.cockpitOnly, ["萬星机群席", "质检员"]);
+  } finally {
+    server2.close();
+  }
+});
+
+test("summon plan (degrade): a throwing ledger seam degrades the same way, never a 500", async () => {
+  const { server2, call2 } = startSummonBridge({
+    servingDeployments: async () => {
+      throw new Error("ledger down");
+    },
+  });
+  try {
+    const r = await call2("POST", `/api/zhiyu/rooms/${room.id}/fleet-summon`, { fleetId: "fleet_ok", dryRun: true });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.plan.summonable, []);
+  } finally {
+    server2.close();
+  }
+});
+
+test("summon plan: no a2a posts at all → empty summonable without touching the ledger seam", async () => {
+  sample = overview([fleetShape("fleet_ok", "客服班组", { stream: [{ title: "质检员", at: 1, summarySnip: "", metrics: {} }] })]);
+  let seamCalls = 0;
+  const { server2, call2 } = startSummonBridge({
+    servingDeployments: async () => {
+      seamCalls += 1;
+      return [];
+    },
+  });
+  try {
+    const r = await call2("POST", `/api/zhiyu/rooms/${room.id}/fleet-summon`, { fleetId: "fleet_ok", dryRun: true });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.plan.summonable, []);
+    assert.equal(seamCalls, 0, "no candidates → the ledger is not consulted");
+    assert.deepEqual(r.body.plan.cockpitOnly, ["质检员"], "persona posts are named as cockpit-only");
+  } finally {
+    server2.close();
+  }
 });
 
 test("remove: unsubscribing stops the flow; past rows stay", async () => {

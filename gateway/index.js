@@ -906,6 +906,26 @@ const zhiyu = registerZhiyuRoutes(app, {
         return null;
       }
     },
+    // Deployment ledger seam (fix-zhiyu-summon-serving-face 2.1): the summon
+    // plan joins the cell's a2a posts (servingPath) against the packs internal
+    // deployments — the same fetch the zhiyu agent-lane resolves seats with
+    // (same env pair, same 8s discipline). null/throw = face unavailable;
+    // the bridge degrades to an empty summonable honestly, never an error.
+    servingDeployments: async () => {
+      try {
+        const base = (process.env.PACKS_INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.GATEWAY_PORT || 3080}`).replace(/\/+$/, "");
+        const token = process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "";
+        if (!token) return null;
+        const res = await fetch(`${base}/api/packs/internal/deployments`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return null;
+        return (await res.json())?.deployments ?? null;
+      } catch {
+        return null;
+      }
+    },
   });
   const bridgeTimer = setInterval(() => void bridge.tick(), bridgeTickMs);
   bridgeTimer.unref?.();

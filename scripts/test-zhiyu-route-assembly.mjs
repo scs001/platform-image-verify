@@ -33,7 +33,28 @@ const sampleFleets = async () => ({
   ],
 });
 
-async function boot({ deferNotFound, guardBeforeBridge = false } = {}) {
+// fix-zhiyu-summon-serving-face 3.2: an overview WITH an a2a post carrying a
+// servingPath — the positive-plan fixture.
+const sampleFleetsWithServing = async () => ({
+  fleets: [
+    {
+      id: OWNED_FLEET,
+      name: "自有团队",
+      stream: [{ title: "萬星机群席", at: 1, summarySnip: "", metrics: {} }],
+      counts: {},
+      openDecisions: { count: 0, top: [] },
+      formation: {
+        members: [
+          { id: "m1", title: "萬星机群席", targetKind: "a2a", status: "on_duty", targetId: "registry-packs-p1-mp", servingPath: "/packs/p1/mp" },
+        ],
+        edges: [],
+        truncated: false,
+      },
+    },
+  ],
+});
+
+async function boot({ deferNotFound, guardBeforeBridge = false, servingDeployments } = {}) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zhiyu-assembly-"));
@@ -57,7 +78,8 @@ async function boot({ deferNotFound, guardBeforeBridge = false } = {}) {
     store: zhiyu.store,
     resolveUser: (req) => (req.headers["x-user"] ? { email: req.headers["x-user"], groups: [] } : null),
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth" }),
-    sampleFleets,
+    sampleFleets: servingDeployments === undefined ? sampleFleets : sampleFleetsWithServing,
+    ...(servingDeployments === undefined ? {} : { servingDeployments }),
   });
 
   // A stand-in for gateway/index.js:1116 — records any request that falls
@@ -180,4 +202,34 @@ test("default assembly: inline 404 guard is unchanged when deferNotFound is omit
   assert.equal(unmatched.status, 404);
   assert.deepEqual(unmatched.body, { error: "not found" });
   assert.equal(h.hits(), 0);
+});
+
+// ── fix-zhiyu-summon-serving-face 3.2：装配级正路径 ──────────────────────────
+// 生产序装配 + 双缝 stub（overview 带 a2a 岗 servingPath + deployments 台账）
+// → dryRun 计划的 summonable 非空且逐成员带席位引用；台账面缺席仍 200 空降级。
+test("production assembly: summon plan joins a2a posts to the deployment ledger", async (t) => {
+  const h = await boot({
+    deferNotFound: true,
+    servingDeployments: async () => [{ packId: "p1", agentId: "mp", agentPath: "/packs/p1/mp", deployedBy: "owner@test" }],
+  });
+  t.after(h.close);
+  const P = `/api/zhiyu/rooms/${h.room.id}`;
+  const plan = await h.call("POST", `${P}/fleet-summon`, { fleetId: OWNED_FLEET, dryRun: true });
+  assert.equal(plan.status, 200, JSON.stringify(plan.body));
+  assert.deepEqual(
+    plan.body.plan.summonable,
+    [{ ref: "p1:mp", title: "萬星机群席", targetId: "registry-packs-p1-mp", onBehalfOf: "owner@test" }],
+    "seat ref = packId:agentId, onBehalfOf = ledger deployer",
+  );
+  assert.deepEqual(plan.body.plan.cockpitOnly, ["萬星机群席"]);
+});
+
+test("production assembly: summon plan degrades to empty summonable when the ledger is unreachable", async (t) => {
+  const h = await boot({ deferNotFound: true, servingDeployments: async () => null });
+  t.after(h.close);
+  const P = `/api/zhiyu/rooms/${h.room.id}`;
+  const plan = await h.call("POST", `${P}/fleet-summon`, { fleetId: OWNED_FLEET, dryRun: true });
+  assert.equal(plan.status, 200);
+  assert.deepEqual(plan.body.plan.summonable, []);
+  assert.deepEqual(plan.body.plan.cockpitOnly, ["萬星机群席"], "cockpitOnly stays honest");
 });

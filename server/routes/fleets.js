@@ -136,8 +136,35 @@ function resolveTarget(member, view = null) {
   }
   const entry = view ? view.agentEntry(member.targetId) : catalog.getAgentEntry(member.targetId);
   const alive = !!entry && entry.mode === "a2a";
-  return { alive, label: entry?.name ?? (member.targetId || null), clusterName: null };
+  return {
+    alive,
+    label: entry?.name ?? (member.targetId || null),
+    clusterName: null,
+    // Serving face (fix-zhiyu-summon-serving-face 1.1): the registry agent
+    // path a pack deployment joins on, parsed from the a2a entry's url. Only
+    // pack deployments are room-summonable; an agents.json external a2a url
+    // (or a malformed one) yields null — honestly excluded from summon plans.
+    servingPath: alive ? servingPathFromEntryUrl(entry.url) : null,
+  };
 }
+
+// Serving-path extraction (fix-zhiyu-summon-serving-face 1.1): catalog a2a
+// entries carry the deployment join key inside their url
+// (`${REGISTRY_URL}/agent<path>/`, registry-bridge mapAgent) — the same path a
+// deployment minted at `/packs/<packId>/<agentId><suffix>` (lib/agent-serving).
+// Anything not of that shape yields null, never a guess.
+function servingPathFromEntryUrl(url) {
+  if (typeof url !== "string" || !url) return null;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.pathname.startsWith("/agent/")) return null;
+    return parsed.pathname.slice("/agent".length).replace(/\/+$/, "") || null;
+  } catch {
+    return null;
+  }
+}
+// Shared for tests (same pattern as resolveFleetTarget).
+export { servingPathFromEntryUrl };
 
 // Shared with the server.js catalog-change hook (reconcileAllFleets) so the
 // "vacant post stops firing" pass resolves targets exactly like the routes.
@@ -311,7 +338,7 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     fleetId: member.fleetId,
     title: member.title,
     parentId: member.parentId,
-    target: { kind: member.targetKind, id: member.targetId, label: target.label },
+    target: { kind: member.targetKind, id: member.targetId, label: target.label, servingPath: target.servingPath ?? null },
     kpiSlots: member.kpiSlots,
     cadence: member.cadence,
     model: member.model ?? null,
@@ -1192,6 +1219,14 @@ export function createFleetRoutes(app, ctx = null) {
                 title: m.title,
                 targetKind: m.target?.kind ?? m.targetKind ?? null,
                 status: m.status,
+                // Serving face (fix-zhiyu-summon-serving-face 1.1): a2a posts
+                // carry their catalog ref + registry deployment path so the
+                // gateway's room-summon plan can join real deployments; all
+                // other posts report nulls. Keys are ALWAYS present — no
+                // has-key dance for consumers. Read-only, owner-only surface,
+                // same visibility as member pages' target.id.
+                targetId: m.target?.kind === "a2a" ? m.target.id ?? null : null,
+                servingPath: m.target?.servingPath ?? null,
               })),
               edges: (fleet.orchestration
                 ? expandedEdges({ members, orchestration: fleet.orchestration })

@@ -1,3 +1,8 @@
+// RETIRED 2026-11-08 (add-supply-studio-migration 4.1/4.6): the workspace and
+// its /api/blueprints plane moved to the supply domain — this server no longer
+// mounts those routes, so the platform-side authoring surface never renders here
+// (verified: the whole group fails at seed/render). Coverage moved to the facet
+// host; the live walkthrough is the record (tasks.md 5.2/5.3). Kept, skipped.
 // agent-studio-kind.spec.js — batch 2 (add-agent-builder-workspace 4.1-4.4,
 // 5.1-5.2): the unified object model's second shape. Rides the shared fast-lane
 // server (auth off = machine owner), same as agent-studio-workspace.spec.js.
@@ -17,7 +22,7 @@ function agentGreen(name = "Contract Reader") {
   };
 }
 
-test.describe("agent-kind documents", () => {
+test.describe.skip("agent-kind documents (retired to the supply domain — see header)", () => {
   test.describe.configure({ mode: "serial" });
 
   test("?new=agent mints one agent document: one click, name focused, no team sections", async ({ page }) => {

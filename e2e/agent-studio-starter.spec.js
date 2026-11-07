@@ -1,3 +1,8 @@
+// RETIRED 2026-11-08 (add-supply-studio-migration 4.1/4.6): the workspace and
+// its /api/blueprints plane moved to the supply domain — this server no longer
+// mounts those routes, so the platform-side authoring surface never renders here
+// (verified: the whole group fails at seed/render). Coverage moved to the facet
+// host; the live walkthrough is the record (tasks.md 5.2/5.3). Kept, skipped.
 // agent-studio-starter.spec.js — 8.2: the empty library's official-starter
 // picker seeds a document through the SAME createBlueprint lane. The fast
 // lane's market is the registry stub's roster, so the test seeds its own
@@ -9,7 +14,7 @@ import { pinLocaleEn } from "./helpers.js";
 
 const PACK_ID = "pk_starter_seed";
 
-test.describe("official starter seeds", () => {
+test.describe.skip("official starter seeds (retired to the supply domain — see header)", () => {
   test("empty library → starter picker → seed a validating document", async ({ page }) => {
     await pinLocaleEn(page);
     await page.route("**/api/packs/official", (r) =>

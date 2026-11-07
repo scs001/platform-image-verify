@@ -1,3 +1,8 @@
+// RETIRED 2026-11-08 (add-supply-studio-migration 4.1/4.6): the workspace and
+// its /api/blueprints plane moved to the supply domain — this server no longer
+// mounts those routes, so the platform-side authoring surface never renders here
+// (verified: the whole group fails at seed/render). Coverage moved to the facet
+// host; the live walkthrough is the record (tasks.md 5.2/5.3). Kept, skipped.
 // agent-studio-graph.spec.js — batch 3 (add-agent-builder-workspace 6.x/7.x):
 // the writable team graph + the deploy/back-link loop, on the shared fast-lane
 // server. The team doc's fleet section is the SAME template vocabulary the
@@ -35,7 +40,7 @@ async function seed(request, content) {
   return blueprint;
 }
 
-test.describe("writable team graph", () => {
+test.describe.skip("writable team graph (retired to the supply domain — see header)", () => {
   test.describe.configure({ mode: "serial" });
 
   test("6.1 read mode: the doc's fleet renders through the SHARED canvas, unborn posts", async ({ page, request }) => {

@@ -831,7 +831,30 @@ const MIGRATIONS = [
     // add-crm-desk-pack-embed task 6.x (SSO): the Chatwoot user id behind the
     // stored API token — discovered lazily via /api/v1/profile and cached so
     // the platform-API SSO login endpoint can be addressed per user.
-    statements: [`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`],
+    //
+    // An `apply` rather than a bare statement since 2026-11-08: a compacted cell
+    // ledger can record v35 without its CREATE ever having run (cells
+    // 2b043ce050ca134c and 0f483a072f22ae37 both do), so the plain ALTER would
+    // throw `no such table` and abort the whole run — the cell then serves with
+    // no database at all. Re-establish the table here so the column has
+    // somewhere to land, which also restores the credential store for those
+    // cells (an absent chatwoot table means the feature is simply unavailable).
+    apply: (handle) => {
+      if (!migrationTableExists(handle, "user_chatwoot_credentials")) {
+        handle.exec(`CREATE TABLE IF NOT EXISTS user_chatwoot_credentials (
+          email TEXT PRIMARY KEY,
+          token TEXT NOT NULL,
+          login_email TEXT,
+          login_password TEXT,
+          stale INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        )`);
+        console.warn("[db] v100: recreated user_chatwoot_credentials (compacted ledger skipped its CREATE)");
+      }
+      if (!migrationColumns(handle, "user_chatwoot_credentials").has("chatwoot_user_id")) {
+        handle.exec("ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER");
+      }
+    },
   },
   {
     // fix-gateway-bot-owner: the creator email on the bot row — the gateway's
@@ -1013,8 +1036,15 @@ const MIGRATIONS = [
     // unrelated credential edit. `allow_tools` defaults to 0 = the spec's
     // no-tools posture; the deployment env is only a ceiling on top of it.
     // PRAGMA-guarded like every additive ALTER (a fresh DB never ran the ALTER
-    // and a re-run must not throw "duplicate column").
+    // and a re-run must not throw "duplicate column"), and — since 2026-11-08 —
+    // table-guarded too: a cell whose compacted ledger claims a version without
+    // its CREATE must skip this, not lose its whole database (same discipline
+    // as v110's addCol, same incident class as v100).
     apply: (db) => {
+      if (!migrationTableExists(db, "bots")) {
+        console.warn("[db] v111: skipped bots persona/allow_tools — table absent (compacted ledger)");
+        return;
+      }
       const cols = new Set(db.prepare("PRAGMA table_info(bots)").all().map((c) => c.name));
       if (!cols.has("persona")) db.exec("ALTER TABLE bots ADD COLUMN persona TEXT");
       if (!cols.has("allow_tools")) {
@@ -1171,7 +1201,7 @@ function runMigrations() {
   for (const m of MIGRATIONS) {
     if (applied.has(m.version)) continue;
     const apply = db.transaction(() => {
-      for (const stmt of m.statements ?? []) db.exec(stmt);
+      for (const stmt of m.statements ?? []) execMigrationStatement(stmt, m.version);
       if (m.apply) m.apply(db);
       db.prepare(
         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
@@ -1180,6 +1210,51 @@ function runMigrations() {
     apply();
     console.log(`[db] applied migration v${m.version}`);
   }
+}
+
+// ── ADD COLUMN is made idempotent, deliberately ─────────────────────────────
+//
+// SQLite has no `ADD COLUMN IF NOT EXISTS`, and a cell's ledger is NOT a faithful
+// record of DDL: old cells carry a COMPACTED `schema_migrations` (see the v100
+// note below), so a version can be recorded without its `CREATE TABLE` ever
+// having run. An unguarded `ALTER TABLE … ADD COLUMN` on such a database throws
+// `no such table`; because each migration is one transaction, that aborts the
+// WHOLE run — `initDb` then reports `[db] disabled` and the cell serves with NO
+// database at all.
+//
+// That is not hypothetical: on 2026-11-08 cell 2b043ce050ca134c (ledger v37, no
+// `user_chatwoot_credentials`) came up database-less exactly this way, and cell
+// 0f483a072f22ae37 (v54) was one wake-up away from the same fate.
+//
+// So this one statement shape is tolerated: skip when the table is absent or the
+// column is already there, and say which. Everything else executes verbatim —
+// this is not an "ignore migration errors" switch, and it never swallows a
+// failure that could mean data loss.
+const ADD_COLUMN_RE = /^\s*ALTER\s+TABLE\s+"?([A-Za-z_][\w]*)"?\s+ADD\s+COLUMN\s+"?([A-Za-z_][\w]*)"?/i;
+
+function migrationTableExists(handle, table) {
+  return (
+    handle.prepare("SELECT count(*) AS c FROM sqlite_master WHERE type = 'table' AND name = ?").get(table).c === 1
+  );
+}
+
+function migrationColumns(handle, table) {
+  return new Set(handle.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name));
+}
+
+function execMigrationStatement(sql, version) {
+  const match = ADD_COLUMN_RE.exec(sql);
+  if (!match) return db.exec(sql);
+  const [, table, column] = match;
+  if (!migrationTableExists(db, table)) {
+    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — table absent (compacted ledger)`);
+    return undefined;
+  }
+  if (migrationColumns(db, table).has(column)) {
+    console.warn(`[db] v${version}: skipped ADD COLUMN ${table}.${column} — column already present`);
+    return undefined;
+  }
+  return db.exec(sql);
 }
 
 function latestVersion() {

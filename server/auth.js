@@ -109,6 +109,11 @@ const isExempt = (p) => AUTH_EXEMPT_PREFIXES.some((prefix) => p.startsWith(prefi
 const isLoopback = (addr) =>
   addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
 
+// Exported for routes that enforce their own loopback posture (the local
+// roster feed's token-less dev mode). One implementation, so a missed address
+// form is fixed in one place rather than in each route's copy.
+export const isLoopbackAddress = isLoopback;
+
 // A bridge caller is the cell's OWN child: loopback AND carrying no proxied
 // identity. Both halves are required. In hosted mode the gateway proxies every
 // real user into their cell from 127.0.0.1 while injecting `x-forwarded-email`

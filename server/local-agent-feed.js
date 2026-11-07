@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import express from "express";
 import { getDb, isDbReady, listInstalledPacks } from "../db.js";
 import { composeAgentCard, composeDescriptor, listServingAgents } from "../lib/agent-serving.js";
+import { isLoopbackAddress } from "./auth.js";
 
 // Mounted OUTSIDE the registry-colliding prefixes: the runner appends
 // /api/agents and /api/skills… to whatever base URL it is given.
@@ -375,7 +376,7 @@ function tokenMatches(expected, received) {
 // Feed token: minted by first-run into settings (WANXING_LOCAL_FEED_TOKEN) and
 // injected into the runner's env by the supervisor descriptor. Empty on a
 // deployment without a desktop bootstrap (dev/containers) → the feed stays
-// OPEN on loopback only, exactly like the pre-change desktop dev posture.
+// OPEN on LOOPBACK ONLY, exactly like the pre-change desktop dev posture.
 export function createLocalAgentFeed({ env = process.env, runnerId = null, seatTag = true } = {}) {
   const router = express.Router();
   // The bearer comes from the SETTINGS the cell was given. On a packaged
@@ -391,7 +392,16 @@ export function createLocalAgentFeed({ env = process.env, runnerId = null, seatT
   }
 
   router.use((req, res, next) => {
-    if (!expected) return next(); // dev posture: loopback, no token minted
+    // The auth gate exempts this prefix wholesale (the route authenticates
+    // itself), so the address check has to live HERE or nowhere does. "Open"
+    // dev posture means open to this machine, not to whatever interface the
+    // cell happens to bind (a container with HOST=0.0.0.0 would otherwise
+    // serve the roster — pod and seat topology — to the whole pod network
+    // with no credential at all).
+    if (!expected) {
+      if (isLoopbackAddress(req.socket?.remoteAddress)) return next();
+      return res.status(401).json({ error: "missing local feed credential" });
+    }
     if (tokenMatches(expected, bearerOf(req))) return next();
     return res.status(401).json({ error: "missing local feed credential" });
   });

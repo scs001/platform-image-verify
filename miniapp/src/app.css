@@ -1882,6 +1882,15 @@ page {
   opacity: 0.5;
 }
 
+/* ConfirmGate form footer (add-erp-miniapp-pagesets 1.3): the gate's error
+   line + submit button grouped as one form row. Same column rhythm and
+   palette as the cron form it was extracted from; closed-palette hex only. */
+.confirm-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .cron-card {
   margin-bottom: 16px;
   padding: 20px;
@@ -2798,4 +2807,376 @@ page {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---- UE 订货台页面集（add-erp-miniapp-pagesets P1）----
+   Daylight 闭色板 hex（DESIGN.md）：纸面 #f3f4f6 / 白卡 #ffffff / 唯一
+   Pocket Blue #2563eb / 墨阶 #111827/#374151/#4b5563/#6b7280/#9ca3af /
+   发丝线 #e5e7eb / 错误 #dc2626/#b91c1c/#fef2f2/#fecaca。flat 发丝卡，
+   无阴影；触达 88rpx（44px）；rpx 由 Taro 按源 px 1:1 转换。 */
+
+.ue-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f4f6;
+}
+
+.ue-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.ue-body {
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.ue-bottom-pad {
+  height: calc(env(safe-area-inset-bottom) + 32rpx);
+}
+
+.ue-card {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.ue-detail-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ue-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.ue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.ue-row-card {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  min-height: 88rpx;
+  box-sizing: border-box;
+}
+
+.ue-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.ue-row-side {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.ue-row-action {
+  font-size: 24rpx;
+  color: #6b7280;
+  padding: 12rpx 16rpx;
+}
+
+.ue-product-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ue-product-meta {
+  font-size: 22rpx;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ue-product-price {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #111827;
+  flex-shrink: 0;
+}
+
+.ue-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.ue-product-card {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  min-height: 140rpx;
+}
+
+.ue-search-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.ue-search-btn {
+  padding: 20rpx 28rpx;
+  border-radius: 999rpx;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  font-size: 26rpx;
+}
+
+.ue-input {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  color: #111827;
+  min-height: 88rpx;
+  box-sizing: border-box;
+}
+
+.ue-input-qty {
+  max-width: 200rpx;
+  text-align: center;
+}
+
+.ue-textarea {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+  color: #111827;
+  width: 100%;
+  min-height: 140rpx;
+  box-sizing: border-box;
+}
+
+.ue-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.ue-chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 24rpx;
+}
+
+.ue-chip-active {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.ue-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16rpx;
+}
+
+.ue-entry {
+  background: #fff;
+  border: 2rpx solid #e5e7eb;
+  border-radius: 12rpx;
+  padding: 24rpx 12rpx;
+  font-size: 26rpx;
+  color: #111827;
+  text-align: center;
+}
+
+.ue-kv-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  border-top: 2rpx solid #f3f4f6;
+  padding-top: 16rpx;
+}
+
+.ue-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.ue-kv-key {
+  font-size: 24rpx;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.ue-kv-val {
+  font-size: 26rpx;
+  color: #374151;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ue-price-blue {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.ue-form-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.ue-form-label {
+  font-size: 24rpx;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.ue-cta {
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 600;
+  border-radius: 48rpx;
+  padding: 22rpx 0;
+  text-align: center;
+  min-height: 88rpx;
+  box-sizing: border-box;
+  line-height: 44rpx;
+}
+
+.ue-cta-disabled {
+  opacity: 0.5;
+}
+
+.ue-link-btn {
+  font-size: 26rpx;
+  color: #2563eb;
+  padding: 12rpx 0;
+  min-height: 44rpx;
+}
+
+.ue-more-btn {
+  font-size: 26rpx;
+  color: #2563eb;
+  padding: 20rpx 0;
+  text-align: center;
+}
+
+.ue-more-line {
+  font-size: 22rpx;
+  color: #9ca3af;
+  text-align: center;
+  padding: 8rpx 0;
+}
+
+.ue-note-line {
+  font-size: 22rpx;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.ue-note-strong {
+  color: #111827;
+  font-weight: 500;
+}
+
+.ue-error-line {
+  font-size: 24rpx;
+  color: #dc2626;
+  line-height: 1.5;
+}
+
+.ue-mono {
+  font-family: monospace;
+}
+
+.ue-img-row {
+  display: flex;
+  gap: 12rpx;
+}
+
+.ue-img {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 12rpx;
+  background: #f9fafb;
+}
+
+/* 状态行（加载/错误/空）：纸面一行墨字，错误行错误红。 */
+.erp-state {
+  padding: 32rpx 24rpx;
+  border-radius: 16rpx;
+  background: #f9fafb;
+  border: 2rpx solid #f3f4f6;
+}
+
+.erp-state-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.erp-state-text {
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.erp-state-error .erp-state-text {
+  color: #b91c1c;
+}
+
+/* 501 如实区块：能力未提供（服务器 message 原样），警示但不伪装。 */
+.erp-capability {
+  background: #fef3c7;
+  border: 2rpx solid #fecaca;
+  border-radius: 16rpx;
+  padding: 32rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.erp-capability-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.erp-capability-message {
+  font-size: 24rpx;
+  color: #92400e;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }

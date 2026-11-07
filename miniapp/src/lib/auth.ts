@@ -48,6 +48,15 @@ export function isDemoAccount(): boolean {
   return lastEmail.endsWith("@demo.invalid");
 }
 
+/**
+ * The signed-in account's identity email ("" when not yet known). Read-only
+ * accessor used by the ERP page-set surfaces: SE 业务员身份 = 平台登录账号
+ * (pagesets/identity.ts), a natural mapping that needs no extra binding.
+ */
+export function sessionEmail(): string {
+  return lastEmail;
+}
+
 export function authHeaders(): Record<string, string> {
   const t = token();
   return t ? { Authorization: `Bearer ${t}` } : {};

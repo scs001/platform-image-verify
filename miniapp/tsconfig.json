@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["@tarojs/taro", "@types/webpack-env"],
     "paths": {
       "@/*": ["./src/*"],

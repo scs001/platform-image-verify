@@ -287,6 +287,23 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
     return getMcpServer(entry.id);
   };
 
+  // metadata is an object column carrying live routing semantics
+  // (supported_transports / surface / credential_ref / surface_source /
+  // surface_report_token_hash). A whole-object replace made every partial
+  // writer delete its siblings — the damage only surfaced later as an
+  // unroutable gateway path. Merge per key instead; an explicit null value
+  // removes that key, so intent to delete stays expressible.
+  const mergeMetadataPatch = (stored, incoming) => {
+    if (incoming === null || typeof incoming !== "object" || Array.isArray(incoming)) return incoming;
+    const base = stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+    const out = { ...base };
+    for (const [key, value] of Object.entries(incoming)) {
+      if (value === null) delete out[key];
+      else out[key] = value;
+    }
+    return out;
+  };
+
   const patchMcpServer = (id, { actor, source, fields }) => {
     guardWrite({ actor, source });
     const existing = getMcpServer(id);
@@ -303,6 +320,9 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
       });
     }
     const merged = { ...existing, ...(fields ?? {}) };
+    if (fields && Object.hasOwn(fields, "metadata")) {
+      merged.metadata = mergeMetadataPatch(existing.metadata ?? null, fields.metadata);
+    }
     merged.id = id;
     return upsertMcpServer({ actor, source, entry: merged });
   };

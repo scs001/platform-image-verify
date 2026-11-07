@@ -119,6 +119,68 @@ test("patch: 404 unknown id, unknown patch field, merge lands", () => {
   assert.equal(store.getMcpServer("/law-bench").display_name, "识律台");
 });
 
+// ── metadata 补丁按键盘合并（fix-supply-store-metadata-merge）──────────────
+// 病史：patchMcpServer 用 {...existing, ...fields} 浅合并，metadata 是整体对象列 →
+// 只发一个键就把兄弟键（supported_transports / credential_ref / surface_source）
+// 静默抹掉，症状要到网关 405 才暴露。这四条把语义钉死。
+
+const ROUTING_META = {
+  supported_transports: ["streamable-http"],
+  surface: "mcp",
+  credential_ref: "registry",
+  surface_source: "self_report",
+  surface_report_token_hash: "sha256:deadbeef",
+};
+
+test("patch metadata: one key preserves its siblings", () => {
+  const store = freshStore({});
+  store.upsertMcpServer({
+    actor: "op@x", source: "migration",
+    entry: { ...MCP_ENTRY, metadata: { ...ROUTING_META } },
+  });
+  store.patchMcpServer("/law-bench", {
+    actor: "op@x", source: "facade", fields: { metadata: { surface: "mcp-v2" } },
+  });
+  const meta = store.getMcpServer("/law-bench").metadata;
+  assert.equal(meta.surface, "mcp-v2", "patched key lands");
+  for (const k of ["supported_transports", "credential_ref", "surface_source", "surface_report_token_hash"]) {
+    assert.deepEqual(meta[k], ROUTING_META[k], `sibling ${k} must survive a partial patch`);
+  }
+});
+
+test("patch metadata: explicit null deletes exactly that key", () => {
+  const store = freshStore({});
+  store.upsertMcpServer({
+    actor: "op@x", source: "migration",
+    entry: { ...MCP_ENTRY, metadata: { ...ROUTING_META } },
+  });
+  store.patchMcpServer("/law-bench", {
+    actor: "op@x", source: "facade", fields: { metadata: { surface_source: null } },
+  });
+  const meta = store.getMcpServer("/law-bench").metadata;
+  assert.equal(Object.hasOwn(meta, "surface_source"), false, "explicit null must remove the key");
+  assert.deepEqual(meta.supported_transports, ROUTING_META.supported_transports);
+  assert.equal(meta.credential_ref, "registry");
+});
+
+test("patch metadata: whole-column null still clears, non-object still replaces", () => {
+  const store = freshStore({});
+  store.upsertMcpServer({
+    actor: "op@x", source: "migration",
+    entry: { ...MCP_ENTRY, metadata: { ...ROUTING_META } },
+  });
+  store.patchMcpServer("/law-bench", { actor: "op@x", source: "facade", fields: { metadata: null } });
+  assert.equal(store.getMcpServer("/law-bench").metadata, null, "metadata:null clears the column");
+
+  store.patchMcpServer("/law-bench", {
+    actor: "op@x", source: "facade", fields: { metadata: { ...ROUTING_META } },
+  });
+  store.patchMcpServer("/law-bench", {
+    actor: "op@x", source: "facade", fields: { metadata: "opaque-string" },
+  });
+  assert.equal(store.getMcpServer("/law-bench").metadata, "opaque-string", "non-object replaces whole");
+});
+
 test("fail-closed visibility: NULL not anonymous-visible even with matching group", () => {
   const store = freshStore({});
   store.upsertMcpServer({ actor: "op@x", source: "migration", entry: { ...MCP_ENTRY, visibility: null, groups: [] } });

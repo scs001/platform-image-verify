@@ -31,13 +31,26 @@ import { SETTING_KEYS } from "./lib/settings-keys.js";
 const DEV_SETTINGS_FILE = "dev-settings.json";
 
 // Is a TCP port free on localhost? (bind + immediately release.)
-function isPortFree(port, host = "127.0.0.1") {
+export function isPortFree(port, host = "127.0.0.1") {
   return new Promise((resolve) => {
     const srv = net.createServer();
     srv.once("error", () => resolve(false));
     srv.once("listening", () => srv.close(() => resolve(true)));
     srv.listen(port, host);
   });
+}
+
+// The child env handed to the supervisor: only the shared SETTING_KEYS list
+// crosses over, and only the ones this source actually carries. Extracted so
+// the forwarding rule (single-source list, no invented keys, empty ≠ set) has
+// a test seam — a knob dropped here is a user-facing setting that silently does
+// nothing in the dev launcher while working in the desktop app.
+export function buildAgentEnv(env) {
+  const agentEnv = {};
+  for (const k of SETTING_KEYS) {
+    if (env[k] != null && env[k] !== "") agentEnv[k] = String(env[k]);
+  }
+  return agentEnv;
 }
 
 export async function main() {
@@ -53,10 +66,7 @@ export async function main() {
     settingsFileName: DEV_SETTINGS_FILE,
   });
 
-  const agentEnv = {};
-  for (const k of SETTING_KEYS) {
-    if (env[k] != null && env[k] !== "") agentEnv[k] = String(env[k]);
-  }
+  const agentEnv = buildAgentEnv(env);
 
   // server.js pins to PORT (default 3000) — the Vite dev proxy (:5173 -> :3000)
   // and the WS client (ws://localhost:3000) expect it, so a conflict here is a

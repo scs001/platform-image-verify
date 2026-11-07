@@ -73,10 +73,25 @@ export function runFirstRun(opts) {
     merged.WANXING_LOCAL_FEED_TOKEN = crypto.randomBytes(24).toString("hex");
   }
 
-  // Write settings atomically if we changed it OR it didn't exist
+  // Write settings atomically if we changed it OR it didn't exist.
+  // Failure is logged, never thrown: the spec's third requirement is that a
+  // bootstrap step must not block launch (a read-only userData or a full disk
+  // killed `npm start` and the Electron window on an uncaught EACCES before
+  // this guard — neither caller wraps runFirstRun). The in-memory document
+  // still returns, so the supervisor gets resolved settings for this run even
+  // when persistence failed.
   if (!settingsExists || Object.keys(settings).length !== Object.keys(merged).length) {
-    atomicWriteJsonSync(settingsPath, merged);
-    console.log("[bootstrap] Wrote updated", settingsFileName, "to", settingsPath);
+    try {
+      atomicWriteJsonSync(settingsPath, merged);
+      console.log("[bootstrap] Wrote updated", settingsFileName, "to", settingsPath);
+    } catch (err) {
+      console.error(
+        "[bootstrap] Could not write",
+        settingsFileName,
+        "- continuing with in-memory settings:",
+        err.message,
+      );
+    }
   }
 
   return merged;

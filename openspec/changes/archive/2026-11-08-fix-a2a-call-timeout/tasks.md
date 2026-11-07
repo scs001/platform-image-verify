@@ -53,8 +53,12 @@
 
 ## 5. 上线（不含在本 change 内）
 
-- 5.1 出片滚版走 `fd-build-channel pick paas`（需用户放行发布）
-- 5.2 滚版后观测 7 天：`member_turn_daily` 的 `timeout` 桶份额变化（design R2 的口径平移），
+- [x] 5.1 出片上产（2026-11-08 03:0x 完成）：通道 `scs001/platform-image-verify`（公开仓免费）→
+  tag `sha-d7e693b`（快照 commit，私仓真 sha 061433d62）→ relay OK 03:03 → ccr skopeo 实证
+  digest `sha256:3aaddcbd` → fd-infra-deploy 双清单（platform.yaml:57 + facet.yaml:66）滚 tag →
+  gitee push → ArgoCD hard refresh → 两 deploy rollout 完成；in-pod 实证 `/app/server/a2a-client.js`
+  带 `a2a_timeout`，两种形态真探针都 `a2a_timeout @307ms` 且进程存活
+- [ ] 5.2 滚版后观测 7 天（观察项，非交付物）：`member_turn_daily` 的 `timeout` 桶份额变化（design R2 的口径平移），
   以及 `gateway/zhiyu` 是否还有 300s 附近的进程重启
 
 ## 6. 挂账（同源缺口，不在本 change）

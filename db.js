@@ -831,7 +831,30 @@ const MIGRATIONS = [
     // add-crm-desk-pack-embed task 6.x (SSO): the Chatwoot user id behind the
     // stored API token — discovered lazily via /api/v1/profile and cached so
     // the platform-API SSO login endpoint can be addressed per user.
-    statements: [`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`],
+    //
+    // Guarded, not a bare ALTER: a cell whose ledger already records v35 can
+    // still be missing the table (compacted/legacy cell DB — cell
+    // 2b043ce050ca134c is one: 42 tables at v37, no user_chatwoot_credentials).
+    // A bare ALTER there throws `no such table`, runMigrations aborts, initDb
+    // catches and disables the WHOLE database — every feature of that cell,
+    // not just the Chatwoot one. Recreate the v35 shape, then add the column
+    // only when it is absent; both steps are no-ops on a healthy database.
+    apply: (db) => {
+      db.exec(`CREATE TABLE IF NOT EXISTS user_chatwoot_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        login_email TEXT,
+        login_password TEXT,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`);
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(user_chatwoot_credentials)").all().map((c) => c.name)
+      );
+      if (!cols.has("chatwoot_user_id")) {
+        db.exec(`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`);
+      }
+    },
   },
   {
     // fix-gateway-bot-owner: the creator email on the bot row — the gateway's

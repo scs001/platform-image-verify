@@ -37,8 +37,15 @@ test.describe("React documents view", () => {
     await expect(row).toBeVisible({ timeout: 15000 });
     const id = await row.getAttribute("data-doc-id");
     expect(id).toBeTruthy();
-    // Click the row's delete button and assert the row's data-doc-id is gone.
+    // Delete is a DESTRUCTIVE action, so it goes through the shared danger
+    // ConfirmDialog (web-operate-states「破坏性操作主题化确认」) — the row button
+    // only opens it. Confirm, then assert the row's data-doc-id is gone.
     await page.locator(`[data-doc-id="${id}"]`).getByTestId("doc-delete").click();
+    const confirm = page.getByTestId("confirm-dialog");
+    await expect(confirm).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("confirm-dialog-cancel")).toBeFocused();
+    await page.getByTestId("confirm-dialog-confirm").click();
+    await expect(confirm).toBeHidden();
     await expect(page.locator(`[data-doc-id="${id}"]`)).toHaveCount(0, { timeout: 20000 });
   });
 

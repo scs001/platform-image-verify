@@ -45,12 +45,18 @@ test.describe("Scheduled-tasks page", () => {
     await row.getByTestId("cron-job-open-session").click();
     await expect(page).toHaveURL(/\/chat\/cron-/);
 
-    // Delete (confirm dialog auto-accepted) → row goes away via cron_removed.
-    page.on("dialog", (d) => d.accept());
+    // Delete → the themed danger ConfirmDialog opens (web-operate-states), then
+    // the row goes away via cron_removed. This used to auto-accept a NATIVE
+    // window.confirm with page.on("dialog"); batch ③ replaced every native
+    // confirm with ConfirmDialog, so listening for a browser dialog now waits
+    // forever and nothing is deleted.
     await page.goBack();
     await page.getByTestId("nav-tasks").click();
     await expect(page.getByTestId("cron-page")).toBeVisible();
     await page.locator('[data-testid="cron-job"]').first().getByTestId("cron-job-delete").click();
+    const confirm = page.getByTestId("confirm-dialog");
+    await expect(confirm).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByTestId("cron-job")).toHaveCount(0, { timeout: 15_000 });
   });
 

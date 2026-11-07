@@ -123,6 +123,26 @@ If issues occur:
 - **Issues**: GitHub Issues
 - **Emergency**: Contact development team
 
+## Desktop Release — Pool Migration Checklist (harden-desktop-lane-relay)
+
+出片在 GitHub 私有池仓（testaction001 / testaction005 …）执行，池间迁移时逐项核对——
+1.3.27/1.3.28 更新链断链事故的根因即「换池后凭据名不匹配 + workflow 面陈旧」双雷静默：
+
+- [ ] **TCR secrets 就位**：池仓 Settings → Secrets 必须有 `TCR_USERNAME` / `TCR_PASSWORD`
+  （hkccr 推送权凭据；名字必须与 image.yml / release.yml 里的 `secrets.TCR_USERNAME` 完全一致）。
+  验证：`gh secret list -R <pool-repo>` 含两项。
+- [ ] **workflow 面四件对齐**：release / win-smoke / prod-pair / steward 从 paas main 同步
+  （池侧分支是快照，`.github/workflows` 每次出片手工补齐）；`image*` / `dl-publish` 勿带。
+- [ ] **update-metadata + lane push 两步在 publish job**：确认 release.yml 的 publish job
+  有 `actions/checkout@v4`（gen-desktop-latest-yml.mjs 依赖仓内脚本）、lane push 步骤存在。
+- [ ] **出片后 lane 对账（必做，不留隔夜）**：
+  `curl -s http://100.64.0.10:9000/yizuo-desktop/latest.yml | grep version` 应为新版本；
+  未跟上则查 cheap3 `/var/log/desktop-lane-sync.log`（LANE-STALE = relay 断链）与
+  发布 run 的 "Push lane to registry" 步骤日志。日常体检：`tail -5 /var/log/desktop-lane-check.log`。
+- [ ] **lane 落盘名契约**：客户端按 yml 内 `url` 下载——文件名以 yml 为准（electron-builder
+  原名，可含空格，如 `Platform Setup 1.3.28.exe`）；GH release 资产名是点分隔替换形态，
+  从 release 资产手工同步 lane 时必须按 yml 名重命名落盘。
+
 ---
 
 *Release Checklist v1.0.0*  

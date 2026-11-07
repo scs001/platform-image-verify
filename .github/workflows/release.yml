@@ -164,6 +164,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Download mac arm64 installer
         uses: actions/download-artifact@v4
         with:
@@ -195,19 +196,38 @@ jobs:
         # artifacts as an OCI image to hkccr (runners CAN reach the registry),
         # and the cheap-3 sync worker (desktop-lane-sync, cron) pulls it and
         # distributes to the lane. :current, overwritten each release.
+        # (harden-desktop-lane-relay) Creds are the repo-canonical
+        # TCR_USERNAME/TCR_PASSWORD (same pair image.yml/image-publish.yml
+        # use; the pools carry them since 2026-10-13). Missing creds or a
+        # failed push is a HARD FAILURE on tag releases — the spec's publish
+        # contract makes the lane part of the release, and the 1.3.27/1.3.28
+        # outage proved a silent skip here reads as success for weeks.
         env:
-          TCR_USER: ${{ secrets.TCR_USER }}
-          TCR_PASS: ${{ secrets.TCR_PASS }}
+          TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
+          TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
         run: |
           set -euo pipefail
-          for v in TCR_USER TCR_PASS; do [ -z "${!v}" ] && unset "$v"; done
-          [ -z "${TCR_USER:-}" ] && { echo "TCR creds not configured — lane relay skipped"; exit 0; }
-          printf 'FROM scratch\nCOPY dist/ /lane/\n' > Dockerfile.lane
           IMAGE="hkccr.ccs.tencentyun.com/yizuo/desktop-releases:current"
-          echo "$TCR_PASS" | docker login hkccr.ccs.tencentyun.com --username "$TCR_USER" --password-stdin
-          docker build -q -f Dockerfile.lane -t "$IMAGE" . >/dev/null
+          if [ -z "${TCR_USERNAME:-}" ]; then
+            echo "::error::TCR_USERNAME/TCR_PASSWORD not configured on this repo — the lane would silently stall (1.3.27/1.3.28 outage). Configure pool secrets per RELEASE_CHECKLIST."
+            exit 1
+          fi
+          echo "$TCR_PASSWORD" | docker login hkccr.ccs.tencentyun.com --username "$TCR_USERNAME" --password-stdin
+          # Isolated context: the repo-root context is filtered by
+          # .dockerignore (which removes dist for the server image build), so
+          # `COPY dist/ /lane/` from the repo root fails with "/dist: not
+          # found". A temp context holding only dist + the Dockerfile sidesteps
+          # ignore rules entirely — no negation games with the main image.
+          CTX=$(mktemp -d)
+          trap 'rm -rf "$CTX"' EXIT
+          cp -r dist "$CTX/dist"
+          printf 'FROM scratch\nCOPY dist/ /lane/\n' > "$CTX/Dockerfile.lane"
+          docker build -q -f "$CTX/Dockerfile.lane" -t "$IMAGE" "$CTX" >/dev/null
           docker push "$IMAGE" >/dev/null
-          echo "::notice::lane image pushed: $IMAGE"
+          # Post-push verification: :current must be readable back from the
+          # registry (a swallowed push failure here would stall the lane again).
+          docker manifest inspect "$IMAGE" >/dev/null
+          echo "::notice::lane image pushed and verified: $IMAGE"
       - name: Create / update release
         uses: softprops/action-gh-release@v2
         with:

@@ -1182,7 +1182,9 @@
           "connect": "去连接",
           "grant": "去授权",
           "reconnect": "重连",
-          "revoke": "撤销授权"
+          "revoke": "撤销授权",
+          "chooseSystem": "选择系统",
+          "changeSystem": "换系统"
         },
         "grantedAt": "授权于 {{when}}",
         "actionFailed": "操作未完成：{{error}}",
@@ -1191,16 +1193,25 @@
           "missing": "待连接",
           "stale": "已失效",
           "unwired": "能力缺口",
-          "undetermined": "未判定"
+          "undetermined": "未判定",
+          "unmapped": "待选系统"
         },
         "hint": {
           "unwired": "连接器目录没有覆盖该应用声明的操作，接账号也补不上。",
-          "undetermined": "暂时查不到目录事实，状态未判定。"
+          "undetermined": "暂时查不到目录事实，状态未判定。",
+          "unmapped": "这个包按角色声明了它需要的系统。请指明你实际在用哪一个——这不是目录能力缺口，也还不需要去建立连接。"
         },
         "operations": {
           "read": "读",
           "write": "写"
-        }
+        },
+        "choose": {
+          "placeholder": "选择你已连通的系统…",
+          "empty": "你已连通的系统都覆盖不了这个包需要的操作类——先去连接器里连一个。",
+          "unavailable": "暂时读不到你已连通的系统。",
+          "currentNotUsable": "当前所选，暂不可用"
+        },
+        "summaryUnmapped": "{{count}} 项待你选定系统"
       }
     },
     "lines": {

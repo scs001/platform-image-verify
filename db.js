@@ -1121,6 +1121,29 @@ const MIGRATIONS = [
         ON connector_binding_ledger(email, status)`);
     },
   },
+  {
+    // add-connector-role-mapping D2: a role binding's provider is chosen by the
+    // user, so the choice lives per identity — one row per (email, role),
+    // shared by every pack that declares that role. `role` is added to the
+    // ledger so a row can say "provider=wangdian (role=wms)" without rewriting
+    // history: existing rows get NULL and mean "plain service-id binding".
+    version: 115,
+    apply: (db) => {
+      db.exec(`CREATE TABLE IF NOT EXISTS connector_role_mappings (
+        email TEXT NOT NULL,
+        role TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (email, role)
+      )`);
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(connector_binding_ledger)").all().map((c) => c.name)
+      );
+      if (!cols.has("role")) {
+        db.exec(`ALTER TABLE connector_binding_ledger ADD COLUMN role TEXT`);
+      }
+    },
+  },
 ];
 
 function nowIso() {
@@ -2335,14 +2358,15 @@ export function upsertConnectorBindingLedgerRow({
   status,
   optional = false,
   grantedAt = null,
+  role = null,
 }) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
   if (!key || !packId || !bindingKey || !provider || !status) return null;
   stmt(
     `INSERT INTO connector_binding_ledger
-       (email, pack_id, pack_version, binding_key, provider, operations, connection_id, status, optional, granted_at, updated_at)
-     VALUES (@email, @packId, @packVersion, @bindingKey, @provider, @operations, @connectionId, @status, @optional, @grantedAt, @updatedAt)
+       (email, pack_id, pack_version, binding_key, provider, operations, connection_id, status, optional, granted_at, role, updated_at)
+     VALUES (@email, @packId, @packVersion, @bindingKey, @provider, @operations, @connectionId, @status, @optional, @grantedAt, @role, @updatedAt)
      ON CONFLICT(email, pack_id, binding_key) DO UPDATE SET
        pack_version = excluded.pack_version,
        provider = excluded.provider,
@@ -2351,6 +2375,7 @@ export function upsertConnectorBindingLedgerRow({
        status = excluded.status,
        optional = excluded.optional,
        granted_at = COALESCE(excluded.granted_at, connector_binding_ledger.granted_at),
+       role = excluded.role,
        updated_at = excluded.updated_at`
   ).run({
     email: key,
@@ -2363,6 +2388,7 @@ export function upsertConnectorBindingLedgerRow({
     status,
     optional: optional ? 1 : 0,
     grantedAt,
+    role,
     updatedAt: nowIso(),
   });
   return getConnectorBindingLedgerRow(key, packId, bindingKey);
@@ -2392,7 +2418,7 @@ export function getConnectorBindingLedgerRow(email, packId, bindingKey) {
   if (!key) return null;
   const row = stmt(
     `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
-            operations, connection_id AS connectionId, status, optional,
+            operations, connection_id AS connectionId, status, optional, role,
             granted_at AS grantedAt, updated_at AS updatedAt
      FROM connector_binding_ledger WHERE email = ? AND pack_id = ? AND binding_key = ?`
   ).get(key, packId, bindingKey);
@@ -2406,17 +2432,72 @@ export function listConnectorBindingLedger(email, packId) {
   const rows = packId
     ? stmt(
         `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
-                operations, connection_id AS connectionId, status, optional,
+                operations, connection_id AS connectionId, status, optional, role,
                 granted_at AS grantedAt, updated_at AS updatedAt
          FROM connector_binding_ledger WHERE email = ? AND pack_id = ? ORDER BY binding_key`
       ).all(key, packId)
     : stmt(
         `SELECT pack_id AS packId, pack_version AS packVersion, binding_key AS bindingKey, provider,
-                operations, connection_id AS connectionId, status, optional,
+                operations, connection_id AS connectionId, status, optional, role,
                 granted_at AS grantedAt, updated_at AS updatedAt
          FROM connector_binding_ledger WHERE email = ? ORDER BY pack_id, binding_key`
       ).all(key);
   return rows.map(decodeLedgerRow);
+}
+
+/**
+ * Role → provider mappings (add-connector-role-mapping D2).
+ *
+ * A role binding declares `provider: "wms"` with `providerRole: true`: the pack
+ * says what it needs, the identity says which system it actually runs. The
+ * mapping is keyed on (email, role) rather than on the binding because the fact
+ * ("my WMS is wangdian") is a property of the customer, not of one pack — two
+ * packs needing `wms` must not get two answers.
+ */
+export function getConnectorRoleMapping(email, role) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  const name = typeof role === "string" ? role.trim() : "";
+  if (!key || !name) return null;
+  return stmt(
+    "SELECT role, provider, updated_at AS updatedAt FROM connector_role_mappings WHERE email = ? AND role = ?"
+  ).get(key, name) ?? null;
+}
+
+export function listConnectorRoleMappings(email) {
+  if (!dbReady) return [];
+  const key = normalizeIdentityEmail(email);
+  if (!key) return [];
+  return stmt(
+    "SELECT role, provider, updated_at AS updatedAt FROM connector_role_mappings WHERE email = ? ORDER BY role"
+  ).all(key);
+}
+
+/** Idempotent: re-selecting the same provider leaves the row untouched. */
+export function setConnectorRoleMapping(email, role, provider) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  const name = typeof role === "string" ? role.trim() : "";
+  const target = typeof provider === "string" ? provider.trim() : "";
+  if (!key || !name || !target) return null;
+  stmt(
+    `INSERT INTO connector_role_mappings (email, role, provider, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(email, role) DO UPDATE SET
+       provider = excluded.provider,
+       updated_at = excluded.updated_at
+     WHERE connector_role_mappings.provider IS NOT excluded.provider`
+  ).run(key, name, target, nowIso());
+  return getConnectorRoleMapping(key, name);
+}
+
+/** Returns true when a row was removed (the role was mapped). */
+export function deleteConnectorRoleMapping(email, role) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  const name = typeof role === "string" ? role.trim() : "";
+  if (!key || !name) return false;
+  return stmt("DELETE FROM connector_role_mappings WHERE email = ? AND role = ?").run(key, name).changes > 0;
 }
 
 export function deleteConnectorBindingLedgerRow(email, packId, bindingKey) {

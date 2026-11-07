@@ -8,6 +8,7 @@
 
 import * as bindings from "../../connector-bindings.js";
 import * as grants from "../../connector-grants.js";
+import * as db from "../../db.js";
 
 function identity(req) {
   return req.ssoUser || req.user || null;
@@ -42,6 +43,12 @@ function projectRow(row) {
     status: row.status,
     reason: row.reason,
     optional: !!row.optional,
+    // A role binding's identity face: the role name it needs and whether the
+    // provider column holds a role rather than a system. The UI picks its copy
+    // and its action ("选择你的系统" vs "去连接") off these two, so they travel
+    // with every binding row, not only on the connections page.
+    role: row.role ?? null,
+    providerRole: Boolean(row.role),
     grantedAt: row.grantedAt ?? null,
     packVersion: row.packVersion ?? null,
   };
@@ -120,4 +127,132 @@ export function registerConnectorBindingRoutes(ctx) {
       status: bindings.listBindings(owner(req), packId).find((row) => row.bindingKey === bindingKey)?.status ?? null,
     });
   });
+
+  // ── Role mappings (add-connector-role-mapping D8) ─────────────────────────
+  //
+  // A role binding says "this pack needs a WMS"; the identity says "mine is
+  // wangdian". These three routes are that second sentence: read what each role
+  // the installed packs actually need is mapped to, choose a system, or go back
+  // to unchosen.
+  //
+  // The candidate list is the user's OWN connections narrowed by catalog
+  // coverage — never the catalog. An unchosen system without an account cannot
+  // be used, so offering 1570 providers would disguise a configuration step as
+  // a product choice. Systems that ARE connected but under-cover come back in
+  // `rejected` with their gaps, so the card can say why instead of hiding them.
+
+  const ROLE_MAX = 64;
+  const PROVIDER_MAX = 128;
+
+  function roleName(value) {
+    const role = typeof value === "string" ? value.trim() : "";
+    return role && role.length <= ROLE_MAX ? role : null;
+  }
+
+  // One response may ask about several roles; the connections call and each
+  // (service, classes) coverage answer are identical across them, so they are
+  // memoized for the life of ONE request. Nothing is cached across requests —
+  // the connector is the authority, and a stale list would offer a system the
+  // user just disconnected.
+  function memoClient(client) {
+    if (!client) return null;
+    let connections = null;
+    const coverage = new Map();
+    return {
+      origin: client.origin,
+      coverage(provider, operations) {
+        const key = `${provider}|${operations.join(",")}`;
+        if (!coverage.has(key)) coverage.set(key, client.coverage(provider, operations));
+        return coverage.get(key);
+      },
+      connections() {
+        connections = connections ?? client.connections();
+        return connections;
+      },
+    };
+  }
+
+  async function describeRoles(email) {
+    const mapped = new Map(db.listConnectorRoleMappings(email).map((row) => [row.role, row]));
+    const client = memoClient(bindings.tenantClient(email));
+    const mappings = [];
+    for (const declared of bindings.declaredRoles(email)) {
+      const mapping = mapped.get(declared.role) ?? null;
+      // Unreachable self-introspection must not read as "you can choose from
+      // nothing": report the state, and leave an empty list that the card can
+      // tell apart from "your connections cover none of these".
+      const candidates = await bindings.roleCandidates({ operations: declared.operations, client });
+      mappings.push({
+        role: declared.role,
+        operations: declared.operations,
+        packs: declared.packs,
+        optional: declared.optional,
+        provider: mapping?.provider ?? null,
+        updatedAt: mapping?.updatedAt ?? null,
+        candidates: candidates.candidates,
+        rejected: candidates.rejected,
+        candidatesState: candidates.ok ? { ok: true } : { ok: false, code: candidates.code },
+      });
+    }
+    return mappings;
+  }
+
+  app.get("/api/connector/role-mappings", async (req, res) => {
+    if (!requireOwner(req, res, ctx) || !dbReady(res, ctx)) return;
+    res.json({ mappings: await describeRoles(owner(req)) });
+  });
+
+  app.put("/api/connector/role-mappings/:role", async (req, res) => {
+    if (!requireOwner(req, res, ctx) || !dbReady(res, ctx)) return;
+    const role = roleName(req.params.role);
+    if (!role) return res.status(400).json({ error: "role is required", code: "invalid_role" });
+    const provider = typeof req.body?.provider === "string" ? req.body.provider.trim() : "";
+    if (!provider || provider.length > PROVIDER_MAX) {
+      return res.status(400).json({ error: "provider is required", code: "invalid_provider" });
+    }
+    // Deliberately no catalog existence check here: a provider the catalog does
+    // not know is a *resolution* answer (`unwired` + "unknown provider" + a
+    // change-system entry), not a malformed request. The resolver says so.
+    //
+    // The role, however, must be one some installed pack actually declares:
+    // storing a choice for a role nobody needs would answer 200 and change
+    // nothing, which reads as success. DELETE stays permissive on purpose — a
+    // mapping left behind by an uninstalled pack still has to be clearable.
+    const declared = bindings.declaredRoles(owner(req));
+    if (!declared.some((entry) => entry.role === role)) {
+      return res.status(404).json({ error: "role is not declared by any installed pack", code: "role_not_declared" });
+    }
+    const mapping = db.setConnectorRoleMapping(owner(req), role, provider);
+    if (!mapping) return res.status(500).json({ error: "mapping was not stored", code: "store_failed" });
+    const refresh = await grants.refreshRoleBindings({ email: owner(req), role });
+    res.json({ ok: true, mapping, refresh: projectRefresh(refresh) });
+  });
+
+  app.delete("/api/connector/role-mappings/:role", async (req, res) => {
+    if (!requireOwner(req, res, ctx) || !dbReady(res, ctx)) return;
+    const role = roleName(req.params.role);
+    if (!role) return res.status(400).json({ error: "role is required", code: "invalid_role" });
+    const deleted = db.deleteConnectorRoleMapping(owner(req), role);
+    const refresh = await grants.refreshRoleBindings({ email: owner(req), role });
+    res.json({ ok: true, deleted, mapping: null, refresh: projectRefresh(refresh) });
+  });
+}
+
+/**
+ * The recompute that a mapping change triggers, as the browser needs it: the
+ * affected packs and their rows, token-free. Same shape as the refresh route's
+ * payload so the card can reuse one renderer.
+ */
+function projectRefresh(result) {
+  return {
+    ok: !!result?.ok,
+    ...(result?.code ? { code: result.code } : {}),
+    packs: (result?.packs ?? []).map((pack) => ({
+      packId: pack.packId,
+      ok: !!pack.ok,
+      ...(pack.code ? { code: pack.code } : {}),
+      ...(pack.gate ? { gate: pack.gate } : {}),
+      ...(pack.bindings ? { bindings: pack.bindings.map(projectRow) } : {}),
+    })),
+  };
 }

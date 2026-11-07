@@ -140,6 +140,9 @@ function recordGrant({ email, packId, bindingKey, token, patId, provider, operat
       connectionId: row.connectionId,
       status: row.status,
       optional: row.optional,
+      // The ledger upsert is a full-row write, so a partial update that forgets
+      // `role` silently turns a role binding back into a fixed-provider one.
+      role: row.role ?? null,
       grantedAt: new Date().toISOString(),
     });
   }
@@ -202,9 +205,17 @@ export async function grantPack({ email, packId, bindingKeys = null, fetchImpl =
   const wanted = bindingKeys ? new Set(bindingKeys) : null;
   const granted = [];
   const failed = [];
+  // A role binding with no chosen system is not a failure of this call — there
+  // is no provider to bound a scope with. It belongs to the "choose a system"
+  // list, so it is reported separately instead of inflating `failed`.
+  const deferred = [];
   for (const row of rows) {
     if (row.status === bindings.BINDING_STATUS.deprecated) continue;
     if (wanted && !wanted.has(row.bindingKey)) continue;
+    if (row.status === bindings.BINDING_STATUS.unmapped) {
+      deferred.push({ bindingKey: row.bindingKey, role: row.role ?? null, code: "unmapped" });
+      continue;
+    }
     // Only a resolvable binding can be granted: minting for an unwired provider
     // would be rejected by the connector and reading as "granted" would lie.
     if (row.status !== bindings.BINDING_STATUS.satisfied) {
@@ -222,7 +233,7 @@ export async function grantPack({ email, packId, bindingKeys = null, fetchImpl =
     }
     else failed.push({ bindingKey: row.bindingKey, provider: row.provider, code: result.code });
   }
-  return { ok: failed.length === 0 || granted.length > 0, granted, failed };
+  return { ok: failed.length === 0 || granted.length > 0, granted, failed, deferred };
 }
 
 /**
@@ -342,6 +353,36 @@ export async function revokeBinding({ email, packId, bindingKey, fetchImpl = fet
 // ── Install / activate gate (D7) ────────────────────────────────────────────
 
 /**
+ * Re-resolve every binding this identity has for one role (add-connector-role-mapping
+ * D6). The mapping is (email, role), so the blast radius is "all packs that
+ * declare this role", not "the pack the user happens to be looking at" —
+ * refreshing only the current pack would leave a sibling pack injecting a token
+ * minted for the system the user just replaced.
+ *
+ * Row-level declaration comparison in resolvePack drops the tokens whose
+ * provider changed, so nothing here revokes by hand.
+ */
+export async function refreshRoleBindings({ email, role, client = undefined, fetchImpl = fetch }) {
+  const name = typeof role === "string" ? role.trim() : "";
+  if (!name) return { ok: false, code: "role_required", packs: [] };
+  let rows;
+  try {
+    rows = bindings.listBindings(email);
+  } catch {
+    return { ok: false, code: "ledger_unavailable", packs: [] };
+  }
+  const packIds = [
+    ...new Set((rows ?? []).filter((row) => (row.role ?? null) === name).map((row) => row.packId)),
+  ];
+  const packs = [];
+  for (const packId of packIds) {
+    const result = await refreshPackBindings({ email, packId, client, fetchImpl });
+    packs.push({ packId, ...result });
+  }
+  return { ok: true, role: name, packs };
+}
+
+/**
  * Resolve every binding a pack declares, right now, for this identity.
  *
  * Called on install and on activate. Missing non-optional bindings mean the pack
@@ -373,9 +414,7 @@ export async function refreshPackBindings({
   }
   let resolvedClient = client;
   if (resolvedClient === undefined) {
-    const origin = bindings.connectorOrigin();
-    const accountToken = connectorCredentials.liveToken(email);
-    resolvedClient = origin && accountToken ? bindings.createConnectorClient({ origin, token: accountToken, fetchImpl }) : null;
+    resolvedClient = bindings.tenantClient(email, { fetchImpl });
   }
   const rows = await bindings.resolvePack({
     email,
@@ -404,6 +443,7 @@ export function gateFromRows(email, packId, rows) {
     const item = {
       bindingKey: row.bindingKey,
       provider: row.provider,
+      role: row.role ?? null,
       operations: row.operations,
       status: row.status,
       reason: row.reason,
@@ -425,6 +465,7 @@ export function gateFromRows(email, packId, rows) {
       .map((row) => ({
         bindingKey: row.bindingKey,
         provider: row.provider,
+        role: row.role ?? null,
         operations: row.operations,
         optional: row.optional,
         connectionHint: row.connectionName ?? null,

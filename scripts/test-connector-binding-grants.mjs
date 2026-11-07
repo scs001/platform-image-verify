@@ -588,16 +588,23 @@ test("the binding router exposes the grant surface", async () => {
   const app = {
     get: (path, handler) => registered.push(["GET", path, typeof handler]),
     post: (path, handler) => registered.push(["POST", path, typeof handler]),
+    // add-connector-role-mapping 4.3: choosing a system is a PUT/DELETE on a
+    // role, and a router mounted without them would 404 the whole flow.
+    put: (path, handler) => registered.push(["PUT", path, typeof handler]),
+    delete: (path, handler) => registered.push(["DELETE", path, typeof handler]),
   };
   routes.registerConnectorBindingRoutes({ app, authEnabled: false, db: { isDbReady: () => true } });
   assert.deepEqual(
     registered.map(([method, path]) => `${method} ${path}`).sort(),
     [
+      "DELETE /api/connector/role-mappings/:role",
       "GET /api/connector/bindings",
+      "GET /api/connector/role-mappings",
       "POST /api/connector/bindings/grant",
       "POST /api/connector/bindings/grant-for-action",
       "POST /api/connector/bindings/refresh",
       "POST /api/connector/bindings/revoke",
+      "PUT /api/connector/role-mappings/:role",
     ],
   );
   assert.ok(registered.every(([, , kind]) => kind === "function"));

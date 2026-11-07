@@ -206,6 +206,11 @@ async function projectBindingLedger(email) {
     packId: row.packId,
     key: row.bindingKey,
     provider: row.provider,
+    // A role binding exposes the role it stands for: `provider` is then the
+    // system the user chose (null while unchosen), and the card needs the role
+    // to offer "choose your system" against the right mapping.
+    role: row.role ?? null,
+    providerRole: Boolean(row.role),
     operations: Array.isArray(row.operations) ? [...row.operations] : [],
     status: row.status,
     optional: !!row.optional,
@@ -223,7 +228,11 @@ async function projectBindingLedger(email) {
   // the pack declares (connector-bindings spec, `unwired` MUST NOT degrade to
   // `missing`). The card renders it as a capability gap, not as a todo.
   const unwired = active.filter((row) => row.status === "unwired").length;
-  return { rows, summary: { packs: packs.size, bindings: active.length, unresolved, unwired } };
+  // `unmapped` is its own count for the same reason `unwired` is: the fix is
+  // "choose which system you run", not "connect something" and not "we don't
+  // support it". It counts inside `unresolved` (the user owes a choice).
+  const unmapped = active.filter((row) => row.status === "unmapped").length;
+  return { rows, summary: { packs: packs.size, bindings: active.length, unresolved, unwired, unmapped } };
 }
 
 export function registerMiscRoutes(ctx) {

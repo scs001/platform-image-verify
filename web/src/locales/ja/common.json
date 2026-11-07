@@ -1182,7 +1182,9 @@
           "connect": "接続する",
           "grant": "権限を付与",
           "reconnect": "再接続",
-          "revoke": "権限を取り消す"
+          "revoke": "権限を取り消す",
+          "chooseSystem": "システムを選ぶ",
+          "changeSystem": "システムを変更"
         },
         "grantedAt": "{{when}} に付与",
         "actionFailed": "操作を完了できませんでした：{{error}}",
@@ -1191,16 +1193,25 @@
           "missing": "未接続",
           "stale": "期限切れ",
           "unwired": "機能ギャップ",
-          "undetermined": "未判定"
+          "undetermined": "未判定",
+          "unmapped": "システム未選択"
         },
         "hint": {
           "unwired": "コネクターカタログがこのパックの宣言した操作をカバーしていないため、アカウント接続では解決できません。",
-          "undetermined": "カタログ情報を取得できないため、状態は未判定です。"
+          "undetermined": "カタログ情報を取得できないため、状態は未判定です。",
+          "unmapped": "このパックはロールとして必要なシステムを宣言しています。実際に使っているシステムを指定してください。カタログの不足でも、まだ接続が必要な状態でもありません。"
         },
         "operations": {
           "read": "読",
           "write": "書"
-        }
+        },
+        "choose": {
+          "placeholder": "接続済みのシステムから選択…",
+          "empty": "接続済みのシステムはいずれもこのパックが必要とする操作を満たしていません。先にコネクタで接続してください。",
+          "unavailable": "接続済みシステムを取得できませんでした。",
+          "currentNotUsable": "選択中（現在利用不可）"
+        },
+        "summaryUnmapped": "{{count}} 件が選択待ち"
       }
     },
     "lines": {

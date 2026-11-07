@@ -22,7 +22,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import * as db from "./db.js";
-import { ownerKey } from "./connector-credentials.js";
+import { ownerKey, liveToken as liveConnectorToken } from "./connector-credentials.js";
 
 /** Resolution states. `deprecated` is ledger-only (a binding the pack dropped). */
 export const BINDING_STATUS = Object.freeze({
@@ -30,6 +30,11 @@ export const BINDING_STATUS = Object.freeze({
   missing: "missing",
   stale: "stale",
   unwired: "unwired",
+  // add-connector-role-mapping: the binding names a ROLE and the identity has
+  // not chosen a system for it yet. Not `unwired` (nothing is missing from the
+  // catalog — the user can close this) and not `missing` (nothing was chosen to
+  // connect to). The three imply three different fixes, so they stay distinct.
+  unmapped: "unmapped",
   undetermined: "undetermined",
   deprecated: "deprecated",
 });
@@ -97,6 +102,17 @@ export function createConnectorClient({ origin, token, fetchImpl = fetch, timeou
   };
 }
 
+/**
+ * The connector client for one identity: the deployment's connector origin plus
+ * the user's own active connection token. Null when either is missing, and null
+ * is meaningful — "we cannot ask", not "there is nothing there".
+ */
+export function tenantClient(email, { fetchImpl = fetch } = {}) {
+  const origin = connectorOrigin();
+  const token = liveConnectorToken(email);
+  return origin && token ? createConnectorClient({ origin, token, fetchImpl }) : null;
+}
+
 /** The operation classes a declaration asks for, in catalog terms. */
 export function declaredOperations(binding) {
   const classes = new Set();
@@ -122,9 +138,21 @@ function sameOperations(left, right) {
   return JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
 }
 
-/** Provider or operation range changed: the granted token no longer describes it. */
+/**
+ * Provider or operation range changed: the granted token no longer describes it.
+ *
+ * `role` participates for the one case the provider string cannot express: a
+ * binding that switches between role form and fixed-provider form while keeping
+ * the same name (`provider: "wms"` with and without `providerRole`). The token
+ * would keep pointing at the same string, but what that string MEANS changed —
+ * a role is the customer's choice, not a catalog id.
+ */
 function sameDeclaration(previous, resolved) {
-  return previous.provider === resolved.provider && sameOperations(previous.operations, resolved.operations);
+  return (
+    previous.provider === resolved.provider &&
+    (previous.role ?? null) === (resolved.role ?? null) &&
+    sameOperations(previous.operations, resolved.operations)
+  );
 }
 
 /** Nothing at all changed — not even the resolved state or the pack version. */
@@ -133,7 +161,8 @@ function sameResolvedRow(previous, resolved, packVersion) {
     previous.packVersion === packVersion &&
     previous.connectionId === resolved.connectionId &&
     previous.status === resolved.status &&
-    previous.optional === resolved.optional
+    previous.optional === resolved.optional &&
+    (previous.role ?? null) === (resolved.role ?? null)
   );
 }
 
@@ -149,18 +178,20 @@ function sameResolvedRow(previous, resolved, packVersion) {
  */
 export async function resolveBinding({ email, packId, binding, client }) {
   const key = ownerKey(email);
-  const provider = String(binding?.provider ?? "").trim();
+  const declaredProvider = String(binding?.provider ?? "").trim();
+  const role = binding?.providerRole === true ? declaredProvider : null;
   const operations = declaredOperations(binding);
   const row = {
     email: key,
     packId,
     bindingKey: String(binding?.key ?? "").trim(),
-    provider,
+    provider: declaredProvider,
     operations,
     connectionId: null,
     connectionName: null,
     connectionVirtual: false,
     optional: !!binding?.optional,
+    role,
     status: BINDING_STATUS.undetermined,
     reason: null,
   };
@@ -172,7 +203,7 @@ export async function resolveBinding({ email, packId, binding, client }) {
   // grant. Keeping that explicit beats guessing here.
   const classes = operations.length > 0 ? operations : ["read", "write"];
 
-  if (!key || !row.bindingKey || !provider) {
+  if (!key || !row.bindingKey || !declaredProvider) {
     return { ...row, status: BINDING_STATUS.undetermined, reason: "invalid_declaration" };
   }
 
@@ -189,10 +220,27 @@ export async function resolveBinding({ email, packId, binding, client }) {
     return { ...row, status: BINDING_STATUS.stale, reason: "binding_token_stale" };
   }
 
+  // Role bindings (add-connector-role-mapping D5): the pack names a role, the
+  // identity names the system. No mapping means the question is unanswered —
+  // report that, and do NOT ask the catalog about the role name (that would
+  // turn "not chosen yet" into "unknown provider", i.e. a product gap).
+  // Once mapped, the mapped provider is the ONLY candidate: falling back to
+  // alternativeProviders would silently switch the system out from under the
+  // user who chose one, and the status face would then disagree with them.
+  let candidates = providerCandidates(binding);
+  if (role) {
+    const mapping = db.getConnectorRoleMapping(key, role);
+    if (!mapping?.provider) {
+      return { ...row, status: BINDING_STATUS.unmapped, reason: `role_not_mapped:${role}` };
+    }
+    row.provider = mapping.provider;
+    candidates = [mapping.provider];
+  }
+
   // Catalog coverage, trying each candidate provider until one is wired.
   let unresolved = null;
   let resolvedProvider = null;
-  for (const candidate of providerCandidates(binding)) {
+  for (const candidate of candidates) {
     let coverage;
     try {
       coverage = await client.coverage(candidate, classes);
@@ -299,6 +347,7 @@ export async function resolvePack({ email, packId, packVersion = null, bindings 
           connectionId: resolved.connectionId,
           status: resolved.status,
           optional: resolved.optional,
+          role: resolved.role ?? null,
         });
     rows.push({ ...resolved, grantedAt: stored?.grantedAt ?? null });
   }
@@ -318,10 +367,111 @@ export async function resolvePack({ email, packId, packVersion = null, bindings 
       connectionId: previous.connectionId,
       status: BINDING_STATUS.deprecated,
       optional: previous.optional,
+      role: previous.role ?? null,
     });
   }
 
   return rows;
+}
+
+/**
+ * The roles this identity's ledger actually needs, with the operation classes
+ * each one must cover (add-connector-role-mapping 4.3).
+ *
+ * Derived from the ledger rather than from the pack manifests: the ledger is
+ * already per-identity and already carries the resolved operation range, so the
+ * candidate list never has to re-read (or trust) a pack.
+ */
+export function declaredRoles(email) {
+  const byRole = new Map();
+  for (const row of listBindings(email)) {
+    const role = row.role ?? null;
+    if (!role || row.status === BINDING_STATUS.deprecated) continue;
+    const entry = byRole.get(role) ?? { role, operations: new Set(), packs: new Set(), optional: true };
+    for (const operation of row.operations ?? []) entry.operations.add(operation);
+    entry.packs.add(row.packId);
+    if (!row.optional) entry.optional = false;
+    byRole.set(role, entry);
+  }
+  return [...byRole.values()]
+    .map((entry) => ({
+      role: entry.role,
+      operations: [...entry.operations].sort(),
+      packs: [...entry.packs],
+      optional: entry.optional,
+    }))
+    .sort((a, b) => a.role.localeCompare(b.role));
+}
+
+/**
+ * Which systems this identity could pick for a role: the connections it already
+ * has, narrowed to those whose catalog surface covers the declared classes.
+ *
+ * Deliberately NOT a catalog browse: an unchosen system the user has no account
+ * for cannot be used, so listing all 1570 providers would turn a configuration
+ * step into a product-selection exercise. A provider that is connected but
+ * under-covers is reported separately (with its gaps) so the card can say why
+ * it is not offered instead of silently dropping it.
+ */
+export async function roleCandidates({ operations = [], client = null }) {
+  const classes = operations.length > 0 ? operations : ["read", "write"];
+  if (!client) return { ok: false, code: "connector_not_configured", candidates: [], rejected: [] };
+  let connections;
+  try {
+    connections = await client.connections();
+  } catch {
+    return { ok: false, code: "connections_unreachable", candidates: [], rejected: [] };
+  }
+  if (!connections.ok) {
+    return {
+      ok: false,
+      code: connections.code === "unauthorized" ? "credential_rejected" : "connections_unreachable",
+      candidates: [],
+      rejected: [],
+    };
+  }
+  const services = [
+    ...new Set(
+      (connections.body?.connections ?? [])
+        .filter((connection) => connection?.configured !== false && typeof connection?.service === "string")
+        .map((connection) => connection.service.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const candidates = [];
+  const rejected = [];
+  for (const service of services) {
+    let coverage;
+    try {
+      coverage = await client.coverage(service, classes);
+    } catch {
+      // Silence is not a gap: this system stays unlisted, and the caller can
+      // still see that we could not ask.
+      return { ok: false, code: "catalog_unreachable", candidates, rejected };
+    }
+    if (coverage.ok) {
+      const gaps = Array.isArray(coverage.body?.gaps) ? coverage.body.gaps : [];
+      if (gaps.length === 0) {
+        const connection = (connections.body?.connections ?? []).find(
+          (row) => row?.service === service && row?.configured !== false,
+        );
+        candidates.push({ provider: service, connectionName: connection?.connectionName ?? null });
+      } else {
+        rejected.push({ provider: service, gaps });
+      }
+      continue;
+    }
+    if (coverage.code === "unauthorized") {
+      return { ok: false, code: "credential_rejected", candidates, rejected };
+    }
+    if (coverage.code === "not_found") {
+      // A connection for a service the catalog no longer knows: not offerable.
+      rejected.push({ provider: service, gaps: classes });
+      continue;
+    }
+    return { ok: false, code: "catalog_unreachable", candidates, rejected };
+  }
+  return { ok: true, candidates, rejected };
 }
 
 /** Ledger rows for one identity, optionally narrowed to one pack. Token-free. */
@@ -463,6 +613,8 @@ export function revokeBindingGrant(email, packId, bindingKey) {
       // resolution decides between missing / unwired / satisfied.
       status: BINDING_STATUS.missing,
       optional: previous.optional,
+      // Full-row upsert: dropping `role` here would un-role a role binding.
+      role: previous.role ?? null,
     });
   }
   return removed;
@@ -500,6 +652,8 @@ export function markSlotInvalid(email, slot) {
       connectionId: row.connectionId,
       status: BINDING_STATUS.stale,
       optional: row.optional,
+      // Full-row upsert: dropping `role` here would un-role a role binding.
+      role: row.role ?? null,
     });
   }
   return true;

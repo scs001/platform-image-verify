@@ -163,3 +163,48 @@ test("the real pack's after-state keeps the human fields untouched", () => {
     }
   }
 });
+
+// ── providerRole (add-connector-role-mapping 1.1) ───────────────────────────
+
+test("a role binding validates clean and keeps provider as the role name", () => {
+  const roleBinding = {
+    key: "wms-snapshot",
+    provider: "wms",
+    providerRole: true,
+    allowOperations: ["read"],
+    optional: true,
+  };
+  assert.deepEqual(errorsFor([roleBinding]), []);
+});
+
+test("providerRole must be a boolean when present", () => {
+  const errors = errorsFor([
+    { key: "wms-snapshot", provider: "wms", providerRole: "true", allowOperations: ["read"] },
+  ]);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].entry, "connector_bindings[0].providerRole");
+  assert.match(errors[0].error, /must be a boolean/);
+});
+
+test("a non-boolean role flag is reported per binding, not once per pack", () => {
+  const errors = errorsFor([
+    { key: "a", provider: "wms", providerRole: "yes", allowOperations: ["read"] },
+    { key: "b", provider: "carrier", providerRole: 1, allowOperations: ["read"] },
+  ]);
+  assert.deepEqual(
+    errors.map((e) => e.entry),
+    ["connector_bindings[0].providerRole", "connector_bindings[1].providerRole"],
+  );
+});
+
+test("a role binding still needs a scope (providerRole is not a scope)", () => {
+  const errors = errorsFor([{ key: "wms-snapshot", provider: "wms", providerRole: true }]);
+  assert.equal(errors[0].code, "connector_binding_scope_missing");
+});
+
+test("providerRole: false is a normal service-id binding, not a role", () => {
+  const errors = errorsFor([
+    { key: "kingdee-cloud", provider: "kingdee", providerRole: false, allowOperations: ["read"] },
+  ]);
+  assert.deepEqual(errors, []);
+});

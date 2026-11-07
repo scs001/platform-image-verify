@@ -1182,7 +1182,9 @@
           "connect": "Conectar",
           "grant": "Autorizar",
           "reconnect": "Reconectar",
-          "revoke": "Revocar autorización"
+          "revoke": "Revocar autorización",
+          "chooseSystem": "Elegir sistema",
+          "changeSystem": "Cambiar sistema"
         },
         "grantedAt": "Autorizado {{when}}",
         "actionFailed": "La acción no se completó: {{error}}",
@@ -1191,16 +1193,25 @@
           "missing": "Sin conectar",
           "stale": "Caducado",
           "unwired": "Brecha de capacidad",
-          "undetermined": "Indeterminado"
+          "undetermined": "Indeterminado",
+          "unmapped": "Elige un sistema"
         },
         "hint": {
           "unwired": "El catálogo de conectores no cubre una operación que declara este paquete: ninguna cuenta puede cerrarla.",
-          "undetermined": "Los datos del catálogo no están disponibles; el estado queda indeterminado."
+          "undetermined": "Los datos del catálogo no están disponibles; el estado queda indeterminado.",
+          "unmapped": "Este paquete necesita un sistema que nombra por rol. Indica qué sistema usas: no falta nada en el catálogo y aún no hay que conectar nada."
         },
         "operations": {
           "read": "lectura",
           "write": "escritura"
-        }
+        },
+        "choose": {
+          "placeholder": "Elige uno de tus sistemas conectados…",
+          "empty": "Ninguno de tus sistemas conectados cubre lo que necesita este paquete: conecta uno en la consola del conector.",
+          "unavailable": "No se pudieron leer tus sistemas conectados en este momento.",
+          "currentNotUsable": "elegido actualmente, no disponible"
+        },
+        "summaryUnmapped": "{{count}} esperando tu elección"
       }
     },
     "lines": {

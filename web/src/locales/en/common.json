@@ -1195,7 +1195,9 @@
           "connect": "Connect",
           "grant": "Grant access",
           "reconnect": "Reconnect",
-          "revoke": "Revoke access"
+          "revoke": "Revoke access",
+          "chooseSystem": "Choose system",
+          "changeSystem": "Change system"
         },
         "grantedAt": "Granted {{when}}",
         "actionFailed": "The action did not complete: {{error}}",
@@ -1204,16 +1206,25 @@
           "missing": "Not connected",
           "stale": "Expired",
           "unwired": "Capability gap",
-          "undetermined": "Undetermined"
+          "undetermined": "Undetermined",
+          "unmapped": "Choose a system"
         },
         "hint": {
           "unwired": "The connector catalog does not cover an operation this pack declares — no account can close it.",
-          "undetermined": "Catalog facts are unavailable right now, so the state is undetermined."
+          "undetermined": "Catalog facts are unavailable right now, so the state is undetermined.",
+          "unmapped": "This pack needs a system it names by role. Pick which system you run — nothing is missing from the catalog and nothing needs connecting yet."
         },
         "operations": {
           "read": "read",
           "write": "write"
-        }
+        },
+        "choose": {
+          "placeholder": "Select one of your connected systems…",
+          "empty": "None of your connected systems covers what this pack needs — connect one in the connector console first.",
+          "unavailable": "Could not read your connected systems right now.",
+          "currentNotUsable": "currently chosen, unavailable"
+        },
+        "summaryUnmapped": "{{count}} waiting for your choice"
       }
     },
     "lines": {

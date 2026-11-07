@@ -15,6 +15,10 @@
 //                 product capability gap, never degraded to `missing` here,
 //                 because telling the user to connect something that cannot
 //                 work is worse than saying nothing
+//   unmapped      a ROLE binding whose system the user has not named yet — not
+//                 a gap (the catalog may support many systems) and not a missing
+//                 connection (nothing was chosen to connect to). The repair is a
+//                 choice, so this row offers a picker instead of a link.
 //   undetermined  the catalog could not be asked — not a gap, not a todo
 // `deprecated` rows are absent from this view: they record a binding key the
 // pack no longer declares, so they are history, not a requirement.
@@ -41,8 +45,13 @@ export interface BindingRow {
   key: string;
   provider: string;
   operations: string[];
-  status: "satisfied" | "missing" | "stale" | "unwired" | "undetermined" | "deprecated";
+  status: "satisfied" | "missing" | "stale" | "unwired" | "unmapped" | "undetermined" | "deprecated";
   optional: boolean;
+  // add-connector-role-mapping: a role binding names a need ("a WMS") and the
+  // user names the system. `role` is the mapping key, `provider` the chosen
+  // system — equal to `role` while nothing is chosen.
+  role?: string | null;
+  providerRole?: boolean;
   // Asked of the credential, not inferred: a satisfied binding without a live
   // token still has to be granted.
   granted?: boolean;
@@ -54,6 +63,25 @@ export interface BindingSummary {
   bindings: number;
   unresolved: number;
   unwired: number;
+  // Counted apart from `unwired` for the same reason `unwired` is counted apart
+  // from `unresolved`: the fix is a choice, not a connection and not a gap.
+  unmapped?: number;
+}
+
+export interface RoleCandidate {
+  provider: string;
+  connectionName: string | null;
+}
+
+export interface RoleMapping {
+  role: string;
+  provider: string | null;
+  updatedAt: string | null;
+  candidates: RoleCandidate[];
+  rejected: { provider: string; gaps: string[] }[];
+  // `ok: false` means we could not ask — an empty candidate list would then
+  // read as "your connections cover none of these", which is a different fact.
+  candidatesState: { ok: boolean; code?: string };
 }
 
 const STATE_STYLE: Record<string, string> = {
@@ -61,14 +89,18 @@ const STATE_STYLE: Record<string, string> = {
   missing: "bg-warning/15 text-warning",
   stale: "bg-destructive/15 text-destructive",
   unwired: "bg-muted text-muted-foreground",
+  // Actionable by the user and not a defect: neither the warning colour of a
+  // missing connection nor the muted grey of a catalog gap.
+  unmapped: "bg-primary/15 text-primary",
   undetermined: "bg-muted text-muted-foreground",
 };
 
-async function postJson(path: string, body: unknown) {
+async function sendJson(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) {
   const response = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    method,
+    ...(body === undefined
+      ? {}
+      : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
@@ -78,11 +110,118 @@ async function postJson(path: string, body: unknown) {
   return payload;
 }
 
+const postJson = (path: string, body: unknown) => sendJson("POST", path, body);
+
+/** The role → system choices this identity has made, keyed by role. */
+async function fetchRoleMappings(): Promise<Record<string, RoleMapping> | null> {
+  try {
+    const response = await fetch("/api/connector/role-mappings");
+    if (!response.ok) return null;
+    const body = await response.json();
+    const map: Record<string, RoleMapping> = {};
+    for (const entry of body.mappings ?? []) map[entry.role] = entry;
+    return map;
+  } catch {
+    /* unknown stays unknown */
+    return null;
+  }
+}
+
+// The "choose your system" control. A role binding cannot be repaired by
+// connecting or granting — the missing fact is which system the customer runs —
+// so its action is a picker, not a button that opens the console.
+//
+// Candidates are the user's own connections that cover what the pack declares
+// (the API never offers a catalog browse: a system without an account cannot be
+// reached, so listing 1570 of them would disguise a config step as a choice).
+function RoleChooser({
+  row,
+  mapping,
+  busy,
+  onChoose,
+}: {
+  row: BindingRow;
+  mapping: RoleMapping | null;
+  busy: boolean;
+  onChoose: (provider: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(row.provider && row.provider !== row.role ? row.provider : "");
+  useEffect(() => {
+    setValue(row.provider && row.provider !== row.role ? row.provider : "");
+  }, [row.provider, row.role]);
+
+  if (!mapping) {
+    // The mapping read failed: say so instead of rendering an empty picker.
+    return (
+      <span data-testid="connector-binding-choose-unavailable" className="text-[11px] text-muted-foreground">
+        {t("settings.connections.bindings.choose.unavailable")}
+      </span>
+    );
+  }
+  if (!mapping.candidatesState?.ok) {
+    return (
+      <span data-testid="connector-binding-choose-unavailable" className="text-[11px] text-muted-foreground">
+        {t("settings.connections.bindings.choose.unavailable")}
+      </span>
+    );
+  }
+  if (mapping.candidates.length === 0) {
+    return (
+      <span data-testid="connector-binding-choose-empty" className="text-[11px] text-muted-foreground">
+        {t("settings.connections.bindings.choose.empty")}
+      </span>
+    );
+  }
+  // A chosen system that is no longer offerable (catalog dropped it, or it
+  // cannot cover the declared operations) stays visible as the current value —
+  // silently hiding it would look like the choice was never made.
+  const current = row.provider && row.provider !== row.role ? row.provider : null;
+  const currentOffered = current !== null && mapping.candidates.some((candidate) => candidate.provider === current);
+  return (
+    <span className="flex items-center gap-1">
+      <select
+        data-testid="connector-binding-choose"
+        data-role={row.role ?? ""}
+        aria-label={t("settings.connections.bindings.action.chooseSystem")}
+        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+        value={value}
+        disabled={busy}
+        onChange={(event) => setValue(event.target.value)}
+      >
+        {!value && <option value="">{t("settings.connections.bindings.choose.placeholder")}</option>}
+        {current && !currentOffered && (
+          <option value={current}>
+            {current} · {t("settings.connections.bindings.choose.currentNotUsable")}
+          </option>
+        )}
+        {mapping.candidates.map((candidate) => (
+          <option key={candidate.provider} value={candidate.provider}>
+            {candidate.connectionName ? `${candidate.provider} · ${candidate.connectionName}` : candidate.provider}
+          </option>
+        ))}
+      </select>
+      <Button
+        size="sm"
+        disabled={busy || !value}
+        data-testid="connector-binding-action"
+        data-action="choose"
+        onClick={() => onChoose(value)}
+      >
+        {current
+          ? t("settings.connections.bindings.action.changeSystem")
+          : t("settings.connections.bindings.action.chooseSystem")}
+      </Button>
+    </span>
+  );
+}
+
 export function ConnectorBindingsView({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
   const { connectorConnection } = useExtensionsStore();
   const [rows, setRows] = useState<BindingRow[] | null>(null);
   const [summary, setSummary] = useState<BindingSummary | null>(null);
+  const [mappings, setMappings] = useState<Record<string, RoleMapping> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,7 +232,17 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       const body = await r.json();
       const connector = (body.connections ?? []).find((c: { id: string }) => c.id === "connector");
       if (!connector || !Array.isArray(connector.bindings)) return null;
-      return { rows: connector.bindings as BindingRow[], summary: (connector.bindingSummary ?? null) as BindingSummary | null };
+      const nextRows = connector.bindings as BindingRow[];
+      // Only a set that actually declares a role needs the picker data; asking
+      // every user for it would be one extra round trip that can only be empty.
+      const nextMappings = nextRows.some((row) => row.role && row.status !== "deprecated")
+        ? await fetchRoleMappings()
+        : {};
+      return {
+        rows: nextRows,
+        summary: (connector.bindingSummary ?? null) as BindingSummary | null,
+        mappings: nextMappings,
+      };
     } catch {
       /* unknown stays unknown — never render "nothing needed" on a failed read */
       return null;
@@ -107,6 +256,7 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       if (!alive || !next) return;
       setRows(next.rows);
       setSummary(next.summary);
+      setMappings(next.mappings);
     })();
     return () => {
       alive = false;
@@ -128,6 +278,7 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       if (next) {
         setRows(next.rows);
         setSummary(next.summary);
+        setMappings(next.mappings);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -135,6 +286,14 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       setBusy(null);
     }
   };
+
+  // Choosing a system is a fact about the customer, not about one pack: the
+  // server recomputes every pack that declares the role, and the reload below
+  // shows all of them already moved.
+  const chooseSystem = (row: BindingRow, provider: string) =>
+    act(`${row.packId}:${row.key}`, () =>
+      sendJson("PUT", `/api/connector/role-mappings/${encodeURIComponent(row.role ?? "")}`, { provider }),
+    );
 
   // Unknown, or an installed set that declares no bindings: nothing to say.
   // (An empty state here would read as an achievement; the account area below
@@ -182,6 +341,22 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
         </Button>
       );
     }
+    // A role binding's repair is a choice, not a connection: the user has to say
+    // which system they run. That holds for `unmapped` (nothing chosen yet) and
+    // for a chosen system that no longer works — `unwired` (catalog lost it or
+    // under-covers the declared operations) and `missing`/`stale` (the connection
+    // for it died). Without this the role card would send the user to the
+    // console for a provider they never picked.
+    if (row.role) {
+      return (
+        <RoleChooser
+          row={row}
+          mapping={mappings?.[row.role] ?? null}
+          busy={busy === id}
+          onChoose={(provider) => chooseSystem(row, provider)}
+        />
+      );
+    }
     // A dead or absent connection is repaired inside the connector console.
     // There is no documented per-provider deep link, so the link opens the
     // console's own connections shell rather than inventing a query parameter.
@@ -221,6 +396,17 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
             })}
           </span>
         )}
+        {/* Not folded into the summary string: "waiting for your choice" is a
+            different sentence from "to resolve" and from "capability gaps", and
+            a locale should be able to drop it without editing the others. */}
+        {(summary?.unmapped ?? 0) > 0 && (
+          <span
+            className="rounded-sm bg-primary/15 px-1.5 py-0.5 text-xs text-primary"
+            data-testid="connector-bindings-unmapped"
+          >
+            {t("settings.connections.bindings.summaryUnmapped", { count: summary?.unmapped })}
+          </span>
+        )}
       </div>
 
       {error && (
@@ -236,18 +422,24 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
             <ul className="flex flex-col gap-1">
               {packRows.map((row) => {
                 const state = row.status;
+                // A role row leads with the need ("wms") and follows with the
+                // system the user named for it; while nothing is chosen the two
+                // are the same string, so the system half is omitted.
+                const named = row.provider && row.provider !== row.role ? row.provider : null;
                 return (
                   <li
                     key={`${packId}:${row.key}`}
                     data-testid="connector-binding-row"
                     data-binding-key={row.key}
                     data-provider={row.provider}
+                    data-role={row.role ?? ""}
                     data-state={state}
                     data-optional={row.optional ? "1" : "0"}
                     data-granted={row.granted ? "1" : "0"}
                     className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 px-3 py-1.5"
                   >
-                    <span className="text-sm">{row.provider || row.key}</span>
+                    <span className="text-sm">{row.role ?? (row.provider || row.key)}</span>
+                    {row.role && named && <span className="text-xs text-muted-foreground">→ {named}</span>}
                     {row.operations.length > 0 && (
                       <span className="flex gap-1">
                         {row.operations.map((op) => (
@@ -304,6 +496,14 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       {visible.some((row) => row.status === "undetermined") && (
         <p className="px-1 text-xs text-muted-foreground" data-testid="connector-bindings-undetermined-hint">
           {t("settings.connections.bindings.hint.undetermined")}
+        </p>
+      )}
+      {/* Its own sentence for the same reason: nothing is missing from the
+          catalog and nothing needs connecting — the user has to say which
+          system they run before this binding can be authorized. */}
+      {visible.some((row) => row.status === "unmapped") && (
+        <p className="px-1 text-xs text-muted-foreground" data-testid="connector-bindings-unmapped-hint">
+          {t("settings.connections.bindings.hint.unmapped")}
         </p>
       )}
     </div>

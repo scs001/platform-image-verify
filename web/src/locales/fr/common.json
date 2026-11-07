@@ -1182,7 +1182,9 @@
           "connect": "Connecter",
           "grant": "Autoriser",
           "reconnect": "Reconnecter",
-          "revoke": "Révoquer l’autorisation"
+          "revoke": "Révoquer l’autorisation",
+          "chooseSystem": "Choisir le système",
+          "changeSystem": "Changer de système"
         },
         "grantedAt": "Autorisé {{when}}",
         "actionFailed": "L’action n’a pas abouti : {{error}}",
@@ -1191,16 +1193,25 @@
           "missing": "Non connecté",
           "stale": "Expiré",
           "unwired": "Lacune de capacité",
-          "undetermined": "Indéterminé"
+          "undetermined": "Indéterminé",
+          "unmapped": "Choisir un système"
         },
         "hint": {
           "unwired": "Le catalogue de connecteurs ne couvre pas une opération déclarée par ce pack — aucun compte ne peut la combler.",
-          "undetermined": "Les faits du catalogue sont indisponibles, l'état reste indéterminé."
+          "undetermined": "Les faits du catalogue sont indisponibles, l'état reste indéterminé.",
+          "unmapped": "Ce pack a besoin d'un système qu'il désigne par rôle. Indiquez celui que vous utilisez — rien ne manque dans le catalogue et rien n'est encore à connecter."
         },
         "operations": {
           "read": "lecture",
           "write": "écriture"
-        }
+        },
+        "choose": {
+          "placeholder": "Choisissez l'un de vos systèmes connectés…",
+          "empty": "Aucun de vos systèmes connectés ne couvre ce dont ce pack a besoin — connectez-en un dans la console du connecteur.",
+          "unavailable": "Impossible de lire vos systèmes connectés pour le moment.",
+          "currentNotUsable": "actuellement choisi, indisponible"
+        },
+        "summaryUnmapped": "{{count}} en attente de votre choix"
       }
     },
     "lines": {

@@ -62,6 +62,14 @@ db.upsertConnectorBindingLedgerRow({
   provider: "legacy", operations: ["read"], connectionId: null,
   status: "deprecated", optional: false,
 });
+// add-connector-role-mapping 4.2: a role the user has not chosen a system for.
+// `provider` holds the ROLE name and `role` says so; the card needs both to
+// offer 「选择你的系统」 rather than 「去连接」.
+db.upsertConnectorBindingLedgerRow({
+  email: EMAIL, packId: "pack-b", packVersion: "1", bindingKey: "warehouse",
+  provider: "wms", role: "wms", operations: ["read"], connectionId: null,
+  status: "unmapped", optional: false,
+});
 
 function buildApp(email) {
   const app = express();
@@ -103,13 +111,17 @@ test("connector entry carries the binding projection and a summary (6.1)", async
   const connector = body.connections.find((c) => c.id === "connector");
   assert.ok(connector, "the connector entry must exist");
   assert.ok(Array.isArray(connector.bindings), "bindings projection missing");
-  assert.equal(connector.bindings.length, 4);
+  assert.equal(connector.bindings.length, 5);
 
   const kingdee = connector.bindings.find((b) => b.key === "kingdee");
   assert.deepEqual(kingdee, {
     packId: "pack-a",
     key: "kingdee",
     provider: "kingdee",
+    // A fixed-provider binding carries the role face as "none": the card keys
+    // its copy off these two fields for every row, not just role ones.
+    role: null,
+    providerRole: false,
     operations: ["read", "write"],
     status: "satisfied",
     optional: false,
@@ -124,11 +136,22 @@ test("connector entry carries the binding projection and a summary (6.1)", async
   const carrier = connector.bindings.find((b) => b.key === "carrier");
   assert.equal(carrier.status, "unwired", "unwired must survive as itself, never degrade to missing");
   assert.equal(carrier.optional, true);
+  const warehouse = connector.bindings.find((b) => b.key === "warehouse");
+  assert.equal(warehouse.status, "unmapped");
+  assert.equal(warehouse.role, "wms", "the role name is what the card maps a system against");
+  assert.equal(warehouse.providerRole, true);
+  assert.equal(warehouse.granted, false);
 
   // Counts answer "what does my installed set still need": the deprecated row
-  // is history, not work, so it must not inflate the numbers. `unwired` is
-  // counted apart from `unresolved` — a capability gap is not a user todo.
-  assert.deepEqual(connector.bindingSummary, { packs: 1, bindings: 3, unresolved: 1, unwired: 1 });
+  // is history, not work, so it must not inflate the numbers. `unwired` and
+  // `unmapped` are each counted apart from `unresolved` — a capability gap and
+  // an unmade choice are not the same todo, and neither is "we don't support it".
+  assert.deepEqual(connector.bindingSummary, { packs: 2, bindings: 4, unresolved: 2, unwired: 1, unmapped: 1 });
+  // Two negatives: the counts track their own rows (an unmade choice must not
+  // be folded into the capability-gap bucket, nor the other way round).
+  assert.equal(connector.bindingSummary.unmapped, connector.bindings.filter((b) => b.status === "unmapped").length);
+  assert.equal(connector.bindingSummary.unwired, connector.bindings.filter((b) => b.status === "unwired").length);
+  assert.equal(connector.bindings.filter((b) => b.status === "unmapped" && b.status === "unwired").length, 0);
 });
 
 test("the projection carries no credential material (6.1 negative case)", async () => {
@@ -144,7 +167,7 @@ test("the projection carries no credential material (6.1 negative case)", async 
     // The whitelist, exactly. `granted` is a boolean and `grantedAt` a display
     // stamp — neither is credential material, both are needed by the action.
     assert.deepEqual(Object.keys(row).sort(), [
-      "granted", "grantedAt", "key", "operations", "optional", "packId", "provider", "status",
+      "granted", "grantedAt", "key", "operations", "optional", "packId", "provider", "providerRole", "role", "status",
     ]);
     assert.equal(typeof row.granted, "boolean");
     assert.ok(row.grantedAt === null || typeof row.grantedAt === "string", "grantedAt is display-only");
@@ -159,7 +182,7 @@ test("an identity with no ledger rows gets an empty projection, not a missing fi
   });
   const connector = body.connections.find((c) => c.id === "connector");
   assert.deepEqual(connector.bindings, []);
-  assert.deepEqual(connector.bindingSummary, { packs: 0, bindings: 0, unresolved: 0, unwired: 0 });
+  assert.deepEqual(connector.bindingSummary, { packs: 0, bindings: 0, unresolved: 0, unwired: 0, unmapped: 0 });
 });
 
 test.after(async () => {

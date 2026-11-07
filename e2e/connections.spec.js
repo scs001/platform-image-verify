@@ -262,4 +262,174 @@ test.describe("connector binding view", () => {
     await expect(page.getByTestId("connector-connect-panel")).toBeVisible();
     await expect(page.getByTestId("connector-paste-toggle")).toBeVisible();
   });
+
+  // ── add-connector-role-mapping 5.1/5.2 ────────────────────────────────────
+  //
+  // A role binding names a need ("a WMS"); the customer names the system. The
+  // three states that must not be confused live here: `unmapped` (choose one),
+  // `unwired` (the chosen one cannot serve it), `missing` (it is gone). The
+  // picker's data and the transition are stubbed at the API seam — the server
+  // half is covered by scripts/test-connector-role-mapping.mjs; what is under
+  // test here is that the card asks for a choice instead of sending the user to
+  // connect a system they never picked.
+  test("a role binding offers a system picker; choosing turns the row connected", async ({ page }) => {
+    seedConnectorBaseline("https://connector.e2e.test");
+    let chosen = null;
+    const roleRow = (status) => ({
+      packId: "pack-role",
+      key: "warehouse",
+      provider: status === "unmapped" ? "wms" : "wangdian",
+      role: "wms",
+      providerRole: true,
+      operations: ["read"],
+      status,
+      optional: false,
+      granted: false,
+      grantedAt: null,
+    });
+
+    // Everything except the binding projection stays real (baseline, accounts):
+    // only the ledger view is replaced, so the row states are exactly ours.
+    await page.route("**/api/connections", async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const connector = (body.connections ?? []).find((c) => c.id === "connector");
+      if (connector) {
+        const status = chosen ? "satisfied" : "unmapped";
+        connector.bindings = [roleRow(status)];
+        connector.bindingSummary = {
+          packs: 1,
+          bindings: 1,
+          unresolved: chosen ? 0 : 1,
+          unwired: 0,
+          unmapped: chosen ? 0 : 1,
+        };
+      }
+      await route.fulfill({ response, json: body });
+    });
+
+    await page.route("**/api/connector/role-mappings", async (route) => {
+      await route.fulfill({
+        json: {
+          mappings: [
+            {
+              role: "wms",
+              operations: ["read"],
+              packs: ["pack-role"],
+              optional: false,
+              provider: chosen,
+              updatedAt: chosen ? "2026-11-08T00:00:00.000Z" : null,
+              candidates: [
+                { provider: "wangdian", connectionName: "仓库A" },
+                { provider: "kuaidi100", connectionName: "快递" },
+              ],
+              rejected: [{ provider: "acme", gaps: ["read"] }],
+              candidatesState: { ok: true },
+            },
+          ],
+        },
+      });
+    });
+
+    let put = null;
+    await page.route("**/api/connector/role-mappings/*", async (route) => {
+      put = { method: route.request().method(), url: route.request().url(), body: route.request().postDataJSON() };
+      chosen = put.body.provider;
+      await route.fulfill({ json: { ok: true, mapping: { role: "wms", provider: chosen } } });
+    });
+
+    await pinLocaleEn(page);
+    await page.goto("/settings/connections");
+    const row = page.locator("[data-testid='connector-binding-row'][data-binding-key='warehouse']");
+    await expect(row).toHaveAttribute("data-state", "unmapped");
+    await expect(row).toHaveAttribute("data-role", "wms");
+
+    // 5.2: the copy and the action are the choice ones — not "capability gap",
+    // not "not connected", and no console link for a system nobody picked.
+    await expect(row.getByTestId("connector-binding-state")).toHaveText("Choose a system");
+    await expect(row.getByTestId("connector-binding-action")).toHaveAttribute("data-action", "choose");
+    await expect(row.locator("[data-testid='connector-binding-action'][data-action='connect']")).toHaveCount(0);
+    await expect(page.getByTestId("connector-bindings-unmapped-hint")).toBeVisible();
+    await expect(page.getByTestId("connector-bindings-unmapped")).toHaveText("1 waiting for your choice");
+    await expect(page.getByTestId("connector-bindings-unwired-hint")).toHaveCount(0);
+
+    // The picker offers only the systems the API said are usable.
+    const select = row.getByTestId("connector-binding-choose");
+    await expect(select.locator("option")).toHaveCount(3); // placeholder + 2 candidates
+    await select.selectOption("wangdian");
+    await row.getByTestId("connector-binding-action").click();
+
+    await expect.poll(() => put?.body?.provider).toBe("wangdian");
+    expect(put.method).toBe("PUT");
+    expect(put.url).toContain("/api/connector/role-mappings/wms");
+
+    // Choosing is the whole repair: the row re-reads as connected, and the next
+    // missing step is the grant (the system is authorized, the pack is not).
+    await expect(row).toHaveAttribute("data-state", "satisfied");
+    await expect(row.getByTestId("connector-binding-state")).toHaveText("Connected");
+    await expect(row.getByTestId("connector-binding-action")).toHaveAttribute("data-action", "grant");
+    await expect(page.getByTestId("connector-bindings-unmapped")).toHaveCount(0);
+  });
+
+  test("a role binding whose chosen system stopped working offers 'Change system', not 'connect'", async ({ page }) => {
+    seedConnectorBaseline("https://connector.e2e.test");
+    await page.route("**/api/connections", async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const connector = (body.connections ?? []).find((c) => c.id === "connector");
+      if (connector) {
+        connector.bindings = [
+          {
+            packId: "pack-role",
+            key: "warehouse",
+            provider: "wangdian",
+            role: "wms",
+            providerRole: true,
+            operations: ["read", "write"],
+            status: "unwired",
+            optional: false,
+            granted: false,
+            grantedAt: null,
+          },
+        ];
+        connector.bindingSummary = { packs: 1, bindings: 1, unresolved: 1, unwired: 1, unmapped: 0 };
+      }
+      await route.fulfill({ response, json: body });
+    });
+    await page.route("**/api/connector/role-mappings", async (route) => {
+      await route.fulfill({
+        json: {
+          mappings: [
+            {
+              role: "wms",
+              operations: ["read", "write"],
+              packs: ["pack-role"],
+              optional: false,
+              provider: "wangdian",
+              updatedAt: "2026-11-08T00:00:00.000Z",
+              // Connected, but read-only: it cannot serve the declared write.
+              candidates: [{ provider: "kuaidi100", connectionName: "快递" }],
+              rejected: [{ provider: "wangdian", gaps: ["write"] }],
+              candidatesState: { ok: true },
+            },
+          ],
+        },
+      });
+    });
+
+    await pinLocaleEn(page);
+    await page.goto("/settings/connections");
+    const row = page.locator("[data-testid='connector-binding-row'][data-binding-key='warehouse']");
+
+    await expect(row).toHaveAttribute("data-state", "unwired");
+    await expect(row.getByTestId("connector-binding-state")).toHaveText("Capability gap");
+    // Unknown provider is a real state the user can fix by choosing again — the
+    // row keeps offering the choice, and the current (unusable) one stays visible
+    // so the card does not look like nothing was ever chosen.
+    const select = row.getByTestId("connector-binding-choose");
+    await expect(select.locator("option")).toHaveCount(2); // current-but-unusable + 1 candidate
+    await expect(row.getByTestId("connector-binding-action")).toHaveAttribute("data-action", "choose");
+    await expect(row.getByTestId("connector-binding-action")).toHaveText("Change system");
+    await expect(page.getByTestId("connector-bindings-unwired-hint")).toBeVisible();
+  });
 });

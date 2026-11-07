@@ -2573,6 +2573,21 @@ export function deleteConnectorRoleMapping(email, role) {
   return stmt("DELETE FROM connector_role_mappings WHERE email = ? AND role = ?").run(key, name).changes > 0;
 }
 
+/**
+ * Every ledger row of one pack, across all identities (harden: uninstall).
+ *
+ * The ledger is keyed by (email, pack_id, binding_key) and grants are per
+ * identity, while an installed pack is per deployment — so "this pack is gone"
+ * has to reach rows the uninstaller does not know the owners of. Returns the
+ * distinct emails that still hold rows for the pack.
+ */
+export function listConnectorBindingLedgerEmails(packId) {
+  if (!dbReady || !packId) return [];
+  return stmt("SELECT DISTINCT email FROM connector_binding_ledger WHERE pack_id = ? ORDER BY email")
+    .all(packId)
+    .map((row) => row.email);
+}
+
 export function deleteConnectorBindingLedgerRow(email, packId, bindingKey) {
   if (!dbReady) return false;
   const key = normalizeIdentityEmail(email);

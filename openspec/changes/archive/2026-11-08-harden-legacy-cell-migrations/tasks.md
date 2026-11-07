@@ -17,8 +17,8 @@
 - [x] 3.1 `specs/schema-migrations/spec.md` ADDED「迁移不得因缺失的旧表停掉整个数据库」+ 两个场景
 - [x] 3.2 `openspec validate harden-legacy-cell-migrations --strict` → valid
 - [x] 3.3 `npm run test:unit` 全量 3877 / pass 3870 / fail 2 / skip 5；两条红为 HEAD 既有（摘掉本改动 stash 后同样红）：`scripts/test-pack-cell.mjs` 断言文案（要求 `not a registry server`，代码已改说 `not a market server`）、`scripts/test-supply-store-migrate.mjs` dual-read 漂移；本改动净增 2 条绿（两条都被 `test:unit` 的 `scripts/test-*.mjs` glob 收进）
-- [x] 3.4 落点校正：paas 的出片线是 `release/cell-session-persona`（快照脚本 `--ref HEAD`，主工作区就 checkout 在它上面），不是 `main`/`gitee/main`。本修复已 cherry-pick 到该线之上（`950416d36` + `9705e6bda`，frozen 在 `origin/fix/legacy-migration-release`，含 v115），升 `test-legacy-table-migration` 2/2 + `validate --strict` valid。**未直接并入 `release/cell-session-persona`**：那条线正被另一个会话 checkout 着改，并进去会让对方必须拉一次，留给对方或下一个出片点合并
-- [ ] 3.5 `openspec archive harden-legacy-cell-migrations`
+- [x] 3.4 落点校正：paas 的出片线是 `release/cell-session-persona`（快照脚本 `--ref HEAD`，主工作区就 checkout 在它上面），不是 `main`/`gitee/main`。本修复 cherry-pick 到该线之上（含 v115），`test-legacy-table-migration` 2/2 + `validate --strict` valid，已 fast-forward 并入 `gitee` 与 `origin` 的 `release/cell-session-persona`（`b2e390d10`）。谁下一个出片就带上了；另一会话的主工作区 checkout 落后 3 个提交、`db.js` 有未提交改动，拉取前需 stash
+- [x] 3.5 `openspec archive harden-legacy-cell-migrations`
 
 ## 4. 遗留（非本次范围）
 

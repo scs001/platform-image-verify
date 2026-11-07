@@ -34,7 +34,9 @@
 
 ## 5. 上线
 
-- [ ] 5.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 5.1 出片滚版 → 已在产（快照取自远端线 61e406783 → GHA `sha-0b02f37`，digest `sha256:7f35faf1`，
+      relay 60s 到位；fd-infra-deploy `43e2251` 双 bump → ArgoCD → 两 rollout 完成；
+      镜像内 `test-fleet-orchestration` = 18/18 绿，`ignitionTurnKey`/`firedIgnitionKeys` 均在）
 - [ ] 5.2 观察项：滚版后查一次重试回合，确认下游任务数不翻倍、溯源键可读
 
 ## 6. 挂账（已知边界，不在本变更）

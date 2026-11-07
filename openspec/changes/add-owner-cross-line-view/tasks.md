@@ -18,11 +18,11 @@
 
 ## 3. 平台接线
 
-- [ ] 3.1 platform env 补 `WANXING_FACADE_URL`（fd-infra-deploy，ClusterIP 字面量+justification 注记照 wanxing-contract-hardening 4.2）——验证：GitOps 提交+滚版后 in-pod env 实证
-- [ ] 3.2 出片滚版+线上实证：主人会话打开综合看板跨线花费区——六分组真实渲染（至少 fleet/market/balance 三账有真数；lex/wire 按当前连接态如实；wanxing 走服务凭据真读 facade）——验证：端点响应留档+截图/走查记录
+- [x] 3.1 platform env 补 `WANXING_FACADE_URL`（fd-infra-deploy，ClusterIP 字面量+justification 注记照 wanxing-contract-hardening 4.2）——验证：GitOps 提交+滚版后 in-pod env 实证（2026-11-07：GitOps 1956c4c 推送+滚版绿；in-pod WANXING_FACADE_URL=http://10.43.33.112:3080+REGISTRY_TOKEN 在岗实证）
+- [x] 3.2 出片滚版+线上实证：主人会话打开综合看板跨线花费区——六分组真实渲染（至少 fleet/market/balance 三账有真数；lex/wire 按当前连接态如实；wanxing 走服务凭据真读 facade）——验证：端点响应留档+截图/走查记录（2026-11-07 全链：出片 sha-98ba269（源 f8f11bb8f；main perf c1cdeb79a 与 release 3e27118d4 同改动 cherry-pick 树等价→merge 4ee01ade9 树 diff=0→镜像内容=生产 d1ed1f27 ∪ C1；digest 477fad0d skopeo 实证）→ GitOps 03075ae platform+facet 双 bump → ArgoCD Synced Healthy → 线上实证：聚合端点 200 六分组齐（fleet/market/balance 真数+lex/wire unconnected 如实+wanxing available:true）；**萬星真聚合对账**=aloadtree@gmail.com 聚合 31 turns/$2.9 与 facade byCaller 两行（21+$1.9 + 10+$1.0）逐数吻合；web bundle FleetsPage chunk 含 cross-line-spend 在产实证）
 
 ## 4. 章程联动收尾
 
-- [ ] 4.1 章程 4.1 勾选（本单 1.x/2.x/3.x 全勾+3.2 实证后）；4.2 章程勾选注记（Capabilities=仅 Modified 两个既有 capability，无新 capability——本单 proposal 已按红线落）——验证：charter tasks 对应行勾选并引用本单
-- [ ] 4.2 章程 4.4 实证补证（不改代码）：lex/wire 各一条端到端记录（连接→注入→401→翻面→恢复），与 A0 2.5 SSO 补证共用证据不重复劳动——验证：两条记录落档并引用 charter 4.4
-- [ ] 4.3 `openspec validate add-owner-cross-line-view --strict` 通过 + 提交自查（点名文件、无并行会话卷入）——验证：exit=0；提交清单核对
+- [x] 4.1 章程 4.1 勾选（本单 1.x/2.x/3.x 全勾+3.2 实证后）；4.2 章程勾选注记（Capabilities=仅 Modified 两个既有 capability，无新 capability——本单 proposal 已按红线落）——验证：charter tasks 对应行勾选并引用本单
+- [x] 4.2 章程 4.4 实证补证（不改代码）：lex/wire 各一条端到端记录（连接→注入→401→翻面→恢复），与 A0 2.5 SSO 补证共用证据不重复劳动——验证：两条记录落档并引用 charter 4.4（2026-11-07 实证记录：**lex 线**=生产既成事实——cell 1da519d4 库 user_line_credentials 中 aloadtree@gmail.com lex 行 stale:1+token_exp 2026-10-03 过期（stale 仅由 markInvalid 401 路径写=曾连接→上游 401→翻面的生产实录），当前聚合端点该线呈 unconnected:not_connected 三态如实（liveToken 对 stale/exp 双杀不泄露死因=设计）；**wire 线**=同库 wire-customer 行 stale:1 同形状实录+聚合端点同三态；主动 401→翻面→恢复全环由 scripts/test-owner-cross-line-spend.mjs test 1.4 机器钉（401→markInvalid 清凭据→unconnected:expired→重存凭据 liveToken 复活），exec 进程无法写生产库（initDb 需 migration 而 runtime 库缺 chatwoot 表——诚实降级不硬写）——与 A0 2.5 SSO 补证（匿名侧接线形状+PKCE 铸造目标活）合并即章程 4.4 全链证据，免重登真机项仍挂走查班）
+- [x] 4.3 `openspec validate add-owner-cross-line-view --strict` 通过 + 提交自查（点名文件、无并行会话卷入）——验证：exit=0；提交清单核对

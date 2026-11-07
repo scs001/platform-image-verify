@@ -43,5 +43,8 @@
 
 ## 6. 上线
 
-- [ ] 6.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 6.1 出片滚版 → 已在产（快照取自远端线 e24cf7cf1 → GHA `sha-4018509`，digest `sha256:c5e71673`；
+      ⚠️ 中途被并发线滚的 `sha-f09ac1a` 覆盖过一次——那片基线是 paas 5ad7f47，不含本修，
+      已重指回 `4018509`；镜像内 `test-fanout-aggregation` = 5/5 绿，`aggregationKey`×5、
+      `initiatorGroup`×3、`initiatorPreset: job.preset`×1 均在）
 - [ ] 6.2 观察项：滚版后看真实扇出的汇总回合是否以主编人格说话、两波是否各自汇总

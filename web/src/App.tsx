@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
 import { registryFor, useChatStore } from "@platform/core";
 import { listCacheClear, listCacheInvalidate } from "@/lib/listCache";
+import { studioHref, isCrossOrigin } from "@/lib/studio-origin";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { useAuthStore } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -61,22 +62,25 @@ const MachinesPage = lazy(() => import("@/pages/MachinesPage").then((m) => ({ de
 // removed after hermetic e2e (my tree ≈ base) + blueprint regression 26/0 —
 // the redirect itself stays and rides the rollout walkthrough.
 // W2 redirects (add-supply-studio-migration 4.1/4.2): the creation surface
-// lives on the supply domain now. STUDIO_ORIGIN carries the facet host; unset
-// (pre-release builds) falls back to the in-domain routes for window-order
-// safety. Queries pass through untouched — ?doc= ids are migration-stable.
-const STUDIO_ORIGIN: string =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_STUDIO_ORIGIN ?? "https://facet.finddatatech.cloud";
-
-function studioHref(search: string) {
-  return `${STUDIO_ORIGIN}/#/studio${search}`;
-}
-
+// lives on the supply domain now. The origin + href shape live in
+// @/lib/studio-origin (one definition, shared with the market face and the
+// fleet 来源蓝图 chip). Queries pass through untouched — ?doc= ids are
+// migration-stable.
 function StudioRouteRedirect({ params = {} }: { params?: Record<string, string> }) {
   const [sp] = useSearchParams();
   const merged = new URLSearchParams(sp);
   for (const [k, v] of Object.entries(params)) if (!merged.has(k)) merged.set(k, v);
   const q = merged.toString();
-  return <Navigate to={studioHref(q ? `?${q}` : "")} replace />;
+  const target = studioHref(q ? `?${q}` : "");
+  const external = isCrossOrigin(target);
+  // <Navigate> takes in-app paths only: an absolute URL is read as a path and
+  // the shell lands on the catch-all error face (live 2026-11-08, /studio?doc=…
+  // → 页面加载出了问题). Cross-origin targets therefore replace the document.
+  useEffect(() => {
+    if (external) window.location.replace(target);
+  }, [external, target]);
+  if (external) return null;
+  return <Navigate to={target} replace />;
 }
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
@@ -266,7 +270,18 @@ export default function App() {
     return <LoginPage />;
   }
 
-  if (location.pathname === "/login") return <Navigate to="/chat" replace />;
+  if (location.pathname === "/login") {
+    // Cross-domain deploy handoff (add-supply-studio-migration 2.2): facet
+    // Studio's 部署团队 sends us to /login?deployCastPack=<id>&v=<n>, and the
+    // SSO callback returns to that same URL with the session cookie already
+    // set. Bouncing unconditionally to /chat dropped the pack id and the
+    // handoff dead-ended on the chat home (live 2026-11-08).
+    const params = new URLSearchParams(location.search);
+    if (params.get("deployCastPack")) {
+      return <Navigate to={`/packs?${params.toString()}`} replace />;
+    }
+    return <Navigate to="/chat" replace />;
+  }
 
   // The modal renders over whatever the user was looking at. On a direct load
   // of /settings/* there is no background, so /chat stands in — the same

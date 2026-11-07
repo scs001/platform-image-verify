@@ -14,10 +14,12 @@ import { Blocks } from "lucide-react";
 import { Skeleton } from "@/components/ui/states-kit";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 // Supply-domain Studio origin (add-supply-studio-migration 2.3): the source-
-// blueprint chip links to the facet-hosted document. Vite env: VITE_STUDIO_ORIGIN.
-const STUDIO_ORIGIN: string =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_STUDIO_ORIGIN ?? "";
+// blueprint chip links to the facet-hosted document. Shape lives in
+// @/lib/studio-origin — this file kept its own copy with an empty default,
+// which pointed the chip at the platform domain and dead-ended on the
+// catch-all face (live 2026-11-08).
 import { useCronStore, useChatStore } from "@platform/core";
+import { studioDocHref, isCrossOrigin } from "@/lib/studio-origin";
 import { useFleetStore } from "@/store/fleet-store";
 import { useListCache } from "@/hooks/useListCache";
 import { TeamsOverviewBoard } from "@/components/fleet/TeamsOverviewBoard";
@@ -914,17 +916,10 @@ export function FleetsPage() {
                   pack was cast from (D7 回链; rides the casting provenance). */}
               {detail.blueprintId ? (
                 <Link
-                  to={
-                    // W2 (add-supply-studio-migration 2.3): the studio doc lives
-                    // on the supply domain now — the chip links across. The env
-                    // default is the production facet origin; an unset value
-                    // keeps the pre-teardown in-domain link (release-window
-                    // order safety).
-                    (STUDIO_ORIGIN
-                      ? `${STUDIO_ORIGIN}/studio?doc=${encodeURIComponent(detail.blueprintId)}`
-                      : `/studio?doc=${encodeURIComponent(detail.blueprintId)}`) as string
-                  }
-                  {...(STUDIO_ORIGIN ? { target: "_blank", rel: "noopener" } : {})}
+                  to={studioDocHref(detail.blueprintId)}
+                  {...(isCrossOrigin(studioDocHref(detail.blueprintId))
+                    ? { target: "_blank", rel: "noopener" }
+                    : {})}
                   className="mt-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                   data-testid="fleet-source-blueprint"
                 >

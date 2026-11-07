@@ -42,14 +42,21 @@ const VIEW_HASH: Record<View, string> = {
   studio: "#/studio",
 };
 
-/** Hash → view, gated by identity; unknown/empty/unauthorized fall back to intro. */
+/** Hash → view, gated by identity; unknown/empty/unauthorized fall back to intro.
+ *
+ *  The query rides the hash (`#/studio?doc=bp_x` — supply-studio 深链契约, the
+ *  shape the cross-domain back-links use), so the view match reads the PATH
+ *  part only. Comparing the whole hash dropped every deep link to intro: the
+ *  fleet 来源蓝图 chip opened the market page instead of the document (live
+ *  2026-11-08). */
 function viewFromHash(hash: string, user: WhoamiUser): View {
-  if (hash === "#/packs") return "packs";
-  if (hash === "#/mcp") return "mcp";
-  if (hash === "#/docs") return "docs";
-  if (hash === "#/mine") return user ? "mine" : "intro";
-  if (hash === "#/studio") return user ? "studio" : "intro";
-  if (hash === "#/curate") return user?.admin ? "curate" : "intro";
+  const path = hash.split("?")[0];
+  if (path === "#/packs") return "packs";
+  if (path === "#/mcp") return "mcp";
+  if (path === "#/docs") return "docs";
+  if (path === "#/mine") return user ? "mine" : "intro";
+  if (path === "#/studio") return user ? "studio" : "intro";
+  if (path === "#/curate") return user?.admin ? "curate" : "intro";
   return "intro";
 }
 
@@ -116,9 +123,10 @@ export function App() {
   }, [user]);
 
   // Tabs write the hash (deep-linkable, reload-stable); the hashchange listener
-  // above is the single place that moves the view.
+  // above is the single place that moves the view. The path part decides "same
+  // view" so a tab click does not strip a live deep-link query (#/studio?doc=).
   const go = useCallback((next: View) => {
-    if (window.location.hash === VIEW_HASH[next]) setView(next);
+    if (window.location.hash.split("?")[0] === VIEW_HASH[next]) setView(next);
     else window.location.hash = VIEW_HASH[next];
   }, []);
 

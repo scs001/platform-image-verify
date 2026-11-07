@@ -158,4 +158,32 @@ test.describe("packs install face", () => {
     await page.goto("/packs");
     await expect(page.getByTestId("packs-page")).toBeVisible();
   });
+
+  // add-supply-studio-migration 2.2 (live 2026-11-08): the SSO callback returns
+  // to /login?deployCastPack=… with the session already set. The old
+  // unconditional /login → /chat bounce dropped the handoff, so the cross-domain
+  // deploy flow dead-ended on the chat home. Pin the query through the bounce.
+  test("login bounce keeps the deploy handoff query", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.goto("/login?deployCastPack=cast_probe_pack&v=1");
+    await expect(page).toHaveURL(/\/packs\?deployCastPack=cast_probe_pack&v=1$/);
+    await expect(page.getByTestId("packs-page")).toBeVisible();
+  });
+});
+
+// ── /studio retirement redirect (add-supply-studio-migration 4.1) ────────────
+// The creation surface lives on the supply domain; the old in-domain deep link
+// must hand over WITH its query (?doc=/?new=/?fork= ids are migration-stable).
+// Live 2026-11-08: <Navigate> was handed an absolute URL, react-router read it
+// as an in-app path, and the shell landed on its error face — the redirect now
+// replaces the document, which this pins by intercepting the facet navigation.
+test.describe("studio retirement redirect", () => {
+  test("/studio?doc=… lands on the supply-domain hash deep link with the id intact", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.route("https://facet.finddatatech.cloud/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<!doctype html><title>facet</title>" }),
+    );
+    await page.goto("/studio?doc=bp_probe_deep_link");
+    await expect(page).toHaveURL(/^https:\/\/facet\.finddatatech\.cloud\/#\/studio\?doc=bp_probe_deep_link$/);
+  });
 });

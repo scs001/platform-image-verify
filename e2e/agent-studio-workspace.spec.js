@@ -3,6 +3,15 @@
 // machine owner; email null → the ribbon keeps approver-only gates enabled and
 // lets the SERVER answer 403 — the same discipline production uses).
 //
+// RETIRED 2026-11-08 (add-supply-studio-migration 4.1/4.6): the workspace and
+// its /api/blueprints plane moved to the supply domain — this server no longer
+// mounts those routes, so every seed below answers 404 and the file is dead
+// (verified: the first test fails at seed()). The behaviours (three panes /
+// autosave conflict / ribbon / AI draft / fork) now ride the facet host; the
+// live walkthrough is their record (tasks.md 5.2/5.3), and the cross-domain
+// pins that DO belong to this server live in agents-tabs.spec.js. Kept, and
+// skipped, so the intent is not lost; delete when a facet-hosted e2e exists.
+//
 // The content shapes below are NOT guesses: greenContent() is the minimal
 // document that passes the real publish-gate chain (probed against
 // server/blueprint-validate.js: one agent + one existing-persona member), and
@@ -38,7 +47,7 @@ async function seed(request, content) {
   return blueprint;
 }
 
-test.describe("agent builder workspace", () => {
+test.describe.skip("agent builder workspace (retired to the supply domain — see header)", () => {
   test.describe.configure({ mode: "serial" });
 
   test("hub build zone lists recent documents; a row deep-links the workspace on THAT document", async ({ page, request }) => {

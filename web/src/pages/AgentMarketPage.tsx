@@ -12,10 +12,9 @@ import { useTranslation } from "react-i18next";
 import { Blocks, ExternalLink, PackageOpen } from "lucide-react";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 
-// Supply-domain market origin (facet). Same env convention as the fleet
-// source chip (VITE_STUDIO_ORIGIN at build; production default baked).
-const STUDIO_ORIGIN: string =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_STUDIO_ORIGIN ?? "https://facet.finddatatech.cloud";
+// Supply-domain market origin (facet) lives in @/lib/studio-origin — one
+// definition shared with the studio redirect and the fleet 来源蓝图 chip.
+import { STUDIO_ORIGIN, studioHref } from "@/lib/studio-origin";
 
 export function AgentMarketPage() {
   const { t } = useTranslation();
@@ -44,7 +43,7 @@ export function AgentMarketPage() {
             <ExternalLink className="h-3.5 w-3.5 opacity-60" />
           </a>
           <a
-            href={`${STUDIO_ORIGIN}/#/studio`}
+            href={studioHref()}
             target="_blank"
             rel="noopener"
             data-testid="agent-market-studio"

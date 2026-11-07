@@ -70,8 +70,12 @@ test.describe("owner board memory card", () => {
     );
     await page.goto("/fleets?view=owner");
     await expect(page.getByTestId("fleet-board-memory-low")).toContainText("headroom below threshold (95% < 15%)");
-    // Amber styling rides the badge (existing amber component discipline).
-    await expect(page.getByTestId("fleet-board-memory-low")).toHaveClass(/amber/);
+    // The warning styling rides the badge. Asserted through the SEMANTIC token:
+    // the surface moved from the `amber` palette name to `status-waiting` when
+    // the design system went semantic, and a literal here fails on the next
+    // palette swap while the branch stays correct (same class the platform-ops
+    // billing readout had).
+    await expect(page.getByTestId("fleet-board-memory-low")).toHaveClass(/status-waiting/);
     await expect(page.getByTestId("fleet-board-memory-ok")).toHaveCount(0);
   });
 

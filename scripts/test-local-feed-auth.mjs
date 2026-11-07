@@ -82,7 +82,7 @@ test("feed: no token minted ⇒ each loopback address form is admitted", async (
 test("feed: no token minted ⇒ a non-loopback peer is refused (this is the defect)", async () => {
   const { base, close } = await boot({});
   try {
-    for (const remote of ["10.1.2.3", "192.168.1.50", "100.64.0.9"]) {
+    for (const remote of ["10.1.2.3", "192.168.1.50", "172.16.0.9"]) {
       const res = await get(base, "/api/agents", { remote });
       assert.equal(res.status, 401, `${remote} must be refused, got ${res.status}`);
     }

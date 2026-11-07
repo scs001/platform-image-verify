@@ -44,6 +44,7 @@ import { installVendorTables, createVendorStore } from "./vendors.js";
 import { createOnboardingStore } from "./vendor-onboarding.js";
 import { installMarketTables, createMarketStore, parsePricing } from "./market.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
+import { registerInternalPackRoutes, createInternalAuth } from "./packs-internal-routes.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
 export { PACK_LIMITS, packLimits, validateManifest };
@@ -2945,172 +2946,14 @@ export function registerPackRoutes(app, {
   // nothing else. Same service-credential gate and shape as llm-key/secret
   // above. Registered BEFORE /api/packs/:id/deployments so the literal
   // "internal" path never falls into the :id capture.
-  const internalAuth = (req, res) => {
-    const token = deployConfig()?.token || "";
-    if (!token || req.headers.authorization !== `Bearer ${token}`) {
-      res.status(401).json({ error: "runner service credential required" });
-      return false;
-    }
-    return true;
-  };
-    // (The serving-capability probe is registered once, up in the read face
-    // where its comment explains the ordering — this block carried a verbatim
-    // copy-paste twin whose handler Express never dispatched. N-9 surface guard
-    // caught it; see scripts/test-packs-route-surface.mjs.)
-  app.get("/api/packs/internal/deployments", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    res.json({ deployments: registry.allDeployments() });
-  });
-  app.get("/api/packs/internal/deployments/:id", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    res.json({ deployments: registry.deployments(req.params.id) });
-  });
-  app.get("/api/packs/internal/author/:id", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    res.json({ authorEmail: registry.authorEmail(req.params.id) });
-  });
-
-  // Internal: the runner fleet (add-runner-fleet-sharding D2) — placement
-  // surfaces (console deploy picker, facade) read the machines and their
-  // port geometry over the same service-credential gate as the deployments.
-  app.get("/api/packs/internal/runners", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    res.json({ runners: registry.runnerList() });
-  });
-
-  // Internal: deployment-level host settlement (wanxing add-agent-chat-lane
-  // D5). The wanxing facade settles chat-lane turns whose settler is the
-  // host's allowance here — the deployment's billing key never travels to
-  // the facade. Same per-deployment addressing convention as the config
-  // twin (packId + agentId, both URL-encoded single segments). Body
-  // {usage_id, minutes, rate_usd_per_min?}: minutes are the facade's
-  // minute-rounded billable duration; the rate defaults to the facade's own
-  // default so both planes stay one env apart. Idempotent by usage_id: a
-  // replay answers duplicate without deducting (the upstream deduction is
-  // idempotency-keyed the same way, so a crash between the upstream success
-  // and the local insert still lands once).
-  app.post("/api/packs/internal/deployments/:packId/:agentId/host-settle", express.json({ limit: "4kb" }), async (req, res) => {
-    if (!internalAuth(req, res)) return;
-    const { usage_id, minutes, rate_usd_per_min } = req.body ?? {};
-    if (typeof usage_id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(usage_id)) {
-      return res.status(400).json({ error: "usage_id must be a short identifier string" });
-    }
-    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
-      return res.status(400).json({ error: "minutes must be an integer in [1, 1440]" });
-    }
-    const rate = rate_usd_per_min === undefined
-      ? Number(process.env.WANXING_RATE_PER_MIN ?? 0.1)
-      : Number(rate_usd_per_min);
-    if (!Number.isFinite(rate) || rate <= 0 || rate > 10) {
-      return res.status(400).json({ error: "rate_usd_per_min must be a positive number ≤ 10" });
-    }
-    if (registry.hostSettlement(usage_id)) {
-      return res.json({ settled: true, duplicate: true });
-    }
-    const key = registry.deploymentKeyForAgent(
-      decodeURIComponent(req.params.packId),
-      decodeURIComponent(req.params.agentId),
-      typeof req.body?.deployed_by === "string" && req.body.deployed_by ? req.body.deployed_by : null,
-    );
-    if (!key) return res.status(404).json({ error: "no such deployment" });
-    const sub2api = deployConfig().sub2api ? createSub2apiClient(deployConfig().sub2api) : null;
-    if (!sub2api || sub2api.degraded()) {
-      return res.status(503).json({ error: "billing plane not configured" });
-    }
-    const amount = Number((minutes * rate).toFixed(4));
-    let holder;
-    try {
-      holder = await sub2api.findUserByKey(key.keyValue);
-    } catch (err) {
-      return res.status(502).json({ error: `key holder resolution failed: ${err.message}` });
-    }
-    if (!holder) return res.status(404).json({ error: "billing key no longer resolves to an account" });
-    try {
-      await sub2api.adjustBalance({
-        userId: holder.userId,
-        amountUsd: amount,
-        operation: "subtract",
-        idempotencyKey: usage_id,
-      });
-    } catch (err) {
-      // A retry whose deduction already landed upstream surfaces as a
-      // duplicate refusal — that IS settled, matching the facade's own
-      // trySettle semantics; anything else is a retryable failure.
-      if (!/duplicate|idempoten/i.test(String(err?.message || ""))) {
-        return res.status(502).json({ error: `deduction failed: ${err.message}` });
-      }
-    }
-    try {
-      registry.recordHostSettlement({
-        usageId: usage_id, agentPath: `/${decodeURIComponent(req.params.packId)}/${decodeURIComponent(req.params.agentId)}`,
-        minutes, amountUsd: amount, deployer: key.deployer,
-      });
-    } catch { /* concurrent twin already inserted — still exactly one deduction */ }
-    console.log(`[packs] host-settle ${usage_id}: ${minutes}min $${amount} on ${req.params.packId}/${req.params.agentId} (deployer ${key.deployer})`);
-    res.json({ settled: true, duplicate: false, amountUsd: amount });
-  });
-
-  // Internal: matters (add-matter-threads D6). The serving runner's facade
-  // tool trio calls these — open (the reception escalates a visitor's
-  // question), list (matter_status), read one (matter_read). Same
-  // per-deployment addressing and service-credential gate as host-settle;
-  // the deployer for the row is the deployment's bookkeeping deployer, not
-  // the caller. Matter text never enters a log line here or in the runner.
-  app.post("/api/packs/internal/matters/:packId/:agentId/open", express.json({ limit: "8kb" }), (req, res) => {
-    if (!internalAuth(req, res)) return;
-    const packId = decodeURIComponent(req.params.packId);
-    const agentId = decodeURIComponent(req.params.agentId);
-    // Deploy tenancy: (pack, agent) is ambiguous across deployers — the
-    // runner supplies the descriptor's agent_path (unique); old runners
-    // without it fall back to the (pack, agent, first-row) legacy shape.
-    const agentPathRaw = typeof req.body?.agent_path === "string" ? req.body.agent_path : "";
-    const deps = registry.deployments(packId);
-    const dep = (agentPathRaw ? deps.find((d) => d.agentPath === agentPathRaw) : null)
-      ?? deps.find((d) => d.agentId === agentId);
-    if (!dep) return res.status(404).json({ error: "no such deployment" });
-    const summary = typeof req.body?.summary === "string" ? req.body.summary.trim() : "";
-    if (!summary || summary.length > 2000) {
-      return res.status(400).json({ error: "summary must be a non-empty string of at most 2000 characters" });
-    }
-    const visitorHintRaw = typeof req.body?.visitor_hint === "string" ? req.body.visitor_hint.trim().slice(0, 300) : "";
-    // Visitor scope (add-matter-visitor-scope): the runner supplies the calling
-    // session's opaque scope when it has one; absent = unscoped (v1 shape —
-    // the boundary must never block the escalation outlet itself).
-    const scopeRaw = typeof req.body?.visitor_scope === "string" ? req.body.visitor_scope.trim().slice(0, 128) : "";
-    const out = registry.matterOpen({
-      packId, agentId, deployer: dep.deployedBy, summary,
-      visitorHint: visitorHintRaw,
-      ...(scopeRaw ? { scopeKey: scopeRaw } : {}),
-    });
-    res.json(out);
-  });
-  app.get("/api/packs/internal/matters/:packId/:agentId", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    // Least-privilege degradation: a sessionless reader sees only the unscoped
-    // v1 rows; a scoped reader sees its own plus those. (Owner routes are a
-    // different surface and stay unfiltered.)
-    const scope = typeof req.query.visitor_scope === "string" ? req.query.visitor_scope.slice(0, 128) : "";
-    res.json({
-      matters: registry.mattersForDeployment(
-        decodeURIComponent(req.params.packId),
-        decodeURIComponent(req.params.agentId),
-        scope || "__sessionless__",
-      ),
-    });
-  });
-  app.get("/api/packs/internal/matters/:packId/:agentId/:mid", (req, res) => {
-    if (!internalAuth(req, res)) return;
-    const m = registry.matterRead(req.params.mid);
-    const packOk = m && m.packId === decodeURIComponent(req.params.packId) && m.agentId === decodeURIComponent(req.params.agentId);
-    if (!packOk) return res.status(404).json({ error: "no such matter" });
-    const scope = typeof req.query.visitor_scope === "string" ? req.query.visitor_scope.slice(0, 128) : "";
-    if (m.scopeKey != null && m.scopeKey !== scope) {
-      // Another session's matter: same-shape 404 — existence itself is the
-      // disclosure boundary (add-matter-visitor-scope).
-      return res.status(404).json({ error: "no such matter" });
-    }
-    res.json({ matter: m });
-  });
+  // Internal (service-credential) deployment/matter routes live in their own
+  // module (N-9: 3.5k-line file, this block shares only `registry` + the
+  // service gate). Registered at the same point so the literal "internal"
+  // paths still precede the /api/packs/:id captures.
+  registerInternalPackRoutes(app, { registry, deployConfig });
+  // The two config routes below stayed here (their handlers thread the
+  // console-verified-actor + tenancy helper); they answer the SAME service gate.
+  const internalAuth = createInternalAuth(deployConfig);
 
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
   // button's data. Online/offline health itself comes from the registry via

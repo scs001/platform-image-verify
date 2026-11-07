@@ -13,7 +13,7 @@
 
 ## 2. 5.2 真机走查（记忆两腿回归 + 空间桥四腿首验）
 
-- [x] 2.1 （回归）验证舰队三计费回合真跑（glm-5.3-flash 换型后 12 ok 回合超额）：capture 链实证——fd-memory own 分区 `d/<fleetId>/<memberId>` 落页（metadata 三元组 {fleetId, memberId, kind} 齐）、legacy `f/<fleetId>` **零新写入**（digest 空，判据过）；**过程中抓出 O10**：capture 标题读 `outcome?.status`（执行器返回 {ok} 无该字段）→ 恒「回合失败」，事件行 recorder 走 shapeTurnOutcome 正确——两读取器口径分裂，已修（1c678d62f）待滚版
+- [x] 2.1 （回归）验证舰队三计费回合真跑（glm-5.3-flash 换型后 12 ok 回合超额）：capture 链实证——fd-memory own 分区 `d/<fleetId>/<memberId>` 落页（metadata 三元组 {fleetId, memberId, kind} 齐）、legacy `f/<fleetId>` **零新写入**（digest 空，判据过）；**过程中抓出 O10**：capture 标题读 `outcome?.status`（执行器返回 {ok} 无该字段）→ 恒「回合失败」，事件行 recorder 走 shapeTurnOutcome 正确——两读取器口径分裂，已修并上产（sha-297d371，digest 78887dc4，双 pod 全等）——滚版后验：CEO 岗 own 分区首张「回合成功」页（滚版前 0/43 全失败）
 - [x] 2.2 （回归）digest 三段梯子真读（readDigest 三探针复刻+member/person token 实测）：own=有值（turn 页）、shared=空（本验证舰队无 decision/swap——诚实缺席）、legacy f/=空（零新写）——空段缺席不阻塞，与 D2 seam 口径一致；三标签渲染逻辑 `fleet-memory.js:228` 码锚在册
 - [x] 2.3 清史重开后记忆仍在：member 的 dsh 会话目录删除（对话史归零）→ 清史后 ok 回合（02:33 新建会话）→ own 分区 digest 仍含旧轮 turn_id 锚（记忆≠对话史，全案立论成立）
 - [x] 2.4 `POST /api/zhiyu/rooms/:id/fleet-subscriptions` 建立订阅；验证=`GET /api/zhiyu/rooms/:id/fleet-subscriptions` 返回该订阅，且首见基线静默（不倒历史、无存量事件行涌入）。→ **O0 修复后真机复验通过**（`fix-zhiyu-fleet-bridge-route-order/evidence.md` §8，2026-11-07）：专用房 `zy_1ad879f94b7f3248e3` POST 201（`fs_1793987849221_2qmcz2`「工单分诊集群·试跑」）→ GET 回读 1 行；首见基线静默实证=订阅后等 2 个拉取 tick 仅出现订阅后差异行（room_created/subscribed/health/report 四行、均 `visibility=shared`），无历史倒灌。生产 `zy_fleet_subs` 恒 0 → 首行落库。前 BLOCKED 注记（三路 404）已由 O0 修复单全链销案。

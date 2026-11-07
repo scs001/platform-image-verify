@@ -7502,3 +7502,13 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 **O10（新缺陷，P1，已修待滚版）**：`captureFleetTurnFact` 标题读 `outcome?.status ?? failed`——执行器返回 `{ok,...}` 无 status 字段 → 记忆页恒「回合失败」（生产 9 页 0 成功，台账同期 6 行 ok）；事件行 recorder 走 `shapeTurnOutcome`（读 outcome.ok）正确——**两读取器口径分裂**。修：派生 skipped→ok→failed 同口径（1c678d62f），anchors 测试复刻体+用例形态同步修 8/8。
 
 **3.1 guest 真应答**：full-token（id.secret）visit 200 → tty 兜底（无 cookie）→ 提问 → **agent 真应答落流**（seq 100）——a2a 解耦后车道滚版回归全绿；demo 房 owner 404（所有权闸正确）、429 限速在位。**3.3 界外拒绝**：replyCap 0/21→400 bounds{1..20} 现值不变、dailyBudget 0/100001→400。**走查单 19/23**（+2.1/2.2/2.3/3.1/3.3）；剩 3.2（正向私窗样本需 facade 交互）/3.4（IM 主动投递需真 bot）/4.3（随 5.2 终局）。
+
+## §15.138 续七 O10 上产滚版+回合成功页实证（2026-11-07 中午）
+
+**O10 出片滚版**（`fix-fleet-memory-turn-title` 1c678d62f）：快照 5194d17（--init+toplevel 前查配方执行到位）+workflows 恢复 **297d371** → CI 绿 → relay 10:56:34 OK → ccr digest `78887dc4` → GitOps 两滚。
+
+**滚版插曲（并发会话竞态）**：首滚 prod platform.yaml 后发现双 pod 不同型——**并发会话 857f819（10:41）抢先 bump `law-bench/platform:sha-b9b4334`**，且其注释声称「O10 回合标题修复」但实测源 paas a137cb69d 的 server.js:1285 仍旧读法（`outcome?.status ?? failed`，O10 修复 10:27:55 提交不在其快照链）——**注释误标，git show 核证**。处置：在其上重 bump `yizuo/platform:sha-297d371`（cadc6b5，源 paas d5c19b5d5 ⊇ 1c678d62f(O10) ⊇ a137cb69d ⊇ 4489bc584(O9) 祖先律核过，env 增量 SUPPLY_STORE_WRITE_URL/TOKEN 原样保留）→ ArgoCD refresh → **双 pod imageID `78887dc4` 逐字全等**。
+
+**回合成功页实证（O10 修复生效）**：CEO 岗（公司式集群，每小时 fire）滚版前 own 分区 43 页**全「回合失败」0 成功**；换型 glm-5.3-flash 后 12:00 fire ok 回合（04:00:12）→ own 分区**首张「回合成功」页（04:03:58）**——capture 标题口径修复生效。
+
+**教训**：GitOps 并发 bump 高发窗口（两会话同日多班滚版），bump 前必 `git fetch origin` 对账当前 image 行；镜像注释里的修复声明不可信，**以快照 sha → paas 提交 → `git show <sha>:server.js` 实读为凭**。

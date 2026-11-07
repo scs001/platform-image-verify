@@ -15,6 +15,7 @@
 //   node --test scripts/test-bench-proposal-client.mjs
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const {
@@ -283,6 +284,26 @@ test("the tool surfaces a refusal as an error carrying its kind", async () => {
   );
   assert.equal(out.isError, true);
   assert.match(out.content[0].text, /forbidden/);
+});
+
+// ── the shipped config row ───────────────────────────────────────────────────
+
+test("the example row forwards all three vars via envRefs", () => {
+  // dsh scrubs the MCP child env of credential-shaped names (KEY/PASSWORD/
+  // SECRET/TOKEN), so an ambient BENCH_CONSUMER_TOKEN never reaches the child.
+  // envRefs is the only sanctioned hop; a row that drops it degrades to
+  // "target not configured" in production while looking correct here.
+  const raw = JSON.parse(
+    readFileSync(new URL("../mcp.example.json", import.meta.url), "utf8"),
+  );
+  const row = raw.mcpServers["bench-proposal"];
+  assert.ok(row, "mcp.example.json must carry the bench-proposal row");
+  assert.deepEqual(row.args, ["server/bench-proposal-mcp.js"]);
+  const refs = row.envRefs ?? [];
+  for (const name of [BENCH_URL_ENV, BENCH_TOKEN_ENV, BENCH_DOMAIN_ENV]) {
+    assert.ok(refs.includes(name), `${name} must be forwarded via envRefs`);
+  }
+  assert.ok(!JSON.stringify(row).includes("lbk_"), "no credential in the example");
 });
 
 test("the tool refuses to invent a source", async () => {

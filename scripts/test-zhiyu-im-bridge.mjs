@@ -357,3 +357,54 @@ test("6.x management REST: 404-shapes, PUT validates room through gateway, DELET
   globalThis.fetch = originalFetch;
   srv.close();
 });
+
+test("5.x-b delivery-failed: the gateway lands a shared system event; cell POSTs it after retries exhaust (Req5)", async () => {
+  // Gateway leg: machine cred + rate bucket + shared-row shape.
+  const { srv, base, zhiyu } = await bootGateway({});
+  const roomId = zhiyu.store.roomCreate({ title: "df", ownerEmail: "owner@x" }).id;
+  const noAuth = await fetch(`${base}/api/zhiyu/im-bridge/rooms/${roomId}/delivery-failed`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "x" }),
+  });
+  assert.equal(noAuth.status, 401);
+  const ok = await fetch(`${base}/api/zhiyu/im-bridge/rooms/${roomId}/delivery-failed`, {
+    method: "POST",
+    headers: { "x-cloud-gateway-secret": SECRET, "x-actor-email": "alice@x", "Content-Type": "application/json" },
+    body: JSON.stringify({ platform: "wechat-oa", chatKey: "wxid_1", seq: 7, reason: "40003 invalid openid" }),
+  });
+  assert.equal(ok.status, 200);
+  const rows = zhiyu.store.messagesAfter(roomId, 0, { viewerMemberId: null });
+  const ev = rows.find((m) => m.meta?.event === "im_delivery_failed");
+  assert.ok(ev, "the delivery failure lands as a room event row");
+  assert.equal(ev.visibility, "shared", "the room sees the failure on the shared stream");
+  assert.equal(ev.meta.platform, "wechat-oa");
+  assert.equal(ev.meta.seq, 7);
+  assert.ok(String(ev.meta.reason).includes("40003"));
+  srv.close();
+
+  // Cell leg: after the third failed attempt the bridge POSTs the event (best-effort).
+  const posts = [];
+  const cursorWrites = [];
+  const bot = { id: "b9", name: "代销", credentials: {}, type: "wechat-oa", ownerEmail: "alice@x", zhiRoomId: "zy_abc", enabled: true, zhiBridgeCursor: 0 };
+  const bridge = createZhiyuImBridge({
+    db: { setBotBridgeCursor: (_id, seq) => { cursorWrites.push(seq); bot.zhiBridgeCursor = seq; return true; } },
+    env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999 },
+    log: { warn: () => {}, info: () => {}, error: () => {} },
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).endsWith("/delivery-failed")) {
+        posts.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+        return new Response(JSON.stringify({ seq: 99 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ rows: [{ seq: 7, kind: "agent", content: "答", sender: { display: "分身", kind: "agent", onBehalfOf: null } }] }), { status: 200 });
+    },
+    adapterForBotFn: () => ({ sendText: async () => { throw new Error("40003 invalid openid"); } }),
+  });
+  bridge.noteInboundChat(bot.id, "wxid_1");
+  await bridge.tickBot(bot);
+  await bridge.tickBot(bot);
+  await bridge.tickBot(bot); // third attempt → skip + surface
+  assert.equal(posts.length, 1, "the failure event is POSTed to the gateway exactly once");
+  assert.ok(posts[0].url.includes(`/rooms/${bot.zhiRoomId}/delivery-failed`));
+  assert.equal(posts[0].body.seq, 7);
+  assert.equal(posts[0].body.platform, "wechat-oa");
+  assert.ok(String(posts[0].headers["x-actor-email"]).length > 0, "machine actor rides the POST");
+});

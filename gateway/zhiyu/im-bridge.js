@@ -106,6 +106,30 @@ export function registerZhiyuImBridge(app, { store, humanMessageHook, secret, ma
     res.json({ rows });
   });
 
+  // Delivery-failure surfacing (zhiyu-im-bridge Req5): when the cell side
+  // exhausts its bounded retries, the failure lands as a system event row in
+  // the room's shared stream — the room sees WHY an answer never arrived in
+  // the group, not a silent void. Machine credential, rate-bucketed.
+  app.post("/api/zhiyu/im-bridge/rooms/:id/delivery-failed", express.json({ limit: "4kb" }), (req, res) => {
+    const actor = actorFor(req);
+    if (!actor) return res.status(401).json({ error: "machine credential required" });
+    const room = store.roomGet(req.params.id);
+    if (!room) return res.status(404).json({ error: "not found" });
+    if (room.status !== "active") return res.status(409).json({ error: "room ended" });
+    if (!take(`delivery-fail:${room.id}`, 10, 60_000)) return res.status(429).json({ error: "rate limited" });
+    const platform = String(req.body?.platform ?? "").slice(0, 20);
+    const chatKey = String(req.body?.chatKey ?? "").slice(0, 200);
+    const reason = String(req.body?.reason ?? "unknown").slice(0, 200);
+    const seq = Number(req.body?.seq) || null;
+    const { row } = store.messageAppend({
+      roomId: room.id,
+      kind: "system",
+      content: "",
+      meta: { event: "im_delivery_failed", platform, chatKey, seq, reason },
+    });
+    res.json({ seq: row.seq });
+  });
+
   // Room binding face for the CELL's management REST: it authenticates like
   // the rest (machine+actor), checks the actor's own access to the room
   // (owner or active member), and returns the room's bindable shape.

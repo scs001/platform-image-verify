@@ -198,6 +198,21 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
         sendFailures.delete(key);
         if (failedSeq) lastSeq = Math.max(lastSeq, failedSeq);
         log.warn(`[zhiyu-im-bridge] send failed 3x for bot "${bot.name}" at seq ${failedSeq}; SKIPPING that answer to unblock the stream: ${failed.message}`);
+        // Honest surfacing (spec Req5): the room sees WHY the answer never
+        // reached the group. Best-effort — the stream is already unblocked.
+        void doFetch(
+          `${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(bot.zhiRoomId)}/delivery-failed`,
+          {
+            method: "POST",
+            headers: { ...machineHeaders(actorFor(bot)), "Content-Type": "application/json" },
+            body: JSON.stringify({
+              platform: bot.type,
+              chatKey,
+              seq: failedSeq,
+              reason: String(failed.message ?? "unknown").slice(0, 200),
+            }),
+          },
+        ).catch((err) => log.warn(`[zhiyu-im-bridge] delivery-failed event POST failed for bot "${bot.name}": ${err.message}`));
       }
     } else if (failedSeq === null) {
       // A clean pass clears any stale counters for this bot.

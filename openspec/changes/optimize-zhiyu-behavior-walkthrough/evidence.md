@@ -193,3 +193,9 @@ Express 按注册顺序匹配：catch-all 在 `registerZhiyuRoutes` 内先注册
 - 日预算：`dayTurns 1/5`（应答回合计数；两次失败回合不计——「失败不结算」语义真机复证）。
 - 如实记：`reception` 分身（`Ut_bJMuW5KxAD83KImPmlg:reception`）A2A 冷启动坏（registry GET /api/skills/corpus-company/content 404 ×2 回合，agent_failed 落 private 档——诚实失败面同时得到正向验证）；换 intro-lex 一次成功。此为座位供给侧既有问题，不在本 change 范围，挂账见台账续八。
 - 凭据卫生：会话 cookie 落 /tmp 0600、用后即删；口令未落盘未回显未入 artifact。
+
+## 3.4 IM 桥回写闭环（2026-11-07，Req5 第二半补齐）
+
+- 防回响（Req3）：gateway 读面构造级排除 `meta.im` 行（`gateway/zhiyu/im-bridge.js` events filter），归档单 8.2(b) 生产实证（真实签名 webhook→房内行→读面 `rows:[]`）。
+- 切段（Req5 前半）：cell 侧 `chunksFor` 3800 字符上限、署名随首段、顺序投递（单元 5.x 绿；§15.73 生产真 WeChat API 调用实证）。
+- 送达失败如实（Req5 后半，本次补齐）：cell 侧 3 次重试耗尽 → `POST /api/zhiyu/im-bridge/rooms/:id/delivery-failed`（machine cred、10/min 限流桶）→ gateway 落 `kind=system`、`visibility=shared`、`meta={event:"im_delivery_failed", platform, chatKey, seq, reason}` 事件行；房间如实看到「为何群里没来回答」。测试 `5.x-b` 双腿（gateway 401/落行形状 + cell 重试后恰一次 POST），zhiyu 全套件 **49/49**。

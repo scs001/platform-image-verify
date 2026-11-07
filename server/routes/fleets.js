@@ -1106,6 +1106,23 @@ export function createFleetRoutes(app, ctx = null) {
       const prompt = dispatchPrompt;
       const upstream = ctx?.fleetTurnLedger?.lookupByMember?.(from.id) ?? null;
       const chain = ctx?.fleetTurnLedger?.chainFor?.(upstream, "dispatch") ?? null;
+      // Who owns the receipt (fix-dispatch-delivery D1). `chatHistory.currentSessionId()`
+      // is the runtime's ONE global session pointer — during a scheduled post turn
+      // it happens to name the bound session while that turn runs, but nothing
+      // guarantees it (a web turn can be the live one), and the aggregator would
+      // deliver the dispatch receipt into the wrong conversation. Attribution
+      // already knows where the call came from, so read the session off it: the
+      // in-flight turn's mirror session, else the running task's, else the web
+      // session (that branch is unchanged — a chat-lane caller IS the pointer).
+      const initiator =
+        (attribution.kind === "turn" ? attribution.turn?.sessionId : null) ??
+        (attribution.kind === "job-sourceTag" || attribution.kind === "cluster-task" ? attribution.task?.sessionId : null) ??
+        chatHistory.currentSessionId();
+      // The same discipline fix-fanout-aggregation applied to fan-out: the
+      // summary must be spoken by the DISPATCHING post. A scheduled dispatcher's
+      // persona is its roster preset; a chat-lane caller is the live preset.
+      const initiatorPreset =
+        attribution.kind === "preset" ? (ctx?.currentPreset ?? null) : rosterPresetId(from.targetId);
       const task = engine.createManualTask({
         prompt,
         ...(target.targetKind === "a2a"
@@ -1114,7 +1131,12 @@ export function createFleetRoutes(app, ctx = null) {
             ? { tool: target.targetId }
             : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `派发 · ${target.title}`,
-        initiator: chatHistory.currentSessionId(),
+        initiator,
+        initiatorPreset,
+        // One dispatch is one aggregation group (fix-fanout-aggregation D2):
+        // without a key, a scheduled post's dispatches would merge with every
+        // other dispatch the same session ever fired.
+        initiatorGroup: `dispatch:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
         origin: { fleet: { fleetId: fleet.id, memberId: target.id, depth: 1, ...(chain ? { chain } : {}) } },
       });
       res.status(201).json({

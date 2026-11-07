@@ -1267,3 +1267,92 @@ test("注入缝：任务被调度侧拦下时补跑标记不泄漏给下一次�
   await engine.idle();
   assert.ok(firedPrompts.at(-1).startsWith("巡视 正常帧"), "正常轮无补跑前缀");
 });
+
+// ── edge context (add-fleet-edge-context) ────────────────────────────────────
+//
+// The four hand-built edge prompts (dispatch / 接棒 / 扇出 / 唤醒) used to run
+// with no fleet view at all, while a cadence patrol got 24KB of it. The token
+// is {{fleetEdgeContext}} — a SECOND placeholder family, because the patrol
+// segment ends with "先报数再补充" discipline that would tell a dispatched post
+// to file a report instead of doing the assignment it was just given.
+
+test("edge context: renders the fleet view without patrol discipline or delivery channel", async () => {
+  const fleet = fixtureFleet(fleetDb, "边回合舰队");
+  const _boss = fixtureMember(fleetDb, fleet.id, { id: "m_edge_boss", title: "总监", targetId: "persona-eb" });
+  const shop = fixtureMember(fleetDb, fleet.id, { id: "m_edge_shop", title: "电商部", parentId: "m_edge_boss", targetId: "persona-es" });
+  fixtureReport(fleetDb, shop, { metrics: { sales_week: { value: "$777" } }, blockers: ["缺货"], summary: "边回合素材" });
+
+  let digestCalls = 0;
+  const deps = {
+    ...contextDeps(fleetDb, { m_edge_boss: "on_duty", m_edge_shop: "on_duty" }),
+    decisionDigest: () => { digestCalls += 1; return "【待送达裁决】一条本该只在巡视轮送达的裁决"; },
+  };
+
+  const edge = await buildFleetContext({ fleetId: fleet.id, memberId: "m_edge_boss" }, {}, { ...deps, mode: "edge" });
+
+  // The background IS there: sibling slot values remain the point of the block.
+  assert.match(edge, /电商部/);
+  assert.match(edge, /777/);
+  assert.match(edge, /缺货/);
+  assert.match(edge, /【集群上下文】/, "edge framing, not 巡视");
+  assert.doesNotMatch(edge, /集群巡视上下文/);
+  // The two things that would misdirect an edge turn are absent.
+  assert.doesNotMatch(edge, /巡逻纪律/);
+  assert.doesNotMatch(edge, /先报数再补充/);
+  assert.doesNotMatch(edge, /待送达裁决/, "an edge turn must not consume the delivery channel");
+  assert.equal(digestCalls, 0, "the digest provider is not even consulted");
+
+  // Patrol mode still carries both, byte-for-byte as before.
+  const patrol = await buildFleetContext({ fleetId: fleet.id, memberId: "m_edge_boss" }, {}, deps);
+  assert.match(patrol, /集群巡视上下文/);
+  assert.match(patrol, /巡逻纪律/);
+  assert.match(patrol, /待送达裁决/);
+  assert.equal(digestCalls, 1);
+});
+
+test("edge context: the edge token renders in edge mode while the patrol token stays patrol", async () => {
+  firedPrompts.length = 0;
+  const fleet = fixtureFleet(fleetDb, "双槽舰队");
+  const member = fixtureMember(fleetDb, fleet.id, { targetId: "persona-dual" });
+  const seenModes = [];
+  cron.setFleetContextRenderer(async (_tag, _task, opts) => {
+    seenModes.push(opts?.mode ?? "patrol");
+    return opts?.mode === "edge" ? "【边缘帧】" : "【巡视帧】";
+  });
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "任务先。{{fleetEdgeContext}}",
+    preset: "persona-dual",
+    sourceTag: { fleetId: fleet.id, memberId: member.id },
+  });
+  await cron.fireTask(task.id);
+  await engine.idle();
+  assert.equal(firedPrompts.at(-1), "任务先。【边缘帧】");
+  assert.deepEqual(seenModes, ["edge"], "edge token ⇒ edge mode");
+
+  const patrolTask = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视。{{fleetContext}}",
+    preset: "persona-dual",
+    sourceTag: { fleetId: fleet.id, memberId: member.id },
+  });
+  seenModes.length = 0;
+  await cron.fireTask(patrolTask.id);
+  await engine.idle();
+  assert.equal(firedPrompts.at(-1), "巡视。【巡视帧】");
+  assert.deepEqual(seenModes, ["patrol"], "patrol token ⇒ patrol mode — unchanged");
+
+  // An edge render failure fails the fire explicitly, same as the patrol lane.
+  cron.setFleetContextRenderer(async () => { throw new Error("db gone"); });
+  const boom = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "任务。{{fleetEdgeContext}}",
+    preset: "persona-dual",
+    sourceTag: { fleetId: fleet.id, memberId: member.id },
+  });
+  const before = firedPrompts.length;
+  await cron.fireTask(boom.id);
+  await engine.idle();
+  assert.equal(firedPrompts.length, before, "a failed edge render must not run the turn");
+  cron.setFleetContextRenderer(null);
+});

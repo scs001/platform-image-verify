@@ -63,7 +63,11 @@ function findRuleTarget(db, memberId) {
 
 function createWakeTask(engine, roster, { fleet, target, source, senderName, chatKey, text, mandate, ruleId = null }) {
   return engine.createManualTask({
-    prompt: wakePrompt(source, senderName, chatKey, text),
+    prompt:
+      wakePrompt(source, senderName, chatKey, text) +
+      // add-fleet-edge-context D1: the woken post gets the fleet view too — the
+      // message is its assignment, the background follows. Persona only.
+      (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
     ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: roster(target.targetId) }),
     sessionTitle: `事件 · ${target.title}`,
     origin: {

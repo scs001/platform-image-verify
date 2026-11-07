@@ -1530,8 +1530,12 @@ await Promise.all([
     // the fire explicitly — never a silent empty-context patrol. The decision
     // digest (agent-fleet-decision-lane) rides the same segment slot: this
     // post's undelivered resolutions, their own block, absent when empty.
-    renderFleetContext: (sourceTag, task) =>
+    renderFleetContext: (sourceTag, task, opts) =>
       buildFleetContext(sourceTag, task, {
+        // add-fleet-edge-context D2: "patrol" (cadence template) vs "edge"
+        // (dispatch/接棒/扇出/唤醒). Same fleet view; edge drops the patrol
+        // discipline tail and never consumes the decision-delivery channel.
+        mode: opts?.mode === "edge" ? "edge" : "patrol",
         db: getFleetDatabase(),
         deriveStatuses: deriveFleetStatuses,
         decisionDigest: (fleetId, memberId) => {

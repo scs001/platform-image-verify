@@ -13,6 +13,11 @@
 
 const PER_POST_LIMIT = 4 * 1024;
 const TOTAL_LIMIT = 24 * 1024;
+// Edge turns (add-fleet-edge-context D2) already carry their own primary input
+// — a dispatch brief, an upstream result, a wake message — so the fleet view
+// here is background, not the material. Same shape, smaller pool: it must not
+// let organizational context crowd out the actual assignment.
+const EDGE_TOTAL_LIMIT = 8 * 1024;
 const SUMMARY_LINE_LIMIT = 300;
 
 // ── The post's own history (add-fleet-self-round-context) ───────────────────
@@ -310,13 +315,24 @@ function renderChildBlock({ member, latest, previous }) {
 
 // deps: { db (fleets-db), deriveStatuses(fleetId) => Map<memberId, status>,
 //         decisionDigest(fleetId) => string|null,
-//         memoryDigest?(fleetId, memberTitle) => string|null, now? }
+//         memoryDigest?(fleetId, memberTitle) => string|null, now?,
+//         mode?: "patrol" | "edge" }
 // memoryDigest (add-zhiyu-team-memory 刀A): the fleet's working-memory digest
 // from fd-memory's server-rendered /digest face, member-relevant via the
 // title query. Provider seam like decisionDigest: null/throw = section
 // absent (degrade open, never a placeholder, never a failed turn).
+//
+// mode "edge" (add-fleet-edge-context D2): the same fleet view for a dispatch /
+// handoff / fanout / wake turn. Two things change, both deliberate — the patrol
+// discipline tail is DROPPED (it tells the post to file a report instead of
+// doing the assignment it was just given) and the decision digest is NOT
+// rendered (delivery is a cadence-lane obligation; consuming it inside an edge
+// turn would mark resolutions delivered on a turn that was never a patrol).
+// The pool also shrinks to EDGE_TOTAL_LIMIT so背景 cannot crowd out the brief.
 export async function buildFleetContext(sourceTag, _task, deps) {
   const { db, deriveStatuses, decisionDigest, memoryDigest, docDigest, knowledgeProfile } = deps;
+  const edge = deps.mode === "edge";
+  const totalLimit = edge ? EDGE_TOTAL_LIMIT : TOTAL_LIMIT;
   const fleet = db.getFleet(sourceTag.fleetId);
   if (!fleet) throw new Error(`fleet ${sourceTag.fleetId} no longer exists`);
   const me = db.getMember(sourceTag.memberId);
@@ -329,7 +345,9 @@ export async function buildFleetContext(sourceTag, _task, deps) {
   const statuses = deriveStatuses(fleet.id);
   const onDuty = [...statuses.values()].filter((s) => s === "on_duty").length;
 
-  const header = `【集群巡视上下文】集群「${fleet.name}」在岗 ${onDuty}/${members.length}`;
+  const header = edge
+    ? `【集群上下文】集群「${fleet.name}」在岗 ${onDuty}/${members.length}`
+    : `【集群巡视上下文】集群「${fleet.name}」在岗 ${onDuty}/${members.length}`;
   const sections = [header];
   // Budget accounting (spec: the post's own block must never crowd out the
   // child reports). Children are the patrol's main material, so they take the
@@ -345,7 +363,7 @@ export async function buildFleetContext(sourceTag, _task, deps) {
       const raw = renderChildBlock({ member: child, latest, previous });
       const block = truncateWithMark(raw, PER_POST_LIMIT);
       used += block.length;
-      if (used > TOTAL_LIMIT) {
+      if (used > totalLimit) {
         sections.push("…（其余下级报数因总量上限截断）");
         break;
       }
@@ -356,7 +374,7 @@ export async function buildFleetContext(sourceTag, _task, deps) {
   // The post's OWN recent rounds and execution health (add-fleet-self-round-
   // context). Rendered for EVERY post, including leaves — a post with no
   // children previously got an empty context and had nothing else to go on.
-  const remaining = Math.max(0, TOTAL_LIMIT - used);
+  const remaining = Math.max(0, totalLimit - used);
   if (remaining <= SELF_MIN_ROOM) {
     // The children already spent the pool. Say so instead of dropping the
     // segment silently: a post that gets neither its own history nor an
@@ -392,8 +410,10 @@ export async function buildFleetContext(sourceTag, _task, deps) {
   // Pending decisions digest (decision lane, 刀3): the provider renders THIS
   // firing post's undelivered resolutions as their own segment; null (nothing
   // to deliver, or the lane absent) omits the segment entirely — never an
-  // empty placeholder.
-  const digest = decisionDigest?.(fleet.id, me.id) ?? null;
+  // empty placeholder. Edge turns never consume the delivery channel
+  // (add-fleet-edge-context D2): a dispatch/接棒/扇出/唤醒 turn was not a
+  // patrol, so marking resolutions delivered there would lose them.
+  const digest = edge ? null : (decisionDigest?.(fleet.id, me.id) ?? null);
   if (digest) {
     sections.push(truncateWithMark(digest, PER_POST_LIMIT));
   }
@@ -442,6 +462,12 @@ export async function buildFleetContext(sourceTag, _task, deps) {
     }
   }
 
+  if (edge) {
+    // No discipline tail: the edge prompt carries its own assignment, and
+    // "先报数再补充" would tell the post to file a report instead of doing it.
+    sections.push("（以上为平台注入的集群背景，本轮要做的任务见上文指令。）");
+    return sections.join("\n\n");
+  }
   sections.push("（以上为系统注入的巡视上下文，供你巡视与决策参考。）");
   sections.push(PATROL_DISCIPLINE);
   return sections.join("\n\n");

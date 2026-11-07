@@ -331,10 +331,17 @@ async function composeFleetPrompt(task) {
     ? "【补跑】上一轮因平台停机被跳过，本次为补跑（正常节奏不受影响）。\n\n"
     : "";
   const isFleet = !!task?.sourceTag?.fleetId;
-  const hasPlaceholder = typeof basePrompt === "string" && basePrompt.includes("{{fleetContext}}");
+  const promptStr = typeof basePrompt === "string" ? basePrompt : "";
+  // Two placeholder families (add-fleet-edge-context D1): the cadence template
+  // asks for the patrol rendering ({{fleetContext}}), the four hand-built edge
+  // prompts ask for the compact one ({{fleetEdgeContext}}). Same seam, two
+  // shapes — because a patrol segment ends with "先报数再补充" discipline that
+  // would actively misdirect a dispatched/handed-off turn.
+  const wantsPatrol = promptStr.includes("{{fleetContext}}");
+  const wantsEdge = promptStr.includes("{{fleetEdgeContext}}");
   // Non-fleet task, or a prompt composed elsewhere already (decision delivery
   // overwrites with a placeholder-free prompt): nothing to render.
-  if (!isFleet || !hasPlaceholder) {
+  if (!isFleet || (!wantsPatrol && !wantsEdge)) {
     if (prefix) engine.setPromptOverride(task.id, `${prefix}${basePrompt ?? ""}`);
     return;
   }
@@ -344,16 +351,30 @@ async function composeFleetPrompt(task) {
     if (prefix) engine.setPromptOverride(task.id, `${prefix}${basePrompt}`);
     return;
   }
-  let segment;
-  try {
-    segment = await renderFleetContextFn(task.sourceTag, task);
-  } catch (err) {
-    throw new Error(`fleetContext render failed: ${err?.message || err}`);
+  const render = async (mode) => {
+    let segment;
+    try {
+      segment = await renderFleetContextFn(task.sourceTag, task, mode ? { mode } : undefined);
+    } catch (err) {
+      throw new Error(`fleetContext render failed: ${err?.message || err}`);
+    }
+    if (typeof segment !== "string" || !segment.trim()) {
+      throw new Error("fleetContext renderer returned an empty segment");
+    }
+    return segment;
+  };
+  let out = promptStr;
+  if (wantsPatrol) {
+    const segment = await render("patrol");
+    // Function replacer: the segment carries report text, and a string
+    // replacement would let `$&`/`$'` inside it rewrite the prompt.
+    out = out.replace(/\{\{fleetContext\}\}/g, () => segment);
   }
-  if (typeof segment !== "string" || !segment.trim()) {
-    throw new Error("fleetContext renderer returned an empty segment");
+  if (wantsEdge) {
+    const segment = await render("edge");
+    out = out.replace(/\{\{fleetEdgeContext\}\}/g, () => segment);
   }
-  engine.setPromptOverride(task.id, `${prefix}${basePrompt.replace(/\{\{fleetContext\}\}/g, segment)}`);
+  engine.setPromptOverride(task.id, `${prefix}${out}`);
 }
 
 // One trigger of an armed task. Prompt shaping (fleet context, catch-up prefix)

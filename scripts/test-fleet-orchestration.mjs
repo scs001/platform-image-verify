@@ -214,6 +214,9 @@ test("dispatch bridge: guards and the delegation-lane task shape", async () => {
   fleetDb.createMember({ id: "m_other_post", fleetId: other.id, title: "外舰岗", targetKind: "persona", targetId: "t-m_cluster", kpiSlots: [], cadence: null });
   fleetDb.updateMember("m_cluster", { targetKind: "cluster", targetId: "cluster-x" });
   fleetDb.deleteMember("m_ghost");
+  // A tool post: its prompt IS the JSON arguments (add-fleet-edge-context D1
+  // pins that no context token is ever appended to it).
+  fleetDb.createMember({ id: "m_tool", fleetId: "f_main", title: "工具岗", targetKind: "tool", targetId: "srv::do_thing", kpiSlots: [], cadence: null });
   chatHistory.setSessionManager({ getSessionId: () => "sess-sup" });
 
   const { server, base } = await startServer({
@@ -242,12 +245,20 @@ test("dispatch bridge: guards and the delegation-lane task shape", async () => {
     // 「舰队派发」，改名后一直红着）。三目表达式两支同值是死代码，一并清掉。
     assert.ok(task.prompt.includes("集群派发"), "dispatcher identity rides the prompt");
     assert.ok(task.prompt.includes("sup"), "the dispatcher's post identity names the brief");
+    // add-fleet-edge-context D1: the dispatched persona post asks for the fleet
+    // view; a tool post's prompt is its JSON arguments and must stay untouched.
+    assert.ok(task.prompt.endsWith("{{fleetEdgeContext}}"), "persona dispatch carries the edge-context token");
 
     // guards: cross-fleet ref (foreign post id), self, cluster post, permission-less
     assert.equal((await call({ to: "m_other_post", brief: "x" })).status, 400);
     assert.equal((await call({ to: "m_sup", brief: "x" })).status, 400);
     assert.equal((await call({ to: "m_cluster", brief: "x" })).status, 400);
     assert.equal((await call({ to: "m_exec", brief: "" })).status, 400);
+
+    // tool post: the brief is the arguments, byte-for-byte — no token, no text
+    const toolRes = await call({ to: "m_tool", brief: '{"query":"x"}' });
+    assert.equal(toolRes.status, 201);
+    assert.equal(engine.getTaskRecord(toolRes.body.taskId).prompt, '{"query":"x"}', "tool prompt is its JSON arguments, untouched");
 
     // rate cap: per-post window — two more dispatches pass, the fourth 429s
     fleetDb.updateFleet("f_main", { orchestration: { mode: "supervisor" } });
@@ -716,4 +727,52 @@ test("REAL seam: fanout depth bound writes honest rows with the derived-lane car
     assert.equal(byMember["3_t2"].carrier, "remote", "a2a target marks the remote lane");
     assert.match(byMember["3_t1"].error, /fanout depth bound reached \(2 > 1\)/);
   } finally { /* shared handle — not closed */ }
+});
+
+// ── 7. edge context token (add-fleet-edge-context D1) ───────────────────────
+//
+// Every edge turn was handed a hand-built prompt with no fleet view; the seams
+// now carry {{fleetEdgeContext}} for persona targets. Pinned at the REAL seam
+// so a future prompt edit cannot silently drop it again, and pinned for a2a /
+// tool targets so the token never leaks into another service's message or a
+// tool post's JSON arguments.
+
+test("REAL seam: handoff and fanout prompts carry the edge-context token for persona targets only", async () => {
+  const fleet = fleetDb.createFleet({ id: "f_ctx", name: "边上下文舰", ownerEmail: "owner@test" });
+  for (const [id, kind] of [["ctx_src", "persona"], ["ctx_persona", "persona"], ["ctx_a2a", "a2a"]]) {
+    fleetDb.createMember({ id, fleetId: fleet.id, title: id, targetKind: kind, targetId: `t-${id}`, kpiSlots: [], cadence: null });
+  }
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "handoff", from: "ctx_src", to: "ctx_persona" },
+    { kind: "handoff", from: "ctx_src", to: "ctx_a2a" },
+  ], constraints: { maxChainDepth: 3 } } });
+
+  const created = await igniteFleetEdges({
+    db: fleetDb, engine,
+    job: { id: "j-ctx", sessionId: "sess-ctx", origin: { fleet: { fleetId: fleet.id, memberId: "ctx_src", depth: 0 } } },
+    out: { ok: true, text: "上游结果" },
+  });
+  const byTarget = Object.fromEntries(created.map(({ to, taskId }) => [to, engine.getTaskRecord(taskId)]));
+  assert.match(byTarget.ctx_persona.prompt, /\{\{fleetEdgeContext\}\}$/, "persona handoff asks for the fleet view");
+  assert.equal(byTarget.ctx_a2a.prompt.includes("{{fleetEdgeContext}}"), false, "a2a is another service — no token");
+
+  const wave = await igniteFleetEdges({
+    db: fleetDb, engine,
+    job: { id: "j-ctx2", sessionId: "sess-ctx2", origin: { fleet: { fleetId: fleet.id, memberId: "ctx_persona", depth: 0 } } },
+    out: { ok: true, text: "上游结果2" },
+  });
+  // ctx_persona has no outgoing edges → null; drive a wave from ctx_src instead.
+  assert.ok(wave === null || wave.length === 0, "no outgoing edges from the leaf");
+
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "fanout", from: "ctx_src", targets: ["ctx_persona", "ctx_a2a"], aggregate: { kind: "all" } },
+  ], constraints: { maxChainDepth: 3 } } });
+  const wave2 = await igniteFleetEdges({
+    db: fleetDb, engine,
+    job: { id: "j-ctx3", sessionId: "sess-ctx3", origin: { fleet: { fleetId: fleet.id, memberId: "ctx_src", depth: 0 } } },
+    out: { ok: true, text: "上游结果3" },
+  });
+  const w = Object.fromEntries(wave2.map(({ to, taskId }) => [to, engine.getTaskRecord(taskId)]));
+  assert.match(w.ctx_persona.prompt, /\{\{fleetEdgeContext\}\}$/, "persona fanout asks for the fleet view");
+  assert.equal(w.ctx_a2a.prompt.includes("{{fleetEdgeContext}}"), false, "a2a fanout stays token-free");
 });

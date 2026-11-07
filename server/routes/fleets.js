@@ -1082,7 +1082,11 @@ export function createFleetRoutes(app, ctx = null) {
         }
       } else {
         dispatchPrompt =
-          `【集群派发】来自同集群岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
+          `【集群派发】来自同集群岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}` +
+          // add-fleet-edge-context D1: the fleet view rides the assignment. The
+          // template lives here, its rendering at the engine's one injection
+          // seam — the brief leads, the background follows.
+          (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : "");
       }
       // Guard 5: rate caps — per member per turn-proxy window, per fleet per hour.
       if (!budgetTake(`m:${from.id}`, 15 * 60_000, dispatchCap("PER_TURN", 3))) {

@@ -162,6 +162,10 @@ test("a real webhook message wakes the bound post end to end", async () => {
   assert.deepEqual(task.origin.event, { botId: bot.id, chatKey: "oc-e2e" });
   assert.ok(task.prompt.includes("E2E 验收:事件唤醒"));
   assert.ok(task.prompt.includes("ou-e2e"), "sender rides the brief");
+  // add-fleet-edge-context D1: a woken persona post asks for the fleet view;
+  // the engine's injection seam is what turns this token into a segment.
+  assert.ok(task.prompt.endsWith("{{fleetEdgeContext}}"), "wake prompt carries the edge-context token");
+  assert.equal(task.origin.fleet.fleetId, "f_e2e", "and the sourceTag it renders from exists");
 
   // The turn runs through the seam and lands an O1 event with source=event.
   await waitFor(() => (fleetDb.latestTurnFor("m_duty") ?? {}).status === "ok", "woken turn completes");

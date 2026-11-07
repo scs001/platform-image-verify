@@ -101,7 +101,11 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
     const task = engine.createManualTask({
       prompt:
         `【舰队接棒】上游岗位回合结束,依声明边接棒(链位 ${nextDepth}/${constraints.maxChainDepth})。\n` +
-        `上游结果:\n${summary}`,
+        `上游结果:\n${summary}` +
+        // add-fleet-edge-context D1: the fleet view rides along, rendered at the
+        // engine's one injection seam. Persona only — an a2a target is another
+        // service, and a tool target's prompt IS its JSON arguments.
+        (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
       ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
       sessionTitle: `接棒 · ${target.title}`,
       origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth }, "handoff") },
@@ -153,7 +157,9 @@ export function igniteFleetEdges({ db, engine, job, out, rosterPresetId = (id) =
       const task = engine.createManualTask({
         prompt:
           `【舰队并行扇出】上游岗位「${db.getMember(memberId)?.title ?? memberId}」回合结束,你与同波同伴并行接令(轮次 1/${rounds})。\n` +
-          `上游结果:\n${summary}`,
+          `上游结果:\n${summary}` +
+          // add-fleet-edge-context D1: same seam, same reason as handoff.
+          (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `扇出 · ${target.title}`,
         origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1 }, "fanout") },

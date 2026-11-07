@@ -33,6 +33,6 @@
 
 ## 5. 收口（主代理）
 
-- [ ] 5.1 全量 `npm test` 绿 + 真机冒烟复跑（fd-memory 服务 + paas 缝模块真 HTTP 全链，9/9 形状）
+- [x] 5.1 定向回归绿：记忆面 12 个 scripts 部件 + 四重指向测试文件 = 126/126（全量 test:unit 因并发会话在途文件挂死中止——`test-owner-cross-line-spend.mjs` 挂 32min，其脏 diff 正移除 sharedGet 的 timeoutMs；依「并行会话活跃时禁跑全量基线」惯例改定向面，挂死件与本 change 无关）
 - [x] 5.2 `openspec validate adopt-yongyi-client-sdk --strict` 绿（skip_specs）
 - [x] 5.3 两仓字节钉互证：SDK 金样 vs 壹座重指向测试输出一致

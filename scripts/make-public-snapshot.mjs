@@ -147,6 +147,13 @@ const EXCLUDE_PATHS = new Set([
   ".github/workflows/release.yml",
   "electron/updater-core.js",
   "scripts/desktop-lane-sync.sh",
+  // desktop lane check (2026-11-07 scan hit, harden-desktop-lane-relay): same
+  // internal topology — tailnet RustFS + hkccr docker-login line; same class.
+  "scripts/desktop-lane-check.sh",
+  // desktop release checklist (2026-11-07 scan hit, same change): hkccr push
+  // credential naming + tailnet RustFS curl checks — internal ops doc, same
+  // class as the lane scripts above.
+  "RELEASE_CHECKLIST.md",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state
   "scripts/test-ops-console-board.mjs",
   // internal ops test: fleet-scheduler fixtures carry tailnet IPs and cluster

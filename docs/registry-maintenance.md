@@ -7539,3 +7539,8 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - 建议：维持现状（各归各账+部署者键），把「账本归一」降级为观察项——真客户部署出现跨线对账需求时再立项；现无客户在萬星面部署 a2a 岗。
 
 **随滚版待产**：74b6ddf05（lint 清零+StudioView 真缺陷+facet tsc）+16d68e64d（IM Req5 补齐）已双推 release 线，下一班出片滚版带上产（zhiyu/im-bridge 行为变化在生产激活需滚版——本班未出片，快照闸窗口纪律）。
+
+### §15.138 续九补记：随滚版上产+真机终验（同日晚）
+
+- **滚版**：快照 de44ba0（源 paas 4ba2e0b4e）→ 快照闸两枚新敌收编（supply-store-skills-backfill.mjs 入 EXCLUDE_PATHS=c5f0c8399；test-trial-exec sk- 占位入 gitleaks allowlist=4ba2e0b4e）→ CI 绿 → relay `OK yizuo/platform:sha-17aa9cf (256s)` → ccr 硬门 **digest 209fffdc** → GitOps 0587f4d（叠在并发班 cebd643/sha-3b9ccc9 上，祖先律 3cb0699ca∈4ba2e0b4e 核过）→ pod `platform-5477db47d7-mssd5` imageID **209fffdc 全等** + healthz 200 + 镜像内 `grep delivery-failed gateway/zhiyu/im-bridge.js`=1（Req5 代码在位）。
+- **挂账①真机终验**：一次性房（end 200 清场）→ reception 分身私窗一回合 → **corpus 语料真答**（「寻数（FindData）做壹座平台……」口径全对）——座位层+语料层双层复活实证。凭据卫生：cookie 0600 用后即删。

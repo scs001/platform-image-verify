@@ -12,6 +12,7 @@ import schedule from "node-schedule";
 import cronParser from "cron-parser";
 import * as engine from "./task-engine.js";
 import { catchUpWindowMs, withinCatchUpWindow, countMissedBetween } from "./server/cron-decisions.js";
+import { resolveTurnBudgetMs } from "./server/cron-runner.js";
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
@@ -33,6 +34,12 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
     // The pre-turn seam (fix-fleet-context-injection-seam): fleet context and
     // the catch-up prefix are composed HERE, once, for every enqueue path.
     beforeTurn: composeFleetPrompt,
+    // How long this turn may run (fix-fleet-turn-budget): one resolver, shared
+    // with the runner's own fallback, so the engine never invents a bound. Both
+    // declarable budgets (cadence.turnTimeoutMs, constraints.budgetPerEdgeMin)
+    // land here — the engine used to hand every turn a fixed 10 minutes, which
+    // made all five resolver tests true and the behavior false.
+    resolveTurnBudget: (task) => resolveTurnBudgetMs(task),
   });
 
   // Scheduling pass over the engine's loaded records: downtime accounting

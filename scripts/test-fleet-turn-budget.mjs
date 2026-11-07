@@ -51,3 +51,34 @@ test("fleet-db failure degrades open to the default", () => {
     DEFAULT,
   );
 });
+
+// ── Per-edge budget (fix-fleet-turn-budget D2) ───────────────────────────────
+// The orchestrator stamps constraints.budgetPerEdgeMin onto each dispatch /
+// handoff / fanout hop as executionPolicy.timeoutMinutes. It used to be read
+// only by the cluster branch; the precedence below is what makes it real for
+// persona/a2a turns too. Edge > post > default; both clamped to [2min, 30min].
+
+test("edge budget beats the post's declared budget", () => {
+  const job = { sourceTag: { fleetId: "f1", memberId: "m_x" }, executionPolicy: { timeoutMinutes: 5 } };
+  assert.equal(resolveTurnBudgetMs(job, { db: fakeDb({ turnTimeoutMs: 20 * 60 * 1000 }) }), 5 * 60 * 1000);
+});
+
+test("edge budget applies even without a fleet post", () => {
+  const job = { executionPolicy: { timeoutMinutes: 7 } };
+  assert.equal(resolveTurnBudgetMs(job, { db: fakeDb({}) }), 7 * 60 * 1000);
+});
+
+test("edge budget clamps to the same bounds", () => {
+  const over = { executionPolicy: { timeoutMinutes: 45 } };
+  const under = { executionPolicy: { timeoutMinutes: 0.5 } };
+  assert.equal(resolveTurnBudgetMs(over, { db: fakeDb({}) }), CEILING, "45min → 30min");
+  assert.equal(resolveTurnBudgetMs(under, { db: fakeDb({}) }), FLOOR, "30s → 2min");
+});
+
+test("invalid edge budget falls through to the post, not to the default", () => {
+  const db = fakeDb({ turnTimeoutMs: 20 * 60 * 1000 });
+  for (const bad of ["soon", 0, -3, null, Number.NaN]) {
+    const job = { sourceTag: { fleetId: "f1", memberId: "m_x" }, executionPolicy: { timeoutMinutes: bad } };
+    assert.equal(resolveTurnBudgetMs(job, { db }), 20 * 60 * 1000, `edge=${String(bad)} → post budget`);
+  }
+});

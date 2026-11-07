@@ -49,6 +49,7 @@ async function boot(records, runTurn = async () => ({ ok: true }), opts = {}) {
     isBusy: () => false,
     ...(opts.workerStats ? { workerStats: opts.workerStats } : {}),
     ...(opts.beforeTurn ? { beforeTurn: opts.beforeTurn } : {}),
+    ...(opts.resolveTurnBudget ? { resolveTurnBudget: opts.resolveTurnBudget } : {}),
   });
   return events;
 }
@@ -472,4 +473,53 @@ test("补跑标记：恢复队列遇拦截时同样释放", async () => {
   await engine.idle();
   assert.equal(engine.getTask("job_1").catchUpPending, false);
   await engine.saveTasks();
+});
+
+// ── Turn budget delivery (fix-fleet-turn-budget) ─────────────────────────────
+//
+// The defect these pin: the engine handed `turnFn` a fixed 10 minutes, so
+// every declarable budget (cadence.turnTimeoutMs, constraints.budgetPerEdgeMin)
+// was dead — while five resolver tests passed, because they only called the
+// resolver. These assert the number that actually reaches the turn.
+
+async function turnBudgetOf(opts = {}, recordOver = {}) {
+  let seen = null;
+  await boot([legacyRecord(recordOver)], async (_task, turnOpts) => {
+    seen = turnOpts?.turnTimeoutMs;
+    return { ok: true };
+  }, opts);
+  engine.enqueueExecution("job_1");
+  await engine.idle();
+  return seen;
+}
+
+test("预算交付：注入的解析器决定回合上界（不再恒为 10 分钟）", async () => {
+  const budget = await turnBudgetOf({ resolveTurnBudget: () => 20 * 60 * 1000 });
+  assert.equal(budget, 20 * 60 * 1000, "解析器说 20 分钟，回合就必须拿到 20 分钟");
+});
+
+test("预算交付：未注入解析器时退回默认 10 分钟（行为不变）", async () => {
+  assert.equal(await turnBudgetOf(), 10 * 60 * 1000);
+});
+
+test("预算交付：解析器返回非法值/抛错都降级到默认，回合照常跑", async () => {
+  assert.equal(await turnBudgetOf({ resolveTurnBudget: () => undefined }), 10 * 60 * 1000, "undefined");
+  assert.equal(await turnBudgetOf({ resolveTurnBudget: () => 0 }), 10 * 60 * 1000, "zero");
+  assert.equal(await turnBudgetOf({ resolveTurnBudget: () => Number.NaN }), 10 * 60 * 1000, "NaN");
+  assert.equal(await turnBudgetOf({ resolveTurnBudget: () => { throw new Error("db gone"); } }), 10 * 60 * 1000, "throws");
+  // …and the turn still completed (no failure path taken).
+  assert.equal(engine.getTask("job_1").state, "done");
+});
+
+test("预算交付：解析器拿到的是本回合的任务（可按岗位/边分辨）", async () => {
+  let id = null;
+  await boot([legacyRecord({ sourceTag: { fleetId: "f1", memberId: "m1" } })], async () => ({ ok: true }), {
+    resolveTurnBudget: (task) => {
+      id = task?.sourceTag?.memberId ?? null;
+      return 5 * 60 * 1000;
+    },
+  });
+  engine.enqueueExecution("job_1");
+  await engine.idle();
+  assert.equal(id, "m1", "解析器必须看到任务本身，否则岗位/边维度无从分辨");
 });

@@ -21,6 +21,13 @@ const JOBS_FILE = path.join(TASK_STORAGE_DIR, "jobs.json");
 
 // Same file, same ids as the pre-engine cron store — records gain fields,
 // nothing moves (design D1: one store, extended in place).
+//
+// fix-fleet-turn-budget D1: this is a FALLBACK, not the budget. The engine used
+// to hand every turn this constant, which silently overrode the declarable
+// budgets downstream (`cron-runner.js` computed `turnTimeoutMs || resolveTurnBudgetMs(job)`
+// — left side always non-empty, so the resolver never ran). The scheduler now
+// injects `resolveTurnBudget` and the engine asks for the number; the constant
+// only serves hosts that inject nothing (their behavior stays as it was).
 const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 const HISTORY_LIMIT = 100;
 // a2a targets (market Agent Services) are supported when the cell's catalog
@@ -53,6 +60,12 @@ const onFinishedHooks = new Set();
 // run-now, and the boot-time repair queue). The engine knows nothing about
 // fleets; it only offers a seam.
 let beforeTurnFn = null;
+// fix-fleet-turn-budget D1: the scheduler injects how long this task may run.
+// The engine asks instead of deciding — a constant here overrode every
+// declarable budget (cadence.turnTimeoutMs, constraints.budgetPerEdgeMin)
+// without any of them ever being read. Null → the fallback constant, which
+// keeps hosts that inject nothing byte-for-byte as before.
+let resolveTurnBudgetFn = null;
 let executionQueue = Promise.resolve();
 const repairQueue = []; // ids persisted as queued at load → re-enqueue after init
 
@@ -200,12 +213,13 @@ function loadTasks() {
 
 // ── Initialization ──────────────────────────────────────────────────────────
 
-async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerStats, beforeTurn }) {
+async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerStats, beforeTurn, resolveTurnBudget }) {
   broadcastFn = broadcast;
   runTurnFn = runTurn;
   isBusyFn = isBusy;
   workerStatsFn = typeof workerStats === "function" ? workerStats : null;
   beforeTurnFn = typeof beforeTurn === "function" ? beforeTurn : null;
+  resolveTurnBudgetFn = typeof resolveTurnBudget === "function" ? resolveTurnBudget : null;
   onFinishedHooks.clear();
   if (onFinished) onFinishedHooks.add(onFinished);
   // A fresh init replaces the in-memory map — any pending retry backoff from
@@ -630,6 +644,20 @@ function chainTurn(fn) {
   executionQueue = executionQueue.then(fn);
 }
 
+// The turn's time bound (fix-fleet-turn-budget): the injected resolver decides;
+// the fallback constant covers hosts that inject nothing. Anything that is not a
+// positive finite number falls back too — a resolver failure must degrade to the
+// default, never to "0ms" (setTimeout(fn, undefined) fires immediately).
+function resolveBudgetFor(task) {
+  if (!resolveTurnBudgetFn) return TURN_TIMEOUT_MS;
+  try {
+    const ms = resolveTurnBudgetFn(task);
+    return Number.isFinite(ms) && ms > 0 ? ms : TURN_TIMEOUT_MS;
+  } catch {
+    return TURN_TIMEOUT_MS;
+  }
+}
+
 async function runQueuedExecution(id) {
   const t = tasks.get(id);
   // The schedule front-end may have paused/removed/completed the task between
@@ -680,7 +708,10 @@ async function runExecutionTurn(t, turnFn) {
   const effective = t.promptOverride != null ? { ...t, prompt: t.promptOverride } : t;
 
   try {
-    const result = await turnFn(effective, { turnTimeoutMs: TURN_TIMEOUT_MS });
+    // The turn's time bound (fix-fleet-turn-budget): ask the scheduler. safeBudget
+    // keeps the contract collectTurn relies on — a positive finite number, always
+    // (setTimeout(fn, undefined) fires immediately and would kill every turn).
+    const result = await turnFn(effective, { turnTimeoutMs: resolveBudgetFor(effective) });
     finishExecution(t, startTime, result);
   } catch (err) {
     finishExecution(t, startTime, { ok: false, error: err?.message || String(err), interrupted: err?.interrupted === true });

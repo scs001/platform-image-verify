@@ -107,11 +107,25 @@ const IDLE_POLL_MS = 250;
 // hard cap keys off the longest single-round budget). Unset/invalid/unreadable
 // → the historical 10-minute default, byte-for-byte unchanged behavior.
 // Fleet-member rounds only; plain cron tasks never read this.
+//
+// fix-fleet-turn-budget D2: there are TWO declared sources and one precedence —
+// the per-edge budget (constraints.budgetPerEdgeMin, stamped by the orchestrator
+// onto each dispatch/handoff/fanout hop as executionPolicy.timeoutMinutes) beats
+// the per-post one, because the owner's explicit statement about THIS hop is more
+// specific than a post's standing default. Both clamp to the same [2min, 30min];
+// an invalid edge value falls through to the post rather than to the default.
+// Taking the MIN of the two was rejected: it would make raising an edge budget
+// silently ineffective.
 const TURN_BUDGET_FLOOR_MS = 2 * 60 * 1000;
 const TURN_BUDGET_CEILING_MS = 30 * 60 * 1000;
 const TURN_BUDGET_DEFAULT_MS = 10 * 60 * 1000;
 
+const clampBudgetMs = (ms) => Math.min(Math.max(ms, TURN_BUDGET_FLOOR_MS), TURN_BUDGET_CEILING_MS);
+
 export function resolveTurnBudgetMs(job, { db = null } = {}) {
+  const edgeMs = Number(job?.executionPolicy?.timeoutMinutes) * 60_000;
+  if (Number.isFinite(edgeMs) && edgeMs > 0) return clampBudgetMs(edgeMs);
+
   const fleetId = job?.sourceTag?.fleetId ?? null;
   const memberId = job?.sourceTag?.memberId ?? null;
   if (!fleetId || !memberId) return TURN_BUDGET_DEFAULT_MS;
@@ -121,7 +135,7 @@ export function resolveTurnBudgetMs(job, { db = null } = {}) {
     const declared = member?.cadence?.turnTimeoutMs;
     const n = Number(declared);
     if (!Number.isFinite(n) || n <= 0) return TURN_BUDGET_DEFAULT_MS;
-    return Math.min(Math.max(n, TURN_BUDGET_FLOOR_MS), TURN_BUDGET_CEILING_MS);
+    return clampBudgetMs(n);
   } catch {
     return TURN_BUDGET_DEFAULT_MS;
   }

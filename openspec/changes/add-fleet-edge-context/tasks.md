@@ -39,6 +39,14 @@
       **没有 export**，`gateway/packs.js` 又删了本地那份，`:1466`/`:1540` 引用未定义名字
       → validate 路由抛 `ReferenceError` → 网关子进程 exit 1 → 后续请求 ECONNREFUSED。
       属并发线在途工作，未擅自改动其未提交文件。
+      归因三分（worktree 逐层叠 + 同一命令）：
+      - 干净 HEAD：`test-pack-marketplace` 8/8、`test-agent-studio-validate` 5/5 全绿
+      - 再叠本 change 的 6 个源文件：agent-studio 仍 5/5 绿
+      - 再叠并发线 2 个文件（`gateway/packs.js` + `gateway/pack-publish-gates.js`）：
+        pack-marketplace 0/8、agent-studio 1/4，崩溃行 `ReferenceError: CREATOR_GROUP_REQUIRED`
+      同族新红/新超时共 7 项（pack-validate、pack-marketplace、opening-gates、
+      facet-cli-publish、facet-publish-bridge、vendor-supply-open、agent-studio-validate）
+      全部落在同一 publish/validate 面，与本 change 的舰队上下文无交集
 
 ## 5. 门禁
 

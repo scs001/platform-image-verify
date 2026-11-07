@@ -782,3 +782,50 @@ test("REAL seam: handoff and fanout prompts carry the edge-context token for per
   assert.match(w.ctx_persona.prompt, /\{\{fleetEdgeContext\}\}$/, "persona fanout asks for the fleet view");
   assert.equal(w.ctx_a2a.prompt.includes("{{fleetEdgeContext}}"), false, "a2a fanout stays token-free");
 });
+
+// ── 8. ignition idempotence (add-fleet-ignition-idem) ───────────────────────
+//
+// The seam is reachable more than once for one turn (a retried execution, a
+// second finish callback, a resumed round). Before this, each re-entry created
+// another wave of downstream turns — the same work paid for twice. The hop key
+// is (upstream turn, edge kind, target); a NEW turn ignites again by design,
+// otherwise an operator could never re-drive a chain.
+
+test("REAL seam: re-entering ignition for the same turn creates nothing the second time", async () => {
+  const fleet = fleetDb.createFleet({ id: "f_idem", name: "幂等舰", ownerEmail: "owner@test" });
+  for (const id of ["id_src", "id_a", "id_b"]) {
+    fleetDb.createMember({ id, fleetId: fleet.id, title: id, targetKind: "persona", targetId: `t-${id}`, kpiSlots: [], cadence: null });
+  }
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "handoff", from: "id_src", to: "id_a" },
+    { kind: "fanout", from: "id_src", targets: ["id_b"], aggregate: { kind: "all" } },
+  ], constraints: { maxChainDepth: 3 } } });
+
+  const job = { id: "j_idem", sessionId: "sess-idem", roundSeq: 1, origin: { fleet: { fleetId: fleet.id, memberId: "id_src", depth: 0 } } };
+  const ledgerTurn = { turnId: "turn_idem_1" };
+  const first = await igniteFleetEdges({ db: fleetDb, engine, job, ledgerTurn, out: { ok: true, text: "上游产出" } });
+  assert.equal(first.length, 2, "one handoff hop + one fanout hop");
+
+  // Same turn, second entry: nothing new.
+  const again = await igniteFleetEdges({ db: fleetDb, engine, job, ledgerTurn, out: { ok: true, text: "上游产出" } });
+  assert.equal(again, null, "a repeated ignition for the same turn creates nothing");
+
+  // Provenance: every ignited task names the hop that produced it.
+  for (const { taskId } of first) {
+    assert.match(engine.getTaskRecord(taskId).origin.fleet.ignition, /^turn_idem_1:(handoff|fanout):id_/);
+  }
+
+  // A genuine new turn (operator re-run / next cadence round) ignites again.
+  const nextTurn = await igniteFleetEdges({ db: fleetDb, engine, job, ledgerTurn: { turnId: "turn_idem_2" }, out: { ok: true, text: "重跑产出" } });
+  assert.equal(nextTurn.length, 2, "a different turn is a different ignition — re-driving a chain stays possible");
+
+  // Without a ledger the engine's per-execution sequence is the turn identity,
+  // so the same execution still dedupes.
+  const bJob = { id: "j_idem2", sessionId: "sess-idem2", roundSeq: 7, origin: { fleet: { fleetId: fleet.id, memberId: "id_src", depth: 0 } } };
+  const a1 = await igniteFleetEdges({ db: fleetDb, engine, job: bJob, out: { ok: true, text: "x" } });
+  const a2 = await igniteFleetEdges({ db: fleetDb, engine, job: bJob, out: { ok: true, text: "x" } });
+  assert.equal(a1.length, 2);
+  assert.equal(a2, null, "same execution, no ledger → still one ignition");
+  const a3 = await igniteFleetEdges({ db: fleetDb, engine, job: { ...bJob, roundSeq: 8 }, out: { ok: true, text: "x" } });
+  assert.equal(a3.length, 2, "the next execution is the next turn");
+});

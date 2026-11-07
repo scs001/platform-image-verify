@@ -18,7 +18,20 @@ export default defineConfig({
     // instance registry the shell relies on (useTranslation returns raw
     // keys), and two React copies would break hooks outright. Force one copy
     // — resolved from facet/web's root, which owns this build.
-    dedupe: ["react", "react-dom", "i18next", "react-i18next"],
+    // react-router(-dom) rides the same rule: the @ alias pulls web/src pages
+    // whose 'react-router-dom' imports would otherwise resolve from
+    // web/node_modules while StudioView's own import resolves from
+    // facet/web/node_modules — two router copies = two Router contexts, and
+    // the studio face dies on "useNavigate() may be used only in the context
+    // of a <Router>" (2026-11-07 #/studio production incident).
+    dedupe: [
+      "react",
+      "react-dom",
+      "react-router",
+      "react-router-dom",
+      "i18next",
+      "react-i18next",
+    ],
     alias: {
       "@": WEB_SRC,
     },

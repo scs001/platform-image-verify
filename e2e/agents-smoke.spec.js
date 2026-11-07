@@ -1,7 +1,17 @@
+// NOT RUNNING — this file drives the agents hub, which no longer exists.
+//
+// Both tests assert the four-zone hub's shell (`creations-section` and the tab
+// set) reached through /agents?tab=agents. The W2 teardown (0eb48a0d0,
+// 2026-11-06) replaced that page with AgentMarketPage; `creations-section` now
+// lives only in the unrouted AgentsPage.tsx, so no URL can reach it. The white-
+// screen guard these tests were built for is served by the shell error boundary
+// today (harden-spa-shell-resilience), which has its own coverage. Marked fixme
+// rather than deleted: if a builders' hub returns, these are the tests to
+// resurrect.
 // Smoke: /agents must render without a runtime crash (white screen guard).
 import { test, expect } from "@playwright/test";
 
-test("@smoke agents page renders (no white screen)", async ({ page }) => {
+test.fixme("@smoke agents page renders (no white screen)", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -60,7 +70,7 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   expect([200, 401], "/api/clusters/mine must not 404 (route order)").toContain(mine.status);
 });
 
-test("a delayed cluster read shows no empty copy until it lands (polish-web-surfaces)", async ({
+test.fixme("a delayed cluster read shows no empty copy until it lands (polish-web-surfaces)", async ({
   page,
 }) => {
   // Hold the clusters read so the loading frame is observable.

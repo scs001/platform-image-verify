@@ -34,11 +34,15 @@ permissions:
 
 env:
   REGISTRY: hkccr.ccs.tencentyun.com
-  NAMESPACE: yizuo
+  # Prod (platform.yaml), the facet role and platform-demo.yaml all pull
+  # law-bench/platform (platform-demo was repointed off yizuo on 2026-11-08).
+  # This said yizuo until then, so every snapshot had to be hand-patched before
+  # pushing or the image landed in a namespace nothing deploys from.
+  NAMESPACE: law-bench
   IMAGE_NAME: platform
   DOCKERFILE: Dockerfile
   # The tag GitOps manifests reference (after the relay lands it on ccr).
-  CCR_IMAGE: ccr.ccs.tencentyun.com/yizuo/platform
+  CCR_IMAGE: ccr.ccs.tencentyun.com/law-bench/platform
 
 jobs:
   build-push:

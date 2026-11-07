@@ -19,7 +19,11 @@ import path from "node:path";
 process.env.FACET_CATALOG_URL = "https://facet.example.test";
 process.env.FACET_CATALOG_TOKEN = "internal-sec";
 process.env.MARKET_REGISTRY_URL = "https://registry.example.test"; // both configured
-delete process.env.REGISTRY_URL;
+// REGISTRY_URL stays SET (not deleted): under the facet channel it no longer
+// feeds the mcp/skills market species, but it IS the base of the agents leg
+// (fix-cell-catalog-a2a-face) — /api/agents + gateway-route url construction.
+process.env.REGISTRY_URL = "https://registry.example.test";
+process.env.MARKET_REGISTRY_TOKEN = "reg-tok";
 process.chdir(fs.mkdtempSync(path.join(os.tmpdir(), "supply-yizuo-")));
 
 import { test } from "node:test";
@@ -28,10 +32,15 @@ import assert from "node:assert/strict";
 const bridge = await import("../registry-bridge.js");
 const extensionStore = await import("../extension-store.js");
 
-function facetResponses({ servers, skills }) {
+function facetResponses({ servers, skills, agents, agentsFail = false }) {
   return async (url) => {
     if (url.includes("/api/mcp-catalog")) return { ok: true, json: async () => ({ servers }) };
     if (url.includes("/api/skills-catalog")) return { ok: true, json: async () => ({ skills }) };
+    // The agents leg rides the REGISTRY base + token (fix-cell-catalog-a2a-face).
+    if (url.includes("/api/agents")) {
+      if (agentsFail) return { ok: false, status: 401, json: async () => ({}) };
+      return { ok: true, json: async () => ({ agents: agents ?? [] }) };
+    }
     return { ok: false, status: 404, json: async () => ({}) };
   };
 }
@@ -76,6 +85,49 @@ test("facet channel: failing refresh keeps last-good", async () => {
   bridge.initRegistryBridge({ fetchImpl: async () => { throw new Error("down"); } });
   await bridge.refreshRegistry();
   assert.equal(bridge.getMarketEntries().mcpServers.length, good, "last-good kept on failure");
+});
+
+// ── agents leg under the facet channel (fix-cell-catalog-a2a-face) ──────────
+
+const REGISTRY_AGENTS = [
+  { path: "/packs/p1/a1", name: "甲岗", supported_protocol: "a2a", is_enabled: true, url: "http://10.0.0.1:9" },
+  { path: "/packs/p2/a2", name: "乙岗", supported_protocol: "a2a", is_enabled: true, url: "http://10.0.0.2:9" },
+  { path: "/external/link", name: "外链", supported_protocol: "other", is_enabled: true, url: "https://ext.example.test" },
+  { path: "/packs/p3/a3", name: "停用岗", supported_protocol: "a2a", is_enabled: false, url: "http://10.0.0.3:9" },
+];
+
+test("facet channel: agents leg still reads the registry — a2a entries revived", async () => {
+  bridge.initRegistryBridge({ fetchImpl: facetResponses({ servers: FACET_MCP, skills: FACET_SKILLS, agents: REGISTRY_AGENTS }) });
+  await bridge.refreshRegistry();
+  const agents = bridge.getAgentEntries();
+  const a2a = agents.filter((a) => a.mode === "a2a");
+  assert.deepEqual(a2a.map((a) => a.id), ["registry-packs-p1-a1", "registry-packs-p2-a2"], "enabled a2a agents mapped by the legacy mapper");
+  for (const a of a2a) {
+    assert.equal(a.url, `https://registry.example.test/agent${a.id === "registry-packs-p1-a1" ? "/packs/p1/a1" : "/packs/p2/a2"}/`, "gateway-route url from REGISTRY_URL");
+  }
+  assert.ok(!agents.some((a) => a.id === "registry-packs-p3-a3"), "disabled entry filtered");
+  assert.ok(agents.some((a) => a.id === "registry-external-link" && a.mode === "link"), "non-a2a entry maps to link mode");
+});
+
+test("facet channel: agents leg degrades independently — mcp/skills still refresh, agents keep last-good", async () => {
+  bridge.initRegistryBridge({ fetchImpl: facetResponses({ servers: FACET_MCP, skills: FACET_SKILLS, agents: REGISTRY_AGENTS }) });
+  await bridge.refreshRegistry();
+  const goodAgents = bridge.getAgentEntries().length;
+  bridge.initRegistryBridge({ fetchImpl: facetResponses({ servers: [{ name: "b", endpoint: "https://gw/b/mcp", requiredGroups: [] }], skills: [], agentsFail: true }) });
+  await bridge.refreshRegistry();
+  assert.deepEqual(bridge.getMarketEntries().mcpServers.map((s) => s.name), ["b"], "mcp/skills refresh succeeded despite the agents failure");
+  assert.equal(bridge.getAgentEntries().length, goodAgents, "agents keep last-good — neither face blocks the other");
+});
+
+test("facet channel: agents changes do not broadcast market_changed", async () => {
+  const events = [];
+  bridge.initRegistryBridge({ broadcast: (e) => events.push(e), fetchImpl: facetResponses({ servers: FACET_MCP, skills: FACET_SKILLS, agents: REGISTRY_AGENTS }) });
+  await bridge.refreshRegistry();
+  const before = events.length;
+  bridge.initRegistryBridge({ broadcast: (e) => events.push(e), fetchImpl: facetResponses({ servers: FACET_MCP, skills: FACET_SKILLS, agents: [{ path: "/packs/p9/new", name: "新岗", supported_protocol: "a2a", is_enabled: true, url: "http://10.0.0.9:9" }] }) });
+  await bridge.refreshRegistry();
+  assert.equal(bridge.getAgentEntries().some((a) => a.id === "registry-packs-p9-new"), true, "agents updated");
+  assert.equal(events.length, before, "agents-only change stays silent — broadcast signature excludes agents");
 });
 
 test("skill content routes through the facet proxy by name", async () => {

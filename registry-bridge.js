@@ -505,6 +505,23 @@ async function doFacetRefresh() {
     throw new Error("facet catalog returned no entries");
   }
   marketSnapshot = { mcpServers, skills };
+  // The registry agents leg is source-independent (fix-cell-catalog-a2a-face):
+  // the facet projection serves the mcp/skills MARKET species only — the
+  // chat/serving AGENTS face (a2a entries the cell catalog, fleet posts and
+  // room summoning all read) lives in the registry's /api/agents. Fetch it
+  // here best-effort with the same credentials the legacy channel used; a
+  // failure degrades independently — keep last-good agents, warn, and never
+  // fail the mcp/skills refresh that already succeeded above.
+  if (REGISTRY_URL) {
+    try {
+      const agentsList = await fetchAllPages("/api/agents");
+      agentSnapshot = agentsList.items.map(mapAgent).filter(Boolean);
+    } catch (err) {
+      console.warn(
+        `[registry-bridge] facet agents fetch failed (keeping last-good): ${err.message}`,
+      );
+    }
+  }
   const sig = JSON.stringify({ mcpServers, skills });
   if (sig !== marketSig) {
     marketSig = sig;
@@ -667,7 +684,7 @@ export function initRegistryBridge({ broadcast, fetchImpl: impl } = {}) {
   if (source === "facet") {
     if (REGISTRY_URL) {
       console.warn(
-        "[registry-bridge] FACET_CATALOG_URL configured — MARKET_REGISTRY_URL/REGISTRY_URL is ignored (deprecated direct feed)",
+        "[registry-bridge] FACET_CATALOG_URL configured — MARKET_REGISTRY_URL/REGISTRY_URL is ignored for the mcp/skills market species (deprecated direct feed); the agents leg still reads the registry (fix-cell-catalog-a2a-face)",
       );
     }
   } else {

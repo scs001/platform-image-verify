@@ -31,6 +31,10 @@ useDefault = true
     # "sk-live-abcdef123456" / "sk-live-abc123456789" are literal placeholders
     # in a node:test stub, same shape as the lane-probe fixture above.
     '''scripts/test-facet-studio\.mjs''',
+    # Trial-exec validation-gate fixture (2026-11-07 public-snapshot gate hit):
+    # "sk-abc123def456ghi789" is a literal placeholder persona string whose only
+    # job is to trip the credential-scan gate (asserting a 422) — never a key.
+    '''scripts/test-trial-exec\.mjs''',
   ]
   # Docker rollback tag in the registry-fork patch README — tag-shaped, not a
   # credential (its entropy trips the generic-api-key rule).

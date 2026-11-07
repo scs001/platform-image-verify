@@ -88,6 +88,11 @@
 ## 现状与边界
 
 - 平台侧已就绪：声明校验、映射存储、解析、状态面、授权集合、HTTP 路由、界面。
-- **模板仓尚未在真包上声明 `providerRole`**（属对侧 change）。在此之前，市场里的
-  供应链连接器包仍是固定 provider 声明，角色通路只在夹具与测试中验证过。
+- **供应链连接器包已声明角色**（2026-11-08，pack 1.1.0）：`wms-snapshot`、`supplier-portal`、
+  `carrier-portal` 三条带 `providerRole: true`，市场按版本通道重发。三条仍为 `optional`
+  ——optional 回答的是"这个包能否在没有它的情况下用"，与"能否被满足"是两件事，后者已由
+  角色绑定解决。
+- 夹具：`paas/test/fixtures/connector-bindings/supply-chain-after.json` 与真实包**逐字节一致**；
+  早前那份从 `-after` 派生的 `supply-chain-role.json` 已退役——真包自己声明了角色之后，
+  它是纯重复，留着只会与源分叉。
 - 一个角色映射到**一个** provider。一对多 + 负载均衡是另一套语义，未做。

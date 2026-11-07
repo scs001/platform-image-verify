@@ -214,3 +214,47 @@ test("registerErpProxyRoutes 可被 ERP_API_PROXY_ENABLED=0 关掉", () => {
   registerErpProxyRoutes({ app, env: {}, authEnabled: true });
   assert.deepEqual(mounted, [ERP_PROXY_PREFIX]);
 });
+
+test("网关形态：resolveUser 落成 req.user 后才算有会话（3100 由 gateway 持有）", async () => {
+  // 产上 origin 端口不是 server.js，而是 `node gateway/index.js`；网关的会话只
+  // 在路由里解，所以 registerErpProxyRoutes 必须接受 resolveUser 并先落成
+  // req.user。缺了这一钩子，带 cookie 的用户也会被判成无会话（401）。
+  const mkApp = (resolveUser) => {
+    const app = express();
+    registerErpProxyRoutes({
+      app,
+      resolveUser,
+      env: { ERP_API_UPSTREAM: upstreamBase, ERP_TENANT_ID: "acme" },
+    });
+    // 网关的 SPA 兜底在下游：这里照抄一条，证明代理已经先一步接住 /erp/*
+    app.get(/^\/(?!api\/).*/, (_req, res) => res.type("html").send("<!doctype html>"));
+    return app;
+  };
+
+  const authed = mkApp(() => ({ email: "Gw@Example.com" }));
+  const server = authed.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${ERP_PROXY_PREFIX}/pagesets`, {
+      headers: { "x-erp-supplier": "evil-supplier" },
+    });
+    assert.equal(res.status, 200, "有会话时不能被 SPA 兜底抢走");
+    const { seen } = await res.json();
+    assert.equal(seen.headers["x-erp-staff"], "Gw@Example.com");
+    assert.equal(seen.headers["x-erp-supplier"], undefined);
+    assert.equal(seen.headers["x-erp-tenant"], "acme");
+  } finally {
+    server.close();
+  }
+
+  const anonymous = mkApp(() => null);
+  const server2 = anonymous.listen(0, "127.0.0.1");
+  await new Promise((r) => server2.once("listening", r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${server2.address().port}${ERP_PROXY_PREFIX}/pagesets`);
+    assert.equal(res.status, 401);
+    assert.equal((await res.json()).error.code, "AUTH_REQUIRED");
+  } finally {
+    server2.close();
+  }
+});

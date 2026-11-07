@@ -209,8 +209,17 @@ function readRawBody(req) {
   });
 }
 
+/**
+ * 挂载入口，两种进程形态共用同一份实现：
+ *   - 单进程（自托管 `node server.js`）：会话由上层中间件写进 `req.user`，不传 resolveUser；
+ *   - 多租户网关（产上 `node gateway/index.js` 持有 origin 端口 3100）：网关在路由里才解会话，
+ *     传 `resolveUser` 让本函数先把它落成 `req.user`（代理只认 `req.user`，不认裸 cookie）。
+ *
+ * 产上 3100 的 SPA 兜底在 gateway/index.js:322 —— 代理必须在那之前挂，否则 `/erp/*`
+ * 被前端 shell 抢走返回 index.html（首轮上产实测：GET 200 text/html 1298 字节）。
+ */
 export function registerErpProxyRoutes(ctx) {
-  const { app } = ctx;
+  const { app, resolveUser } = ctx;
   const env = ctx.env ?? process.env;
   const enabled = String(env.ERP_API_PROXY_ENABLED ?? "").toLowerCase();
   if (enabled === "0" || enabled === "false") return; // 显式关掉（其它部署形态）
@@ -218,6 +227,14 @@ export function registerErpProxyRoutes(ctx) {
   const upstream = env.ERP_API_UPSTREAM || "http://fd-erp-vertical-api.fd-prod.svc.cluster.local";
   const bindingsPath =
     env.ERP_IDENTITY_BINDINGS_FILE || path.join(process.env.FD_DATA_DIR || "data", "erp-identities.json");
+
+  if (typeof resolveUser === "function") {
+    app.use(ERP_PROXY_PREFIX, (req, _res, next) => {
+      const user = resolveUser(req);
+      if (user) req.user = user;
+      next();
+    });
+  }
 
   app.use(
     ERP_PROXY_PREFIX,

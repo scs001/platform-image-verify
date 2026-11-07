@@ -43,6 +43,7 @@ import { registerFacetProxy } from "./facet-proxy.js";
 import { createRoleStore, makeIsAdminUser } from "./roles.js";
 import { createLayoutStore } from "./layout.js";
 import { GATEWAY_SECRET_HEADER, secretMatches } from "../server/auth.js";
+import { registerErpProxyRoutes } from "../server/routes/erp-proxy.js";
 import { isBusinessRole } from "../server/roles.js";
 // wanxing mount 摘挂（unify-wanxing-a2a-face 4.x）：卡片/目录/管理路由的唯一出面
 // 是萬星 facade（wanxing.finddatatech.cloud，fd-wanxing 仓）；platform 域不再挂载。
@@ -300,6 +301,15 @@ app.get("/api/auth/me", (req, res, next) => {
     ssoGroups: null,
   });
 });
+
+// ── ERP 纵向服务面同源入口（add-erp-supply-chain-gateway-proxy）──────────────
+// 产上 origin 端口 3100 由**本网关**持有（Deployment 里 command 是
+// `node gateway/index.js`；server.js 是网关派生的 cell 子进程，收不到这个前缀）。
+// 首轮上产就是这么漏的：代理挂在 server.js 里、单测全绿、镜像里文件也在，但
+// `GET /erp/supply-chain/v1/pagesets` 返回的却是下面 SPA 兜底吐出的 index.html
+// （1298 字节）。所以挂载点必须在网关，且必须早于静态资源/SPA 兜底那两行。
+// 身份：网关自己解出的会话由 resolveUser 落成 req.user；客户端自带的 X-ERP-* 一律剥离。
+registerErpProxyRoutes({ app, resolveUser });
 
 // ── Pre-login SPA shell (add-login-hero 6.2) ───────────────────────────────
 // Registered just before the identity catch-all (below), after every concrete

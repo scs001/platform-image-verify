@@ -852,10 +852,15 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
             const hiddenCount = g.items.length - preview.length;
             return (
               <div key={g.key} data-testid="workspace-group" data-workspace={g.key}>
+                {/* Disclosure state for the group (spec: web-operate-states
+                    「键盘与 aria 底线」): the rows below are conditional on
+                    `expanded`, so a screen reader must be told the state — the
+                    nav-family disclosure above already carries it. */}
                 <button
                   type="button"
                   onClick={() => toggleGroup(g.key)}
                   data-testid="workspace-group-toggle"
+                  aria-expanded={expanded}
                   title={groupTitle(g.key)}
                   className="flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 >

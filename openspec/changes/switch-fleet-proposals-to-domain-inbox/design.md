@@ -122,3 +122,27 @@ select type_id, status, count(*) from domain_action_instances group by 1,2;
   逐点覆盖，否则会出现「一半进知验台、一半还在柏讯」的中间态。任务 1.1 取证要覆盖所有调用点。
 - **对端不可达时的表现**：本轮失败，下一轮重试同一草案 —— 需要确保草案跨轮可重现（岗位产物落盘），
   否则失败即丢失。这是提案岗既有产物纪律，本 change 不新增机制，只要求在报告里体现「失败未丢」。
+
+## 上产实证（2026-11-08）
+
+出口、接线与岗位三件已全部落产，证据都取「能红的那一侧」：
+
+| 环节 | 证据 |
+|---|---|
+| law-bench 提交面 `created` | 线上同键两投 → `created:true` 后 `created:false`（id 1），证明「新增 vs 幂等命中」不是自检查 |
+| 舰队凭据 | `fleet:ontology-builder` 自管 api key（`content:read`+`content:write`）+ `legal` 域 `expert` 成员；提交口只挂 `_WRITE_GATES` |
+| 生产接线 | `platform` 镜像 `sha-0b54470`；pod 内 `server/bench-proposal-mcp.js` 与 `lib/bench-proposal-client.js` 存在、`BENCH_*` 三项在 env 里 |
+| 工具可见 + 真提交 | pod 内 stdio 探针：`initialize` → `bench-proposal-mcp`，`tools/list` → `['bench_proposal_submit']`，`tools/call` → `{"id":1,"created":false,"result":"幂等命中"}`（复用探针键，零新增行） |
+| 岗位切换 | pack `YT87-2Axuu49I123zVYyhA` v9 上架并回读：`wire-ops` 只剩 7 个只读工具，`bench-proposal:["bench_proposal_submit"]`，提案员提示词指向新出口 |
+| 左值不增 | `domain_action_instances` 断面 `type_id in (-1,-2)` 仍为 11（-1:5 / -2:6，全 executed），切换后零新增 |
+
+**两个必须记住的接线陷阱**（都会「看起来对了、实际静默失败」）：
+
+1. **dsh 会擦除 MCP 子进程环境里形似凭据的名字**（含 `*TOKEN*`）。只把 `BENCH_CONSUMER_TOKEN` 放进环境变量不够，
+   mcp.json 那一行必须用 `envRefs` 显式转发，否则子进程只看到「未配置」。
+2. **bench 的 Bearer 通道是绑定式的**：存在但非法的 Bearer 直接 401，不回落到 `X-API-Key`。
+   因此自管 `lbk_` key 只能走 `X-API-Key`，JWT 才走 Bearer —— 客户端按前缀二选一，绝不同时发两条
+   （第一版镜像就是在这里 401 的，探针抓到、第二版修正）。
+
+**仍待一轮真跑**：上表证明的是「通道通、计数不增」，还差一次真实舰队回合把 `+N` 打出来
+（左值 11 → 右值仍 11，同时提案箱 +N 且控制台可见）。探针行已带理由驳回，不占提案箱。

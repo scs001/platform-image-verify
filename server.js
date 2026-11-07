@@ -1282,7 +1282,13 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
       const fleetId = job?.sourceTag?.fleetId ?? job?.origin?.fleet?.fleetId ?? null;
       const memberId = job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null;
       if (!fleetId || !memberId) return;
-      const status = outcome?.status ?? "failed";
+      // fix-fleet-memory-turn-title O10: the executors return { ok, ... } —
+      // there is no `status` field on the outcome (shapeTurnOutcome is the one
+      // that derives it). Reading `outcome?.status` here made every captured
+      // turn page a "回合失败", including the successes (production: 9 pages,
+      // 0 成功, while the ledger held 6 ok rows). Derive the same way the
+      // recorder does, from `ok`/`skipped`.
+      const status = outcome?.skipped === true ? "skipped" : outcome?.ok === true ? "ok" : "failed";
       // Turn fact anchor (add-fleet-memory-anchors D1): one header line binding
       // the memory page to the ledger row — "每一页记忆都知道自己是谁花的钱
       // 买的". Absent pieces stay blank (honest absence, never a 0).

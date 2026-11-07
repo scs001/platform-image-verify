@@ -30,6 +30,11 @@ const { aggregateWeek, moversLine, buildWeeklyBody, runFleetCostDigests } = awai
 // The capture closure lives in server.js (wired to ctx) — replay its exact
 // body here against a collector to pin the FORMAT (the real wiring is one
 // line: captureFleetTurnFact(job, outcome, meta)).
+// fix-fleet-memory-turn-title O10: the title/status derives from `ok`/`skipped`
+// (the executors return { ok, ... } — no `status` field exists).
+function captureStatusOf(outcome) {
+  return outcome?.skipped === true ? "skipped" : outcome?.ok === true ? "ok" : "failed";
+}
 function anchorOf(_job, outcome, meta) {
   const m = outcome?.metering ?? {};
   const usage = outcome?.usage ?? {};
@@ -45,7 +50,7 @@ function anchorOf(_job, outcome, meta) {
     `carrier=${m.carrier ?? "-"}`,
     `model=${meta?.model ?? "-"}`,
     `tokens=${input ?? "-"}/${output ?? "-"}/${billed ?? "-"}`,
-    `status=${outcome?.status ?? "failed"}`,
+    `status=${captureStatusOf(outcome)}`,
   ].join(" ")}]`;
 }
 
@@ -53,7 +58,7 @@ test("turn fact anchor: full fields including billed = input+cached+write", () =
   const anchor = anchorOf(
     {},
     {
-      status: "ok",
+      ok: true,
       usage: { input: 10, output: 5, cacheReadTokens: 100, cacheWriteTokens: 20 },
       metering: { carrier: "cell" },
     },
@@ -63,7 +68,7 @@ test("turn fact anchor: full fields including billed = input+cached+write", () =
 });
 
 test("turn fact anchor: absent usage reads '-' (never a zero impersonating observation)", () => {
-  const anchor = anchorOf({}, { status: "failed", error: "boom" }, {});
+  const anchor = anchorOf({}, { ok: false, error: "boom" }, {});
   assert.match(anchor, /tokens=-\/-\/-/);
   assert.match(anchor, /carrier=-/);
   assert.match(anchor, /status=failed/);
@@ -172,4 +177,16 @@ test("sweep: writes once per fleet per week; unpriced weeks still produce a page
   const book = new Map([["fleet_d1", facts[0].title.split(" ")[1]]]); // the ISO week key from the page title
   const n2 = await runFleetCostDigests({ fleetsDb: db, captureFact, listActiveFleets: listActive, written: book });
   assert.equal(n2, 0, "same week → no second page");
+});
+
+// ── O10 regression: title derives from ok/skipped, not a nonexistent status ──
+test("capture title: ok:true outcome reads 回合成功 (O10 — no status field on executor outcomes)", () => {
+  // The real executor shape: { ok: true, ... } — NO status field. The old
+  // reader (outcome?.status ?? "failed") made every success page a 失败.
+  const outcome = { ok: true, usage: { input: 367, output: 85 }, text: "回合1记忆验证" };
+  assert.equal(captureStatusOf(outcome), "ok");
+  const failed = { ok: false, error: "boom" };
+  assert.equal(captureStatusOf(failed), "failed");
+  const skipped = { ok: false, skipped: true, error: "not ready" };
+  assert.equal(captureStatusOf(skipped), "skipped");
 });

@@ -410,6 +410,28 @@ function withPresetPath(result, presetPath) {
   return { ...result, detail: { ...(result.detail ?? {}), presetPath } };
 }
 
+// Thinking depth per turn (fix-member-config-complete D2). Extracted so the
+// "cleared declaration drives the runtime back to the provider default" branch
+// is testable on its own — the whole point of the fix is a judgement the old
+// code never reached (it tested truthiness of the target level, so `null` — the
+// clear case — was indistinguishable from "nothing to do").
+//
+// Degrade-open stays: a failed switch is recorded as a notice and the turn runs
+// on whatever level is live. Returns the accumulated notices.
+export async function applyPostEffort(ctx, plan) {
+  const notices = [...(plan?.effortNotices ?? [])];
+  const desired = plan?.effort ?? null;
+  if (desired === (ctx?.currentEffort ?? null)) return notices;
+  const label = desired === null ? "(clear → provider default)" : desired;
+  try {
+    const r = await ctx.switchEffortTo?.(desired);
+    if (r && r.ok === false) notices.push(`thinking level switch to '${label}' failed: ${r.error ?? "unknown error"}`);
+  } catch (e) {
+    notices.push(`thinking level switch to '${label}' failed: ${e?.message || e}`);
+  }
+  return notices;
+}
+
 // Post-model normalization (add-fleet-post-model D1/D2/D5): the exact mirror
 // of the preset normalization above — every persona turn LANDS the runtime on
 // the resolution chain's first roster hit instead of riding whatever the
@@ -472,15 +494,11 @@ async function normalizeModelForJob(ctx, preset) {
   // LIVE model/set path — no child restart. Same-value switches are skipped
   // (the runtime is already there). A failed effort switch degrades open: the
   // turn runs on whatever level is live rather than failing over a knob.
-  const effortNotices = [...(plan.effortNotices ?? [])];
-  if (plan.effort && plan.effort !== (ctx.currentEffort ?? null)) {
-    try {
-      const r = await ctx.switchEffortTo?.(plan.effort);
-      if (r && r.ok === false) effortNotices.push(`thinking level switch to '${plan.effort}' failed: ${r.error ?? "unknown error"}`);
-    } catch (e) {
-      effortNotices.push(`thinking level switch to '${plan.effort}' failed: ${e?.message || e}`);
-    }
-  }
+  // fix-member-config-complete D2: the judgement is "is the target level
+  // different", not "does the target level exist". A cleared declaration
+  // (plan.effort == null) must drive the runtime BACK to the provider default;
+  // skipping it left the previous post's level in place across turns.
+  const effortNotices = await applyPostEffort(ctx, plan);
   if (effortNotices.length) console.warn(`[fleets] post config for ${plan.memberId}: ${effortNotices.join("; ")}`);
   return {
     ok: true,

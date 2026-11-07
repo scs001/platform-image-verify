@@ -186,6 +186,122 @@ test("write gate: bots PATCH validates effort/budget through the same union", as
   }
 });
 
+// ── create-face parity (fix-member-config-complete D1) ─────────────────────
+//
+// POST /members used to read only title/target/cadence/model, so a create that
+// carried effort/contextBudget/carrier/packId returned 201 with the values
+// silently dropped. These pin "same door, same gate, same landing" against the
+// PATCH path so the two cannot drift apart again.
+
+test("write gate: POST /members lands effort/contextBudget/carrier/packId, identical to PATCH", async () => {
+  const { createFleetRoutes } = await import("../server/routes/fleets.js");
+  const express = (await import("express")).default;
+  const { setEffortDeclarations } = await import("../server/fleet-model.js");
+  setEffortDeclarations({ "m-x": ["low", "medium", "high"] });
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const fs = await import("node:fs");
+
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dims-create-"));
+  const { createFleetDatabase, setFleetDatabase } = await import("../server/routes/fleets-db.js");
+  const fleetDb = createFleetDatabase({ file: path.join(tmpRoot, "fleets.db") });
+  setFleetDatabase(fleetDb);
+  const fleet = fleetDb.createFleet({ id: "f_mk", name: "mk", ownerEmail: "owner@test" });
+
+  const app = express();
+  app.use(express.json());
+  createFleetRoutes(app, {
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }),
+    dshModels: [{ id: "m-x", reasoningEfforts: ["low", "medium", "high"] }],
+  });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const create = (body) => fetch(`${base}/api/fleets/f_mk/members`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: "岗", targetKind: "persona", targetId: "p1", ...body }),
+  });
+
+  try {
+    // (1) all four dimensions land on create and read back verbatim
+    const ok = await create({ effort: "high", contextBudget: 16000, carrier: "cell", packId: "pack-a" });
+    assert.equal(ok.status, 201);
+    const made = (await ok.json()).member;
+    assert.equal(made.effort, "high");
+    assert.equal(made.contextBudget, 16000);
+    assert.equal(made.carrier, "cell");
+    assert.equal(made.packId, "pack-a");
+
+    // (2) equivalence with "create first, then PATCH the same values"
+    const plain = await create({ targetId: "p2" });
+    assert.equal(plain.status, 201);
+    const plainId = (await plain.json()).member.id;
+    const patched = await fetch(`${base}/api/fleets/f_mk/members/${plainId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ effort: "high", contextBudget: 16000, carrier: "cell", packId: "pack-a" }),
+    });
+    assert.equal(patched.status, 200);
+    const viaPatch = (await patched.json()).member;
+    for (const k of ["effort", "contextBudget", "carrier", "packId"]) {
+      assert.equal(made[k], viaPatch[k], `${k}: create and create-then-PATCH must agree`);
+    }
+
+    // (3) illegal values are refused BEFORE the row exists
+    const before = fleetDb.listMembers(fleet.id).length;
+    const badEffort = await create({ targetId: "p3", effort: "ultra" });
+    assert.equal(badEffort.status, 400);
+    assert.match((await badEffort.json()).error, /choose one of: low, medium, high/);
+    const badCarrier = await create({ targetId: "p3", carrier: "broom" });
+    assert.equal(badCarrier.status, 400);
+    const badPack = await create({ targetId: "p3", packId: "x".repeat(65) });
+    assert.equal(badPack.status, 400);
+    const badBudget = await create({ targetId: "p3", contextBudget: 10 });
+    assert.equal(badBudget.status, 400);
+    assert.equal(fleetDb.listMembers(fleet.id).length, before, "rejected creates leave no rows");
+  } finally {
+    server.close();
+    fleetDb.close();
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+// ── cleared declaration reaches the runtime (fix-member-config-complete D2) ──
+
+test("effort landing: a cleared declaration drives the runtime back to the provider default", async () => {
+  const { applyPostEffort } = await import("../server/cron-runner.js");
+
+  // The bug: `if (plan.effort && …)` made the clear case indistinguishable from
+  // "nothing to do", so the previous post's level stayed live.
+  const calls = [];
+  const ctx = { currentEffort: "high", switchEffortTo: async (v) => { calls.push(v); return { ok: true }; } };
+  const notices = await applyPostEffort(ctx, { effort: null, memberId: "m1" });
+  assert.deepEqual(calls, [null], "clearing must call switchEffortTo(null)");
+  assert.deepEqual(notices, []);
+
+  // Already at the provider default → zero calls (no per-turn churn).
+  const idle = [];
+  await applyPostEffort({ currentEffort: null, switchEffortTo: async (v) => { idle.push(v); return { ok: true }; } }, { effort: null });
+  assert.deepEqual(idle, [], "same level ⇒ no switch");
+
+  // A real declaration still switches.
+  const up = [];
+  await applyPostEffort({ currentEffort: null, switchEffortTo: async (v) => { up.push(v); return { ok: true }; } }, { effort: "low" });
+  assert.deepEqual(up, ["low"]);
+
+  // Degrade open: a failed switch is a notice, never a thrown turn.
+  const failed = await applyPostEffort(
+    { currentEffort: "high", switchEffortTo: async () => ({ ok: false, error: "no active model" }) },
+    { effort: null },
+  );
+  assert.equal(failed.length, 1);
+  assert.match(failed[0], /provider default/);
+  assert.match(failed[0], /no active model/);
+});
+
 test.after(async () => {
   // db.js starts schedulers/flush timers at import; without this the runner
   // never exits (same cleanup the other fleet suites carry).

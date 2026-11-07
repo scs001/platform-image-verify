@@ -3072,6 +3072,20 @@ export function createFleetRoutes(app, ctx = null) {
       const modelErr = memberModelWriteError({ targetKind, body: req.body });
       if (modelErr) return res.status(400).json({ error: modelErr });
 
+      // Config dimensions on create (fix-member-config-complete D1): the same
+      // four fields PATCH accepts, behind the same gates. A create that reads a
+      // field and then drops it is a silent lie — either it lands or it is
+      // refused before the row exists.
+      const { effort, contextBudget, carrier, packId } = req.body ?? {};
+      const dims = validateConfigDims({ effort, contextBudget }, effortUnionFrom(ctx?.dshModels));
+      if (dims.error) return res.status(400).json({ error: dims.error });
+      if (carrier !== undefined && carrier !== null && !CARRIERS.includes(carrier)) {
+        return res.status(400).json({ error: `carrier must be one of ${CARRIERS.join("|")} or null` });
+      }
+      if (packId !== undefined && packId !== null && (typeof packId !== "string" || !packId.trim() || packId.length > 64)) {
+        return res.status(400).json({ error: "packId must be a non-empty string (≤64 chars) or null" });
+      }
+
       const parentId = req.body?.parentId ?? null;
       if (parentId) {
         const parent = db.getMember(parentId);
@@ -3091,6 +3105,10 @@ export function createFleetRoutes(app, ctx = null) {
         cadence: cad.cadence,
         model: req.body?.model ?? null,
         fallbackModel: req.body?.fallbackModel ?? null,
+        effort: dims.effort,
+        contextBudget: dims.contextBudget,
+        carrier: carrier ?? null,
+        packId: packId == null ? null : packId.trim(),
       });
       const reconcile = await runReconcile(fleet.id);
       const tasks = taskIndexFor(fleet.id);

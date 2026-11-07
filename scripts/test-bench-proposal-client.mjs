@@ -323,7 +323,15 @@ test("the example row forwards all three vars via envRefs", () => {
   for (const name of [BENCH_URL_ENV, BENCH_TOKEN_ENV, BENCH_DOMAIN_ENV]) {
     assert.ok(refs.includes(name), `${name} must be forwarded via envRefs`);
   }
-  assert.ok(!JSON.stringify(row).includes("lbk_"), "no credential in the example");
+  // A KEY, not the word: the row's own comment explains that this token is an
+  // `lbk_`-prefixed api key, so a bare substring check flags the documentation
+  // and calls it a leaked credential — which is exactly what happened when
+  // that comment landed (2026-11-08). A real key is the prefix plus a token
+  // body, and that is what this pins.
+  assert.ok(
+    !/lbk_[A-Za-z0-9_-]{6,}/.test(JSON.stringify(row)),
+    "no credential in the example",
+  );
 });
 
 test("the tool refuses to invent a source", async () => {

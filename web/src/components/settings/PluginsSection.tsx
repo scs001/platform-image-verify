@@ -31,14 +31,33 @@ export function PluginsSection() {
   // (plugins_changed) — that is the server's own completion signal, and it
   // covers both apply paths (live recompose and restart-and-resume).
   const [pending, setPending] = useState<string | null>(null);
+  // A REJECTED toggle never broadcasts its confirming pulse (ws.js sends only
+  // `{type:"error"}`), so the roster-keyed clear above can never fire and the
+  // row would sit on「Applying…」— freezing every switch in the pane, because
+  // `disabled` treats `pending !== null` as global. The store bumps
+  // `configErrorSeq` for exactly this class ("a rejected config change never
+  // sends its confirming *_changed broadcast, so the pending control would hang
+  // forever"), so retire the marker whenever that sequence moves.
+  const configErrorSeq = useChatStore((s) => s.configErrorSeq);
+  useEffect(() => {
+    setPending(null);
+  }, [configErrorSeq]);
 
   useEffect(() => {
     if (status === "connected") wsSend({ type: "list_plugins" });
   }, [status]);
 
+  // The roster pulse IS the completion signal. bind to the array the store
+  // installs: every `plugins_changed` (toggle applied / restart-and-resume) and
+  // every `plugins` snapshot (reconnect list_plugins) replaces it, so a new
+  // identity retires the in-flight marker. This used to run on mount only
+  // (`[]`) while the comment above promised the pulse cleared it — the effect
+  // was simply missing, so a toggle left the row on「Applying…」and, because
+  // `disabled` treats `pending !== null` as global, every other switch in the
+  // pane stayed dead until the section remounted (found by e2e/plugins-supply).
   useEffect(() => {
     setPending(null);
-  }, []);
+  }, [bundles]);
 
   const onToggle = useCallback(
     (bundle: PluginBundleInfo) => {

@@ -36,6 +36,10 @@ function makeGatewayState() {
 
 function installGatewayMock(page, state) {
   const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
+  // `agentCount` mirrors the server's projection (latest version's manifest
+  // agents). Absent-means-unknown is the same discipline the server keeps for
+  // rows its SQL never projected, so a manifest declaring no agents keeps the
+  // pre-change summary shape and the agent-size filter passes it through.
   const summary = (p) => ({
     id: p.id,
     authorEmail: p.authorEmail,
@@ -45,6 +49,7 @@ function installGatewayMock(page, state) {
     description: p.manifest.description || "",
     tags: p.manifest.tags || [],
     publishedAt: p.publishedAt,
+    ...(p.manifest.agents?.length ? { agentCount: p.manifest.agents.length } : {}),
   });
 
   return page.route("**/api/packs**", async (route) => {
@@ -222,10 +227,17 @@ async function seedPackBoth(gw, manifest, id = "pack-e2e-1", facet = {}) {
 }
 
 async function gotoPacksTab(page, tab) {
-  // simplify-ia-non-technical moved the packs surface out of Settings into
-  // the agents page's Market tab (/settings/packs only redirects there).
+  // Route history, so this helper stops being rewritten every IA move:
+  // the surface left Settings (simplify-ia-non-technical) for the agents
+  // page's Market tab, then the W2 teardown dissolved that four-zone hub —
+  // /agents is now the agent-market façade (AgentMarketPage: an external
+  // deep link plus the installed-packs panel) and PacksPage is mounted at
+  // /packs, restored as the deployTeam deep-link target
+  // (add-supply-studio-migration 5.2). The market BROWSING half lives in the
+  // supply domain (facet) now; what stays testable here is the runtime half
+  // plus the creator/wizard surfaces, which is what this file drives.
   await pinLocaleEn(page);
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`packs-tab-${tab}`).click();
 }
@@ -385,6 +397,74 @@ test("subscriber inspects, subscribes, and the pack materializes", async ({ page
   await expect(mine).toContainText("订阅包审查官");
 });
 
+// ── Market: agent-count bucket filter (marketplace-cluster-view) ────────────
+//
+// optimize-paas-module-audit N-10: the `?agents=` bucket filter had no test at
+// all, in a view whose own comment records the regression class it belongs to
+// (the router-free state plumbing blanked #/packs once already). This drives
+// the real select against seeded rows with three different agent counts, then
+// reloads to prove the bucket survives through the URL.
+test("agent-size filter buckets rows and survives a refresh", async ({ page }) => {
+  const gw = seedableGateway(page);
+  const withAgents = (name, n) => ({
+    name,
+    description: `${n} 个智能体`,
+    tags: [],
+    skills: [],
+    agents: Array.from({ length: n }, (_, i) => ({ id: `a${i}`, name: `${name}-${i}`, persona: "p" })),
+  });
+  seedPack(gw.state, withAgents("单兵包", 1), "pack-one");
+  seedPack(gw.state, withAgents("双人包", 2), "pack-two");
+  seedPack(gw.state, withAgents("班组包", 4), "pack-four");
+  // A pre-upgrade row (no agentCount) must pass through every bucket, not vanish.
+  gw.state.packs.push({
+    id: "pack-unknown",
+    authorEmail: "creator@e2e.test",
+    createdAt: Date.now(),
+    publishedAt: Date.now(),
+    version: 1,
+    manifest: { name: "未知规模包", description: "老服务端", tags: [], skills: [] },
+    versionHistory: [],
+  });
+  gw.install();
+  await gotoPacksTab(page, "market");
+
+  const cards = page.locator('[data-testid^="pack-card-"]');
+  const filter = page.getByTestId("pack-agent-size-filter");
+  await expect(cards).toHaveCount(4);
+
+  // 2-3 ⇒ the two-agent row only (plus the unknown row, which never filters).
+  await filter.selectOption("2-3");
+  await expect(page.getByTestId("pack-card-pack-two")).toBeVisible();
+  await expect(page.getByTestId("pack-card-pack-one")).toHaveCount(0);
+  await expect(page.getByTestId("pack-card-pack-four")).toHaveCount(0);
+  await expect(page.getByTestId("pack-card-pack-unknown")).toBeVisible();
+  await expect(page).toHaveURL(/[?&]agents=2-3(&|$)/);
+
+  // The bucket lives in the URL: a reload keeps it.
+  await page.reload();
+  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
+  // The page mounts on the market tab, and the select must come back on the
+  // bucket the URL named — that is the contract, not the tab's own state.
+  await expect(page.getByTestId("pack-agent-size-filter")).toHaveValue("2-3");
+  await expect(page.getByTestId("pack-card-pack-two")).toBeVisible();
+  await expect(page.getByTestId("pack-card-pack-one")).toHaveCount(0);
+
+  // 4+ ⇒ four agents and up.
+  await page.getByTestId("pack-agent-size-filter").selectOption("4+");
+  await expect(page.getByTestId("pack-card-pack-four")).toBeVisible();
+  await expect(page.getByTestId("pack-card-pack-two")).toHaveCount(0);
+
+  // 1 ⇒ the single-agent row.
+  await page.getByTestId("pack-agent-size-filter").selectOption("1");
+  await expect(page.getByTestId("pack-card-pack-one")).toBeVisible();
+  await expect(page.getByTestId("pack-card-pack-four")).toHaveCount(0);
+
+  // Any ⇒ everyone back.
+  await page.getByTestId("pack-agent-size-filter").selectOption("");
+  await expect(cards).toHaveCount(4);
+});
+
 // ── Detail: tool-face disclosure (pack-tool-declaration-gate 3.1–3.3) ───────
 test("detail discloses declared, full-surface, and legacy tool faces", async ({ page }) => {
   const gw = seedableGateway(page);
@@ -404,7 +484,11 @@ test("detail discloses declared, full-surface, and legacy tool faces", async ({ 
   );
   seedPack(gw.state, faceManifest("旧版包", "face-legacy-skill", {}), "pack-face-legacy");
   // Deterministic totals: the catalog's tool_list snapshot (no live probe).
-  await page.route("**/api/extensions/market", (route) =>
+  // The trailing `*` is load-bearing: the store asks for `?locale=en`, and a
+  // Playwright glob matches only what the pattern admits — without it the real
+  // catalog answered, and the totals came from the registry stub's own
+  // snapshot (3 tools), which reads exactly like a product bug.
+  await page.route("**/api/extensions/market*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -691,12 +775,16 @@ test("pack surfaces disappear when the deployment is not gateway-fronted", async
       body: JSON.stringify({ ...config, packMarketplace: false }),
     });
   });
-  await page.goto("/agents?tab=market");
-  await expect(page.getByTestId("packs-page")).not.toBeVisible();
-  // The market tab is absent on non-marketplace deployments (it moved out of
-  // Settings into the agents page) and the deep link falls back to Experts.
-  await expect(page.getByTestId("agents-tab-market")).toHaveCount(0);
-  await expect(page.getByTestId("agents-tab-agents")).toBeVisible();
+  await page.goto("/packs?tab=market");
+  // The surface's own doorway refuses: the deep link lands on the agent-market
+  // face instead of an empty marketplace shell. (The gate used to be the agents
+  // hub's tab array; the hub dissolved 2026-11-06 and /packs mounts directly,
+  // so the refusal has to be the page's — asserted here so it cannot be lost
+  // again in the next IA move.)
+  await expect(page).toHaveURL(/\/agents(\?|$)/);
+  await expect(page.getByTestId("agent-market-page")).toBeVisible();
+  await expect(page.getByTestId("packs-page")).toHaveCount(0);
+  await expect(page.getByTestId("packs-tab-market")).toHaveCount(0);
 });
 
 // ── Server-side manifest fetch (pack-install-server-side-manifest) ──────────

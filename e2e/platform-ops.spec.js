@@ -16,7 +16,7 @@ const json = (body, status = 200) => ({ status, contentType: "application/json",
 // redirects there) — enter through the tab the same way packs.spec.js does.
 async function gotoMarket(page) {
   await pinLocaleEn(page);
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
 }
 
@@ -73,9 +73,12 @@ test("the deploy section shows the balance readout, paste inputs, and the bound 
   const readout = page.getByTestId("pack-billing-readout");
   await expect(readout).toBeVisible({ timeout: 10_000 });
   await expect(readout).toContainText("0.20");
-  // The low-balance branch renders the amber warning styling (class check is
-  // locale-independent).
-  await expect(readout).toHaveClass(/amber/);
+  // The low-balance branch renders the waiting-status warning styling (class
+  // check is locale-independent). Asserted through the SEMANTIC token, not a
+  // literal palette name: the surface moved from `amber` to
+  // `status-waiting` when the design system went semantic, and a literal here
+  // would fail on the next palette swap while the branch stayed correct.
+  await expect(readout).toHaveClass(/status-waiting/);
   // Paste flow: the serving agent shows its paste input and bound badge —
   // values never come back, only the fact of a binding.
   await expect(page.getByTestId("pack-billing-key-input-svc-agent")).toBeVisible();

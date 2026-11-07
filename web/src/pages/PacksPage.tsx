@@ -7,14 +7,22 @@
 // the market (browse/inspect/subscribe) and 我的 — installed snapshots
 // (updates, uninstall) as one section, creator drafts (authoring + publish)
 // as the section below it. A preset-conversion handoff lands on 我的 with
-// the drafts section consumed. Mounted only when config.packMarketplace is
-// true, so no code path here needs a local-deployment fallback.
+// the drafts section consumed.
+//
+// Gateway-fronted deployments only (design D15). The gate used to be the
+// agents hub's tab array; when that hub dissolved and this page took the
+// /packs route back (add-supply-studio-migration 5.2, 2026-11-07) the route
+// mounted unconditionally and a local deployment grew a market surface it has
+// no market for. The guard lives HERE, at the surface's own doorway, so a
+// stale deep link resolves instead of dead-ending. /api/config is fetched
+// before the first paint (main.tsx), so the flag is already correct here.
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useChatStore } from "@platform/core";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
@@ -25,6 +33,7 @@ type Tab = "market" | "mine";
 export function PacksPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { packMarketplace } = useAppConfig();
   const setComposerDraft = useChatStore((s) => s.setComposerDraft);
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("market");
@@ -39,6 +48,10 @@ export function PacksPage() {
   useEffect(() => {
     if (hasBridgeHandoff()) setActiveTab("mine");
   }, []);
+
+  // No marketplace on this deployment ⇒ no pack surface, and the deep link
+  // lands on the agent-market face instead of an empty shell.
+  if (!packMarketplace) return <Navigate to="/agents" replace />;
 
   return (
     <div className="flex flex-col h-full bg-background" data-testid="packs-page">

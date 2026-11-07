@@ -112,7 +112,7 @@ test.describe("official showcase faces", () => {
       });
     });
 
-    await page.goto("/agents?tab=market");
+    await page.goto("/packs");
     // Chip renders because official rows exist; toggling filters to them.
     await expect(page.getByTestId("pack-official-chip")).toBeVisible();
     await expect(page.getByTestId("pack-card-off_1")).toBeVisible();

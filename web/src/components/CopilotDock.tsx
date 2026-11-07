@@ -50,16 +50,23 @@ export function CopilotDock({ send }: Props) {
   const injectedAgentRef = useRef<string | null>(null);
 
   // Derive the dock's line context from the route. /boards/:line is the
-  // board path; the 壹座 Market tab (/agents?tab=market) carries the facet
-  // line (add-facet-copilot D1) — the same focused-preset resolution serves
-  // both. Other routes open context-free.
+  // board path; the 壹座 pack market carries the facet line (add-facet-copilot
+  // D1) — the same focused-preset resolution serves both. The market surface
+  // moved out of the (now dissolved) agents hub to its own /packs route, and
+  // the dock's facet line had to move with it: without this the market opened
+  // a context-free dock on the one surface whose whole contract is the 谦面
+  // assistant line. The legacy /agents?tab=market URL stays mapped so old
+  // bookmarks keep behaving. Other routes open context-free.
   useEffect(() => {
     const match = location.pathname.match(/^\/boards\/([^/]+)/);
     if (match?.[1]) {
       setBoardLine(match[1]);
       return;
     }
-    if (location.pathname === "/agents" && new URLSearchParams(location.search).get("tab") === "market") {
+    if (
+      location.pathname === "/packs" ||
+      (location.pathname === "/agents" && new URLSearchParams(location.search).get("tab") === "market")
+    ) {
       setBoardLine("facet");
       return;
     }

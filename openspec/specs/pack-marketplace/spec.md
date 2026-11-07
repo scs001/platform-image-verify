@@ -616,11 +616,11 @@ The two market surfaces — the facet standalone shell (`facet/web/src`) and the
 
 ### Requirement: The 壹座 Store tab carries a market guide entry
 
-On the 壹座 Agents page Market tab, the copilot dock SHALL resolve the facet line's focused assistant (existing `GET /api/boards/facet/copilot` resolution, no new endpoint) and open the guide with that preset injected — same open/restore semantics as the board path. While the guide is open, the tab SHALL publish the currently inspected pack (from the detail dialog's lifecycle) into the guide's context bar via the existing same-origin postMessage channel; the injection SHALL be read-only (the embed registers no page-action handler, and any write intent SHALL still travel through the action gate's propose path). When the facet assistant pack is not installed (no resolvable focused preset), the Market tab SHALL surface an honest hint pointing at the assistant's market entry instead of an unfocused guide pretending to be gated. The facet standalone site (anonymous surface) carries no guide entry in this scope.
+On the 壹座 pack market surface (`/packs` — the route the dissolved Agents-page Market tab became; the legacy `/agents?tab=market` deep link keeps resolving to the same facet line so old bookmarks are not left with a context-free dock), the copilot dock SHALL resolve the facet line's focused assistant (existing `GET /api/boards/facet/copilot` resolution, no new endpoint) and open the guide with that preset injected — same open/restore semantics as the board path. While the guide is open, the surface SHALL publish the currently inspected pack (from the detail dialog's lifecycle) into the guide's context bar via the existing same-origin postMessage channel; the injection SHALL be read-only (the embed registers no page-action handler, and any write intent SHALL still travel through the action gate's propose path). When the facet assistant pack is not installed (no resolvable focused preset), the surface SHALL surface an honest hint pointing at the assistant's market entry instead of an unfocused guide pretending to be gated. The facet standalone site (anonymous surface) carries no guide entry in this scope.
 
 #### Scenario: opening the guide from the Market tab injects the focused preset
 
-- **WHEN** a signed-in user on `/agents?tab=market` opens the copilot dock and the 谦面助手 pack is installed
+- **WHEN** a signed-in user on `/packs` opens the copilot dock and the 谦面助手 pack is installed
 - **THEN** the guide session runs under the `facet-assistant` focused preset and the context bar names it
 
 #### Scenario: the inspected pack reaches the guide's context
@@ -1027,3 +1027,28 @@ For pack listings, admission SHALL remain: public, non-unlisted, and curated (`c
 
 - **WHEN** 一个官方条目没有已审校记录
 - **THEN** 它显示官方徽章,不显示官方精选徽章
+
+### Requirement: 市场面只在网关前置部署出现
+
+市场界面（浏览、详情、订阅、我的包、创作/发布）SHALL 只在部署报告 `packMarketplace`
+为真的形态下可达；`/api/config` 报告 `packMarketplace: false` 时，市场面自身的路由
+（`/packs` 及其深链 `?tab=`、`?deployCastPack=`）SHALL 拒绝渲染市场壳并重定向到
+agent-market 门面（`/agents`），不得留在原地呈现一个没有市场可连的空壳。
+
+判据 SHALL 在市场面自己的路由/页面里执行，而不是依赖某个上层容器是否挂载它——挂载点
+会随信息架构搬迁（agents 中心页已于 2026-11-06 拆解，`/packs` 于 2026-11-07 以独立
+路由恢复），而这条边界不该随挂载点搬家丢失。判据所用的配置 SHALL 在首绘前已就绪，
+避免首次渲染时把网关前置部署误判为本地部署。
+
+非市场面不受此限：已装包管理（更新/卸载）属于运行域，两个部署形态都 SHALL 保留。
+
+#### Scenario: 本地部署访问市场深链
+
+- **WHEN** `/api/config` 报告 `packMarketplace: false`，用户访问 `/packs?tab=market`
+- **THEN** 应用重定向到 `/agents` 并渲染 agent-market 门面
+- **AND** 市场面（`packs-page`、市场页签、市场卡片）不出现
+
+#### Scenario: 网关前置部署行为不变
+
+- **WHEN** `/api/config` 报告 `packMarketplace: true`，用户访问 `/packs`
+- **THEN** 市场面正常渲染，页签与市场列表可用

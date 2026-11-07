@@ -168,7 +168,9 @@ export function HelpDialog({ open, onOpenChange }: Props) {
         {tab === "guides" && (
           <div className="mt-3 flex flex-col gap-2" data-testid="help-guides">
             {guides.length === 0 && (
-              <p className="text-xs text-muted-foreground">{t("help.guidesEmpty")}</p>
+              <p className="text-xs text-muted-foreground" data-testid="help-guides-empty">
+                {t("help.guidesEmpty")}
+              </p>
             )}
             {guides.map(([packId, guide]) => {
               const open = openGuide === packId;

@@ -36,7 +36,7 @@ test("draft → .yizpack download → import as a new draft, nothing installed",
   const { draft } = await created.json();
 
   test.setTimeout(120_000);
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("packs-tab-mine").click();
   await page.locator(`[data-testid^="pack-draft-item-"]`).filter({ hasText: DRAFT_NAME }).first().click();

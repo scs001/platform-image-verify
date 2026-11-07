@@ -5,14 +5,21 @@
 // channel (/api/packs* proxy construction: FACET_BASE_URL + internal token +
 // forwarded x-facet-user identity). A real facet lives at
 // facet.finddatatech.cloud behind a hostNetwork deployment; the suite must not
-// depend on it, so this stub answers exactly the one route the install fetch
-// uses — GET /api/packs/:id/versions/:version — with the same visibility rule
-// the market enforces (private ⇒ author/admin only, otherwise not-found) and
-// the same token-gated identity semantics as facet/identity.js (a forwarded
-// header without the internal credential is ignored).
+// depend on it, so this stub answers exactly the two routes the install path
+// uses — GET /api/packs/:id/versions/:version (the manifest fetch) and
+// GET /api/packs/:id (the purchase gate's detail read, fetchMarketDetail,
+// add-market-revenue-share) — with the same visibility rule the market
+// enforces (private ⇒ author/admin only, otherwise not-found) and the same
+// token-gated identity semantics as facet/identity.js (a forwarded header
+// without the internal credential is ignored).
+//
+// The detail route is here because the gate runs BEFORE the manifest fetch:
+// a stub that only knew the version route answered 404 to every install, which
+// the cell correctly reported as "Pack version not found" — the e2e suite's
+// whole subscriber family went red on a stub-shape gap, not a product defect.
 //
 // Control routes (used by the specs to seed packs and provoke failures):
-//   POST /__seed  {id, version, manifest, visibility?, authorEmail?}
+//   POST /__seed  {id, version, manifest, visibility?, authorEmail?, pricing?}
 //   POST /__mode  {id, version, mode}   mode: ok | 500 | no-manifest
 //   POST /__reset
 //   GET  /__seen                        every data request + its headers
@@ -59,6 +66,9 @@ const server = createServer(async (req, res) => {
       visibility: b.visibility === "private" ? "private" : "public",
       authorEmail: b.authorEmail || "creator@e2e.test",
       mode: b.mode || "ok",
+      // Absent (the default) means free — exactly the free-pack shape the
+      // gate reads as "no price, nothing to buy".
+      pricing: b.pricing ?? null,
     });
     return json(res, 200, { ok: true });
   }
@@ -78,10 +88,6 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { seen });
   }
 
-  const m = url.pathname.match(/^\/api\/packs\/([^/]+)\/versions\/([^/]+)$/);
-  if (!m) return json(res, 404, { error: "not found" });
-  seen.push({ path: url.pathname, headers: req.headers });
-
   // Proxy-channel identity: honored only under the internal credential.
   let viewer = null;
   if (req.headers["x-facet-token"] === TOKEN && req.headers["x-facet-user"]) {
@@ -91,6 +97,35 @@ const server = createServer(async (req, res) => {
       viewer = null;
     }
   }
+
+  // Detail face — the install purchase gate's source (fetchMarketDetail).
+  const dm = url.pathname.match(/^\/api\/packs\/([^/]+)$/);
+  if (dm) {
+    seen.push({ path: url.pathname, headers: req.headers });
+    const id = decodeURIComponent(dm[1]);
+    let latest = null;
+    let latestVersion = -1;
+    for (const [key, entry] of packs) {
+      const [packId, v] = key.split("@");
+      if (packId !== id) continue;
+      if (Number(v) > latestVersion) {
+        latest = entry;
+        latestVersion = Number(v);
+      }
+    }
+    if (!latest) return json(res, 404, { error: "Pack not found" });
+    if (latest.visibility === "private" && viewer?.email !== latest.authorEmail) {
+      return json(res, 404, { error: "Pack not found" });
+    }
+    if (latest.mode === "500") return json(res, 500, { error: "internal" });
+    // Nothing is bought in the hermetic suite: pricing present ⇒ not purchased
+    // (that 402 path has its own unit coverage in test-pack-install-fetch).
+    return json(res, 200, { id, version: latestVersion, pricing: latest.pricing ?? null, purchased: false });
+  }
+
+  const m = url.pathname.match(/^\/api\/packs\/([^/]+)\/versions\/([^/]+)$/);
+  if (!m) return json(res, 404, { error: "not found" });
+  seen.push({ path: url.pathname, headers: req.headers });
 
   const id = decodeURIComponent(m[1]);
   const version = decodeURIComponent(m[2]);

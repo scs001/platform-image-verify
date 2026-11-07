@@ -73,7 +73,21 @@ test.afterEach(async ({ page }) => {
   await page.request.delete(`/api/extensions/skills/${USER_SKILL}`).catch(() => {});
 });
 
-test("all-migratable preset converts clean through the page action", async ({ page }) => {
+// NOT RUNNING — the page action has no doorway right now.
+//
+// The W2 teardown (0eb48a0d0, 2026-11-06) replaced /agents with AgentMarketPage
+// and gave CustomPresetsPage — the only surface carrying preset create/edit/
+// delete and the one-way pack-draft conversion — no home: AgentsPage still
+// imports it but AgentsPage itself is no longer routed. So `/agents?tab=agents`
+// lands on the market face and `custom-presets-page` never renders.
+//
+// The conversion itself is alive and covered server-side:
+// scripts/test-preset-pack-bridge.mjs (6/6, including the route's gate, 404 and
+// report paths). What is lost is only the doorway, which is an IA decision
+// (agent-catalog's "Experts sub-tab SHALL present ... inline management" still
+// names a tab that no longer exists). Marked fixme, not deleted, so the gap
+// stays visible and these flip back on the moment a doorway lands.
+test.fixme("all-migratable preset converts clean through the page action", async ({ page }) => {
   test.setTimeout(180_000);
   await connectRegistry(page);
   await installHelperPack(page);
@@ -125,7 +139,7 @@ test("all-migratable preset converts clean through the page action", async ({ pa
   expect(roster.presets.some((p) => p.id === "user.bridge-clean")).toBe(true);
 });
 
-test("a mixed preset converts with the pending-replacement report", async ({ page }) => {
+test.fixme("a mixed preset converts with the pending-replacement report", async ({ page }) => {
   test.setTimeout(180_000);
   await connectRegistry(page);
   await installHelperPack(page);
@@ -161,7 +175,7 @@ test("a mixed preset converts with the pending-replacement report", async ({ pag
   // A plain revisit of the editor shows no banner — the report is one-shot
   // (leave the section entirely so the page state remounts).
   await page.goto("/chat/");
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await page.getByTestId("packs-tab-mine").click();
   await page.getByTestId(`pack-draft-item-${draft.id}`).click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();

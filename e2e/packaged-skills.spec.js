@@ -133,7 +133,9 @@ const packSkillDir = (packId) => path.join(storeRoot(), "custom-skills", "packs"
 
 async function gotoPacksTab(page, tab) {
   await pinLocaleEn(page);
-  await page.goto("/agents?tab=market");
+  // /packs, not /agents?tab=market: the agents hub dissolved (W2 teardown) and
+  // PacksPage is mounted at its own route since add-supply-studio-migration 5.2.
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`packs-tab-${tab}`).click();
 }

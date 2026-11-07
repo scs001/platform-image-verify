@@ -81,7 +81,13 @@ async function openDockOn(page, copilotBody) {
   await seedAgent(page, "local", { pendingConfig: null });
   await page.getByTestId("copilot-fab").click();
   await expect(page.getByTestId("copilot-frame")).toBeVisible({ timeout: 15000 });
-  await expect.poll(() => copilotFrame(page)?.url() ?? "").toContain("board=facet");
+  // 15s, like the visibility waits around it: the embed is a same-origin iframe
+  // whose document load competes with the harness's mocked API traffic, and a
+  // 5s default here reports "no board context" for a frame that is merely slow
+  // to commit (the src attribute is already correct — see the market test).
+  await expect
+    .poll(() => copilotFrame(page)?.url() ?? "", { timeout: 15_000 })
+    .toContain("board=facet");
   return copilotFrame(page);
 }
 
@@ -166,10 +172,10 @@ test("no assistant installed: URL has no preset, the embed sends nothing and say
 });
 
 // ── Market tab carries the facet line (add-facet-copilot) ────────────────────
-// The 壹座 Agents page's Market tab (/agents?tab=market) opens the dock with
-// the facet line: the focused 谦面助手 preset rides the URL exactly like the
-// board path, and the inspected pack reaches the embed's context bar via the
-// dock's postMessage.
+// The pack market surface (/packs — the route the dissolved agents hub's Market
+// tab became) opens the dock with the facet line: the focused 谦面助手 preset
+// rides the URL exactly like the board path, and the inspected pack reaches the
+// embed's context bar via the dock's postMessage.
 
 const MARKET_PACK = {
   id: "pack-market-1",
@@ -190,7 +196,7 @@ test("market tab: the dock carries the facet line and the pack context flows int
     route.fulfill(json({ total: 1, page: 1, pageSize: 50, packs: [MARKET_PACK] })),
   );
   await page.route("**/api/boards/facet/copilot", (route) => route.fulfill(json(ASSISTANT)));
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("pack-market-guide-hint")).toHaveCount(0); // assistant resolves → no hint
 
@@ -198,7 +204,7 @@ test("market tab: the dock carries the facet line and the pack context flows int
   await page.getByTestId("copilot-fab").click();
   await expect(page.getByTestId("copilot-frame")).toBeVisible({ timeout: 15000 });
   const frame = copilotFrame(page);
-  await expect.poll(() => frame?.url() ?? "").toContain("board=facet");
+  await expect.poll(() => frame?.url() ?? "", { timeout: 15_000 }).toContain("board=facet");
   expect(frame.url()).toContain("preset=facet-assistant");
   // The embed applies the focused preset: wait for the app to mount (the bar
   // implies the store is wired), then simulate the runtime's agent_changed.
@@ -225,14 +231,14 @@ test("market tab without the assistant pack: honest hint, no preset", async ({ p
     route.fulfill(json({ total: 0, page: 1, pageSize: 50, packs: [] })),
   );
   await page.route("**/api/boards/facet/copilot", (route) => route.fulfill(json(NO_ASSISTANT)));
-  await page.goto("/agents?tab=market");
+  await page.goto("/packs");
   await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("pack-market-guide-hint")).toBeVisible({ timeout: 15000 });
 
   await page.getByTestId("copilot-fab").click();
   await expect(page.getByTestId("copilot-frame")).toBeVisible({ timeout: 15000 });
   const frame = copilotFrame(page);
-  await expect.poll(() => frame?.url() ?? "").toContain("board=facet");
+  await expect.poll(() => frame?.url() ?? "", { timeout: 15_000 }).toContain("board=facet");
   expect(frame.url()).not.toContain("preset=");
   await expect(frame.getByTestId("copilot-focus")).toHaveAttribute("data-state", "unfocused", { timeout: 15000 });
 });

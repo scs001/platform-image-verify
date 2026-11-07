@@ -9239,6 +9239,141 @@
        }
       }
      },
+     "restaurant_company_events": {
+      "human": {
+       "zh": {
+        "name": "餐饮公司披露事件",
+        "summary": "按实体读取餐饮公司的披露事件，港股取自披露易、美股取自 SEC EDGAR，每条带来源、披露日期与公告链接。"
+       },
+       "en": {
+        "name": "Restaurant company events",
+        "summary": "Read a restaurant company's disclosure events from HKEX or SEC EDGAR, each with source, disclosure date and document link."
+       },
+       "ja": {
+        "name": "飲食企業の開示イベント",
+        "summary": "飲食企業の開示イベントを実体別に読み取り、HKEX または SEC EDGAR を出所とし、各件に来源・開示日・文書リンクを付けます。"
+       },
+       "es": {
+        "name": "Eventos de empresas de restauración",
+        "summary": "Lee los eventos de divulgación de una empresa de restauración desde HKEX o SEC EDGAR, cada uno con fuente, fecha de divulgación y enlace al documento."
+       },
+       "fr": {
+        "name": "Événements des entreprises de restauration",
+        "summary": "Lit les événements de publication d'une entreprise de restauration depuis HKEX ou SEC EDGAR, chacun avec source, date de publication et lien vers le document."
+       }
+      },
+      "canonical": {
+       "brief": "Reads a restaurant company's HKEX/SEC disclosure events with source_used, disclosure date and doc_url; markets without an event lane return explicit reasons."
+      }
+     },
+     "restaurant_company_financials": {
+      "human": {
+       "zh": {
+        "name": "餐饮公司季度财务",
+        "summary": "按实体读取餐饮公司的季度营收、营业利润与净利观测，每点带来源与口径日期；不可得市场返回显式原因。"
+       },
+       "en": {
+        "name": "Restaurant company financials",
+        "summary": "Read quarterly revenue, operating profit and net income for a restaurant company, each point with source and as-of date; unavailable markets return explicit reasons."
+       },
+       "ja": {
+        "name": "飲食企業の四半期財務",
+        "summary": "飲食企業の四半期売上高・営業利益・純利益を実体別に読み取り、各点に来源と基準日を付けます。不可得の市場は明示的な理由を示します。"
+       },
+       "es": {
+        "name": "Finanzas trimestrales de restaurantes",
+        "summary": "Lee ingresos, beneficio operativo y beneficio neto trimestrales de una empresa de restauración, con fuente y fecha de referencia en cada punto; los mercados no disponibles dan motivos explícitos."
+       },
+       "fr": {
+        "name": "Finances trimestrielles de restauration",
+        "summary": "Lit le chiffre d'affaires, le résultat opérationnel et le résultat net trimestriels, avec source et date de référence par point ; les marchés indisponibles donnent des motifs explicites."
+       }
+      },
+      "canonical": {
+       "brief": "Reads quarterly revenue/operating profit/net income with source_used and as_of; HK, JP, TW and short-window cases return explicit unavailable reasons."
+      }
+     },
+     "restaurant_sampling_notices": {
+      "human": {
+       "zh": {
+        "name": "抽检通告事件",
+        "summary": "按类别读取市场监管总局食品安全抽检通告的单条事件，返回日期、链接与餐饮相关标记；不返回聚合时序。"
+       },
+       "en": {
+        "name": "SAMR sampling notices",
+        "summary": "Read individual SAMR food-inspection notices by category, with date, link and restaurant-related flag; no aggregate series is returned."
+       },
+       "ja": {
+        "name": "抽出検査通告",
+        "summary": "カテゴリ別に市場監督管理総局の食品安全抽出検査通告を一件ずつ読み取り、日付・リンク・飲食関連フラグを示します。集計系列は示しません。"
+       },
+       "es": {
+        "name": "Avisos de muestreo SAMR",
+        "summary": "Lee avisos individuales de inspección alimentaria de SAMR por categoría, con fecha, enlace e indicador de relación con restauración; no devuelve series agregadas."
+       },
+       "fr": {
+        "name": "Avis de prélèvement SAMR",
+        "summary": "Lit les avis individuels d'inspection alimentaire de la SAMR par catégorie, avec date, lien et indicateur de lien avec la restauration ; aucune série agrégée n'est renvoyée."
+       }
+      },
+      "canonical": {
+       "brief": "Reads individual SAMR inspection notices by category with date, URL and restaurant flag; never an aggregate series."
+      }
+     },
+     "restaurant_series": {
+      "human": {
+       "zh": {
+        "name": "餐饮宏观与成本序列",
+        "summary": "按概念码读取餐饮宏观与成本链序列（含美国 CPI 外食与在家就餐对照对），返回来源、口径日期与口径注记。"
+       },
+       "en": {
+        "name": "Restaurant macro series",
+        "summary": "Read a restaurant macro or cost-chain series by concept code, including the US CPI away-from-home vs at-home pair, with source, as-of date and caveats."
+       },
+       "ja": {
+        "name": "飲食マクロ系列",
+        "summary": "概念コードで飲食マクロ・コスト系列を読み取り、米国 CPI の外食と家庭内食の対照を含め、来源・基準日・注記を示します。"
+       },
+       "es": {
+        "name": "Series macro de restauración",
+        "summary": "Lee una serie macro o de costes por código de concepto, incluido el par CPI estadounidense fuera y dentro del hogar, con fuente, fecha de referencia y notas."
+       },
+       "fr": {
+        "name": "Séries macro de restauration",
+        "summary": "Lit une série macro ou de coûts par code de concept, y compris la paire IPC américaine hors domicile et à domicile, avec source, date de référence et notes."
+       }
+      },
+      "canonical": {
+       "brief": "Reads a curated restaurant macro/cost series with source_used, as_of and caveats; the US CPI comparison pair is included."
+      }
+     },
+     "restaurant_universe": {
+      "human": {
+       "zh": {
+        "name": "餐饮公司宇宙",
+        "summary": "列出已注册的餐饮上市公司宇宙，按地区与细分筛选，并逐条标注各数据车道的可得或不可得状态。"
+       },
+       "en": {
+        "name": "Restaurant universe",
+        "summary": "List the registered listed-restaurant universe filtered by region and segment, with each data lane marked as available or explicitly unavailable."
+       },
+       "ja": {
+        "name": "飲食企業ユニバース",
+        "summary": "登録済みの飲食上場企業ユニバースを地域・セグメントで絞り込み、各データレーンの可用性または明示的な不可得を示します。"
+       },
+       "es": {
+        "name": "Universo de restaurantes",
+        "summary": "Enumera el universo registrado de restaurantes cotizados filtrado por región y segmento, con cada carril de datos marcado como disponible o no disponible de forma explícita."
+       },
+       "fr": {
+        "name": "Univers de la restauration",
+        "summary": "Liste l'univers enregistré des restaurants cotés filtré par région et segment, chaque voie de données étant marquée disponible ou explicitement indisponible."
+       }
+      },
+      "canonical": {
+       "brief": "Lists the 35-company listed-restaurant universe with region, segment, ticker, lanes and per-lane availability or explicit unavailable reasons."
+      }
+     },
      "review_bindings": {
       "canonical": {
        "brief": "Return the below-threshold binding review queue used by propose-and-confirm."

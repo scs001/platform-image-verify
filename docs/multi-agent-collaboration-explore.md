@@ -309,6 +309,9 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 第 1 层 协同质量：不动基建，纯 prompt/账本层
   ④ add-fleet-edge-context     派发/接棒/扇出/唤醒四类回合接上（裁短版）上下文
                                缝已在，只需 prompt 带占位符 + renderer 支持非模板回合
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-edge-context/`
+                               （镜像 sha-cf1f2f0；第二个占位符 {{fleetEdgeContext}}，8KB 池、无巡逻纪律、
+                               不消耗决策送达；a2a/tool 零注入；镜像内 47/47 + 17/17 绿）**
   ⑤ fix-fanout-aggregation     非 judge 补 initiatorPreset；分组加 runId/wave；合并语义写进 spec
   ⑥ fix-dispatch-delivery      定时车道 initiator 改用派发岗会话（web 车道行为不变）
 

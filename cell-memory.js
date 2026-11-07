@@ -1,0 +1,117 @@
+// ── cell memory mount (add-memory-federation-v1) ─────────────────────────────
+//
+// The cell-side federation client: when CELL_MEMORY_ENABLED=1 and both the
+// platform token and fleet URL are configured, every profile write appends the
+// fd-memory MCP row to the mcp patch and a discipline line to the persona.
+// The person token is minted per owner on first touch and cached on disk under
+// the cell data root — one mint per user, restart-stable.
+//
+// Fail-open by contract: any failure (mint, URL missing, disk) leaves the
+// composition byte-identical to the memory-off baseline.
+
+import { readFileSync, writeFileSync, mkdirSync, } from "node:fs";
+import { join, dirname } from "node:path";
+// Single-source discipline text (fix-memory-capture-p0 D6): the same string
+// the fleet runner injects, imported from the repo root so the two surfaces
+// can never drift (bilingual zh + en by decision).
+import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
+import { fetchWithTimeout } from "./lib/fetch-with-timeout.js";
+
+export { MEMORY_DISCIPLINE };
+
+export function cellMemoryConfig(env = process.env) {
+  const enabled = env.CELL_MEMORY_ENABLED === "1";
+  const url = String(env.CELL_MEMORY_URL || "").replace(/\/+$/, "");
+  const platformToken = String(env.CELL_MEMORY_PLATFORM_TOKEN || "");
+  const dataRoot = String(env.CELL_MEMORY_DATA || "");
+  return enabled && url && platformToken && dataRoot ? { url, platformToken, dataRoot } : null;
+}
+
+function cachePath(dataRoot, ownerEmail) {
+  const safe = String(ownerEmail || "unknown").replace(/[^a-zA-Z0-9@._-]/g, "_");
+  return join(dataRoot, "cell-memory-tokens", `${safe}.json`);
+}
+
+export async function personTokenFor(cfg, ownerEmail, fetchImpl = fetch) {
+  const p = cachePath(cfg.dataRoot, ownerEmail);
+  try {
+    const cached = JSON.parse(readFileSync(p, "utf8"));
+    if (cached?.token && cached?.namespace === `u/${ownerEmail}`) return cached.token;
+  } catch { /* miss → mint */ }
+  // Outbound call discipline: token mint rides the shared deadline wrapper
+  // (default env bound); fetchImpl stays the test seam.
+  const res = await fetchWithTimeout(`${cfg.url}/admin/mint`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.platformToken}` },
+    body: JSON.stringify({ namespace: `u/${ownerEmail}`, label: `cell:${ownerEmail}` }),
+  }, { fetchImpl });
+  if (!res.ok) throw new Error(`person mint HTTP ${res.status}`);
+  const { token } = await res.json();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify({ token, namespace: `u/${ownerEmail}`, mintedAt: new Date().toISOString() }), { mode: 0o600 });
+  return token;
+}
+
+// The dsh-mcp-client loader row (http branch), verbatim mcpEntry shape.
+export function memoryMcpEntry(url, token) {
+  return {
+    id: "mcp-fd-memory",
+    name: "@deepseek-ai/dsh-mcp-client",
+    config: {
+      serverName: "fd-memory",
+      failOnStartupError: false,
+      transport: "streamable-http",
+      url: `${url}/mcp`,
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  };
+}
+
+// Compose helper: returns { mcpEntry, discipline } or null (fail-open).
+export async function cellMemoryMount(env, ownerEmail, fetchImpl = fetch) {
+  const cfg = cellMemoryConfig(env);
+  if (!cfg || !ownerEmail) return null;
+  try {
+    const token = await personTokenFor(cfg, ownerEmail, fetchImpl);
+    return { mcpEntry: memoryMcpEntry(cfg.url, token), discipline: MEMORY_DISCIPLINE };
+  } catch (e) {
+    console.warn(`[cell-memory] mount skipped (fail-open): ${e?.message || e}`);
+    return null;
+  }
+}
+
+// ── Deployment member tokens (add-member-knowledge-profile) ─────────────────
+//
+// The platform seam mints ONE deployment token per member
+// (d/<packId>/<memberId>, owner-bound at fd-memory for the oversight anchor)
+// and caches it under the cell data root — one mint per member, restart
+// stable, 0600. The token belongs to the ROLE, not to the model instance
+// behind it: 换防 keeps the cache, so the new on-duty model inherits the
+// partition the old one wrote. Fail-open by the same contract as the person
+// mount: mint failure = a counter and a thrown error for the caller to catch,
+// never a broken turn.
+
+export function memberCachePath(dataRoot, packId, memberId) {
+  const safe = (s) => String(s ?? "x").replace(/[^a-zA-Z0-9@._-]/g, "_");
+  return join(dataRoot, "cell-memory-tokens", `d-${safe(packId)}-${safe(memberId)}.json`);
+}
+
+export async function memberTokenFor(cfg, { packId, memberId, ownerEmail }, fetchImpl = fetch) {
+  const p = memberCachePath(cfg.dataRoot, packId, memberId);
+  const namespace = `d/${packId}/${memberId}`;
+  try {
+    const cached = JSON.parse(readFileSync(p, "utf8"));
+    if (cached?.token && cached?.namespace === namespace) return cached.token;
+  } catch { /* miss → mint */ }
+  if (!ownerEmail) throw new Error("member mint requires ownerEmail (the oversight anchor)");
+  const res = await fetchWithTimeout(`${cfg.url}/admin/mint`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${cfg.platformToken}` },
+    body: JSON.stringify({ namespace, owner: `u/${ownerEmail}`, label: `member:${packId}:${memberId}` }),
+  }, { fetchImpl });
+  if (!res.ok) throw new Error(`member mint HTTP ${res.status}`);
+  const { token } = await res.json();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify({ token, namespace, owner: ownerEmail, mintedAt: new Date().toISOString() }), { mode: 0o600 });
+  return token;
+}

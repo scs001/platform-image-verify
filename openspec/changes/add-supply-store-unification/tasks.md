@@ -29,9 +29,9 @@
 
 - [x] 4.1 `reconcile_mcp_registry.py` / `export_surface_commercial.py` 改锚脊柱或改走兼容 facade（二选一在实现时按实测定，对外输出形状不变）——reconcile 增脊柱投影首选通道（env-gated，切流前后皆可用）+ Mongo 回退带陈旧告警；export 读仓内 manifest 与存储无关、零改
 - [ ] 4.2 壹座回归：registry-bridge facet 模式读路径零漂移；credential_ref / per-line 凭据分派流过兼容 facade 实弹（lex/wire 各一条）
-- [ ] 4.3 plaza 机器面对账：generated/catalog.json 五物种计数与切换前零漂移（pack 82 / skill 265 / mcp 22 / facade 22 / official-data 473 基线）
+- [ ] 4.3 plaza 机器面对账：generated/catalog.json 五物种计数与切换前零漂移（pack 82 / skill 265 / mcp 22 / facade 22 / official-data 473 基线）（**2026-11-07 对账实跑（C1 会话代核）：非零漂移，缺口如实记录未勾**——plaza-export 现势 pack 85/skill 0/mcp 26/facade 18/official-data 483 vs 基线 82/265/22/22/473。归因：①pack/facade/official=三天自然增减（非迁移缺陷）；②mcp 22→26=自报四行接回（已知良性）；③**skill 265→0=迁移真缺口**：迁移器（scripts/supply-store-migrate.mjs）只迁 mcp_servers（dump 26/26），**skills 物种从未迁**——facet spine skills 表现 12 行全为 wanxing-agent-runner 写闸 upsert 的交易线 group skills（audit actor=wanxing-agent-runner 92 次），registry Mongo agent_skills_default 的 265 行（11-05 快照匿名可见全量）未入脊柱；registry 副本 SPINE_REPLICA_MODE=1 同步受染（skills 段同 12 行）。修复路径=迁移补课（Mongo 真值经写闸批量 upsert，actor=migration-skills-backfill；Mongo root 凭据考古或 pack manifest 聚合重建二选一）——属本单缺陷修复，非本对账项可勾；修复后重跑本对账到零漂移再勾）
 - [ ] 4.4 finddata 根 `carry-registry-visibility-through-bridge` 协调收窄：桥上过滤改脊柱投影回归钉，或并入本单 4.3 验收（在 finddata 根 change 里留处置记录）
-- [ ] 4.5 公网实弹回归：28 条活册 initialize+tools/list、匿名 401 门、五语注释投影、SSE 长响应路径抽测
+- [x] 4.5 公网实弹回归：28 条活册 initialize+tools/list、匿名 401 门、五语注释投影、SSE 长响应路径抽测（2026-11-07 实弹（C1 会话代核）：公网 26 条匿名 initialize **26/26 全 401**（nginx 应用门=在路由判据 ✓）；mesh 直连 21 条并发 initialize **13/13 可匿名条目全 200**（SSE text/event-stream 形状正确，protocolVersion/tools 能力回包正常）+8 条服务自身鉴权门 401（ops/paper-trading 系=台账各自语义在路由判据 ✓）；tools/list 抽测 fd-open-data-mcp **71/71 与台账一致**（mcp-session-id 会话转发 OK，SSE 长响应 71 工具列表完整流回）；五语注释投影 zh-CN/en/ja/fr/es 各 26 servers 带注释 23 全语种齐 ✓。注：mesh 直连 21=台账带 mesh 域名的条目子集，28 活册余量为公网面 401 门（已验）+非 mesh 条目）
 
 ## 5. 文档与收尾
 

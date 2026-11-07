@@ -2953,14 +2953,10 @@ export function registerPackRoutes(app, {
     }
     return true;
   };
-    // Serving capability probe (add-selfhost-funnel-guidance, F3.1): lets the
-    // deploy surface distinguish "this instance runs agent serving" from the
-    // self-hosted shape — where the honest answer is the official-market
-    // guidance panel, never a raw internal-config error.
-    app.get("/api/packs/serving-status", (_req, res) => {
-      const cfg = deployConfig();
-      res.json({ configured: Boolean(cfg.runnerBaseUrl && cfg.registryUrl) });
-    });
+    // (The serving-capability probe is registered once, up in the read face
+    // where its comment explains the ordering — this block carried a verbatim
+    // copy-paste twin whose handler Express never dispatched. N-9 surface guard
+    // caught it; see scripts/test-packs-route-surface.mjs.)
   app.get("/api/packs/internal/deployments", (req, res) => {
     if (!internalAuth(req, res)) return;
     res.json({ deployments: registry.allDeployments() });

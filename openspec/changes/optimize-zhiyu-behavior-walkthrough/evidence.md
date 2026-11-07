@@ -183,3 +183,13 @@ Express 按注册顺序匹配：catch-all 在 `registerZhiyuRoutes` 内先注册
 - **授权后的实际动作**：登录 → 新建专用房间 `zy_68aea26f922749debe` → 订阅/召唤尝试（404）→ 结束该房间。公开演示房间 `zy_42ce690574b5423bd2` 未触碰（`day_turns` 保持 8）。**未跑任何计费回合**；凭据未落仓，临时会话文件已删。O0 修复复验另建专用房 `zy_1ad879f94b7f3248e3`（reply_cap=3/budget=20，复验后已 end，见修复单 evidence §8）。
 - **解阻顺序（更新 2026-11-07）**：~~另立 fix-zhiyu-fleet-bridge-route-order 修 O0~~（**已归档**）→ apply `fix-zhiyu-summon-serving-face` 修 O8 并出片 → 2.6 执行半边 + 2.1–2.3 真跑回合 + 3.2–3.4 正向样本 → 最后勾 4.3。在此之前任何「5.2 已完成」的勾选都是假绿。
 - **建议用户**：本次在对话中明文提供了账号口令，虽然未落盘/未入仓，仍建议**轮换该口令**；后续走查改用一次性会话或临时令牌更稳妥。
+
+## O11 私窗发送面真机实证（2026-11-07，add-zhiyu-private-window-send 4.3）
+
+- 生产镜像 `ccr.ccs.tencentyun.com/yizuo/platform:sha-56d6648`（digest `sha256:ba31dd21`，pod `platform-764df86d54-2k2v8` imageID 全等；源 paas `d6e22447c`）。
+- 走查房 `zy_a8bbf967f023ad90d0`（owner `aloadtree@gmail.com`，dailyBudgetTurns=5）——**用后即焚**：`end` 200 + widget token 吊销 200；公开演示房 `zy_42ce690574b5423bd2` 全程未触碰。
+- 正向样本：分身 `intro-lex`（真部署 `bTnrv2P_JhmCzqqXCF0GIA:intro-lex`，onBehalfOf 本人，auto_accept 即席）→ `POST /api/zhiyu/rooms/:id/private` 真回合 → **seq=12 agent 行落 `private:mem_bb352563a534e11a51`**，应答文本「私窗通道已打通，本分身已就席。」；吩咐行 3/6/10 同档。本人读面 private 行 6 条（2 吩咐+1 应答+2 失败事件+预算语义行）。
+- 隔离判据：guest（widget 无痕席位 `g_356ee896d9`）读面 8 行 **0 私行**、guest SSE 流 0 私行；guest POST /private → 401、匿名 → 401（无 user seat）。共享流（visibility=shared）零 private 行。
+- 日预算：`dayTurns 1/5`（应答回合计数；两次失败回合不计——「失败不结算」语义真机复证）。
+- 如实记：`reception` 分身（`Ut_bJMuW5KxAD83KImPmlg:reception`）A2A 冷启动坏（registry GET /api/skills/corpus-company/content 404 ×2 回合，agent_failed 落 private 档——诚实失败面同时得到正向验证）；换 intro-lex 一次成功。此为座位供给侧既有问题，不在本 change 范围，挂账见台账续八。
+- 凭据卫生：会话 cookie 落 /tmp 0600、用后即删；口令未落盘未回显未入 artifact。

@@ -24,7 +24,7 @@
 ## 3. 四个跨边界行为面核对
 
 - [x] 3.1 guest/widget 链真应答实证：full-token（id.secret）visit 200 铸 guest 席（g_ef72edc894）→ tty 兜底（无 cookie，query/tty 直传）→ POST content 提问 → **agent 真应答落流**（seq 100，a2a 解耦后车道滚版后回归全绿）、无登录墙、429 限速与所有权闸（demo 房 owner 404）顺带实证
-- [ ] 3.2 私窗隔离：验证=guest 与中途加入者的消息流内无任何 `private:<id>` 行（`:809` / `:1139`），且成员私窗对话不出现在共享历史。【PARTIAL / 未勾 2026-11-06：生产 266/266 `visibility=shared`、零 `private:<id>` 行 → 无泄漏证据，但也无正向私窗样本，不能判通过】
+- [x] 3.2 私窗隔离：验证=guest 与中途加入者的消息流内无任何 `private:<id>` 行（`:809` / `:1139`），且成员私窗对话不出现在共享历史。【已闭环 2026-11-07 O11 上产后（sha-56d6648）：走查房 zy_a8bbf967f023ad90d0 真回合私窗交换落 private 档（本人 6 私行），guest widget 读面 8 行 0 私行、guest SSE 0 私行、guest/匿名 POST /private 401；共享流零 private 行】
 - [x] 3.3 界外拒绝真机过：replyCap 0/21 → 400 `bounds{min:1,max:20}` 且现值不变（界内 3 生效）；dailyBudgetTurns 0/100001 → 400；计费归属半边（@定向零计费/跨账本对账）随 2.1 的回合记账观察部分覆盖（usage 落事件行），跨账本全对账如实记未做
 - [ ] 3.4 IM 桥回写：验证=`meta.im` 的 guest 行不回寄 IM 群（防回响）、长回答按平台上限有序切段、送达失败在房间事件流如实落一条失败事件且不静默吞（`zhiyu-im-bridge` Req3 / Req5）。【PARTIAL / 未勾 2026-11-06：`meta.im` 类行 4 条说明入流有痕迹；防回响/切段/送达失败需主动投递，未做】
 - [x] 3.5 四个面结果汇总落 `evidence.md`；验证=每面有通过/缺陷/BLOCKED 判定与证据，缺陷单列「现象 / 证据 / 建议另立 change」一行，本单零源码改动（D3）。→ `evidence.md` §3 状态表 + §4 缺陷观察清单 O0–O7。

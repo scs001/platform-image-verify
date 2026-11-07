@@ -7512,3 +7512,13 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 **回合成功页实证（O10 修复生效）**：CEO 岗（公司式集群，每小时 fire）滚版前 own 分区 43 页**全「回合失败」0 成功**；换型 glm-5.3-flash 后 12:00 fire ok 回合（04:00:12）→ own 分区**首张「回合成功」页（04:03:58）**——capture 标题口径修复生效。
 
 **教训**：GitOps 并发 bump 高发窗口（两会话同日多班滚版），bump 前必 `git fetch origin` 对账当前 image 行；镜像注释里的修复声明不可信，**以快照 sha → paas 提交 → `git show <sha>:server.js` 实读为凭**。
+
+## §15.138 续八 O11 私窗发送面上产+真机正向样本闭环（2026-11-07 午后）
+
+**O11 `add-zhiyu-private-window-send` 全链闭环（立案→apply→出片→上产→真机→归档入 spec）**：
+- **代码面**（paas d6e22447c）：`POST /api/zhiyu/rooms/:id/private`（active user seat 闸+分身在席检查+缺席 409 零落库+吩咐行 private 档+fire-and-forget `dispatchPrivateTurn`）；`runTurn` visibility 贯穿——**顺带修三处会泄漏共享流的 emit**（`agent_delta` 硬编码 shared、answered `agent_done` 无 visibility、**失败事件行无 visibility——失败原因文本（可能含私域上下文）会落共享流**，SSE 过滤 `:848` 对 undefined visibility fail-open）；dispatchPrivateTurn 跳过广播/@解析、日预算同闸（budget_exhausted 落 private 档）、settle usage id `-private` 尾缀；前端私窗输入区+五语词条。
+- **测试**：`test-zhiyu-rooms.mjs` 4.5–4.8 五判据（交换落档+共享不可见+settle 尾缀+预算计数/无 seat 403 零落库/缺席 409 零落库/预算闸拒绝事件落 private 档），zhiyu 全套件 **48/48 绿**；biome（O11 文件）+tsc 绿。
+- **出片**：快照 d9809df（`--init` + toplevel 前查 ✓）→ 镜像仓 force push（56d6648=workflows 恢复提交）→ 首轮 build 被误 cancel rerun 后 **CI 绿**（build+四 smoke）→ relay `OK yizuo/platform:sha-56d6648` → ccr skopeo 硬门 **digest ba31dd21**。
+- **GitOps**（2ff3f77）：bump 前先 fetch——**并发会话 03075ae 刚滚 sha-98ba269（C1 跨线成本聚合，源 f8f11bb8f=main∪release 合流树）**；核实 `f8f11bb8f ∈ d6e22447c`（祖先律过，快照已含 main perf 线，无回退风险）→ 在其上 bump `yizuo/platform:sha-56d6648`（镜像源从 law-bench 恢复 yizuo 本线）→ ArgoCD refresh → `platform-764df86d54-2k2v8` imageID **ba31dd21 与硬门全等**，healthz 200。
+- **真机正向样本**（走查房 `zy_a8bbf967f023ad90d0` 用后即焚 end+widget 吊销）：真回合 seq=12 应答落 `private:mem_bb352563a534e11a51`；本人读面 6 私行；**guest widget 读面 8 行 0 私行、guest SSE 0 私行、guest/匿名 POST /private 401**；日预算 1/5（失败回合不计数真机复证）。走查单 **20/23**（3.2 闭环）。归档 `2026-11-07-add-zhiyu-private-window-send`，spec `zhiyu-room` 发送面三场景入库，全仓 **257/257 绿**。
+- **如实挂账**：①`reception` 分身（Ut_bJMuW5KxAD83KImPmlg:reception，aloadtree 名下真部署）A2A 冷启动坏（registry GET /api/skills/corpus-company/content 404 ×4 attempts 两回合）——座位供给侧既有问题非私窗链，诚实失败面反而得正向验证；②公开镜像仓 CI lint 红为 f8f11bb8f（C1 既有 13 处 noUnused*，O11 文件零违例）不阻镜像线；③aloadtree 口令第 4 次催轮换仍未应；④consumer 会话并发 bump 高发窗口持续——两单互不踩的前提是 bump 前 fetch 对账+祖先律核证。

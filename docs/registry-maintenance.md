@@ -7522,3 +7522,20 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - **GitOps**（2ff3f77）：bump 前先 fetch——**并发会话 03075ae 刚滚 sha-98ba269（C1 跨线成本聚合，源 f8f11bb8f=main∪release 合流树）**；核实 `f8f11bb8f ∈ d6e22447c`（祖先律过，快照已含 main perf 线，无回退风险）→ 在其上 bump `yizuo/platform:sha-56d6648`（镜像源从 law-bench 恢复 yizuo 本线）→ ArgoCD refresh → `platform-764df86d54-2k2v8` imageID **ba31dd21 与硬门全等**，healthz 200。
 - **真机正向样本**（走查房 `zy_a8bbf967f023ad90d0` 用后即焚 end+widget 吊销）：真回合 seq=12 应答落 `private:mem_bb352563a534e11a51`；本人读面 6 私行；**guest widget 读面 8 行 0 私行、guest SSE 0 私行、guest/匿名 POST /private 401**；日预算 1/5（失败回合不计数真机复证）。走查单 **20/23**（3.2 闭环）。归档 `2026-11-07-add-zhiyu-private-window-send`，spec `zhiyu-room` 发送面三场景入库，全仓 **257/257 绿**。
 - **如实挂账**：①`reception` 分身（Ut_bJMuW5KxAD83KImPmlg:reception，aloadtree 名下真部署）A2A 冷启动坏（registry GET /api/skills/corpus-company/content 404 ×4 attempts 两回合）——座位供给侧既有问题非私窗链，诚实失败面反而得正向验证；②公开镜像仓 CI lint 红为 f8f11bb8f（C1 既有 13 处 noUnused*，O11 文件零违例）不阻镜像线；③aloadtree 口令第 4 次催轮换仍未应；④consumer 会话并发 bump 高发窗口持续——两单互不踩的前提是 bump 前 fetch 对账+祖先律核证。
+
+## §15.138 续九 挂账清偿班（2026-11-07 傍晚）——①④清、②清、③终催
+
+**挂账① reception 冷启动坏（根因+修复）**：真因=**registry 库丢了 packs/ 族群技能**（`/api/skills/corpus-company{,-projects,-capabilities}` 双 token 双路径全 404；175 条现存技能全是 finddata-skills gitee 同步线的 uuid 条目，pack-deploy upsert 族群 0 条——9-25 部署时成功（§15.45 首触重物化眼见）、11-07 全缺，脊柱迁移/换库窗口疑点）。修复=**pack v6 重部署幂等 upsert**（`POST /api/packs/Ut_bJMuW5KxAD83KImPmlg/versions/6/deploy`，按 name lookup 失败→POST 重建路径）→ 三技能 content 全 200（带 frontmatter）→ reception a2a 直探真回合「好」。**教训：pack 技能存 registry DB，脊柱迁移只验了主要集合没验 skills 全量对账——迁移 runbook 应加 pack-skills 族群计数核对**。
+
+**挂账② 公开镜像仓 CI lint 红**：f8f11bb8f 的 13 处 noUnused* 全清（74b6ddf05）+test/miniapp 4 处顺手清——**全仓 biome lint/correctness error 级=0**。附带真缺陷：`StudioView.tsx` 把 hook 当 JSX 渲染（`<useAuthStoreShim />` 小写=React 视作 DOM tag，mount effect 从未跑过，whoami→auth store 镜像是死代码）——改 hook 调用式；facet/web tsconfig 补 `vite/client` types+types 目录 include，import.meta.env 8 错清零。四套件回归绿（owner-cross 7/7+facet-studio 13/13+streaming 5/5+cell/cluster-memory）。
+
+**挂账④ IM 桥 Req5 第二半补齐+走查单 3.4 闭环**（16d68e64d）：spec 既写「再败则在房间事件流中如实落一条送达失败事件」但实现只 log.warn+skip——补齐：cell 侧 3 次重试耗尽→`POST /api/zhiyu/im-bridge/rooms/:id/delivery-failed`（machine cred+10/min 桶）→gateway 落 `im_delivery_failed{platform,chatKey,seq,reason}` shared 系统行；测试 5.x-b 双腿，zhiyu 套件 **49/49**。**走查单 21/23**（3.4 闭环；剩 4.3 归档回填注记类）。
+
+**挂账③**：aloadtree 口令第 5 次催轮换（192.168.1.4 LiteLLM 键同批）——用户操作项，本班无动作。
+
+**O9b（部署台账归一）决策单呈用户**（未拍板，不擅动）：
+- 现状：a2a 岗 pack 部署登记在萬星面账本（facade pod /data/wanxing.db 族）；platform facet 台账仅 demo 一行。O8/O9 后 servingPath 全解析，summon 计划按台账 `deployedBy` 对齐——萬星面部署的岗在智语召唤时 `onBehalfOf` 落台账部署者（如 admin@），计费 settle 也走其部署键。
+- 决策点：①萬星面部署要不要可召（现为如实可召=拿部署者键计费）？②智语席位结算对哪本账本（萬星面/facet 双读归一 or 保持现状各归各账）？③若归一，facet 台账是否镜像萬星 deployment 行（只读投影 vs 双写）？
+- 建议：维持现状（各归各账+部署者键），把「账本归一」降级为观察项——真客户部署出现跨线对账需求时再立项；现无客户在萬星面部署 a2a 岗。
+
+**随滚版待产**：74b6ddf05（lint 清零+StudioView 真缺陷+facet tsc）+16d68e64d（IM Req5 补齐）已双推 release 线，下一班出片滚版带上产（zhiyu/im-bridge 行为变化在生产激活需滚版——本班未出片，快照闸窗口纪律）。

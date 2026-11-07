@@ -12,14 +12,14 @@
 
 ## 2. 客户端
 
-- [ ] 2.1 `bench proposal` 客户端单函数命令式（目标 URL / 凭据 / 域 key 全来自 env，`transport=` 注入缝，超时与异常分类：400-缺依据 / 400-词汇表 / 403-跨域 / 401-凭据 / 5xx / 超时）
-- [ ] 2.2 token 脱敏（对端回显、异常消息、报告三处零明文；沿 `bench_pull/client.py` 同款 min-length 守卫）
-- [ ] 2.3 缺凭据/缺域 key：启动不崩，本轮失败并报明 env 名；不退化到任何缺省域
+- [x] 2.1 客户端单函数命令式：`lib/bench-proposal-client.js` `submitProposal()`（目标 URL / 凭据 / 域 key 全来自 env，`transport=` 注入缝；refusal 分类 evidence / vocabulary / needs_evidence / forbidden / auth / server / timeout / unreachable，`retryable` 只对后三类为真）
+- [x] 2.2 token 脱敏：`redact()` 覆盖异常消息与 detail（对端回显也遮），min-length=8 守卫防「短凭据被当普通词碎掉」；断言见 `scripts/test-bench-proposal-client.mjs`
+- [x] 2.3 缺凭据/缺域 key/缺草案字段：`BenchProposalError(kind=config)` 报明缺失项，**不发任何请求**；无任何缺省域
 
 ## 3. 切换
 
-- [ ] 3.1 出口函数目标改为域提案箱；身份行按 D2 组装（`source/kind/external_key/evidence/submitted_by`），去掉动作提案的目标账号字段
-- [ ] 3.2 岗位配置新增 `BENCH_PROPOSAL_DOMAIN`（与岗位 `target` 同源），`deploy/README.md` 补三个 env
+- [x] 3.1 出口函数已建（`server/bench-proposal-mcp.js` 的 `bench_proposal_submit`，按 D2 组装 `source/kind/external_key/evidence/submitted_by`，无目标账号字段；`source` 必填 `fleet:<fleet>/<post>`，不发明任何 env 兜底）。**未落**：岗位提示词仍指旧出口（见 3.3 的前置）
+- [ ] 3.2 岗位配置新增 `BENCH_PROPOSAL_DOMAIN`（与岗位 `target` 同源）。**已落 repo 的一半**：`mcp.example.json` 增 `bench-proposal` 条目（含 BENCH_URL / BENCH_PROPOSAL_DOMAIN，凭据只经 env）。**未落**：生产 `mcp.json` 走 GitOps ConfigMap，需手工加条目并确认聚焦层 keep 集（`PACK_BASELINE_MCP=fleet,bench-proposal`），两者缺一则工具在回合里 tool_search 找不到
 - [ ] 3.3 柏讯侧本体类提案写入关停；客户侧域动作语义零变化
 - [ ] 3.4 本轮报告字段：每条一条结果（新增 / 幂等命中 / 失败 + 对端语义），失败项标明草案仍保留
 

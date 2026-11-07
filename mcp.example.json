@@ -58,6 +58,17 @@
         "server/delegation-mcp.js"
       ],
       "comment": "任务委托 MCP 面（delegate_task/task_progress/task_result，agent-delegation-tools spec）——std 工具桥 /api/delegation 回环；授权闸在平台侧，工具面只暴露入口。"
+    },
+    "bench-proposal": {
+      "command": "node",
+      "args": [
+        "server/bench-proposal-mcp.js"
+      ],
+      "env": {
+        "BENCH_URL": "https://lawbench.finddatatech.cloud",
+        "BENCH_PROPOSAL_DOMAIN": "legal"
+      },
+      "comment": "本体草案出口（switch-fleet-proposals-to-domain-inbox）——一个工具 bench_proposal_submit，把草案投到知验台该域提案箱，取代往柏讯动作闸逐租户声明实体。凭据 BENCH_CONSUMER_TOKEN 只经 env/secret 注入，不落仓。"
     }
   }
 }

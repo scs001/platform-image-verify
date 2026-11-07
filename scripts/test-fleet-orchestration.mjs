@@ -311,6 +311,12 @@ test("dispatch bridge: an in-flight upstream turn stamps chain on the task (agen
     assert.equal(r.status, 201);
     const task = engine.getTaskRecord((await r.json()).taskId);
     assert.deepEqual(task.origin.fleet.chain, { runId: handle.runId, parentTurnId: handle.turnId, edgeKind: "dispatch" });
+    // fix-dispatch-delivery D1: the receipt belongs to the DISPATCHING post's
+    // turn session, not to the runtime's global session pointer (which only
+    // names the live turn by luck and would hand the receipt to a web chat).
+    assert.equal(task.initiator, handle.sessionId, "initiator = the in-flight turn's mirror session");
+    assert.equal(task.initiatorPreset, "t-m-sup", "the dispatch receipt speaks as the dispatching post (its roster preset)");
+    assert.ok(task.initiatorGroup?.startsWith("dispatch:"), "one dispatch = one aggregation group");
     ledger.end(upstreamJob, handle, { ok: true }, { startedAt: handle.startedAt, endedAt: Date.now() });
   } finally {
     server.close();

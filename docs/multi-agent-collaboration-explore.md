@@ -313,6 +313,10 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                （镜像 sha-cf1f2f0；第二个占位符 {{fleetEdgeContext}}，8KB 池、无巡逻纪律、
                                不消耗决策送达；a2a/tool 零注入；镜像内 47/47 + 17/17 绿）**
   ⑤ fix-fanout-aggregation     非 judge 补 initiatorPreset；分组加 runId/wave；合并语义写进 spec
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-fanout-aggregation/`
+                               （镜像 sha-4018509；分组键改用**点火键**而非 wave/runId——wave 恒 1 且无人读、
+                               runId 无 ledger 时为 null；无 judge 波带 `initiatorPreset: job.preset`；
+                               镜像内 5/5 绿 + 全量扫 3869/3869 零红）**
   ⑥ fix-dispatch-delivery      定时车道 initiator 改用派发岗会话（web 车道行为不变）
 
 第 2 层 防重复花钱

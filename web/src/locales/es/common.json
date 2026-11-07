@@ -3805,7 +3805,32 @@
       "sourceUnavailable": "fuente no disponible",
       "retry": "reintentar",
       "loading": "cargando…",
-      "builderPointer": "O deja que el arquitecto de flotas monte un equipo en el chat, o que el arquitecto de blueprints convierta un escenario en una plantilla publicable."
+      "builderPointer": "O deja que el arquitecto de flotas monte un equipo en el chat, o que el arquitecto de blueprints convierta un escenario en una plantilla publicable.",
+      "xlineTitle": "Gasto entre líneas",
+      "xlineUnconnected": "No conectado ({{reason}})",
+      "xlineNoData": "Sin lecturas exportables",
+      "xlineConnect": "Conectar",
+      "xlineBoard": "Panel",
+      "xline": {
+        "fleet": "Medición de turnos",
+        "market": "Compras de mercado",
+        "wanxing": "Liquidaciones Wanxing",
+        "lex": "Uso de Lex",
+        "wire": "Consumo de Wire",
+        "balance": "Captura de saldo"
+      },
+      "xlineCalibre": {
+        "fleet": "proyección de hechos",
+        "market": "registro de compras",
+        "wanxing": "lectura vía credencial de servicio",
+        "lex": "lectura directa",
+        "wire": "lectura directa",
+        "balance": "atribución aproximada"
+      },
+      "xlineReason": {
+        "expired": "sesión expirada",
+        "not_connected": "no autorizado"
+      }
     },
     "manage": {
       "colName": "Equipo",

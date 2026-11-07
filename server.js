@@ -485,6 +485,9 @@ if (process.env.PACK_MARKETPLACE === "1") {
     // 装前闸权益投影的本地证词源（add-market-revenue-share）：与远端
     // /api/packs/:id 的 purchased 同一个 store，只经 fetchMarketDetail 读。
     market: packRegistry.market ?? null,
+    // sub2api 余额周期快照读（add-owner-cross-line-view 1.2）：聚合面按 email
+    // 读最新快照——同一 registry 单元（同一 packs.db），单一真源零复制。
+    billingSnapshots: (email, opts) => packRegistry.billingSnapshots(email, opts),
     // Name lookup for curated recipe references (intent-onboarding): the
     // recipe names a pack by its authored display name because ids are minted
     // randomly per deployment. Goes through the registry's own listing, so the

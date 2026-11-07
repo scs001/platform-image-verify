@@ -732,7 +732,7 @@ test("3.4 GET /api/boards/:line is 404 line_boards_disabled until LINE_BOARDS_EN
     const unknown = mockRes();
     await handler({ params: { line: "nope" }, user: { email: EMAIL } }, unknown);
     assert.equal(unknown.statusCode, 404);
-    assert.deepEqual(unknown.body.availableLines, ["facet", "wanxing", "wire"]);
+    assert.deepEqual(unknown.body.availableLines, ["facet", "wanxing", "wire", "lex"]);
   } finally {
     if (prev === undefined) delete process.env.LINE_BOARDS_ENABLED;
     else process.env.LINE_BOARDS_ENABLED = prev;

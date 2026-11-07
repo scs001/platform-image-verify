@@ -3805,7 +3805,32 @@
       "sourceUnavailable": "source unavailable",
       "retry": "retry",
       "loading": "loading…",
-      "builderPointer": "Or let the fleet architect build a team in chat, or the blueprint architect turn a scenario into a publishable template."
+      "builderPointer": "Or let the fleet architect build a team in chat, or the blueprint architect turn a scenario into a publishable template.",
+      "xlineTitle": "Cross-line spend",
+      "xlineUnconnected": "Not connected ({{reason}})",
+      "xlineNoData": "No exportable reading",
+      "xlineConnect": "Connect",
+      "xlineBoard": "Board",
+      "xline": {
+        "fleet": "Turn metering",
+        "market": "Market purchases",
+        "wanxing": "Wanxing settlements",
+        "lex": "Lex usage",
+        "wire": "Wire consumption",
+        "balance": "Balance snapshot"
+      },
+      "xlineCalibre": {
+        "fleet": "fact projection",
+        "market": "purchase records",
+        "wanxing": "service-credential read",
+        "lex": "credential direct",
+        "wire": "credential direct",
+        "balance": "coarse attribution"
+      },
+      "xlineReason": {
+        "expired": "session expired",
+        "not_connected": "not authorized"
+      }
     },
     "manage": {
       "colName": "Team",

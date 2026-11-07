@@ -1,13 +1,14 @@
 // TeamsOverviewBoard — cross-team aggregate read face (agent-teams-overview).
 //
-// Answers "how are ALL my teams doing right now", composed from the three
+// Answers "how are ALL my teams doing right now", composed from the
 // existing read endpoints — /api/fleets (roster + inline-edit fields),
-// /api/fleets/overview (six-state distribution + top decisions), and
-// /api/fleets/owner/board (spend + last activity) — each fetched
-// independently and degraded independently: one failing source greys out only
-// its own blocks with a retry, never the whole board (D2: no fourth
-// aggregation endpoint, no second state machine). Pure read face: cards
-// navigate to the cockpit, nothing here writes.
+// /api/fleets/overview (six-state distribution + top decisions),
+// /api/fleets/owner/board (spend + last activity), and
+// /api/fleets/owner/cross-line-spend (add-owner-cross-line-view: per-line
+// cost groups) — each fetched independently and degraded independently: one
+// failing source greys out only its own blocks with a retry, never the whole
+// board (D2: no second state machine). Pure read face: cards navigate to the
+// cockpit, nothing here writes.
 //
 // Abnormal teams (missing/vacant/failing posts) sort first, then by open
 // decisions, then by last activity (spec: 异常上浮与排序沉睡).
@@ -16,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { MiniFleetFormation } from "@/components/FleetGraph";
+import { fetchCrossLineSpend, type CrossLineSpend } from "@/lib/fleet-owner-api";
 
 interface RosterFleet {
   id: string;
@@ -75,6 +77,119 @@ function SourceError({ testId, onRetry }: { testId: string; onRetry: () => void 
   );
 }
 
+// 跨线花费区 (add-owner-cross-line-view 2.2)：六格按线分组。任一线 degraded
+// 只降级该格（错误说明+整路重试），unconnected 线渲染未连接+去连接入口；
+// MUST NOT 渲染跨线总额（schema 无槽，前端也不加总）。深链=/boards/<line>。
+const XLINES: { id: string; board: string | null; connect?: string }[] = [
+  { id: "fleet", board: null },
+  { id: "market", board: "facet" },
+  { id: "wanxing", board: "wanxing" },
+  { id: "lex", board: "lex", connect: "/settings/connections?panel=line-lex" },
+  { id: "wire", board: "wire", connect: "/settings/connections?panel=line-wire-customer" },
+  { id: "balance", board: null },
+];
+
+function metricText(line: string, metrics: Record<string, unknown> | null | undefined): string | null {
+  if (!metrics || typeof metrics !== "object") return null;
+  if (line === "fleet") {
+    const runs = metrics.runs;
+    return typeof runs === "number" ? `${runs} runs` : null;
+  }
+  if (line === "market") {
+    const settled = metrics.settled;
+    return typeof settled === "number" ? `${settled} settled` : null;
+  }
+  if (line === "wanxing") {
+    if (metrics.available === false) return null;
+    const usd = metrics.usd;
+    return typeof usd === "number" ? `$${usd}` : null;
+  }
+  if (line === "lex") {
+    const calls = metrics.usage_calls;
+    return typeof calls === "number" ? `${calls} calls` : null;
+  }
+  if (line === "wire") {
+    const ds = metrics.datasets;
+    return typeof ds === "number" ? `${ds} datasets` : null;
+  }
+  if (line === "balance") {
+    const usd = metrics.balance_usd;
+    return typeof usd === "number" ? `$${usd}` : null;
+  }
+  return null;
+}
+
+function CrossLineSpendSection({
+  xline,
+  onRetry,
+}: {
+  xline: Source<CrossLineSpend>;
+  onRetry: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-3" data-testid="teams-xline-spend">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium" data-testid="teams-xline-title">
+          {t("agentTeams.overview.xlineTitle")}
+        </span>
+        {xline.error ? <SourceError testId="teams-xline-error" onRetry={onRetry} /> : null}
+      </div>
+      {xline.data ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {xline.data.lines.map((l) => {
+            const unconnected = (l.metrics as { unconnected?: string } | null)?.unconnected;
+            const text = unconnected ? null : metricText(l.line, l.metrics);
+            const meta = XLINES.find((x) => x.id === l.line);
+            return (
+              <div
+                key={l.line}
+                data-testid={`teams-xline-${l.line}`}
+                className={`rounded-md border p-2 text-xs ${l.status === "degraded" ? "border-destructive/40" : "border-border"}`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-medium">{t(`agentTeams.overview.xline.${l.line}`)}</span>
+                  <span className="text-muted-foreground">{t(`agentTeams.overview.xlineCalibre.${l.line}`)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-1">
+                  {l.status === "degraded" ? (
+                    <span className="text-destructive" data-testid={`teams-xline-${l.line}-error`}>
+                      {l.error ? l.error.slice(0, 80) : t("agentTeams.overview.sourceUnavailable")}
+                    </span>
+                  ) : unconnected ? (
+                    <span className="text-muted-foreground" data-testid={`teams-xline-${l.line}-unconnected`}>
+                      {t("agentTeams.overview.xlineUnconnected", {
+                        reason: t(`agentTeams.overview.xlineReason.${unconnected === "expired" ? "expired" : "not_connected"}`),
+                      })}
+                    </span>
+                  ) : text ? (
+                    <span data-testid={`teams-xline-${l.line}-value`}>{text}</span>
+                  ) : (
+                    <span className="text-muted-foreground" data-testid={`teams-xline-${l.line}-absent`}>
+                      {t("agentTeams.overview.xlineNoData")}
+                    </span>
+                  )}
+                  {unconnected && meta?.connect ? (
+                    <a className="shrink-0 underline text-primary" href={meta.connect}>
+                      {t("agentTeams.overview.xlineConnect")}
+                    </a>
+                  ) : meta?.board ? (
+                    <a className="shrink-0 underline text-muted-foreground" href={`/boards/${meta.board}`}>
+                      {t("agentTeams.overview.xlineBoard")}
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : !xline.error ? (
+        <p className="mt-2 text-xs text-muted-foreground">{t("agentTeams.overview.loading")}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function TeamsOverviewBoard({
   roster,
   rosterError,
@@ -93,6 +208,8 @@ export function TeamsOverviewBoard({
   const { t } = useTranslation();
   const [overview, setOverview] = useState<Source<OverviewFleet[]>>({ data: null, error: null });
   const [board, setBoard] = useState<Source<BoardFleet[]>>({ data: null, error: null });
+  // 跨线花费第四路 (add-owner-cross-line-view 2.2)：与既有三路并列独立降级。
+  const [xline, setXline] = useState<Source<CrossLineSpend>>({ data: null, error: null });
   // View mode (add-teams-hub-formation-board 2.2): card list ↔ formation grid.
   // Persisted per user; "cards" stays the default so the pre-change face is
   // byte-identical on first visit.
@@ -141,6 +258,20 @@ export function TeamsOverviewBoard({
     void loadOverview();
     void loadBoard();
   }, [loadOverview, loadBoard]);
+
+  const loadXline = useCallback(async () => {
+    setXline({ data: null, error: null });
+    try {
+      const body = await fetchCrossLineSpend();
+      setXline({ data: body, error: null });
+    } catch (e) {
+      setXline({ data: null, error: String((e as Error).message ?? e) });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadXline();
+  }, [loadXline]);
 
   const byId = useMemo(() => {
     const map = new Map<string, { o?: OverviewFleet; b?: BoardFleet }>();
@@ -242,6 +373,9 @@ export function TeamsOverviewBoard({
           </Button>
         </div>
       ) : null}
+
+      {/* 跨线花费第四路（独立降级）：失败只标注本区，不影响团队卡。 */}
+      <CrossLineSpendSection xline={xline} onRetry={loadXline} />
 
       {view === "formation" ? (
         /* Formation grid (2.2): one mini formation per team from the SAME

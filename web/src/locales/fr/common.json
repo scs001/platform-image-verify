@@ -3805,7 +3805,32 @@
       "sourceUnavailable": "source indisponible",
       "retry": "réessayer",
       "loading": "chargement…",
-      "builderPointer": "Ou laissez l'architecte de flottes monter une équipe dans le chat, ou l'architecte de blueprints transformer un scénario en gabarit publiable."
+      "builderPointer": "Ou laissez l'architecte de flottes monter une équipe dans le chat, ou l'architecte de blueprints transformer un scénario en gabarit publiable.",
+      "xlineTitle": "Dépenses inter-lignes",
+      "xlineUnconnected": "Non connecté ({{reason}})",
+      "xlineNoData": "Aucune donnée exportable",
+      "xlineConnect": "Connecter",
+      "xlineBoard": "Tableau",
+      "xline": {
+        "fleet": "Comptage de tours",
+        "market": "Achats marché",
+        "wanxing": "Règlements Wanxing",
+        "lex": "Usage Lex",
+        "wire": "Consommation Wire",
+        "balance": "Capture de solde"
+      },
+      "xlineCalibre": {
+        "fleet": "projection de faits",
+        "market": "registre d'achats",
+        "wanxing": "lecture via identifiants de service",
+        "lex": "lecture directe",
+        "wire": "lecture directe",
+        "balance": "attribution grossière"
+      },
+      "xlineReason": {
+        "expired": "session expirée",
+        "not_connected": "non autorisé"
+      }
     },
     "manage": {
       "colName": "Équipe",

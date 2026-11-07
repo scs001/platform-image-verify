@@ -75,6 +75,25 @@ test.describe("fleet hub", () => {
     await page.route("**/api/fleets/owner/board", (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify(board) }),
     );
+    // add-owner-cross-line-view: 第四路读面 mock——六分组真形状（fleet/market/
+    // balance 有数，wanxing 代读 available，lex/wire unconnected）。
+    await page.route("**/api/fleets/owner/cross-line-spend", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          v: 1,
+          sampledAt: Date.now(),
+          lines: [
+            { line: "fleet", status: "ok", calibre: "owner.fleet", reconciledAt: Date.now(), metrics: { runs: 12, turns: 30, fleets: 2 } },
+            { line: "market", status: "ok", calibre: "owner.market", reconciledAt: Date.now(), metrics: { purchases: 3, settled: 2, settled_usd: 15.75 } },
+            { line: "wanxing", status: "ok", calibre: "owner.wanxing", reconciledAt: Date.now(), metrics: { available: true, turns: 7, minutes: 9, usd: 1.23, pending: 1 } },
+            { line: "lex", status: "ok", calibre: "owner.lex", metrics: { unconnected: "not_connected" } },
+            { line: "wire", status: "ok", calibre: "owner.wire", metrics: { unconnected: "not_connected" } },
+            { line: "balance", status: "ok", calibre: "owner.balance", reconciledAt: Date.now(), metrics: { balance_usd: 42.1 } },
+          ],
+        }),
+      }),
+    );
     for (const [id, name] of [[OK, "OK Team"], [ABNORMAL, "Sick Team"], [PAUSED, "Paused Team"], [BUSY, "Busy Team"]]) {
       await page.route(`**/api/fleets/${id}/cockpit`, (route) =>
         route.fulfill({ contentType: "application/json", body: JSON.stringify(cockpit(id, name)) }),
@@ -101,6 +120,18 @@ test.describe("fleet hub", () => {
   test("overview is the default face: summary strip + abnormal-first cards", async ({ page }) => {
     await page.goto("/fleets");
     await expect(page.getByTestId("teams-overview")).toBeVisible();
+    // 跨线花费第四路（add-owner-cross-line-view 2.2）：六格+总额零渲染+未连接态。
+    const xline = page.getByTestId("teams-xline-spend");
+    await expect(xline).toBeVisible();
+    for (const l of ["fleet", "market", "wanxing", "lex", "wire", "balance"]) {
+      await expect(page.getByTestId(`teams-xline-${l}`)).toBeVisible();
+    }
+    await expect(page.getByTestId("teams-xline-wanxing-value")).toContainText("$1.23");
+    await expect(page.getByTestId("teams-xline-lex-unconnected")).toBeVisible();
+    await expect(page.getByTestId("teams-xline-lex")).toContainText("Connect");
+    await expect(page.getByTestId("teams-xline-fleet-value")).toContainText("12 runs");
+    // 无总额：区内不出现 grand/total 合计行
+    await expect(xline).not.toContainText("total:");
     await expect(page.getByTestId("teams-summary-strip")).toContainText("3 teams");
     await expect(page.getByTestId("teams-summary-abnormal")).toContainText("1 abnormal");
     // The sick team's card leads (missing post = abnormal), OK Team second.

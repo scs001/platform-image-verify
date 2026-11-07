@@ -38,6 +38,29 @@ export function fetchFleetSpend(fleetId: string) {
   return fetch(`/api/fleets/${encodeURIComponent(fleetId)}/spend`).then(json) as Promise<SpendProjection>;
 }
 
+// ── 跨线成本聚合 (add-owner-cross-line-view 2.1) ─────────────────────────────
+// 六账按线分组，各带口径/对账时间/三态；schema 层无跨线总额槽（spec 红线）。
+export type CrossLineId = "fleet" | "market" | "wanxing" | "lex" | "wire" | "balance";
+
+export interface CrossLineGroup {
+  line: CrossLineId;
+  status: "ok" | "degraded";
+  calibre: string; // i18n key: ownerSpend.calibre.<key>
+  reconciledAt?: number;
+  error?: string;
+  metrics?: Record<string, unknown> | null;
+}
+
+export interface CrossLineSpend {
+  v: number;
+  sampledAt: number;
+  lines: CrossLineGroup[];
+}
+
+export function fetchCrossLineSpend() {
+  return fetch("/api/fleets/owner/cross-line-spend").then(json) as Promise<CrossLineSpend>;
+}
+
 export interface OwnerCellRow {
   cellId: string;
   state: string;

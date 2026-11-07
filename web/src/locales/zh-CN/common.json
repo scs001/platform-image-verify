@@ -3805,7 +3805,32 @@
       "sourceUnavailable": "该数据源暂不可用",
       "retry": "重试",
       "loading": "加载中…",
-      "builderPointer": "也可以在对话里让团队架构师帮你搭队，或让蓝图构造师把场景编成可上架的模板。"
+      "builderPointer": "也可以在对话里让团队架构师帮你搭队，或让蓝图构造师把场景编成可上架的模板。",
+      "xlineTitle": "跨线花费",
+      "xlineUnconnected": "未连接（{{reason}}）",
+      "xlineNoData": "暂无可导出读数",
+      "xlineConnect": "去连接",
+      "xlineBoard": "看板",
+      "xline": {
+        "fleet": "回合计量",
+        "market": "市场成交",
+        "wanxing": "萬星结算",
+        "lex": "识律用量",
+        "wire": "柏讯消费",
+        "balance": "余额快照"
+      },
+      "xlineCalibre": {
+        "fleet": "事实投影",
+        "market": "成交记",
+        "wanxing": "服务凭据代读",
+        "lex": "凭据直读",
+        "wire": "凭据直读",
+        "balance": "粗粒度归属"
+      },
+      "xlineReason": {
+        "expired": "登录已过期",
+        "not_connected": "未授权"
+      }
     },
     "manage": {
       "colName": "团队",

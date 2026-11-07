@@ -8,6 +8,7 @@
 // owner; writes are owner-scoped by fleet.ownerEmail.
 
 import { Router } from "express";
+import { fetchLexUsageFor, fetchWireUsageFor } from "../../lib/board-adapters.js";
 import * as cron from "../../cron.js";
 import * as catalog from "../../catalog.js";
 import * as chatHistory from "../../chat-history.js";
@@ -1337,6 +1338,139 @@ export function createFleetRoutes(app, ctx = null) {
       console.error("[fleets] spend error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
+  });
+
+  // ── 跨线成本聚合 (add-owner-cross-line-view 1.2, charter C1) ──────────────
+  // 主人侧只读聚合：六账按线分组、各带口径与最近对账时间、互相不混加（schema
+  // 层无总额槽）。每线独立 try/catch——任一线失败只降级该线分组。只读铁律：
+  // 下方处理器零写入、零扣费、零结算路径（1.4 grep 核证）。
+  router.get("/owner/cross-line-spend", async (req, res) => {
+    const user = resolveUser(req);
+    if (!user) return res.status(401).json({ error: "Authentication required" });
+    const email = String(user.email || "").trim();
+    const sampledAt = Date.now();
+    const line = (id, calibre, fn) =>
+      Promise.resolve()
+        .then(fn)
+        .then((metrics) => ({
+          line: id,
+          status: metrics === null ? "degraded" : "ok",
+          ...(metrics === null
+            ? { error: `${id} spend read failed` }
+            : { metrics, reconciledAt: metrics.reconciledAt ?? sampledAt }),
+          calibre,
+        }))
+        .catch((err) => ({
+          line: id,
+          status: "degraded",
+          calibre,
+          error: String(err?.message || err).slice(0, 200),
+        }));
+
+    // fleet — fleet_runs 事实投影（复用既有聚合，零新查询）。
+    const fleetLine = line("fleet", "owner.fleet", async () => {
+      const db = getFleetDatabase();
+      const fleets = db.listFleets({ ownerEmail: email });
+      const agg = { runs: 0, turns: 0, usageInput: null, usageOutput: null };
+      for (const f of fleets) {
+        const p = db.spendProjection(f.id);
+        agg.runs += p.allTime?.runs ?? 0;
+        agg.turns += p.allTime?.turns ?? 0;
+        if (p.allTime?.usageInput != null) {
+          agg.usageInput = (agg.usageInput ?? 0) + p.allTime.usageInput;
+        }
+        if (p.allTime?.usageOutput != null) {
+          agg.usageOutput = (agg.usageOutput ?? 0) + p.allTime.usageOutput;
+        }
+      }
+      return { ...agg, fleets: fleets.length };
+    });
+
+    // market — buyer 成交记（消费侧读数，进程内 market store 直读）。
+    const marketLine = line("market", "owner.market", async () => {
+      const market = ctx?.localPackMarket?.market;
+      if (!market?.purchasesForBuyer) return null;
+      const rows = market.purchasesForBuyer(email, { limit: 100 });
+      const settled = rows.filter((r) => r.status === "settled");
+      const usd = settled
+        .map((r) => Number(r.amount_usd))
+        .filter((n) => Number.isFinite(n))
+        .reduce((a, b) => a + b, 0);
+      return {
+        purchases: rows.length,
+        settled: settled.length,
+        ...(settled.length ? { settled_usd: Number(usd.toFixed(2)) } : {}),
+        latest_at: rows[0]?.created_at ?? null,
+      };
+    });
+
+    // wanxing — facade ops 账代读（唯一平台凭据例外；真源在 facade pod）。
+    const wanxingLine = line("wanxing", "owner.wanxing", async () => {
+      const base = String(process.env.WANXING_FACADE_URL || "").replace(/\/+$/, "");
+      const token = String(process.env.AGENT_SERVING_REGISTRY_TOKEN || "");
+      if (!base || !token) return { available: false };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      try {
+        const r = await fetch(`${base}/api/wanxing/v1/ops/usage`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          signal: controller.signal,
+        });
+        if (!r.ok) throw new Error(`facade ops/usage → HTTP ${r.status}`);
+        const j = await r.json();
+        const mine = (j.byCaller ?? []).filter(
+          (row) => String(row.email || "").toLowerCase() === email.toLowerCase(),
+        );
+        const turns = mine.reduce((a, b) => a + (b.turns ?? 0), 0);
+        const minutes = mine.reduce((a, b) => a + (b.minutes ?? 0), 0);
+        const usd = mine.reduce((a, b) => a + (b.usd ?? 0), 0);
+        const pending = mine.reduce((a, b) => a + (b.pending ?? 0), 0);
+        return {
+          available: true,
+          ...(mine.length
+            ? { turns, minutes, usd: Number(usd.toFixed(2)), pending }
+            : {}),
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+
+    // lex / wire — 用户凭据直读（共享 helper，401 翻面语义同 board）。
+    const lexLine = line("lex", "owner.lex", async () => {
+      const out = await fetchLexUsageFor(email);
+      if (out.status === "unconnected") return { unconnected: out.reason };
+      if (out.status === "degraded") throw new Error(out.error || "lex usage read failed");
+      return out.data ?? {};
+    });
+
+    const wireLine = line("wire", "owner.wire", async () => {
+      const out = await fetchWireUsageFor(email);
+      if (out.status === "unconnected") return { unconnected: out.reason };
+      if (out.status === "degraded") throw new Error(out.error || "wire usage read failed");
+      return out.data ?? {};
+    });
+
+    // balance — sub2api 余额快照（deployer 账户粒度，粗粒度归属）。
+    const balanceLine = line("balance", "owner.balance", async () => {
+      const snap = ctx?.localPackMarket?.billingSnapshots;
+      if (!snap) return null;
+      const rows = snap(email, { limit: 1 });
+      const latest = rows[0] ?? null;
+      return latest
+        ? { balance_usd: latest.balanceUsd, sampledAt: latest.sampledAt }
+        : { samples: 0 };
+    });
+
+    const [fleet, market, wanxing, lex, wire, balance] = await Promise.all([
+      fleetLine,
+      marketLine,
+      wanxingLine,
+      lexLine,
+      wireLine,
+      balanceLine,
+    ]);
+    res.json({ v: 1, sampledAt, lines: [fleet, market, wanxing, lex, wire, balance] });
   });
 
   // ── 迭代回路 (fleet-owner-iteration) ─────────────────────────────────────

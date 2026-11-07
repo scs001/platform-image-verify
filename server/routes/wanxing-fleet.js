@@ -35,6 +35,7 @@ import {
 } from "../local-agent-feed.js";
 import { importPresetBundle, listPresetBundles, presetBundlesDir } from "../preset-bundles.js";
 import * as packStore from "../../pack-store.js";
+import { reportInstance } from "../../lib/supply-instance-report.js";
 
 const RUNNER_TIMEOUT_MS = 2000;
 
@@ -242,6 +243,13 @@ export function registerWanxingFleetRoutes(ctx) {
     }
   });
 
+  // Instance report (close-supply-loop-interfaces 2.2): fire-and-forget — the
+  // response path never awaits it and its failures are invisible to users
+  // (spec: 登记通道失败诚实降级不阻塞部署).
+  const reportDeployment = (dep) => {
+    void reportInstance(dep, { env, seatId: seatId() }).catch(() => {});
+  };
+
   router.get("/deployments", (_req, res) => {
     try {
       return res.json(localFleetSnapshot({ env }));
@@ -261,6 +269,7 @@ export function registerWanxingFleetRoutes(ctx) {
       externalRunnerId: runnerId && runnerId !== seatId() ? String(runnerId) : null,
     });
     if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    reportDeployment(out.deployment);
     return res.status(out.reused ? 200 : 201).json({ deployment: out.deployment, reused: out.reused, capacity: localFleetSnapshot({ env }).capacity });
   });
 
@@ -269,6 +278,7 @@ export function registerWanxingFleetRoutes(ctx) {
     if (!agentPath) return res.status(400).json({ error: "agentPath is required" });
     const out = setDeploymentEnabled(agentPath, enabled);
     if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    reportDeployment(out.deployment);
     return res.json({ deployment: out.deployment, capacity: localFleetSnapshot({ env }).capacity });
   };
   router.post("/deployments/stop", enabledChange(false));
@@ -279,6 +289,12 @@ export function registerWanxingFleetRoutes(ctx) {
     if (!agentPath) return res.status(400).json({ error: "agentPath is required" });
     const out = removeDeployment(agentPath);
     if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    if (out.removed) {
+      void reportInstance(
+        { id: agentPath, agentPath, enabled: false, status: "removed" },
+        { env, seatId: seatId() },
+      ).catch(() => {});
+    }
     return res.json({ removed: out.removed, capacity: localFleetSnapshot({ env }).capacity });
   });
 

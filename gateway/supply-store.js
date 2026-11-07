@@ -57,6 +57,18 @@ const SKILL_COLUMNS = [
   "tags", "license", "metadata", "visibility", "groups", "is_enabled",
 ];
 
+// ── Instance report family (close-supply-loop-interfaces) ───────────────────
+//
+// One-way registry of RUNNING instance state (萬星→脊柱, charter D4): 壹座
+// reports deployment changes through the write gate; the store only records.
+// There is deliberately NO read face that drives runtime — projection exposes
+// rows for humans/owner views, never as a control channel.
+const INSTANCE_COLUMNS = [
+  "instance_id", "status", "runner_id", "source_pack_id", "source_pack_version",
+  "provenance",
+];
+const INSTANCE_TTL_MS_DEFAULT = 24 * 60 * 60 * 1000;
+
 function parseJson(text, fallback) {
   if (text == null) return fallback;
   try {
@@ -178,6 +190,16 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
     entity_id TEXT NOT NULL,
     source TEXT NOT NULL,
     detail TEXT
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS instances (
+    instance_id TEXT PRIMARY KEY,
+    status TEXT,
+    runner_id TEXT,
+    source_pack_id TEXT,
+    source_pack_version INTEGER,
+    provenance TEXT,
+    reported_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
   )`);
 
   const insertAudit = db.prepare(
@@ -366,6 +388,89 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
     insertAudit.run(now(), actor, "delete", "skill", name, source, null);
   };
 
+  // ── Instance report family: one-way registry, never a control channel ──────
+  // (close-supply-loop-interfaces; charter D4 单向+出处+诚实降级)
+  function rowToInstance(row) {
+    if (!row) return null;
+    return {
+      instance_id: row.instance_id,
+      status: row.status,
+      runner_id: row.runner_id,
+      source_pack_id: row.source_pack_id,
+      source_pack_version: row.source_pack_version,
+      provenance: parseJson(row.provenance, {}),
+      reported_at: row.reported_at,
+      expires_at: row.expires_at,
+    };
+  }
+
+  function stampInstanceUpsert(entry) {
+    if (!entry || typeof entry !== "object") {
+      throw new SupplyStoreError({ status: 400, code: "SUPPLY_BAD_ENTRY", message: "entry object required" });
+    }
+    if (!entry.instance_id || typeof entry.instance_id !== "string") {
+      throw new SupplyStoreError({ status: 400, code: "SUPPLY_BAD_ENTRY", message: "instances.instance_id is required" });
+    }
+    const unknown = Object.keys(entry).filter((k) => !INSTANCE_COLUMNS.includes(k));
+    if (unknown.length > 0) {
+      throw new SupplyStoreError({
+        status: 400,
+        code: "SUPPLY_UNKNOWN_FIELD",
+        message: `unknown instances field(s): ${unknown.join(", ")} — report and map them, never drop silently`,
+      });
+    }
+  }
+
+  const upsertInstance = ({ actor, source, entry, ttlMs }) => {
+    guardWrite({ actor, source });
+    stampInstanceUpsert(entry);
+    const ts = now();
+    const ttl = Number.isFinite(Number(ttlMs)) && Number(ttlMs) > 0 ? Number(ttlMs) : INSTANCE_TTL_MS_DEFAULT;
+    db.prepare(
+      `INSERT INTO instances (${INSTANCE_COLUMNS.join(",")}, reported_at, expires_at)
+       VALUES (${INSTANCE_COLUMNS.map(() => "?").join(",")}, ?, ?)
+       ON CONFLICT(instance_id) DO UPDATE SET
+         status=excluded.status, runner_id=excluded.runner_id,
+         source_pack_id=excluded.source_pack_id, source_pack_version=excluded.source_pack_version,
+         provenance=excluded.provenance, reported_at=excluded.reported_at, expires_at=excluded.expires_at`,
+    ).run(
+      entry.instance_id, entry.status ?? null, entry.runner_id ?? null,
+      entry.source_pack_id ?? null, entry.source_pack_version ?? null,
+      entry.provenance == null ? null : JSON.stringify(entry.provenance),
+      ts, ts + ttl,
+    );
+    insertAudit.run(ts, actor, "upsert", "instance", entry.instance_id, source, null);
+    return { ok: true, instance_id: entry.instance_id };
+  };
+
+  const patchInstance = (instanceId, { actor, source, fields, ttlMs }) => {
+    const existing = db.prepare(`SELECT * FROM instances WHERE instance_id = ?`).get(instanceId);
+    if (!existing) {
+      throw new SupplyStoreError({ status: 404, code: "SUPPLY_NOT_FOUND", message: `no instances row ${instanceId}` });
+    }
+    const merged = { ...rowToInstance(existing) };
+    delete merged.reported_at;
+    delete merged.expires_at;
+    for (const [k, v] of Object.entries(fields ?? {})) {
+      if (INSTANCE_COLUMNS.includes(k)) merged[k] = v;
+    }
+    return upsertInstance({ actor, source, entry: merged, ttlMs });
+  };
+
+  const deleteInstance = (instanceId, { actor, source }) => {
+    guardWrite({ actor, source });
+    const info = db.prepare(`DELETE FROM instances WHERE instance_id = ?`).run(instanceId);
+    if (info.changes === 0) {
+      throw new SupplyStoreError({ status: 404, code: "SUPPLY_NOT_FOUND", message: `no instances row ${instanceId}` });
+    }
+    insertAudit.run(now(), actor, "delete", "instance", instanceId, source, null);
+  };
+
+  // Read face: projection-only. Expired rows stay queryable (as_of honesty);
+  // nothing in this family can drive runtime — no consumer, no callback.
+  const listInstances = () =>
+    db.prepare(`SELECT * FROM instances ORDER BY instance_id`).all().map(rowToInstance);
+
   const getMcpServer = (id) => rowToMcp(db.prepare(`SELECT * FROM mcp_servers WHERE id = ?`).get(id));
   const listMcpServers = () => db.prepare(`SELECT * FROM mcp_servers ORDER BY id`).all().map(rowToMcp);
   const getSkill = (name) => rowToSkill(db.prepare(`SELECT * FROM skills WHERE name = ?`).get(name));
@@ -393,7 +498,11 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
     const skillRows = sinceMs == null
       ? listSkills()
       : db.prepare(`SELECT * FROM skills WHERE updated_at > ? ORDER BY name`).all(sinceMs).map(rowToSkill);
-    return { asOf: now(), mcpServers: mcpRows, skills: skillRows };
+    const instanceRows = listInstances().map((r) => ({
+      ...r,
+      expired: r.expires_at != null && r.expires_at < now(),
+    }));
+    return { asOf: now(), mcpServers: mcpRows, skills: skillRows, instances: instanceRows };
   };
 
   // Catalog read face (facet cards / skills listing): market-entry shape the
@@ -482,6 +591,10 @@ export function createSupplyStore({ file, gatewayBase = "", now = () => Date.now
     patchSkill,
     setSkillVisibility,
     deleteSkill,
+    upsertInstance,
+    patchInstance,
+    deleteInstance,
+    listInstances,
     getMcpServer,
     listMcpServers,
     getSkill,
@@ -568,4 +681,14 @@ export function registerSupplyStoreRoutes(app, { store, projectionToken = "", wr
   writeRoute("/api/supply-store/skills/patch", (b) => store.patchSkill(b.name, { actor: b.actor, source: b.source ?? "facade", fields: b.fields }));
   writeRoute("/api/supply-store/skills/visibility", (b) => store.setSkillVisibility(b.name, { actor: b.actor, source: b.source ?? "facade", visibility: b.visibility, groups: b.groups }));
   writeRoute("/api/supply-store/skills/delete", (b) => { store.deleteSkill(b.name, { actor: b.actor, source: b.source ?? "facade" }); return { ok: true }; });
+
+  // ── Instance report family (close-supply-loop-interfaces) ──────────────────
+  // Gated: SPINE_INSTANCES_ENABLED=true to accept reports. Default OFF so the
+  // gate ships without behaviour change; one-way registry — write-only here,
+  // projection read-only, never a runtime control channel.
+  if (process.env.SPINE_INSTANCES_ENABLED === "1") {
+    writeRoute("/api/supply-store/instances/upsert", (b) => store.upsertInstance({ actor: b.actor, source: b.source ?? "facade", entry: b.entry, ttlMs: b.ttlMs }));
+    writeRoute("/api/supply-store/instances/patch", (b) => store.patchInstance(b.id, { actor: b.actor, source: b.source ?? "facade", fields: b.fields, ttlMs: b.ttlMs }));
+    writeRoute("/api/supply-store/instances/delete", (b) => { store.deleteInstance(b.id, { actor: b.actor, source: b.source ?? "facade" }); return { ok: true }; });
+  }
 }

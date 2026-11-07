@@ -124,6 +124,7 @@ function saveTasks() {
       error: t.error ?? null,
       initiator: t.initiator ?? null,
       initiatorPreset: t.initiatorPreset ?? null,
+      initiatorGroup: t.initiatorGroup ?? null,
       origin: t.origin ?? null,
       // Human-priority wake (add-turn-mandate-lane): stamped by the human
       // seams (owner execute-now actions); the worker pool's extra slot
@@ -292,7 +293,7 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null, carrier = null, packId = null, humanPriority = false }) {
+function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, initiatorGroup, origin, executionPolicy = null, carrier = null, packId = null, humanPriority = false }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // Exactly one target flavor: a cell persona, a market a2a agent, or a tool
@@ -329,6 +330,11 @@ function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiato
     // the persona the conversation ran under (the aggregator restores it).
     initiator: initiator ?? null,
     initiatorPreset: initiatorPreset ?? null,
+    // Aggregation group (fix-fanout-aggregation D2): one ignition wave = one
+    // group. `initiator` alone merges every wave the same session ever fired
+    // into a single summary; absent (legacy rows, web-lane delegation) falls
+    // back to grouping by initiator, which is the pre-change behavior.
+    initiatorGroup: initiatorGroup ?? null,
     // Origin chain (dispatch/handoff/fanout) rides the task so the fleet
     // admission gate can count per-fleet in-flight (add-fleet-carrier D4).
     sourceTag: origin?.fleet?.fleetId ? { fleetId: origin.fleet.fleetId, memberId: origin.fleet.memberId ?? null } : null,

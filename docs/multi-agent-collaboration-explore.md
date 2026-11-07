@@ -299,6 +299,8 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-fleet-turn-budget/`
                                （镜像 sha-482b815；边>岗>默认 + [2min,30min] 夹紧；镜像内 38/38 绿）**
   ② fix-member-config-complete 建岗接 4 字段 + effort:null 清等级
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-member-config-complete/`
+                               （镜像 sha-d41ac58；建岗与改岗同闸同落；清档按「目标≠运行中」判定，实弹探针发 switchEffortTo(null)）**
   ③ fix-a2a-call-timeout       内部定时器改持 AbortController（不是 signal）并在无 signal 时自建一个
                                控制器；超时落 failed 不落 hang。证据见 §7.1 E1-E4
                                **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-a2a-call-timeout/`

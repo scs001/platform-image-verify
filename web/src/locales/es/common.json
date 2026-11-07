@@ -3379,6 +3379,12 @@
         "on_duty": "de guardia",
         "listening": "escuchando",
         "seated": "sentado"
+      },
+      "memory": {
+        "title": "Lo que esta sala recuerda",
+        "empty": "Los recuerdos de los turnos de la sala se depositarán aquí",
+        "off": "El servicio de memoria no está disponible ahora mismo: no se pueden leer los recuerdos de la sala",
+        "turnBadge": "Captura de turno"
       }
     },
     "invite": {
@@ -3915,5 +3921,25 @@
     "subtitle": "Revisión de candidatos de habilidades y enmiendas de persona (skill-self-evolution)",
     "skillCandidates": "Candidatos de habilidades",
     "personaAmendments": "Enmiendas de persona"
+  },
+  "memoryRecall": {
+    "title": "Me acuerdo",
+    "viewInPanel": "Ver y corregir en el panel de memoria"
+  },
+  "memoryWeekly": {
+    "title": "Ritmo de esta semana",
+    "capture": "Capturas de esta semana",
+    "note": "Notas de esta semana",
+    "correction": "Correcciones de esta semana",
+    "pending": "Pendiente de promoción",
+    "week": "Esta semana",
+    "segTitle": "{{n}} entradas · haz clic para filtrar la lista semanal",
+    "pendingHint": "Las promociones pendientes se gestionan en el cuadro de arriba",
+    "degraded": "El ritmo semanal no se puede leer por ahora."
+  },
+  "memoryTimeline": {
+    "tabBrowse": "Por capa",
+    "tabTimeline": "Cronología",
+    "fromHarness": "de {{harness}}"
   }
 }

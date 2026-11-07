@@ -3379,6 +3379,12 @@
         "on_duty": "de garde",
         "listening": "à l'écoute",
         "seated": "assis"
+      },
+      "memory": {
+        "title": "Ce dont cette salle se souvient",
+        "empty": "Les souvenirs des tours de la salle se déposeront ici",
+        "off": "Le service de mémoire est indisponible pour le moment — impossible de lire les souvenirs de la salle",
+        "turnBadge": "Capture de tour"
       }
     },
     "invite": {
@@ -3915,5 +3921,25 @@
     "subtitle": "Revue des candidatures de compétences et amendements de persona (skill-self-evolution)",
     "skillCandidates": "Candidatures de compétences",
     "personaAmendments": "Amendements de persona"
+  },
+  "memoryRecall": {
+    "title": "Je me souviens",
+    "viewInPanel": "Consulter et corriger dans le panneau de mémoire"
+  },
+  "memoryWeekly": {
+    "title": "Rythme de la semaine",
+    "capture": "Captures cette semaine",
+    "note": "Notes cette semaine",
+    "correction": "Corrections cette semaine",
+    "pending": "En attente de promotion",
+    "week": "Cette semaine",
+    "segTitle": "{{n}} entrées · cliquer pour filtrer la liste de la semaine",
+    "pendingHint": "Les promotions en attente se traitent dans l'encadré ci-dessus",
+    "degraded": "Le rythme hebdomadaire est momentanément illisible."
+  },
+  "memoryTimeline": {
+    "tabBrowse": "Par couche",
+    "tabTimeline": "Chronologie",
+    "fromHarness": "de {{harness}}"
   }
 }

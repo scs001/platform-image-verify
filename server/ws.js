@@ -6,7 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
-import { chatPromptWithMemory } from "@finddatatechnology/yongyi-client";
+import { chatPromptWithMemory, chatMemoryBlockFor } from "@finddatatechnology/yongyi-client";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { userFromHeaders, mpUserFromToken, normalizeSsoEmail, withRoles } from "./auth.js";
 
@@ -198,6 +198,23 @@ const sendIfOpen = (ws, payload) => {
     return false;
   }
 };
+
+// Opening-recall echo (add-memory-visible-ux): on session open, echo the
+// owner's digest (empty-query form — recent handoffs/L2/notes) to THIS
+// session's viewers as a read-only side channel. The prompt-injection contract
+// is untouched: this is display-only, fire-and-forget, degrade-open (no block /
+// unavailable / kill switch ⇒ no event, open path byte-identical).
+function sendMemoryRecall(ctx, ws, ownerEmail, sessionId) {
+  if (process.env.CELL_MEMORY_RECALL_UI === "0") return;
+  if (!ownerEmail) return;
+  void chatMemoryBlockFor(ownerEmail, "", process.env)
+    .then(({ block }) => {
+      if (!block || !String(block).trim()) return;
+      if (ws.viewedSession !== sessionId) return; // user moved on while reading
+      ctx.sendToViewers(sessionId, { type: "memory_recall", sessionId, block });
+    })
+    .catch((err) => console.warn(`[memory-recall] echo skipped: ${err?.message || err}`));
+}
 
 // Windowed transcript for `session_loaded` (openspec: polish-web-surfaces,
 // web-chat-server): only the tail window rides the first frame, plus the counts
@@ -1150,6 +1167,7 @@ ctx.wss.on("connection", (ws, req) => {
             const question = ctx.questionMessage?.(data.id);
             if (question) sendIfOpen(ws, question);
           }
+          sendMemoryRecall(ctx, ws, ws.identity?.email ?? null, data.id);
           break;
         }
         try {
@@ -1228,6 +1246,7 @@ ctx.wss.on("connection", (ws, req) => {
           // web-search chip on session_loaded; this push restates the session's
           // gate so the chip never shows the previous session's position.
           ctx.sendToViewers(result.id, ctx.toolGateMessage(result.id));
+          sendMemoryRecall(ctx, ws, ws.identity?.email ?? null, result.id);
           ctx.sendToViewers(result.id, { type: "session_changed", id: result.id });
           void ctx.broadcastSessions();
         } catch (err) {

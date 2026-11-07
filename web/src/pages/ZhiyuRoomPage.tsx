@@ -314,6 +314,49 @@ export function ZhiyuRoomPage() {
     void reloadFleetSubs();
   }, [reloadFleetSubs]);
 
+  // Room memory panel (add-memory-visible-ux 任务 4). Owner-only collapsible
+  // "what this room remembers": reads the existing /api/memory/entries proxy
+  // with the room's project (the owner person token only ever reaches their
+  // own root — the proxy IS the permission boundary, D4). Members and guests
+  // get zero render (hard privacy spec: not rendered, not greyed out).
+  interface RoomMemoryEntry {
+    path: string;
+    title: string;
+    layer?: string;
+    ts?: string;
+    metadata?: { lane?: string; harness?: string } | null;
+  }
+  const [memOpen, setMemOpen] = useState(false);
+  const [memEntries, setMemEntries] = useState<RoomMemoryEntry[] | null>(null);
+  const [memLoading, setMemLoading] = useState(false);
+  const [memOff, setMemOff] = useState(false);
+  const memLoadedRef = useRef(false);
+  const loadRoomMemory = useCallback(async () => {
+    if (memLoadedRef.current) return;
+    memLoadedRef.current = true;
+    setMemLoading(true);
+    try {
+      const out = await jcall<{ items?: RoomMemoryEntry[] }>(
+        "GET",
+        `/api/memory/entries?project=${encodeURIComponent(`room-${roomId}`)}`,
+      );
+      setMemEntries(Array.isArray(out.items) ? out.items : []);
+      setMemOff(false);
+    } catch {
+      // Explanatory degrade (memoryOff-style): say why it's blank, and allow
+      // a fresh attempt on the next expand instead of a dead panel.
+      setMemEntries([]);
+      setMemOff(true);
+      memLoadedRef.current = false;
+    } finally {
+      setMemLoading(false);
+    }
+  }, [roomId]);
+  useEffect(() => {
+    if (!isOwner || !memOpen) return;
+    void loadRoomMemory();
+  }, [isOwner, memOpen, loadRoomMemory]);
+
   const label = (row: StreamRow): string => {
     if (row.provenance) return t("zhiyu.room.hatchedSender");
     const m = row.senderMemberId ? memberById.get(row.senderMemberId) : null;
@@ -682,6 +725,51 @@ export function ZhiyuRoomPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Room memory (add-memory-visible-ux 任务 4): owner-gated zero-render —
+            the whole subtree exists only under isOwner, members/guests never
+            even get a disabled shell (spec: 不渲染，非置灰). */}
+        {isOwner && (
+          <div className="mt-4 border-t pt-3" data-testid="zy-room-memory">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between text-left text-xs font-medium"
+              onClick={() => setMemOpen((v) => !v)}
+              data-testid="zy-room-memory-toggle"
+            >
+              {t("zhiyu.room.memory.title")}
+              <span className="text-muted-foreground">{memOpen ? "−" : "+"}</span>
+            </button>
+            {memOpen && (
+              <div className="mt-1.5" data-testid="zy-room-memory-body">
+                {memLoading && <p className="text-xs text-muted-foreground">…</p>}
+                {!memLoading && memOff && (
+                  <p className="text-xs text-muted-foreground">{t("zhiyu.room.memory.off")}</p>
+                )}
+                {!memLoading && !memOff && memEntries != null && memEntries.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t("zhiyu.room.memory.empty")}</p>
+                )}
+                {!memLoading && !memOff && memEntries != null && memEntries.length > 0 && (
+                  <ul className="space-y-1">
+                    {memEntries.map((e) => (
+                      <li key={e.path} className="rounded-md border px-2 py-1 text-xs" data-testid="zy-room-memory-entry">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 truncate font-medium">{e.title}</span>
+                          <span className="shrink-0 text-muted-foreground">{String(e.ts ?? "").slice(0, 10)}</span>
+                        </div>
+                        {e.metadata?.lane === "zhiyu" && (
+                          <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                            {t("zhiyu.room.memory.turnBadge")}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
       </aside>

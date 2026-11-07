@@ -3379,6 +3379,12 @@
         "on_duty": "on duty",
         "listening": "listening",
         "seated": "seated"
+      },
+      "memory": {
+        "title": "What this room remembers",
+        "empty": "Memories from room turns will settle here",
+        "off": "Memory service is unavailable right now — room memories can’t be read",
+        "turnBadge": "Turn capture"
       }
     },
     "invite": {
@@ -3915,5 +3921,25 @@
     "subtitle": "Skill candidate review and persona amendments (skill-self-evolution)",
     "skillCandidates": "Skill candidates",
     "personaAmendments": "Persona amendments"
+  },
+  "memoryRecall": {
+    "title": "I remember",
+    "viewInPanel": "View and correct in the memory panel"
+  },
+  "memoryWeekly": {
+    "title": "This week's rhythm",
+    "capture": "Captured this week",
+    "note": "Notes this week",
+    "correction": "Corrections this week",
+    "pending": "Awaiting promotion",
+    "week": "This week",
+    "segTitle": "{{n}} entries · click to filter this week's list",
+    "pendingHint": "Pending promotions are handled in the box above",
+    "degraded": "This week's rhythm is temporarily unreadable."
+  },
+  "memoryTimeline": {
+    "tabBrowse": "By layer",
+    "tabTimeline": "Timeline",
+    "fromHarness": "from {{harness}}"
   }
 }

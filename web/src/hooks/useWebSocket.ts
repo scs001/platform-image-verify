@@ -83,6 +83,13 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
         if ((msg as { type?: string }).type === "session_loaded" && (msg as { created?: boolean }).created) {
           window.dispatchEvent(new CustomEvent("session_created"));
         }
+        // Opener memory echo (add-memory-visible-ux): the server re-sends the
+        // owner-root digest when a session opens. Re-dispatch as a window
+        // event (same seam as board_changed) so ChatPage can hold the opener
+        // card page-locally instead of widening the chat store's state shape.
+        if ((msg as { type?: string }).type === "memory_recall") {
+          window.dispatchEvent(new CustomEvent("memory_recall", { detail: msg }));
+        }
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyOverlay(msg as ServerMessage);

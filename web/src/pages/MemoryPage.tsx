@@ -1,6 +1,10 @@
 // MemoryPage.tsx — 记忆面板（add-unified-memory-and-outputs 3.3, spec:
 // memory-portal-ui）。owner 看自己的 u/ 记忆：类型/层/tier/tag/时间筛选，
 // reference 名份行可跳资料库/成果原位；降级态解释而不空转。
+// add-memory-visible-ux 任务 3 增量：本周节奏条（漏斗旁四计数，可点入落
+// 预置筛选）+ 时间线 Tabs（倒序混排 + harness 徽标）。红线不动：漏斗主视图、
+// 晋升箱第一区块、分层浏览语义；聚合口径全在前端纯函数（test/memory-dashboard
+// .test.mjs 直测），后端零新增面。
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +19,86 @@ const TIERS = ["draft", "stable", "canonical"] as const;
 
 const LAYER_LABEL: Record<string, string> = { L0: "观察", L1: "笔记/交接", L2: "事实/经验" };
 
+// ── 纯函数区（add-memory-visible-ux 任务 3）────────────────────────────────
+// 聚合口径全部收在这里，test/memory-dashboard.test.mjs 以 typescript transpile
+// + react 桩直测这些导出（web 无组件测试设施，纯函数是唯一可执行缝）。
+
+export interface WeeklyCounts {
+  capture: number;
+  note: number;
+  correction: number;
+  pendingPromotion: number;
+}
+
+// 本周一 00:00（本地时区，ISO 8601 周制以周一为首）。「本周」窗口取法全站仅此一处。
+export function startOfWeek(now: Date): Date {
+  const d = new Date(now.getTime());
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay: 0=Sun → 平移到周一为首
+  return d;
+}
+
+// 本周节奏四计数（spec: memory-portal-ui「本周节奏条」）。口径：
+//   捕获=窗口内 L0 计数；note=窗口内 L1 计数；更正=窗口内标题以「更正」为前缀
+//   （与纠错写入约定一致，design.md D3）；待晋升=promotions 数（与晋升箱同源）。
+// fetch 已带 since=本周一，这里再按 ts 过滤一次作双保险——上周条目混入也不算。
+// now 参数仅供测试注入，缺省取当前时刻。
+export function weeklyCounts(
+  items: MemoryEntry[],
+  promotions: PromotionProposal[],
+  now: Date = new Date(),
+): WeeklyCounts {
+  const since = startOfWeek(now).getTime();
+  let capture = 0;
+  let note = 0;
+  let correction = 0;
+  for (const it of items ?? []) {
+    const ts = Date.parse(String(it.ts ?? ""));
+    if (Number.isFinite(ts) && ts < since) continue; // 上周不算
+    const l = String(it.layer ?? "").toUpperCase();
+    if (l === "L0") capture += 1;
+    else if (l === "L1") note += 1;
+    if (String(it.title ?? "").trimStart().startsWith("更正")) correction += 1; // 前缀判定，句中「更正」不算
+  }
+  return { capture, note, correction, pendingPromotion: Array.isArray(promotions) ? promotions.length : 0 };
+}
+
+// 时间线混排（spec:「时间线叙述视图」）：ts 倒序单列；同 ts 保持原序（稳定排序，
+// 显式 index 决胜，不依赖宿主 sort 稳定性）；ts 缺失/不可解析视为最旧沉底。
+export function timelineSort<T extends { ts?: string | null }>(items: T[]): T[] {
+  return (items ?? [])
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => {
+      const pa = Date.parse(String(a.it.ts ?? ""));
+      const pb = Date.parse(String(b.it.ts ?? ""));
+      const ta = Number.isFinite(pa) ? pa : 0;
+      const tb = Number.isFinite(pb) ? pb : 0;
+      if (ta !== tb) return tb - ta;
+      return a.i - b.i;
+    })
+    .map((x) => x.it);
+}
+
+// L0 来源徽标取值：metadata 实测两形态——对象 {harness:"xxx"} 或 JSON 字符串
+// （经代理透传的直出 JSON）。非对象/坏 JSON/非字符串 harness 一律空串=不渲染徽标。
+export function entryHarness(metadata: unknown): string {
+  let m: unknown = metadata;
+  if (typeof m === "string") {
+    try {
+      m = JSON.parse(m);
+    } catch {
+      return "";
+    }
+  }
+  if (!m || typeof m !== "object") return "";
+  const h = (m as { harness?: unknown }).harness;
+  return typeof h === "string" ? h : "";
+}
+
+// entries 代理透传的条目可能带 metadata（api/memory.ts 的 MemoryEntry 未声明，
+// 此处局部补型，不动公共 API 面）。
+type MemoryEntryRow = MemoryEntry & { metadata?: { harness?: string } | string | null };
+
 export function MemoryPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -28,6 +112,15 @@ export function MemoryPage() {
   // 静默——这个区块是列表上的增益，坏了不能拖累记忆本面。
   const [promotions, setPromotions] = useState<PromotionProposal[]>([]);
   const [busyPromotion, setBusyPromotion] = useState<string | null>(null);
+  // add-memory-visible-ux 任务 3：视图 Tabs 与本周节奏。since 是既有筛选 state
+  // 的第四员（week 预置筛选落点），view 只切列表渲染、与筛选 state 共享。
+  const [view, setView] = useState<"browse" | "timeline">("browse");
+  const [since, setSince] = useState<string | null>(null);
+  const [weeklyItems, setWeeklyItems] = useState<MemoryEntry[]>([]);
+  const [weeklyFailed, setWeeklyFailed] = useState(false);
+  // 本周窗口：挂载时定一次（跨零点刷新面板即得新周，不追着时钟跑）。
+  const weekStart = useMemo(() => startOfWeek(new Date()), []);
+  const weekStartISO = weekStart.toISOString();
 
   const loadPromotions = useCallback(async () => {
     try {
@@ -42,6 +135,26 @@ export function MemoryPage() {
     void loadPromotions();
   }, [loadPromotions]);
 
+  // 本周节奏条数据（add-memory-visible-ux 任务 3）：独立于主列表的一次 entries
+  // 拉（since=本周一×全 layer×大 limit），不掺 layer/tier/scope 筛选——节奏是
+  // 面板级口径，不随下方浏览筛选变。失效=置 weeklyFailed，节奏条走解释性降级
+  // （显示说明文案，绝不画零），不拖累主列表。
+  useEffect(() => {
+    let alive = true;
+    listMemoryEntries({ since: weekStartISO, limit: 200 })
+      .then((out) => {
+        if (!alive) return;
+        setWeeklyItems(out.items);
+        setWeeklyFailed(false);
+      })
+      .catch(() => {
+        if (alive) setWeeklyFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [weekStartISO]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setDegraded(null);
@@ -49,6 +162,7 @@ export function MemoryPage() {
     if (layer) q.layer = layer;
     if (tier) q.tier = tier;
     if (scope.trim()) q.scope = scope.trim();
+    if (since) q.since = since; // 本周预置筛选（节奏条点入落点）
     try {
       const out = await listMemoryEntries(q);
       setItems(out.items);
@@ -59,7 +173,7 @@ export function MemoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [layer, tier, scope, t]);
+  }, [layer, tier, scope, since, t]);
 
   useEffect(() => {
     void load();
@@ -93,6 +207,23 @@ export function MemoryPage() {
     const total = counts.L0 + counts.L1 + counts.L2;
     return { counts, total };
   }, [items]);
+
+  // 本周节奏四计数（口径见 weeklyCounts 注释）。promotions 用实时 state——
+  // 接受/忽略晋升后计数随晋升箱同步，不需要重拉 entries。
+  const weekly = useMemo(() => weeklyCounts(weeklyItems, promotions), [weeklyItems, promotions]);
+
+  // 节奏条点入落点（spec: 计数可点入沿用既有筛选语义，落点=时间窗预置筛选）。
+  // 节奏计数不掺 tier/scope（weekly 拉取未带），落位时一并清掉，保证「计数与
+  // 列表一致」；更正条目无 layer 界定 → 只落时间窗。
+  const landOnWeek = useCallback(
+    (l: "L0" | "L1" | null) => {
+      setSince(weekStartISO);
+      setLayer(l);
+      setTier(null);
+      setScope("");
+    },
+    [weekStartISO],
+  );
 
   return (
     <div className="flex h-full flex-col bg-background" data-testid="memory-page">
@@ -133,6 +264,17 @@ export function MemoryPage() {
               {tr === null ? t("memory.all") : t(`resources.memory.tier.${tr}`)}
             </button>
           ))}
+          {/* 本周窗激活提示（节奏条点入的落点可视回执），点击解除时间窗。 */}
+          {since ? (
+            <button
+              type="button"
+              className="ml-2 rounded-full bg-primary/15 px-2.5 py-1 text-xs text-primary hover:opacity-80"
+              onClick={() => setSince(null)}
+              data-testid="memory-filter-week"
+            >
+              {t("memoryWeekly.week")} ×
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -169,6 +311,52 @@ export function MemoryPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        ) : null}
+        {/* 本周节奏条（add-memory-visible-ux 任务 3, spec: memory-portal-ui
+            「本周节奏条」）：紧贴漏斗区块（漏斗旁四计数）。四格口径见 weeklyCounts；
+            前三格可点入落「since=本周一+对应 layer」预置筛选，待晋升不是时间窗
+            筛选（晋升箱已在第一区块）→ 静态格。weekly 拉取失效走解释性降级
+            （说明文案，绝不画零）。 */}
+        {weeklyFailed ? (
+          <div
+            className="mb-4 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+            data-testid="memory-weekly-degraded"
+          >
+            {t("memoryWeekly.degraded")}
+          </div>
+        ) : !degraded && !loading ? (
+          <div className="mb-4 rounded-md border border-border bg-card p-3" data-testid="memory-weekly">
+            <div className="text-xs font-medium text-muted-foreground">{t("memoryWeekly.title")}</div>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="memory-weekly-cells">
+              {([
+                { key: "capture", n: weekly.capture, land: "L0" as const },
+                { key: "note", n: weekly.note, land: "L1" as const },
+                { key: "correction", n: weekly.correction, land: null },
+              ]).map(({ key, n, land }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => landOnWeek(land)}
+                  title={t("memoryWeekly.segTitle", { n })}
+                  data-testid={`memory-weekly-${key}`}
+                  className={`rounded-md border border-border bg-background px-3 py-2 text-left hover:bg-muted ${
+                    since && layer === land && land !== null ? "ring-2 ring-primary" : ""
+                  }`}
+                >
+                  <div className="text-sm font-semibold tabular-nums">{n}</div>
+                  <div className="text-[11px] text-muted-foreground">{t(`memoryWeekly.${key}`)}</div>
+                </button>
+              ))}
+              <div
+                className="rounded-md border border-border bg-background px-3 py-2"
+                title={t("memoryWeekly.pendingHint")}
+                data-testid="memory-weekly-promotions"
+              >
+                <div className="text-sm font-semibold tabular-nums">{weekly.pendingPromotion}</div>
+                <div className="text-[11px] text-muted-foreground">{t("memoryWeekly.pending")}</div>
+              </div>
             </div>
           </div>
         ) : null}
@@ -214,6 +402,26 @@ export function MemoryPage() {
             </div>
           </div>
         ) : null}
+        {/* 视图 Tabs（add-memory-visible-ux 任务 3, spec:「时间线叙述视图」）：
+            只切列表渲染（分层浏览/时间线），共享同一 items 与筛选 state——
+            分页/筛选/降级语义原样沿用，不另造读取面。 */}
+        {!degraded && !loading ? (
+          <div className="mb-3 flex items-center gap-2" data-testid="memory-view-tabs" role="tablist">
+            {(["browse", "timeline"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`rounded-md px-3 py-1 text-xs ${view === v ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                data-testid={`memory-tab-${v}`}
+              >
+                {v === "browse" ? t("memoryTimeline.tabBrowse") : t("memoryTimeline.tabTimeline")}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {degraded ? (
           <div className="rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground" data-testid="memory-degraded">
             {degraded}
@@ -223,6 +431,42 @@ export function MemoryPage() {
         ) : items.length === 0 ? (
           <div className="rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground" data-testid="memory-empty">
             {t("memory.empty")}
+          </div>
+        ) : view === "timeline" ? (
+          /* 时间线（add-memory-visible-ux 任务 3）：同一 entries 按 ts 倒序混排
+             单列（timelineSort：同 ts 稳定）。L0 带「来自 {harness}」来源徽标
+             （metadata 两形态见 entryHarness），note/L2 带标题+tier 徽章。 */
+          <div className="space-y-2" data-testid="memory-timeline">
+            {timelineSort(items).map((it) => {
+              const isL0 = String(it.layer ?? "").toUpperCase() === "L0";
+              const harness = isL0 ? entryHarness((it as MemoryEntryRow).metadata) : "";
+              return (
+                <div key={it.path} className="rounded-md border border-border px-3 py-2" data-testid="memory-timeline-item">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {it.layer}·{it.type ?? "page"}
+                    </span>
+                    {harness ? (
+                      <span
+                        className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                        data-testid="memory-entry-harness"
+                      >
+                        {t("memoryTimeline.fromHarness", { harness })}
+                      </span>
+                    ) : null}
+                    {!isL0 && it.tier && it.tier !== "draft" ? (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs border ${it.tier === "canonical" ? "border-status-waiting/50 bg-status-waiting/10 text-status-waiting" : "border-primary/40 bg-primary/10 text-primary"}`}
+                      >
+                        {t(`resources.memory.tier.${it.tier}`)}
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 flex-1 truncate text-sm" data-testid="memory-timeline-title">{it.title}</span>
+                    <span className="text-xs text-muted-foreground">{String(it.ts ?? "").slice(0, 10)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="space-y-2">

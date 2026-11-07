@@ -3379,6 +3379,12 @@
         "on_duty": "值守中",
         "listening": "旁听",
         "seated": "就席"
+      },
+      "memory": {
+        "title": "这个房间记住了什么",
+        "empty": "房间回合的记忆会沉淀在这里",
+        "off": "记忆服务暂不可用，房间记忆暂时读不到",
+        "turnBadge": "回合捕获"
       }
     },
     "invite": {
@@ -3915,5 +3921,25 @@
     "subtitle": "技能候选评审与 persona 修订（skill-self-evolution）",
     "skillCandidates": "技能候选",
     "personaAmendments": "Persona 修订"
+  },
+  "memoryRecall": {
+    "title": "我记得",
+    "viewInPanel": "在记忆面板查看与纠正"
+  },
+  "memoryWeekly": {
+    "title": "本周节奏",
+    "capture": "本周捕获",
+    "note": "本周笔记",
+    "correction": "本周更正",
+    "pending": "待晋升",
+    "week": "本周",
+    "segTitle": "{{n}} 条 · 点击落到本周列表",
+    "pendingHint": "待确认晋升在上方晋升箱处理",
+    "degraded": "本周节奏暂时读不到，稍后再试。"
+  },
+  "memoryTimeline": {
+    "tabBrowse": "分层浏览",
+    "tabTimeline": "时间线",
+    "fromHarness": "来自 {{harness}}"
   }
 }

@@ -3379,6 +3379,12 @@
         "on_duty": "値勤中",
         "listening": "傍聴",
         "seated": "着席"
+      },
+      "memory": {
+        "title": "このルームが覚えていること",
+        "empty": "ルームのターン記憶はここに蓄積されます",
+        "off": "メモリーサービスが現在利用できないため、ルームの記憶を読み込めません",
+        "turnBadge": "ターン記録"
       }
     },
     "invite": {
@@ -3915,5 +3921,25 @@
     "subtitle": "スキル候補レビューと persona 修正 (skill-self-evolution)",
     "skillCandidates": "スキル候補",
     "personaAmendments": "Persona 修正"
+  },
+  "memoryRecall": {
+    "title": "覚えています",
+    "viewInPanel": "記憶パネルで表示・修正する"
+  },
+  "memoryWeekly": {
+    "title": "今週のリズム",
+    "capture": "今週のキャプチャ",
+    "note": "今週のノート",
+    "correction": "今週の更正",
+    "pending": "昇格待ち",
+    "week": "今週",
+    "segTitle": "{{n}} 件 · クリックで今週のリストへ",
+    "pendingHint": "昇格待ちの項目は上部のボックスで処理します",
+    "degraded": "今週のリズムは現在読み取れません。"
+  },
+  "memoryTimeline": {
+    "tabBrowse": "階層表示",
+    "tabTimeline": "タイムライン",
+    "fromHarness": "{{harness}} から"
   }
 }

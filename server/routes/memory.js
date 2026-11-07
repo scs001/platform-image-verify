@@ -28,8 +28,12 @@ export function registerMemoryRoutes(ctx) {
       if (!token) return res.status(503).json({ error: "记忆令牌不可用", code: "memory_unavailable" });
       const q = req.query ?? {};
       const u = new URL(`${cfg.url}/memory`);
+      // project 透传（add-memory-visible-ux 任务 4）：fd-memory visibility 面
+      // 原生支持 project 参数，本层只透传不加解——非空字符串才带，缺省不带
+      // （不带该键的字节与改动前逐字节一致，回滚零差）。
       for (const [k, v] of [
         ["scope", q.scope], ["layer", q.layer], ["tier", q.tier], ["since", q.since], ["until", q.until],
+        ["project", q.project],
       ]) {
         if (typeof v === "string" && v.trim()) u.searchParams.set(k, v.trim());
       }

@@ -10,6 +10,7 @@ import { ChatWelcome } from "@/components/ChatWelcome";
 import { Composer } from "@/components/Composer";
 import { PlanPanel } from "@/components/PlanPanel";
 import { OnboardingTour, tourDone } from "@/components/OnboardingTour";
+import { MemoryRecallCard } from "@/components/MemoryRecallCard";
 import type { ClientMessage } from "@platform/core";
 
 // Chat page: the empty state (ChatWelcome) and the in-session state
@@ -197,6 +198,28 @@ export function ChatPage({ send, onToggleNav }: Props) {
     window.addEventListener("session_created", onCreated);
     return () => window.removeEventListener("session_created", onCreated);
   }, []);
+
+  // Opener memory card (add-memory-visible-ux): a session open carrying the
+  // owner-root digest arrives as a `memory_recall` WS message, re-broadcast
+  // by the WS hook as a window event. Held page-locally (the chat store's
+  // shape stays untouched) and tagged with its session: the render gates
+  // below key on the CURRENT session, and this cleanup drops a stale block
+  // the moment a switch lands — the same contract session_loaded applies to
+  // the transcript view. A session opened without an echo (old session,
+  // empty digest, kill switch) never sets this, so nothing renders.
+  const [recall, setRecall] = useState<{ sessionId: string; block: string } | null>(null);
+  useEffect(() => {
+    const onRecall = (e: Event) => {
+      const d = (e as CustomEvent<{ sessionId?: string; block?: string }>).detail;
+      if (!d?.sessionId || !d.block?.trim()) return;
+      setRecall({ sessionId: d.sessionId, block: d.block });
+    };
+    window.addEventListener("memory_recall", onRecall);
+    return () => window.removeEventListener("memory_recall", onRecall);
+  }, []);
+  useEffect(() => {
+    setRecall((r) => (r && r.sessionId !== currentSessionId ? null : r));
+  }, [currentSessionId]);
 
   // Cluster termination fallback (dynamic-cluster-composer spec): when the
   // cluster bound to this session is terminated, the session falls back to the
@@ -388,6 +411,9 @@ export function ChatPage({ send, onToggleNav }: Props) {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {isEmpty ? (
             <>
+              {recall && recall.sessionId === currentSessionId && (
+                <MemoryRecallCard key={currentSessionId} block={recall.block} />
+              )}
               <ChatWelcome onPrefill={prefillComposer} send={send} />
               <Composer send={send} value={draft} onChange={setDraft} focusTick={focusTick} />
               {tourOpen && <OnboardingTour onFinish={() => setTourOpen(false)} />}
@@ -412,6 +438,14 @@ export function ChatPage({ send, onToggleNav }: Props) {
                     ×
                   </button>
                 </div>
+              )}
+              {/* Opener memory card (add-memory-visible-ux D2): top of the
+                  message flow, before the first turn. Keyed by session so the
+                  collapsed toggle persists within a session and resets on a
+                  switch; a stale block can't outlive its session (gate +
+                  cleanup above). */}
+              {recall && recall.sessionId === currentSessionId && (
+                <MemoryRecallCard key={currentSessionId} block={recall.block} />
               )}
               <Chat send={send} onPrefill={prefillComposer} />
               <Composer send={send} value={draft} onChange={setDraft} focusTick={focusTick} />

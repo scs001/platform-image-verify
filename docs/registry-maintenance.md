@@ -7494,3 +7494,11 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 **O8 正路径真机全判据过**（专用验证舰队 `fleet_1794014195618_jjf1l1` 挂 fingpt 岗=registry enabled+facet 台账唯一行；房 `zy_a639f62f83406a613e`）：dryRun `summonable=[{ref:"vtdpsNmtW6OQ9I99mBhbDw:pack-demo-fingpt", onBehalfOf:admin@finddatatech.cloud（台账部署者，非召唤者——修正生效）}]` → 执行 `ok:true inviteId:inv_7ed541636d66b2c127` → 生产 zhiyu.db 邀请行（kind=agent/on_behalf_of=部署者/state=pending 待答如实）+ `zy_fleet_subs` 第 2 行订阅随行 → 验证资产全清（房 end/舰队删）。
 
 **走查单 15/23**（+2.6）；归档件 2026-10-30-add-zhiyu-team-memory 5.2/5.3 解阻补记（范围注记=空间桥/召唤真机走查实质完成，三计费回合记忆腿仍属 2.1–2.3 不假延）；两单 5.1 归档进行中。**O9b 账本归一仍为 Non-Goal**（萬星面部署要不要可召=用户拍板）。
+
+## §15.138 续六 记忆三腿真跑全判据 + 新缺陷 O10 修复 + 3.1/3.3 收口（2026-11-07）
+
+**2.1–2.3 记忆三腿全判据过**（验证舰队 用后即焚，glm-5.3-flash 换型——deepseek-v4.1-flash 日预算被其它舰队打满 1,051,117/1,000,000）：12 ok 计费回合（超额满足三回合判据）→ ① capture 链实证：fd-memory own 分区 `d/<fleetId>/<memberId>` 落页、metadata 三元组 {fleetId,memberId,kind} 齐（token 缓存根=CELL_MEMORY_DATA=/data 非 cell 根——探针配方）；② digest 三段梯子真读：own 有值/shared 空（无 decision/swap 诚实缺席）/legacy f/ 空（**零新写判据过**）；③ 清史腿：member dsh 会话目录删除 → 清史后 ok 回合新建会话 → own digest 仍含旧轮 turn_id 锚（记忆≠对话史立论成立）。
+
+**O10（新缺陷，P1，已修待滚版）**：`captureFleetTurnFact` 标题读 `outcome?.status ?? failed`——执行器返回 `{ok,...}` 无 status 字段 → 记忆页恒「回合失败」（生产 9 页 0 成功，台账同期 6 行 ok）；事件行 recorder 走 `shapeTurnOutcome`（读 outcome.ok）正确——**两读取器口径分裂**。修：派生 skipped→ok→failed 同口径（1c678d62f），anchors 测试复刻体+用例形态同步修 8/8。
+
+**3.1 guest 真应答**：full-token（id.secret）visit 200 → tty 兜底（无 cookie）→ 提问 → **agent 真应答落流**（seq 100）——a2a 解耦后车道滚版回归全绿；demo 房 owner 404（所有权闸正确）、429 限速在位。**3.3 界外拒绝**：replyCap 0/21→400 bounds{1..20} 现值不变、dailyBudget 0/100001→400。**走查单 19/23**（+2.1/2.2/2.3/3.1/3.3）；剩 3.2（正向私窗样本需 facade 交互）/3.4（IM 主动投递需真 bot）/4.3（随 5.2 终局）。

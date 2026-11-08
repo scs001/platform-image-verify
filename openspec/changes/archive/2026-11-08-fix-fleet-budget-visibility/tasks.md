@@ -24,5 +24,8 @@
 
 ## 5. 上线
 
-- [ ] 5.1 快照 → GHA → relay → skopeo digest → GitOps bump → ArgoCD → 舱内实测
-- [ ] 5.2 归档（`openspec validate --strict` 通过后）
+- [x] 5.1 快照 c3b88de（我的线）→ GHA image ✅ → relay OK 19s → digest `sha256:ccf828f2`。
+      **但未用该镜像上线**：并发发布线 e8799d7 的基线 702940bd9 **已包含我的提交**（`3efd751f8 --not 702940bd9` 为空），
+      且对方另有网关代铸修复（`722ba1b9e`）——滚我的 c3b88de 会回退它。改为直接验证现网 e8799d7：
+      树内含 budgetPressure(2)/"budget"(2)/fleet-budget-pressure(1)，**舱内跑本套件 4/4 绿**，前端包含横幅与文案
+- [x] 5.2 归档（`openspec validate --strict` 通过后）

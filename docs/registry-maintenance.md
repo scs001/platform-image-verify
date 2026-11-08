@@ -7812,3 +7812,57 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 - **仍待裁（不变，但不紧迫）**：351,740 条错挂行怎么处置——删除或迁到正确实体。
   现在它们既进不了写路径（`3225f4d`）、也读不出来（本轮），所以不处置也不会再污染，
   只是它们本身是错的。**注意别再有人拿「读侧已封」当已清账的证据。**
+
+### §15.140 续二十八：错挂数据由「已知基线」看守，处置权仍在业主（11-08）
+
+- **处置三选一没拍板**（迁隔离表 / 保留 / 删除），所以**一行都没动**。删除不可逆：
+  基金经理那 333,975 条是**基金单位净值**（0.89~1.32，日频；不同经理之间 663 个共同日期
+  **0 个相同值**，即每人一条独立序列），只知道基金公司（实体名 `刘佃贵@国联安基金`）、
+  推不出是哪只产品；行业那 8,500 条是 9 个港股码（00712/02001/02163/02221/02335/02363/
+  02487/02693，各带 `.HK`）+ 3 个 ETF 码（159133/159291/159834），而**库里没有任何实体**
+  以这些代码为身份（唯一的持有者是那 11 个错误的行业实体）——没有落点，迁不了。
+- **改做无风险的那一半**：`scripts/check_observation_entity_class.py` 把基线钉死
+  （5 组、351,740 行：person 333,975 / industry 8,500 / city 6,302 / stock 2,027 /
+  fund 936），**任何新组或任何组增长即 exit 1**；悬空的 11 个 entity_id 单列报告、不判死
+  （属另一类缺陷）。生产实跑 exit 0；把基线调低 1 → exit 1 并打印 `GREW(+1)`+`NEW`
+  （不经管道取退出码，避免 grep 吃码）。测试 `tests/test_astock_gap_probe.py` 钉住
+  三个数和「和 = 351,740」。
+- **口径提醒（自己踩过）**：`region→country 96` / `company→stock 12` 是**概念类型 vs 实体类型**
+  的分组，不是「行声明 vs 实体」的分组，不能算进这条基线，否则新组会被旧组掩盖。
+- 与 `check_identifier_integrity.py` 同构：都不随镜像发布，按需在维护会话里跑。
+
+
+### §15.141 续二十九：读侧修复只在爬虫面生效——服务面还停在 0.5.46/0.5.38（11-08）
+
+- **0.5.52 出片滚的是爬虫面**（两 CronJob + `clusters.image`），而**对外服务面是另外两个部署**，
+  长期没人跟：
+  | 部署 | 位置 | 滚前 | 滚后 |
+  |---|---|---|---|
+  | `fd-prod/fd-open-data-mcp`（MCP API，NodePort 8300:31851） | cheap | **0.5.46** | 0.5.52 |
+  | `fd-mcp/fd-panel`（面板，8302） | fd-master | **0.5.38** | 0.5.52 |
+  也就是说：0.5.47~0.5.52 的所有修复（yfinance 代理出口、argv 凭据、secretKeyRef、
+  series 类型约束、实体类守卫）**在用户面前一个都没生效**，直到本轮。
+- **手改必被回收**：`fd-prod/fd-open-data-mcp` 由 Argo 应用 `all-services-prod` 管
+  （label `app.kubernetes.io/instance=all-services-prod`）。`kubectl set image` 报
+  `successfully rolled out`，几分钟后 template 又变回 `sha-95e8138`。真源是
+  `fd-infra-deploy/all-services/prod/fd-open-data-mcp.yaml`（gitee+github 双推），
+  改那里 + `argocd annotate ... refresh=hard` 才会真滚。
+- **卡点一（调度）**：新 pod 落到 `liuliangdmh1xr0w9ryu`，那台 kubelet 拉不了
+  `rancher/mirrored-pause:3.10.2`（docker.io `unexpected EOF`），pod 卡 `Init:0/1`；
+  删了重排又回到同一台。解法=清单里 `nodeSelector: kubernetes.io/hostname:
+  liuliangjkiimypbdzxa`（cheap-3，服务原本就在这，sandbox 正常；应用镜像走 ccr 全网可达）。
+  **这台节点的 pause 拉取仍是坏的，别把别的东西往它上面调。**
+- **卡点二（凭据漂移，这是隐患不是一个 bug）**：`migrate-schema` 起不来——
+  `password authentication failed for user "fd"`。`fd-mcp-env`（**带外手工创建**，清单注释
+  写明 by policy）里的 `FD_OPEN_DATA_MCP_DATABASE_URL` 口令指纹 `fa95d89765`，当前库口令指纹
+  `881e6dbb36`——口令轮换后没人同步。`fd-prod` 与 `fd-mcp` **两处都是这份旧口令**，
+  所以两个服务的现状是「靠老连接池活着，一重启就再也起不来」。已把两处的
+  `FD_OPEN_DATA_MCP_DATABASE_URL` 都更新为 `fd-master/fd-db-secret` 的当前值（只改口令，
+  user/host/db 三项比对过完全一致），补丁文件 0600 用完即删、明文不入任何仓。
+- **验活（服务面）**：`version 0.5.52`、`guard ['stock']`；person 6588 / industry 4354 被拒、
+  真股票 4615 返回 21 点；`/mcp` 406（无 Accept 头的正常拒绝），Service 端点已指向新 pod。
+- **验活（面板）**：`version 0.5.52`，`/` 与 `/health` 均 200。面板没有被 Argo 托管、
+  仓里也没有它的清单（ad-hoc apply），容器名是 `panel`（不是 `fd-panel`）。
+- **遗留**：①`liuliangdmh1xr0w9ryu` 的 pause 镜像拉取要修（否则任何新 pod 落上去都起不来）
+  ②`fd-mcp-env` 是带外 secret，口令再轮换时必须记得两处都改，建议纳入轮换清单
+  ③面板与 MCP 服务的清单都不在 GitOps 里，建议收编，否则下次又会悄悄落后。

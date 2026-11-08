@@ -7618,3 +7618,12 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - **扩面执行**：626 票清单进 `fd-scripts` ConfigMap（`new-series-symbols.txt`）+ 打的补丁（ingest/runner 两键），**无需出镜像**——reconciler/Job 启动时读 ConfigMap。集群常驻 Pod `zz-astock-newseries`（单写者、50 票/批、30s 冷却、检查点、批超时 1800s）跑完 **13/13 批 `failed_legs=0`、runner exit=0**。
 - **验收**：626/626 有行、0 空；**613 票 79 天全齐**，其余 44–78 天（新上市/停牌，`000004` 只有 1 天且源站同样 1 天）；家族窗口内有行实体 **4,577 → 5,203**；抽样逐日对源站 `001217` 79=79、`301234` 72=72、`688799` 79=79、`000004` 1=1，**双向差集全空**。
 - **把这条也写进纪律**：凡是「N 个代码没有数据」这类结论，先说清**这批代码属于哪类证券、与家族同口径吗**——本次若照 1,825 直接跑，会把 1,085 个 ETF 当股票写成日线，且白烧 3 小时写库。
+
+### §15.138 续十九：剩下两条挂账收口——日增量按票自身缺口、命令行不再带库口令（11-08 续九）
+
+- **挂账①（日增量按票自身缺口）**：原口径是 `start = 全族 basket 最大日 + 1` 的**单窗口**，所以任何一只停牌/抓取失败/分片抖动的票会**永久落队**——这正是 11-08 需要人工补 1,773,415 行的根本原因（3,836 票 drifted），常驻跑永远救不回来。现改为**按票自身**：`per_symbol_start()` = `max(全族 start, 该票最后一日+1)`，并按 `--max-catchup-days`（缺省 30）夹到 `end-N+1`，避免一只烂票把日跑拖成多小时后补；显式 `--start` 仍一票否决（回补用）。新增 `last_stored_dates()` 用与其它分片读同一条 index-bound 分块形状（绝不整表聚合）。日志给出 `current / caught_up / capped` 三计数并点名前 10 只被补的票。
+  - **实证（dry-run，未写库）**：`--symbols 000016,000001` → `window: 1 current, 0 caught up, 1 capped at 30d`，点名 `000016:2026-09-03->2026-10-10`（该票真停牌在 09-03，按 cap 边界起）；`000001` 保持 current；`--max-catchup-days 0` 回到单窗口；显式 `--start` 时日志标 `pinned by --start`。4 条单测覆盖 caught_up/capped/current/关闭。
+- **挂账②（命令行不再带库口令）**：`_direct_manifests()` 过去拼 `… <script> <args> --db-url "$FD_OPEN_DATA_MCP_DATABASE_URL"`，把主库口令展开进 **Job 的 `spec.containers[0].command`**（任何 `get pods` 可读）与 **`/proc/<pid>/cmdline`**；0.5.46 只修了日志，argv 是漏下的一份。现命令行只留脚本与 policy 参数，DSN 从 `fd-db-secret` → `FD_OPEN_DATA_MCP_DATABASE_URL` 注入；脚本在 `--db-url` 缺省时读 env、两者皆无显式报错（本地/回补仍可用 flag）。
+  - **实证（0.5.48 / `sha-7632f17` pod 内跑 launcher）**：命令 `… bulk_ingest_astock_daily.py --universe --slice-all 8`，`--db-url`=False、`postgresql`=False、env 里有 `FD_OPEN_DATA_MCP_DATABASE_URL`=True。带回归单测断言命令不含 `--db-url`/`postgresql`。
+- **两条 change 已归档**（`add-astock-per-symbol-window`、`stop-passing-dsn-on-argv`），specs **16/16 全绿**；0.5.48 出片并滚两 CronJob + `clusters.image` id9 + 清单（`sha-7632f17`）。
+- **同日三版连贯**：0.5.46（日志脱敏）→ 0.5.47（yfinance 代理车道）→ 0.5.48（argv 脱敏）；凭证类问题只剩一处已知残余：`clusters.runtime_hints` 里 cheap 集群的 `database_url`/`redis_url` 是**明文**，靠 launcher 以 env `value` 注入——下一步应改成 `secretKeyRef`（属库内数据 + launcher 双改，记挂账）。

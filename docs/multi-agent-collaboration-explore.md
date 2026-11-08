@@ -206,7 +206,7 @@
 | P1-2 | 点火不幂等：重跑中游岗 → 下游翻倍；开自动重试 → N+1 | `cron-runner.js:1445-1451`、`fleet-handoffs.js:21-168`、`task-engine.js:798-800` | 【码】 |
 | P1-3 | 裁决回合无 O1 / 无 run / 无成本 → 多轮辩论的承接面不存在 | `delegation-aggregator.js:151-175` | 【码】 |
 | P1-4 | 成本只见 token 不见钱（USD 列无读面） | `fleets-db.js:420-441` vs `fleets.js:1331,841,1639` | 【码】 |
-| P1-5 | 决策送达丢上下文（execute-now 顶掉占位符） | `fleets.js:2551-2555` | 【码】 |
+| P1-5 | ~~决策送达丢上下文（execute-now 顶掉占位符）~~ **已修**：判据抽成 `cron.keepFleetContextPlaceholder`（带占位符且渲染器在位→保留，裁定随注入段到达；渲染器缺席→预拼裁定）；手动 persona 车道补占位符 → `openspec/changes/archive/2026-11-08-fix-decision-delivery-context/`（镜像 sha-c721105） | `fleets.js:2645`、`cron.js` | 【码】 |
 | P1-6 | 建岗静默丢 4 字段（D2） | `fleets.js:3036-3094` | 【码】 |
 
 ### P2 — 规模化 / 表达力

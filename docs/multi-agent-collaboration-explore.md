@@ -329,6 +329,11 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                键写进 `origin.fleet.ignition`，判定回读已落库任务、无新存储、跨重启成立；
                                已知边界两条见 design（下游任务被删/重启恢复轮次）；镜像内 18/18 绿）**
   ⑧ add-fleet-run-budget       整 run 预算闸 + 取消 run 入口
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-run-budget/`
+                               （镜像 sha-571b018；`constraints.runBudget` 三维 maxTurns/maxTokens/maxMinutes，
+                               执行点在**边点火**（越界不建下游 + 写停车原因 + 落「点火被拒」事实行）；
+                               `POST /:id/runs/:runId/cancel` 记停车事实、按 run 中止在飞回合（落 interrupted）、幂等；
+                               `fleet_runs` 加 stopped_at/stop_reason，finalizeRun 不覆盖；镜像内 35/35 绿）**
 
 第 3 层 要设计
   ⑨ add-fleet-ruling-ledger    裁决回合纳入编导（O1 行 + run header + chain）→ 多轮辩论才成立

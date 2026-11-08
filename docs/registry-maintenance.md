@@ -8007,4 +8007,14 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   看三项（该 cell 卫星 `2×13 → 1×13`、pod RSS 降 ≈270Mi、24 个工具与一轮对话正常）→ 立刻改回 `0`。
 - **顺带观察（不属本线）**：取证时撞上 `fd-prod/platform` 因 `compute-quota`（`limits.memory 38Gi`
   满）一度 `FailedCreate` 建不出 pod，随后被调内存上限的那条线恢复（stamp
-  `2026-11-08T18:40Z-memlimit-7gi`）。灰度 env 也因此已在现网部署上消失。
+  `2026-11-08T18:40Z-memlimit-7gi`）。
+- **订正（同日）**：我一度判断「灰度键被那次滚动覆盖」——**错**。`MCP_SATELLITE_HOST_CELLS`
+  住在 ConfigMap `platform-config`（部署用 `envFrom` 注入），不在 deployment 的内联 env 里；
+  2026-11-08 在 pod 内实测 `CELLS=aloatree@gmail.com`、`CAP=0`，即灰度面完整、只是因为池关没启用。
+- **首次启用的残余风险已实测下降**：url 入口不是新路。现网 cell 的 mcp.patch.yml 里已有
+  **41 条 `transport: streamable-http`**（facet-market / fd-erp-ledger / airegistry-tools 等），
+  与本变更经 `toMcpClientEntry` 生成的条目同一构造、同一组字段
+  （`serverName` / `failOnStartupError: false` / `transport` / `url`）。即「dsh 按 url 接 MCP」
+  是**已在产运行**的既有形态，cap=1 窗口要验的是共享宿主的收益，不是新协议能否跑通。
+  单测已把 `failOnStartupError: false` 与 `serverName` 钉住（宿主挂了只灰掉工具，不拦 dsh 启动）。
+

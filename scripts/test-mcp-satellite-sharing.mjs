@@ -81,6 +81,14 @@ test("with a host url, shareable servers become url entries and the rest stay st
     assert.equal(c.transport, "streamable-http", `${name} rides the shared host`);
     assert.equal(c.url, `http://127.0.0.1:19801/${name}/mcp`, `${name} keeps its own endpoint`);
     assert.equal(c.command, undefined, `${name} must not spawn anything`);
+    // The whole design leans on fail-open: a satellite host that is down must
+    // grey its tools out, not stop the dsh runtime from starting. Verified live
+    // 2026-11-08 that this field IS honoured — production already runs 41
+    // `transport: streamable-http` entries built by this same function
+    // (facet-market / fd-erp-ledger / airegistry), so the url path is a shipped
+    // path rather than a new one.
+    assert.equal(c.failOnStartupError, false, `${name} must degrade, not block startup`);
+    assert.equal(c.serverName, name, "dsh keys the roster by serverName");
   }
   // Member-scoped and session-scoped servers are untouched.
   for (const name of ["library", "websearch", "actions"]) {

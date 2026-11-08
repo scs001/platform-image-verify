@@ -72,6 +72,15 @@ export default defineConfig({
       // belong only to the `live` project - they would otherwise run against
       // the local 127.0.0.1 server and assert the wrong things).
       grepInvert: /@smoke|@live/,
+      // full-mode-tool-scope owns a SECOND hermetic cell: its own config
+      // (playwright.full-mode.config.js) boots port 3110 with
+      // FULL_MODE_TOOL_SCOPE=on, which is exactly the flag this project leaves
+      // OFF (documented default; the rollback lever). Collected here, every one
+      // of its union assertions runs against a server that never composes the
+      // union, so it failed for a reason no assertion of ours could express —
+      // it looked like a product regression for weeks. Run it with
+      //   E2E_PORT=3110 npx playwright test --config=playwright.full-mode.config.js
+      testIgnore: /full-mode-tool-scope\.spec\.js/,
     },
     {
       name: "smoke",

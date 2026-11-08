@@ -7657,3 +7657,12 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 **OIDC 修复的爆炸半径已扫**：`test-auth-*` / `test-logto-*` / `test-session-*` / `test-login-hero` /
 `test-migrate-single-to-cell` 共 **89 条全绿**；产上 `/api/auth/me` 返回 `{"mode":"logto",...}`（200），
 登录面在 OIDC 重试改造后仍正常。
+
+### §15.138 续二十一：凭证出口收口——真派发抓到「env 明文」，0.5.49 改 secretKeyRef（11-08 续十一）
+
+- **0.5.48 只做了一半**：命令行确实不再带 `--db-url`，但用平台自己的 `launch_policy` 做**真派发**（`cheap/crawl-policy-2659-20261108071716`）后查 Job spec 发现，`FD_OPEN_DATA_MCP_DATABASE_URL` / `REDIS_URL` 仍是**字面 `env.value`**——`_common_env()` 直接把 `clusters.runtime_hints.database_url/redis_url`（cheap 行里带明文口令）写进容器环境，任何 `get pods -o yaml` 都能读到。**只会 grep 命令行就以为修完了，是这一次的教训。**
+- **修法**：`_common_env()` 两个变量一律改 `secretKeyRef`（`fd-db-secret` 的 `DATABASE_URL`/`REDIS_URL`），并在 cheap `scraw` 补齐同名 secret（原本只有 fd-master 有）。`runtime_hints` 字段保留以兼容旧集群，但**不再被注入**。回归单测断言两个变量都是 secretKeyRef、无字面 `value`。
+- **实证（0.5.49 / `sha-5d8fad5` 真派发 `cheap/crawl-policy-2659-20261108080842`）**：command = `/opt/venv/bin/python /src/bulk_ingest_astock_daily.py --universe --slice-all 8 --slice-sleep 20`（`--db-url`=False、`postgresql/psycopg2`=False）；`FD_OPEN_DATA_MCP_DATABASE_URL -> {secretKeyRef: fd-db-secret/DATABASE_URL}`、`REDIS_URL -> {secretKeyRef: fd-db-secret/REDIS_URL}`；其余非敏感项（cluster id/name、forwarder、PYTHONUNBUFFERED）仍是字面值。
+- **过程中的两个坑**：①派发 pod 必须跑**新镜像**才会用新 launcher 代码——第一次验证用的是 0.5.48 的 pod，Job 仍是明文，白验一轮；②平台**单飞**（single-flight）会挡住第二次触发（`{"status":"skipped","reason":"open run"}`），需先让上一轮 run 收口（跑一轮 reconciler tick 即可把 `failed` 收掉）。
+- **镜像链**：PyPI **simple index 一度只出现 1 条**（只有 sdist），镜像构建直接 `No matching distribution found for fd-open-data-mcp>=0.5.49` 失败；等 simple 计数到 3 再 `gh run rerun` 即成功。这条与 0.5.46 的 PyPI 滞后是同一类坑，判据仍是 **simple 计数 ≥2**。
+- **凭证面的现状**：日志（0.5.46）、命令行（0.5.48）、env（0.5.49）三处已全部收口；`fd-db-secret` 现同时存在于 fd-master 与 cheap `scraw`，轮换时**两处都要改**（已记入 [[dsh-envrefs-plaintext-per-cell]] 系同类）。

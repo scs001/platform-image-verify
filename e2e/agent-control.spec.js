@@ -34,9 +34,15 @@ test.describe("Agent selection — unified picker", () => {
           },
           { agents, currentAgent, extra },
         );
-        return page.evaluate(() => window.__chatStore.getState().agents.length);
+        // Compare IDS, not the length: the server's own `agents` snapshot can
+        // land with the same count (it is a two-entry roster here too), and a
+        // length-only post-condition accepted that clobber — the persona row
+        // then simply did not exist by the time a test asserted it (seen only
+        // in a full-suite run, where the socket connects late enough to win the
+        // race).
+        return page.evaluate(() => window.__chatStore.getState().agents.map((a) => a.id).join(","));
       })
-      .toBe(agents.length);
+      .toBe(agents.map((a) => a.id).join(","));
 
   const openPicker = async (page) => {
     await page.getByTestId("agent-preset-picker").click();
@@ -49,6 +55,46 @@ test.describe("Agent selection — unified picker", () => {
     // the real runtime; these assert the client contract only.
     await page.addInitScript(() => {
       window.__sent = [];
+      // Also drop the INBOUND roster frames. Swallowing `set_agent` keeps the
+      // runtime out of it, but the server still pushes its own `agents` /
+      // `current_agent` snapshots on connect — and that snapshot lands whenever
+      // it likes, including after a seed has been verified. Re-seeding cannot
+      // win a race that can fire between the poll and the next line; the whole
+      // file's contract is CLIENT-side (the picker's shape and its streaming
+      // guard), so the roster is noise here and is dropped at the seam.
+      const ROSTER_FRAMES = new Set(["agents", "current_agent"]);
+      const drop = (data) => {
+        try {
+          const m = JSON.parse(String(data));
+          return Boolean(m && ROSTER_FRAMES.has(m.type));
+        } catch {
+          return false;
+        }
+      };
+      const desc = Object.getOwnPropertyDescriptor(WebSocket.prototype, "onmessage");
+      Object.defineProperty(WebSocket.prototype, "onmessage", {
+        configurable: true,
+        get() {
+          return desc?.get?.call(this) ?? null;
+        },
+        set(fn) {
+          if (typeof fn !== "function") return desc?.set?.call(this, fn);
+          const wrapped = function (ev) {
+            if (drop(ev?.data)) return;
+            return fn.call(this, ev);
+          };
+          return desc?.set?.call(this, wrapped);
+        },
+      });
+      const origAddEventListener = WebSocket.prototype.addEventListener;
+      WebSocket.prototype.addEventListener = function (type, fn, opts) {
+        if (type !== "message" || typeof fn !== "function") return origAddEventListener.call(this, type, fn, opts);
+        const wrapped = function (ev) {
+          if (drop(ev?.data)) return;
+          return fn.call(this, ev);
+        };
+        return origAddEventListener.call(this, type, wrapped, opts);
+      };
       const origSend = WebSocket.prototype.send;
       WebSocket.prototype.send = function (data) {
         let parsed;
@@ -166,6 +212,9 @@ test.describe("Agent selection — unified picker", () => {
   test("disabled while a turn is streaming", async ({ page }) => {
     await seed(page, [LOCAL, REMOTE], "local");
     await openPicker(page);
+    // Re-pin after the menu is open: the snapshot can still land between the
+    // seed and the click, and this row's existence is the subject of the test.
+    await seed(page, [LOCAL, REMOTE], "local");
     // Persona rows carry the streaming guard (the standard composition row
     // follows the preset contract instead — server-side rejection).
     const personaRow = page.locator('[data-testid="agent-preset-option"][data-preset-id="remote-a"]');

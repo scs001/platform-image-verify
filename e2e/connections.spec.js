@@ -432,4 +432,68 @@ test.describe("connector binding view", () => {
     await expect(row.getByTestId("connector-binding-action")).toHaveText("Change system");
     await expect(page.getByTestId("connector-bindings-unwired-hint")).toBeVisible();
   });
+
+  // A role whose candidate list is empty because the connected systems cannot
+  // cover the declared classes: the card must say WHICH system and WHAT is
+  // missing. Telling the user "connect one" when they already connected the
+  // right kind of system sends them in a circle.
+  test("no usable candidate names the system that falls short and what it lacks", async ({ page }) => {
+    seedConnectorBaseline("https://connector.e2e.test");
+    await page.route("**/api/connections", async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      const connector = (body.connections ?? []).find((c) => c.id === "connector");
+      if (connector) {
+        connector.bindings = [
+          {
+            packId: "pack-role",
+            key: "warehouse",
+            provider: "wms",
+            role: "wms",
+            providerRole: true,
+            operations: ["read", "write"],
+            status: "unmapped",
+            optional: false,
+            granted: false,
+            grantedAt: null,
+          },
+        ];
+        connector.bindingSummary = { packs: 1, bindings: 1, unresolved: 1, unwired: 0, unmapped: 1 };
+      }
+      await route.fulfill({ response, json: body });
+    });
+    await page.route("**/api/connector/role-mappings", async (route) => {
+      await route.fulfill({
+        json: {
+          mappings: [
+            {
+              role: "wms",
+              operations: ["read", "write"],
+              packs: ["pack-role"],
+              optional: false,
+              provider: null,
+              updatedAt: null,
+              // Connected, but read-only → not offerable for a read+write binding.
+              candidates: [],
+              rejected: [{ provider: "wangdian", gaps: ["write"] }],
+              candidatesState: { ok: true },
+            },
+          ],
+        },
+      });
+    });
+
+    await pinLocaleEn(page);
+    await page.goto("/settings/connections");
+    const row = page.locator("[data-testid='connector-binding-row'][data-binding-key='warehouse']");
+
+    // The picker is replaced by an explanation, not by a dead dropdown.
+    await expect(row.getByTestId("connector-binding-choose")).toHaveCount(0);
+    const empty = row.getByTestId("connector-binding-choose-empty");
+    await expect(empty).toContainText("cannot serve what this pack needs");
+    const rejected = row.locator("[data-testid='connector-binding-choose-rejected']");
+    await expect(rejected).toHaveAttribute("data-provider", "wangdian");
+    await expect(rejected).toHaveAttribute("data-gaps", "write");
+    await expect(rejected).toContainText("missing write");
+  });
 });

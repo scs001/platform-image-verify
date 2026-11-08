@@ -38,8 +38,6 @@ async function boot(runTurn) {
   });
 }
 
-const sleep2 = sleep;
-
 function addTask(id) {
   engine.insertTask({ id, name: id, prompt: "p", trigger: "manual", targetType: "persona" });
   return id;

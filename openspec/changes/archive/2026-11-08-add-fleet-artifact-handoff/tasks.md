@@ -33,7 +33,9 @@
 
 ## 5. 上线
 
-- [ ] 5.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 5.1 出片滚版 → 已在产（快照取自远端线 7e7d877cd → GHA `sha-c4b5573`，digest `sha256:2e216994`，
+      relay 105s 到位；fd-infra-deploy `58ab090` 双 bump → ArgoCD 75s → 两 rollout 完成；
+      镜像内 5/5 绿；源码面 `upstreamArtifactSection`×2、`artifactsForSession`×1 均在）
 - [ ] 5.2 观察项：滚版后看一次真实接棒，确认下游是"取用"而不是"重做"上游那份文件
 
 ## 6. 挂账（不在本变更）

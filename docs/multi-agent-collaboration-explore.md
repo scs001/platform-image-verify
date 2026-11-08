@@ -343,6 +343,11 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                （collector 带真实 usage、live 如实留空）再收口；归属不可判则不造节点；
                                账本不可用只告警；镜像内 7/7 绿）**
   ⑩ add-fleet-artifact-handoff 产物句柄进 payload（workspace 路径或 library doc id）
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-artifact-handoff/`
+                               （镜像 sha-c4b5573；点火时按「该回合会话 + 起止窗口」读资源库，persona 下游 prompt
+                               追加【上游产物】段（库标识 + workspace 相对路径 + 「不要重新生成」），
+                               散文在前、上下文占位符在后；无产物/库不可读整段缺席零变化；a2a/tool 不下发；
+                               全量扫 449 文件/4003 条零红）**
   ⑪ add-fleet-cost-read-face   member_turn_daily 的 USD 列接 API，按 岗/run/边 三切面
                                **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-cost-read-face/`
                                （镜像 sha-873377b；四分量 USD 同缝也落到**回合行**（可空，未定价=null 不冒充 0），

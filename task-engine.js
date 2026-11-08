@@ -605,6 +605,16 @@ function enqueueExecution(id, opts = {}) {
   // same queue. Re-enqueue re-stamps (a spent stamp must never measure a
   // previous execution's wait).
   t.queuedAt = Date.now();
+  // Staleness anchor (fix-cell-turn-throughput 2.2 follow-up). `queuedAt` is a
+  // WAIT clock and is deliberately re-stamped on every re-enqueue and on boot
+  // (see drainRepairQueue), so it can never answer "how long has this fire been
+  // trying to run". Live 2026-11-08: after each restart the catch-up wave was
+  // re-stamped to "now", so 17 backlogged fires all looked brand new and the
+  // staleness policy never fired while a `run now` waited behind them.
+  // `firstQueuedAt` is stamped ONCE per queue residence and cleared when the
+  // execution leaves the queue, so age means "since this fire first asked for a
+  // slot".
+  if (!Number.isFinite(t.firstQueuedAt)) t.firstQueuedAt = t.queuedAt;
   // The execution carrier default: structural routing knowledge, not an
   // inference — a2a targets run on the primary's remote executor, everything
   // else starts as the primary-chain cell slot. A worker claim (worker-slots
@@ -783,19 +793,21 @@ async function runQueuedExecution(id) {
   // cadence fire supersede it. Manual/event fires are never aged out — a human
   // asked for THAT round.
   const maxAgeMs = queueMaxAgeMs();
+  const firstQueuedAt = Number.isFinite(t.firstQueuedAt) ? t.firstQueuedAt : t.queuedAt;
   if (
     maxAgeMs > 0
     && t.trigger === "schedule"
-    && Number.isFinite(t.queuedAt)
-    && Date.now() - t.queuedAt > maxAgeMs
+    && Number.isFinite(firstQueuedAt)
+    && Date.now() - firstQueuedAt > maxAgeMs
   ) {
-    const waitedMin = Math.round((Date.now() - t.queuedAt) / 60_000);
+    const waitedMin = Math.round((Date.now() - firstQueuedAt) / 60_000);
     const boundMin = Math.round(maxAgeMs / 60_000);
     finishExecution(t, new Date().toISOString(), {
       ok: false,
       skipped: true,
       error: `queue staleness: a scheduled fire waited ${waitedMin}min behind the cell's serial slot (>${boundMin}min) — dropped without running; the next cadence fire supersedes it`,
     });
+    t.firstQueuedAt = null;
     console.log(`[task-engine] ${t.id}: dropped stale queued fire (waited ${waitedMin}min > ${boundMin}min)`);
     return;
   }
@@ -806,6 +818,8 @@ async function runQueuedExecution(id) {
 // lifecycle transitions; only the turn executor differs (the primary's
 // switchPreset flow vs a worker's pinned-persona prompt).
 async function runExecutionTurn(t, turnFn) {
+  // Leaving the queue for a real run: the staleness anchor is spent.
+  t.firstQueuedAt = null;
   const startTime = new Date().toISOString();
   t.lastRun = startTime;
   t.state = "running";

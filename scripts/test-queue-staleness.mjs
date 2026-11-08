@@ -72,13 +72,13 @@ test("a scheduled fire that waited past the staleness bound is dropped as skippe
   process.env.QUEUE_MAX_AGE_MS = "50";
   try {
     addScheduledTask("stale");
-    // Simulate a backlog: the fire was enqueued long before the slot freed.
-    engine.getRecord("stale").queuedAt = Date.now() - 60_000;
+    // Simulate a backlog: the fire first asked for a slot long before it got
+    // one (both clocks aged — this case is about the bound, not about which
+    // clock is authoritative; the restart case below covers that).
     engine.enqueueExecution("stale");
-    // enqueueExecution re-stamps queuedAt, so re-age it after enqueue.
-    engine.getRecord("stale").queuedAt = Date.now() - 60_000;
-    // Force the chain to observe the aged stamp: enqueue a follower that will
-    // be dequeued after it.
+    const stale = engine.getRecord("stale");
+    stale.firstQueuedAt = Date.now() - 60_000;
+    stale.queuedAt = Date.now() - 60_000;
     addScheduledTask("fresh");
     engine.enqueueExecution("fresh");
 
@@ -101,7 +101,7 @@ test("a manual run is never aged out (a human asked for that round)", async () =
   try {
     addTask("manual-old");
     engine.enqueueExecution("manual-old");
-    engine.getRecord("manual-old").queuedAt = Date.now() - 60_000;
+    engine.getRecord("manual-old").firstQueuedAt = Date.now() - 60_000;
     const ran = await waitFor(() => started.includes("manual-old"));
     assert.equal(ran, true, "manual fires must run regardless of queue age");
   } finally {
@@ -116,10 +116,38 @@ test("QUEUE_MAX_AGE_MS=0 restores the pre-policy behaviour", async () => {
   try {
     addScheduledTask("old-but-allowed");
     engine.enqueueExecution("old-but-allowed");
-    engine.getRecord("old-but-allowed").queuedAt = Date.now() - 60_000;
+    engine.getRecord("old-but-allowed").firstQueuedAt = Date.now() - 60_000;
     const ran = await waitFor(() => started.includes("old-but-allowed"));
     assert.equal(ran, true, "0 disables the staleness policy");
   } finally {
     delete process.env.QUEUE_MAX_AGE_MS;
   }
+});
+
+// A restart re-stamps `queuedAt` (the WAIT clock) so the probe never cries
+// "waiting 12 hours". The staleness decision must therefore key off the FIRST
+// queue timestamp, or every restart refreshes the whole backlog to "brand new"
+// and the policy can never fire (live 2026-11-08: 16-18 fires re-stamped on
+// each boot while a `run now` waited behind them).
+test("a re-stamped wait clock does not refresh the staleness age", async () => {
+  const started = [];
+  await boot((task) => { started.push(task.id); return Promise.resolve({ ok: true }); });
+  process.env.QUEUE_MAX_AGE_MS = "50";
+  try {
+    addScheduledTask("rebooted-old");
+    // Enqueue, then simulate what a restart does: keep the first-queue anchor,
+    // but refresh the wait clock to "now".
+    engine.enqueueExecution("rebooted-old");
+    const rec = engine.getRecord("rebooted-old");
+    rec.firstQueuedAt = Date.now() - 120_000;
+    rec.queuedAt = Date.now();
+
+    addScheduledTask("after-restart");
+    engine.enqueueExecution("after-restart");
+
+    const settled = await waitFor(() => engine.getRecord("rebooted-old").state === "skipped");
+    assert.equal(settled, true, "the anchor, not the refreshed wait clock, decides staleness");
+    assert.equal(started.includes("rebooted-old"), false);
+    assert.equal(await waitFor(() => started.includes("after-restart")), true);
+  } finally { delete process.env.QUEUE_MAX_AGE_MS; }
 });

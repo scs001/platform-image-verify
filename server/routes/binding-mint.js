@@ -14,8 +14,8 @@
 // connector account. A refusal is reported, never widened.
 
 import express from "express";
-import * as deploymentBindings from "../deployment-bindings.js";
-import * as connectorCredentials from "../connector-credentials.js";
+import * as deploymentBindings from "../../deployment-bindings.js";
+import * as connectorCredentials from "../../connector-credentials.js";
 
 const MAX_BODY = "16kb";
 

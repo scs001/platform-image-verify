@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 
 const { CELL_STATES, RESIDENCY_POLICIES, transition, wakeDue } = await import("../lib/cell-lifecycle.js");
-const { newRegistryRow, migrateRegistryRow, createJsonRegistry } = await import("../lib/cell-registry.js");
+const { REGISTRY_SCHEMA_VERSION, newRegistryRow, migrateRegistryRow, createJsonRegistry } = await import("../lib/cell-registry.js");
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cell-lifecycle-"));
 const NOW = Date.parse("2026-10-27T08:00:00Z");
@@ -59,7 +59,7 @@ test("new cells default to on_demand; vocabulary sets stay closed", () => {
   const row = newRegistryRow({ cellId: "cell_x", ownerEmail: "a@b.c", now: NOW });
   assert.equal(row.policy, "on_demand");
   assert.equal(row.state, "unbound");
-  assert.equal(row.schemaVersion, 1);
+  assert.equal(row.schemaVersion, REGISTRY_SCHEMA_VERSION);
 });
 
 test("wakeDue: only suspended on_demand rows with a past due fire", () => {
@@ -74,7 +74,7 @@ test("migration is idempotent and forward-only", () => {
   const old = { cellId: "legacy", ownerEmail: "x@y.z", state: "running", policy: "always" };
   const once = migrateRegistryRow(old);
   assert.equal(once.changed, true);
-  assert.equal(once.row.schemaVersion, 1);
+  assert.equal(once.row.schemaVersion, REGISTRY_SCHEMA_VERSION);
   assert.deepEqual(once.row.workload, { cronCount: 0, botCount: 0, fleetCount: 0, nextDueAt: null });
   assert.deepEqual(migrateRegistryRow(once.row), { row: once.row, changed: false });
 });

@@ -2,31 +2,35 @@
 
 ## 1. 台账（数据面）
 
-- [ ] 1.1 `gateway/cell-registry.js` 用既有 **guarded-add** 先例加列：`crash_count INTEGER`、
+- [x] 1.1 `gateway/cell-registry.js` 用既有 **guarded-add** 先例加列：`crash_count INTEGER`、
       `last_crash_json TEXT`、`bind_failure_count INTEGER`、`last_bind_failure_json TEXT`
       （`try { ALTER TABLE … } catch {}`，与 `last_gate_refusal_json` 同款）；
       验证 = 用**真实 cell 库副本**跑一次 initDb，老库无报错、列就位、旧行可读
-- [ ] 1.2 `lib/cell-registry.js` 的 `REGISTRY_SCHEMA_VERSION` 提升并按 `migrateRegistryRow`
+- [x] 1.2 `lib/cell-registry.js` 的 `REGISTRY_SCHEMA_VERSION` 提升并按 `migrateRegistryRow`
       迁移老行（缺列补 null/0，不猜值）；验证 = 老行迁移后形状与新版一致、不丢既有字段
-- [ ] 1.3 台账读写单测：崩溃计数累加、主动停止不计数、启动失败与崩溃分开；
+- [x] 1.3 台账读写单测：崩溃计数累加、主动停止不计数、启动失败与崩溃分开；
       验证 = 新增单测覆盖三条断言 + 既有台账单测全绿
 
 ## 2. 崩溃路径（spawner）
 
-- [ ] 2.1 `gateway/spawner.js` 的非预期退出分支落账（`code`/`signal`/`at`/`uptimeMs`）；
+- [x] 2.1 `gateway/spawner.js` 的非预期退出分支落账（`code`/`signal`/`at`/`uptimeMs`）；
       验证 = 测试里让 child 以非零码退出，断言 `crash_count+1` 与 `last_crash_json` 内容
-- [ ] 2.2 `bindFailed` 分支落账到启动失败计数；验证 = 起不来的 cell 只增启动失败计数
-- [ ] 2.3 反复崩溃的**退避**：respawn 前按崩溃次数指数延迟，日志点名该 cell；
-      验证 = 连续三次崩溃后延迟单调增长，且第四次仍会尝试（不硬拒）
-- [ ] 2.4 康复归零：连续正常运行超过窗口后 `crash_count` 清零、`last_crash_json` 保留；
+- [x] 2.2 `bindFailed` 分支落账到启动失败计数；验证 = 起不来的 cell 只增启动失败计数
+- [x] 2.3 反复崩溃的**退避（可配置）**：`CELL_CRASH_BACKOFF_BASE_MS`(1000) /
+      `CELL_CRASH_BACKOFF_MAX_MS`(**15000**) / `CELL_CRASH_WINDOW_MS`(10min) /
+      `CELL_CRASH_REHAB_MS`(10min)；respawn 前延迟，日志点名该 cell；
+      验证 = 延迟随次数指数增长、到顶不变，且始终会尝试（不硬拒）
+      - 上限取 15s 的理由：唤醒本身 8.6–12s，15s 上限把最坏体感压在「比冷启稍慢」而不是「像坏了」；
+        要更护集群就把 `CELL_CRASH_BACKOFF_MAX_MS` 调大，不改代码
+- [x] 2.4 康复归零：连续正常运行超过窗口后 `crash_count` 清零、`last_crash_json` 保留；
       验证 = 单测注入时间推进
 
 ## 3. 观测面
 
-- [ ] 3.1 内存面 cell 行带 `crashCount` / `lastCrash` / `bindFailureCount`，非管理员只见自己 cell；
+- [x] 3.1 内存面 cell 行带 `crashCount` / `lastCrash` / `bindFailureCount`，非管理员只见自己 cell；
       验证 = 面返回含字段 + 既有 owner scoping 单测不破
-- [ ] 3.2 `/healthz` 增 `cellsInError`（不影响 200）；验证 = 有错误态 cell 时计数变化、状态码不变
-- [ ] 3.3 拒醒记录与崩溃一并可读（`lastGateRefusal` 已在台账，只需在面上带出）；
+- [x] 3.2 `/healthz` 增 `cellsInError`（不影响 200）；验证 = 有错误态 cell 时计数变化、状态码不变
+- [x] 3.3 拒醒记录与崩溃一并可读（`lastGateRefusal` 已在台账，只需在面上带出）；
       验证 = 面返回含该字段
 
 ## 4. 上产与验证

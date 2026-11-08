@@ -451,10 +451,21 @@ app.get("/healthz", async (_req, res) => {
   // liveness: reachable=false is visible, while /healthz itself stays 200 (a
   // dead browser lane must not take the whole platform out of rotation).
   const lane = browserLaneProbe.configured ? await browserLaneProbe.probe() : null;
+  // Crash visibility without log grepping: how many cells are sitting in the
+  // error state right now, and how many total crashes the ledger has counted.
+  const cellsInError = [...registry.cells.values()].filter((c) => c.state === "error").length;
+  let crashTotal = null;
+  try {
+    crashTotal = cellRegistryDb
+      ? cellRegistryDb.all().reduce((n, r) => n + Number(r.crashCount ?? 0), 0)
+      : null;
+  } catch { /* ledger unreadable must not take liveness down */ }
   res.json({
     ok: true,
     uptimeMs: Date.now() - startedAt,
     cells: registry.cells.size,
+    ...(crashTotal ? { crashTotal } : {}),
+    cellsInError,
     ...(lane ? { browserLane: { reachable: lane.reachable, url: lane.url } } : {}),
   });
 });

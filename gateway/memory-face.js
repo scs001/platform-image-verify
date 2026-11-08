@@ -27,10 +27,23 @@ export function memoryFace({ sample, registryDb = null, ownerEmail = null, isAdm
       ...(browserLane ? { browserLane } : {}),
     };
   }
-  const ownerByCellId = new Map(
-    (registryDb?.all?.() ?? []).map((r) => [r.cellId, r.ownerEmail ?? null]),
-  );
-  const withOwner = (cell) => ({ ...cell, ownerEmail: ownerByCellId.get(cell.cellId) ?? null });
+  const registryRows = registryDb?.all?.() ?? [];
+  const ownerByCellId = new Map(registryRows.map((r) => [r.cellId, r.ownerEmail ?? null]));
+  const crashByCellId = new Map(registryRows.map((r) => [r.cellId, r]));
+  // Crash ledger fields ride the same row the owner already reads: "did my
+  // cell crash, how many times, and when last" must not require an admin.
+  const withOwner = (cell) => ({
+    ...cell,
+    ownerEmail: ownerByCellId.get(cell.cellId) ?? null,
+    ...(crashByCellId.has(cell.cellId)
+      ? {
+          crashCount: crashByCellId.get(cell.cellId).crashCount ?? 0,
+          lastCrash: crashByCellId.get(cell.cellId).lastCrash ?? null,
+          bindFailureCount: crashByCellId.get(cell.cellId).bindFailureCount ?? 0,
+          lastGateRefusal: crashByCellId.get(cell.cellId).lastGateRefusal ?? null,
+        }
+      : {}),
+  });
   const totalsOnly = ({ totalBytes }) => ({ totalBytes });
 
   const cells = sample.cells.map(withOwner);

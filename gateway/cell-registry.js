@@ -48,6 +48,16 @@ export function createCellRegistryDb({ file }) {
   try {
     db.exec(`ALTER TABLE cell_registry ADD COLUMN last_footprint_bytes INTEGER`);
   } catch { /* column already present */ }
+  // Crash ledger (add-cell-crash-ledger): same guarded-add pattern. Counters are
+  // Integer with 0 default at read (older rows read as no-crash), scenes are JSON.
+  for (const ddl of [
+    "ALTER TABLE cell_registry ADD COLUMN crash_count INTEGER",
+    "ALTER TABLE cell_registry ADD COLUMN last_crash_json TEXT",
+    "ALTER TABLE cell_registry ADD COLUMN bind_failure_count INTEGER",
+    "ALTER TABLE cell_registry ADD COLUMN last_bind_failure_json TEXT",
+  ]) {
+    try { db.exec(ddl); } catch { /* column already present */ }
+  }
 
   const serialize = (row) => ({
     cell_id: row.cellId,
@@ -63,6 +73,10 @@ export function createCellRegistryDb({ file }) {
     destroy_at: row.destroy?.at ?? null,
     last_gate_refusal_json: row.lastGateRefusal ? JSON.stringify(row.lastGateRefusal) : null,
     last_footprint_bytes: Number.isFinite(row.lastFootprintBytes) ? row.lastFootprintBytes : null,
+    crash_count: Number.isFinite(row.crashCount) ? row.crashCount : 0,
+    last_crash_json: row.lastCrash ? JSON.stringify(row.lastCrash) : null,
+    bind_failure_count: Number.isFinite(row.bindFailureCount) ? row.bindFailureCount : 0,
+    last_bind_failure_json: row.lastBindFailure ? JSON.stringify(row.lastBindFailure) : null,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   });
@@ -70,6 +84,11 @@ export function createCellRegistryDb({ file }) {
     if (!r) return null;
     let lastGateRefusal = null;
     try { lastGateRefusal = r.last_gate_refusal_json ? JSON.parse(r.last_gate_refusal_json) : null; } catch { /* torn write → absent */ }
+    // Crash scenes: a torn write loses the scene, never the count's meaning.
+    let lastCrash = null;
+    try { lastCrash = r.last_crash_json ? JSON.parse(r.last_crash_json) : null; } catch { /* torn write → absent */ }
+    let lastBindFailure = null;
+    try { lastBindFailure = r.last_bind_failure_json ? JSON.parse(r.last_bind_failure_json) : null; } catch { /* torn write → absent */ }
     return migrateRegistryRow({
       cellId: r.cell_id,
       ownerEmail: r.owner_email,
@@ -82,6 +101,10 @@ export function createCellRegistryDb({ file }) {
       destroy: r.destroy_reason || r.destroy_at ? { reason: r.destroy_reason, at: r.destroy_at } : null,
       lastGateRefusal,
       lastFootprintBytes: Number.isFinite(r.last_footprint_bytes) ? r.last_footprint_bytes : null,
+      crashCount: Number.isFinite(r.crash_count) ? r.crash_count : 0,
+      lastCrash,
+      bindFailureCount: Number.isFinite(r.bind_failure_count) ? r.bind_failure_count : 0,
+      lastBindFailure,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     })?.row ?? null;
@@ -98,9 +121,11 @@ export function createCellRegistryDb({ file }) {
       const s = serialize({ ...row, schemaVersion: REGISTRY_SCHEMA_VERSION, updatedAt: Date.now() });
       db.prepare(`
         INSERT INTO cell_registry (cell_id, schema_version, owner_email, state, policy, workload_json,
-          last_user_traffic_at, last_duty_run_at, last_bound_at, destroy_reason, destroy_at, last_gate_refusal_json, last_footprint_bytes, created_at, updated_at)
+          last_user_traffic_at, last_duty_run_at, last_bound_at, destroy_reason, destroy_at, last_gate_refusal_json, last_footprint_bytes,
+          crash_count, last_crash_json, bind_failure_count, last_bind_failure_json, created_at, updated_at)
         VALUES (@cell_id, @schema_version, @owner_email, @state, @policy, @workload_json,
-          @last_user_traffic_at, @last_duty_run_at, @last_bound_at, @destroy_reason, @destroy_at, @last_gate_refusal_json, @last_footprint_bytes, @created_at, @updated_at)
+          @last_user_traffic_at, @last_duty_run_at, @last_bound_at, @destroy_reason, @destroy_at, @last_gate_refusal_json, @last_footprint_bytes,
+          @crash_count, @last_crash_json, @bind_failure_count, @last_bind_failure_json, @created_at, @updated_at)
         ON CONFLICT(cell_id) DO UPDATE SET
           schema_version=excluded.schema_version, owner_email=COALESCE(excluded.owner_email, cell_registry.owner_email),
           state=excluded.state, policy=excluded.policy, workload_json=excluded.workload_json,
@@ -108,7 +133,11 @@ export function createCellRegistryDb({ file }) {
           last_duty_run_at=COALESCE(excluded.last_duty_run_at, cell_registry.last_duty_run_at),
           last_bound_at=COALESCE(excluded.last_bound_at, cell_registry.last_bound_at),
           destroy_reason=excluded.destroy_reason, destroy_at=excluded.destroy_at,
-          last_gate_refusal_json=excluded.last_gate_refusal_json, last_footprint_bytes=excluded.last_footprint_bytes, updated_at=excluded.updated_at
+          last_gate_refusal_json=excluded.last_gate_refusal_json, last_footprint_bytes=excluded.last_footprint_bytes,
+          crash_count=excluded.crash_count, last_crash_json=COALESCE(excluded.last_crash_json, cell_registry.last_crash_json),
+          bind_failure_count=excluded.bind_failure_count,
+          last_bind_failure_json=COALESCE(excluded.last_bind_failure_json, cell_registry.last_bind_failure_json),
+          updated_at=excluded.updated_at
       `).run(s);
       return this.get(row.cellId);
     },

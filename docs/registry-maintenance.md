@@ -7674,3 +7674,16 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 - **尾部①收口=把它变成可执行不变量**：新增 `scripts/check_identifier_integrity.py`——凡 `i.entity_type <> e.entity_type` 且不在 5 个**明示延后类**里即 `exit 1`；延后类超 `--max-deferred`（默认 500）也失败。生产实跑：`5 个延后类 / 335 行 / 0 违规 / exit 0`（organization 240、country→city 36、industry 32、index 24、exchange 3）。单测钉住"`stock` on `person` 永远不得进延后名单"。
 - **尾部②：`nbs-stats` 路由已消失**。库里 `source_provider_routes` 现在只有 `fred → ['mihomo']`、`yfinance → ['mihomo']`（那条 `nbs-stats → ['mihomo-cn']` 已不在，`mihomo-cn` 的 provider 类仍只在另一会话的未提交改动里）；nbs 近 2h **921 成功 / 14 失败**，走默认梯子，健康。**注意这条是并发会话动过的，不是我的改动**——记录以区分责任边界。
 - **收官时的不变量清单**（下次交接照这个查）：①`openspec validate --specs --strict` = 17/17；②`scripts/check_identifier_integrity.py` = exit 0；③两 CronJob 与 `clusters.image` = `sha-5d8fad5`；④reconciler tick 日志 `Database initialized: …REDACTED@…`；⑤`source_provider_routes` 无指向未部署 provider 的行；⑥两集群无 `zz-*` 探针残留。
+
+### §15.138 续二十三：延后类不是"垃圾"，是**有承载的错位**——查到承载后主动停手（11-08 续十二）
+
+- **我原本打算把剩下 335 行一并清掉，量完发现不能删**。5 个延后类逐类取样后的真面目：
+  - `stock on organization` 240 行 / 80 实体 —— 基金公司（景顺长城、易方达）身上挂着 `AEBIV`、`AED.L`
+  - `country on city` 36 / 18 —— 城市（北京/上海/深圳/悉尼）身上挂着 `CN`/`US`/`JP`/`NLD`
+  - `stock on industry` 32 / 16 —— 行业（医药生物 801150）身上挂着 `00712.HK`
+  - `stock on index` 24 / 8 —— 指数（中证全债 H11001）身上挂着 `AFYA`/`AG`
+  - `stock on exchange` 3 / 1 —— 交易所 XNAS 身上挂着 `AGFSW`
+  即：**别的实体的代码被挂到了这个实体上**，看着像垃圾。
+- **但它们是承重墙**：涉及的 **123 个实体，其"唯一"标识就是这些错配行**；同时这些 entity_id 上已经有 **13,288 条观测**（typed stock 8,500 / industry 3,911 / city 877，index/exchange 为 0）。删掉标识 = 这 1.3 万条数据变成**无法解析的孤儿**（dispatch 按标识表解析，没有标识就再也取不到）。
+- **处置：停手，不删**。真正的修法是**把观测与标识一起迁到正确实体**（按类逐批：HK 股票代码归到对应 stock 实体、国家码归到 country 实体、指数码归到 index 实体），属独立的数据迁移任务，不是一次 DELETE 能了结的。`check_identifier_integrity.py` 的 5 个延后类因此保留为**明示允许清单**（这正是它存在的意义：把"已知有承载的错位"与"新出现的错误"分开）。
+- **教训（写进纪律）**：清理数据前先问**"这行有没有承载"**——标识表的一行看着像元数据，实际是 dispatch 的解析键；本轮若按"看着像垃圾"直接删 335 行，会静默切断 1.3 万条观测的取数路径，而且监控上只会表现为"某些实体突然零产出"。

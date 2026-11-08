@@ -39,10 +39,19 @@
 - [x] 3.2 值只经既有内部路由取用：runner 先按 `secret_refs` 取全部值（提前到 mcp 组装之前），
       再 pin 进 `.credentials.yaml`；注册表只承载 `secretName`，令牌不落注册表。
       **注**：mcp 行的 Authorization 仍是组装期写入（与既有 `config.mcpToken` 同一姿态）
-- [ ] 3.3 端到端：真机部署一个声明绑定的包为常驻岗位，工具调用打通；撤销后下一轮失败
-      ——**未做**：需要重建 agent-runner 镜像（现存 runner pod 跑 `yizuo/platform:sha-1c17030`，
-      未含本改动），且本机无 runner 端到端环境（session-resume 用例因 dsh bundle 解析失败全红）。
-      **注意滚 agent-runner 会重启所有岗位、掐断在飞回合**，属停机窗，须单独安排
+- [~] 3.3 端到端：真机部署一个声明绑定的包为常驻岗位，工具调用打通；撤销后下一轮失败
+      ——**模块级已证、真机未跑**。已做：`scripts/test-deployment-binding-descriptor.mjs` 4/4，
+      走真实 `composeDescriptor` + mint/prune，钉死「令牌进了 runner 唯一会取值的 `secret_refs`」
+      （漏这一步=授权可见但取不到值）、重部署撤销会真吊销连接器令牌、prune 摸不到人手授权的 `pack:` 令牌、
+      铸造失败不误撤。真机未跑的两个前提在当前 prod 都不成立：
+      ①`/data/data/packs.db` 的 11 个版本里**没有任何包声明 `connector_bindings`**，48 个 cell 的
+      `deployment_secrets` 里也**没有一条** `connector_binding_*`（全量扫过）——没有可部署的载体；
+      ②fd-prod 的 platform pod `CLOUD_MODE` 为空，网关头身份不被信任，而平台侧无管理员令牌，
+      部署必须用真 OIDC 会话（需本人登录）。
+      另：HTTP 形态的部署路由在本仓测试台会挂（`test-deployment-secrets.mjs` 在基线上同样挂，
+      响应不落地），新增 HTTP 用例只会继承坏台子，故改用模块级。
+      镜像侧已就位：platform/facet/demo 与 `agent-runner-b/c/serving` 全部滚到 `sha-60ecab1`
+      （基线 `c7181350c`），pod 内逐条 grep 到本改动四个符号
 - [x] 3.4 边界记录：ACP harness 路径（`#spawnAcpChild` → `acpMcpServers`）只认 `descriptor.mcpServers`
       且统一用平台 token，**吃不到部署绑定**；本改动只覆盖 dsh 路径（`materializeAgentHome`）。
       ACP 若要支持，需把 `connector_bindings` 按同样规则映射成 ACP 的 http 行（另一个改动）

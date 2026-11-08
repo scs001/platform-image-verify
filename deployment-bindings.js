@@ -17,6 +17,7 @@
 
 import * as db from "./db.js";
 import * as grants from "./connector-grants.js";
+import * as connectorCredentials from "./connector-credentials.js";
 
 /** Prefix that marks a deployment secret as ours. Secrets are user-namespaced. */
 export const DEPLOYMENT_BINDING_PREFIX = "connector_binding_";
@@ -55,6 +56,73 @@ export function deploymentBindingSecretName(bindingKey) {
 }
 
 /**
+ * The credential-owner channel (fix-deploy-binding-mint-process).
+ *
+ * This module runs in two processes with very different reach: the cell holds
+ * the user's connector account, the market plane (facet) holds the deployment
+ * secrets. Whichever one is asked, the MINT must happen where the account is.
+ * `PLATFORM_INTERNAL_URL` + `FACET_INTERNAL_TOKEN` name that door; without them
+ * (single-process deployments) everything stays local, byte for byte.
+ */
+function credentialChannel() {
+  const base = String(process.env.PLATFORM_INTERNAL_URL || "").replace(/\/+$/, "");
+  const token = String(process.env.FACET_INTERNAL_TOKEN || "");
+  return base && token ? { base, token } : null;
+}
+
+/** True when this process can see the user's connector account itself. */
+export function hasLocalConnectorAccount(email) {
+  return Boolean(connectorCredentials.liveToken(email));
+}
+
+async function callChannel({ path, body, fetchImpl = fetch }) {
+  const channel = credentialChannel();
+  if (!channel) return { ok: false, code: "no_credential_channel" };
+  try {
+    const response = await fetchImpl(`${channel.base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-facet-token": channel.token },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const parsed = await response.json().catch(() => null);
+    if (!response.ok || parsed?.ok !== true) {
+      return { ok: false, code: parsed?.code ?? `http_${response.status}` };
+    }
+    return parsed;
+  } catch (e) {
+    return { ok: false, code: e?.name === "TimeoutError" || e?.name === "AbortError" ? "channel_timeout" : "channel_unreachable" };
+  }
+}
+
+/**
+ * Mint through the process that owns the credential.
+ *
+ * Only reached when the local credential is absent — a process that can see the
+ * account never takes this path, so single-process deployments keep working and
+ * a split deployment stops reporting "the user never connected" for what is
+ * really "this process cannot see them".
+ */
+export async function mintBindingViaChannel({ email, packId, agentId, bindingKey, provider, operations, fetchImpl = fetch }) {
+  const out = await callChannel({
+    path: "/api/gateway/binding-mint",
+    body: { email, packId, agentId, bindingKey, provider, operations },
+    fetchImpl,
+  });
+  if (!out.ok) return { ok: false, bindingKey, code: out.code };
+  return { ok: true, bindingKey, name: out.name, secretRef: out.secretRef, secretValue: out.secretValue, patId: out.patId ?? null };
+}
+
+/** Revoke through the credential owner (same split as the mint). */
+export async function revokeBindingsViaChannel({ email, packId, agentIds = null, keepKeys = null, fetchImpl = fetch }) {
+  return callChannel({
+    path: "/api/gateway/binding-revoke",
+    body: { email, packId, agentIds, keepKeys },
+    fetchImpl,
+  });
+}
+
+/**
  * Which declared bindings a deployment should carry a token for.
  *
  * The state matrix is the binding ledger's, not a local opinion: only
@@ -76,7 +144,16 @@ export function mintableBindings({ email, packId }) {
  * the caller is expected to have revoked the previous token first (redeploying
  * must not leave two live tokens for one binding).
  */
-export async function mintDeploymentBinding({ email, packId, agentId, bindingKey, provider, operations, record, fetchImpl = fetch }) {
+/**
+ * Mint ONE binding and return the value, without storing it.
+ *
+ * Split out from the store step because the two halves can live in different
+ * processes (fix-deploy-binding-mint-process): the connector account belongs to
+ * the user's cell, while the deployment-secret store belongs to the market
+ * plane. The caller that holds the credential mints and hands back the value;
+ * the caller that owns the store records it.
+ */
+export async function mintBindingForAgent({ email, packId, agentId, bindingKey, provider, operations, fetchImpl = fetch }) {
   const minted = await grants.mintBindingToken({
     email,
     packId,
@@ -89,16 +166,29 @@ export async function mintDeploymentBinding({ email, packId, agentId, bindingKey
   });
   if (!minted.ok) return { ok: false, bindingKey, code: minted.code ?? "mint_failed" };
   const name = deploymentBindingSecretName(bindingKey);
-  record({
-    packId,
-    agentId,
+  return {
+    ok: true,
+    bindingKey,
     name,
     // The reference is what the descriptor carries; the token never does.
     secretRef: `sec_${packId}_${agentId}_${name}`,
     secretValue: minted.token,
+    patId: minted.patId ?? null,
+  };
+}
+
+export async function mintDeploymentBinding({ email, packId, agentId, bindingKey, provider, operations, record, fetchImpl = fetch }) {
+  const minted = await mintBindingForAgent({ email, packId, agentId, bindingKey, provider, operations, fetchImpl });
+  if (!minted.ok) return { ok: false, bindingKey, code: minted.code };
+  record({
+    packId,
+    agentId,
+    name: minted.name,
+    secretRef: minted.secretRef,
+    secretValue: minted.secretValue,
     deployer: email,
   });
-  return { ok: true, bindingKey, name, patId: minted.patId ?? null };
+  return { ok: true, bindingKey, name: minted.name, patId: minted.patId };
 }
 
 /**
@@ -113,19 +203,58 @@ export async function mintDeploymentBindings({ email, packId, agentIds, record, 
   const mintable = mintableBindings({ email, packId });
   const granted = [];
   const failed = [];
+  // Where the credential lives decides who mints (fix-deploy-binding-mint-process):
+  // this process holds the user's account → mint here; it does not (market plane)
+  // → ask the process that does, then store the value locally.
+  // Channel only when it is configured AND this process cannot see the account:
+  // a single-process deployment without the env keeps its local answer
+  // (`no_account` = the person really has none), while the split topology always
+  // carries the env and therefore reports the owner's answer instead.
+  const local = hasLocalConnectorAccount(email) || !credentialChannel();
   for (const agentId of agentIds) {
     for (const binding of mintable) {
-      const result = await mintDeploymentBinding({
-        email,
-        packId,
+      const result = local
+        ? await mintDeploymentBinding({
+            email,
+            packId,
+            agentId,
+            bindingKey: binding.bindingKey,
+            provider: binding.provider,
+            operations: binding.operations,
+            record,
+            fetchImpl,
+          })
+        : await mintBindingViaChannel({
+            email,
+            packId,
+            agentId,
+            bindingKey: binding.bindingKey,
+            provider: binding.provider,
+            operations: binding.operations,
+            fetchImpl,
+          });
+      if (result.ok && !local) {
+        record({
+          packId,
+          agentId,
+          name: result.name,
+          secretRef: result.secretRef,
+          secretValue: result.secretValue,
+          deployer: email,
+        });
+      }
+      // Never spread `result` straight in: the channel's answer carries the
+      // token value, and these rows reach the deploy HTTP response.
+      const summary = {
         agentId,
-        bindingKey: binding.bindingKey,
-        provider: binding.provider,
-        operations: binding.operations,
-        record,
-        fetchImpl,
-      });
-      (result.ok ? granted : failed).push({ agentId, ...result });
+        ok: result.ok,
+        bindingKey: result.bindingKey,
+        ...(result.name ? { name: result.name } : {}),
+        ...(result.patId ? { patId: result.patId } : {}),
+        ...(result.code ? { code: result.code } : {}),
+        ...(local ? {} : { via: "channel" }),
+      };
+      (result.ok ? granted : failed).push(summary);
     }
   }
   return {
@@ -169,6 +298,15 @@ export async function pruneDeploymentBindings({ email, packId, agentIds, keepKey
   );
   for (const row of staleSecrets) remove(row.agentId, row.name);
 
+  if (!hasLocalConnectorAccount(email) && credentialChannel()) {
+    const viaChannel = await revokeBindingsViaChannel({ email, packId, agentIds: agents, keepKeys: keys, fetchImpl });
+    return {
+      removedSecrets: staleSecrets.map((r) => ({ agentId: r.agentId, name: r.name })),
+      revoked: viaChannel.revoked ?? [],
+      failed: viaChannel.failed ?? [],
+      ...(viaChannel.ok ? {} : { code: viaChannel.code ?? "channel_unavailable" }),
+    };
+  }
   const listed = await grants.listBindingTokens({ email, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
   if (!listed.ok) {
     return { removedSecrets: staleSecrets.map((r) => ({ agentId: r.agentId, name: r.name })), revoked: [], failed: [], code: listed.code ?? "unavailable" };
@@ -197,6 +335,15 @@ export async function revokeDeploymentBindingsForPack({ email, packId, secrets, 
   const rows = (secrets ?? []).filter((row) => typeof row?.name === "string" && row.name.startsWith(DEPLOYMENT_BINDING_PREFIX));
   for (const row of rows) remove(row.agentId, row.name);
 
+  if (!hasLocalConnectorAccount(email) && credentialChannel()) {
+    const viaChannel = await revokeBindingsViaChannel({ email, packId, keepKeys: [], fetchImpl });
+    return {
+      removedSecrets: rows.length,
+      revoked: viaChannel.revoked ?? [],
+      failed: viaChannel.failed ?? [],
+      ...(viaChannel.ok ? {} : { code: viaChannel.code ?? "channel_unavailable" }),
+    };
+  }
   const listed = await grants.listBindingTokens({ email, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
   if (!listed.ok) return { removedSecrets: rows.length, revoked: [], failed: [], code: listed.code ?? "unavailable" };
   const prefix = deploymentBindingPatPrefix(packId);

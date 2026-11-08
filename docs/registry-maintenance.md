@@ -8018,3 +8018,27 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   是**已在产运行**的既有形态，cap=1 窗口要验的是共享宿主的收益，不是新协议能否跑通。
   单测已把 `failOnStartupError: false` 与 `serverName` 钉住（宿主挂了只灰掉工具，不拦 dsh 启动）。
 
+
+### §15.145 续三十三：ship-spool 的 429 真因是「批量业务打了交互车道」（11-08）
+
+- **不是上游没额度，是路由走错**。sub2api 有两车道：
+  | 组 | 账号 | 并发 | 用在 |
+  |---|---|---|---|
+  | `embedding-interactive`(8) | 32 openrouter-new(Copy) / 48 nebius-a | 48 / 24 | 交互查询 |
+  | `embedding-bulk`(12) | 47 nebius-embedding-bulk | 24 | 批量入库 |
+  实测日志：`Qwen/Qwen3-Embedding-8B` 的 216 次请求全压在 **32 与 48**（各 102/114），
+  其中 **43 次 429**；而 **47 号从 2026-10-29 起十天没被用过**——批量 loader 一直拿
+  交互车道的 key（`sk-020…` = key 96 `embedding-internal`，组 8）在跑。
+- **处置**：新建 `api_keys` 记录 166 `fd-text-core-embedding-bulk`（组 12，无限流窗口），
+  端到端验通（`POST /v1/embeddings` → `200`、`dim 4096`，请求落到账号 47），
+  再把 `fd-prod/fd-text-core-env:FDTEXT_EMBEDDING_API_KEY` 换成它（0600 补丁文件、用完即删、
+  明文不入任何仓）。**现有 Pod 不热载 env，下一轮 Job 才生效**——已验证：
+  切后那一轮 `status=429` **0 次**（切前窗口 43 次），47 号 `last_used_at` 开始滚动。
+  剩下的是上游 `503 Service temporarily unavailable`（偶发，属 `is_retryable` 覆盖范围）。
+- **仍待生效的一半**：`fd-text-core` 的退出码修复（`7df5649`，只在永久失败才红）**已经推 gitee
+  但没上产**——这条线现在有另一个会话在推（镜像 `sha-e0ae9a8` 17:57、`sha-3a4ec40` 21:27 起反复），
+  两个提交都不在 gitee 历史里；本仓 GHA `image` 从来没成功过（4~5 秒失败=无 runner），
+  cheap-3 的构建脚本还是 10-11 的旧版。**从 gitee main 自建镜像会丢掉对方未入库的改动**，
+  所以不构建、不滚 CronJob，等那条线出片时自然带走。
+- **口径**：容量上限没变（47 与 32 是同一上游 key/代理 11 的克隆，共享上游配额），
+  这次改的是**隔离**——批量不再挤交互，交互延迟与 429 都会改善；真要提吞吐得加新上游账号。

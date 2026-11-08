@@ -17,7 +17,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
-import { shapeTurnsPage, TURNS_PAGE_MAX } from "./fleet-turns-view.js";
+import { shapeTurnsPage, shapeFleetRoster, TURNS_PAGE_MAX } from "./fleet-turns-view.js";
 
 function bridgeOrigin() {
   if (process.env.FLEET_ARCHITECT_MCP_URL) return process.env.FLEET_ARCHITECT_MCP_URL.replace(/\/$/, "");
@@ -145,7 +145,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     switch (name) {
       case "fleet_list":
-        return textOut(JSON.stringify((await call("GET", "/api/fleet-architect/fleets")).fleets, null, 2));
+        // Compact + projected (fix-tool-result-cost): the roster ships whole —
+        // a missing fleet reads as "it does not exist" — the bytes came from
+        // pretty-printing, not from the content.
+        return textOut(JSON.stringify(shapeFleetRoster((await call("GET", "/api/fleet-architect/fleets")).fleets)));
       case "fleet_spec_read":
         return textOut(JSON.stringify(await call("GET", `/api/fleet-architect/fleets/${encodeURIComponent(args.fleetId)}`), null, 2));
       case "fleet_draft":

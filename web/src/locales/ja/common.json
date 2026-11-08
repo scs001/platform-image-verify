@@ -1209,7 +1209,9 @@
           "placeholder": "接続済みのシステムから選択…",
           "empty": "接続済みのシステムはいずれもこのパックが必要とする操作を満たしていません。先にコネクタで接続してください。",
           "unavailable": "接続済みシステムを取得できませんでした。",
-          "currentNotUsable": "選択中（現在利用不可）"
+          "currentNotUsable": "選択中（現在利用不可）",
+          "emptyButRejected": "接続済みのシステムではこのパックの要件を満たせません：",
+          "gapsMissing": "{{gaps}} が不足"
         },
         "summaryUnmapped": "{{count}} 件が選択待ち",
         "browseCatalog": "アプリディレクトリを見る"
@@ -1957,7 +1959,16 @@
       "outcomes": "何が得られるか",
       "coverage": "本エントリの {{locale}} 組織面カバー：{{covered}}/{{total}}",
       "coverageFull": "{{locale}} の組織面はすべてカバー済み",
-      "coverageMissing": "未カバー項目"
+      "coverageMissing": "未カバー項目",
+      "bindingsReady": "コネクタバインディング {{count}} 件が利用可能（{{keys}}）",
+      "bindingsFailed": "コネクタバインディング {{count}} 件が未準備（{{keys}}）— 対象システムに接続して再デプロイすると発行されます",
+      "bindingsRevoked": "不要になったバインディングトークンを {{count}} 件失効させました",
+      "bindingReason": {
+        "no_account": "コネクタアカウントが未接続のため、減衰元となる身元がありません",
+        "empty_scope": "このバインディングは許可できる読み取り・書き込み範囲を宣言していません",
+        "connector_not_configured": "このデプロイにはコネクタが接続されていません",
+        "other": "想定外の失敗（{{code}}）"
+      }
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -3185,6 +3196,18 @@
       "noTrace": "trace なし",
       "filterMember": "ポストで絞り込み",
       "allMembers": "すべてのポスト",
+      "stopRun": "この実行を停止",
+      "stopTitle": "この実行を停止しますか？",
+      "stopBody": "実行中のターンは中断され「中断」として記録されます。完了済みのターンとその報告は残ります。この実行から新たな引き継ぎやファンアウトは点火されません。",
+      "stopConfirm": "実行を停止",
+      "stopCancel": "継続させる",
+      "stopping": "停止中…",
+      "stopDone": "停止しました：実行中のターン {{turns}} 件を中断しました。",
+      "stopAlready": "この実行はすでに停止されています。",
+      "stopFailed": "停止に失敗しました：{{error}}",
+      "stopped": "停止済み",
+      "stoppedWithReason": "停止済み（{{reason}}）",
+      "stopReasonDefault": "オーナーがコックピットから停止",
       "noMatch": "このページに該当ポストの実行なし"
     },
     "inspector": {

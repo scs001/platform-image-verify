@@ -213,15 +213,15 @@
 
 | # | 缺陷 | 证据 |
 |---|---|---|
-| P2-1 | 报数只有直属下级一层可见 | `fleet-context.js:325-327` |
-| P2-2 | `report` 边死语法 | `fleet-orchestration.js:14` |
-| P2-3 | 产物只能传散文（无句柄/附件） | `fleet-handoffs.js:98-100` |
+| P2-1 | ~~报数只有直属下级一层可见~~ **已修**：直接下级段之后追加「更深层报数」紧凑块（标题带层号与路径、槽值/阻塞/摘要/时间；BFS 近层优先、防环、独立 6KB 子池、最多 8 条，永不挤占直接下级；超量显式标注）→ `openspec/changes/archive/2026-11-08-fix-fleet-descendant-reports/`（镜像 sha-2d084d4）。两层舰队（现网 6 套官方模板）该段为空、上下文逐字节不变 | `server/fleet-context.js` | 【码】 |
+| P2-2 | ~~`report` 边死语法~~ **文档陈旧，早已修**：`fix-report-edge` 把 report 边改成 **parentId 的读时投影**（每个父子对一条，不落库），与树相符的声明接受且不重复，**与树相悖的声明直接校验失败并指出真实上级**——`scripts/test-report-edge-derived.mjs` 5 条实证（含「report 边不授予 dispatch」） | `openspec/changes/archive/2026-11-08-fix-report-edge/` | —— |
+| P2-3 | ~~产物只能传散文~~ **文档陈旧，已修**：`add-fleet-artifact-handoff` 让上游回合产物以资源库句柄（库 id + workspace 相对路径）随点火/接棒跨边传递；**残留口径**：persona 目标才带句柄（a2a 是另一服务，句柄无意义） | `server/fleet-handoffs.js:97-170`、`archive/2026-11-08-add-fleet-artifact-handoff/` | —— |
 | P2-4 | 所有岗位共享同一 workspace cwd（无 per-member 隔离） | `server.js:810` |
-| P2-5 | fanout 在产串行；主链无公平性 | `worker-slots.js:55-58`、`task-engine.js:616-631` |
-| P2-6 | 无 run 预算闸 / 无取消 run / spanMax 只 warn | `fleet-orchestration.js:228` |
-| P2-7 | 跨舰队不可能；peer/blackboard 保留未实现；`assertTurnRequest` 无调用方 | `fleets.js:1057`、`turn-request.js:16-21` |
-| P2-8 | A2A 不做能力协商、discovery N=8 硬编码、出站恒 depth=1、市场无「团队即 agent」 | `a2a-client.js:13`、`delegation.js:170-178` |
-| P2-9 | event 边无去抖（同 bot 连发 N 条 = N 个回合） | `fleet-event-wake.js:25-33` |
+| P2-5 | ~~fanout 在产串行；主链无公平性~~ **主链已修**：`humanPriority` 从「只有 worker 池认」改为主槽串行链出队时选序（越过未开始的执行，不抢正在跑的；cap 0 同样生效，`idle()` 同步等清空）→ `openspec/changes/archive/2026-11-08-fix-main-chain-human-priority/`（镜像 sha-e58cf30）。**残留**：产线 fanout 仍串行——一条 dsh 运行时是物理限制，要并行只能开 `TASK_WORKER_MAX>0`（基建决定，未动） | `task-engine.js:727-756`、`worker-slots.js:45-70` | 【码】 |
+| P2-6 | ~~无 run 预算闸 / 无取消 run / 取消无 UI 入口~~ **已收口**：三闸（maxTurns/maxTokens/maxMinutes，`handoffs.js:85` 拦截）+ `fleet-runs.stopRun` 取消（中断在飞会话）+ **驾驶舱停止入口**（详情头「停止这一轮」→ 危险态确认 → 如实回执已停止/此前已停止/失败，停止后呈停止标记与原因）→ `openspec/changes/archive/2026-11-08-add-cockpit-run-stop/`。**残留（设计如此）**：`spanMax` 只 warn 不拦（advisory） | `fleet-orchestration.js:29-44,311`、`web/src/components/fleet/RunTimeline.tsx` | 【码】 |
+| P2-7 | 跨舰队不可能；peer/blackboard 保留未实现（`RESERVED_SOURCES`/`RESERVED_RESULT_SINKS` 只声明不给路）。~~`assertTurnRequest` 无生产调用方~~ **已修**：起轮前按**当前**声明再校验派生的 turnRequest（声明在入队后收紧时，已排队的超界回合会被拒并落事件）→ `openspec/changes/archive/2026-11-08-fix-turn-contract-admission/` | `server/fleet-runs.js`（admission）、`server/cron-runner.js` | 【码】 |
+| P2-8 | ~~discovery N=8 硬编码~~ **已修**：发现面改为 `{agents,total,truncated}`（total=匹配数）、确定性排序、limit 默认 8 上限 50，工具文案写「showing 8 of 12 matches」→ `openspec/changes/archive/2026-11-08-fix-agent-discovery-honesty/`（镜像 sha-e4d4b3a）。**仍开**：A2A 不做能力协商、出站恒 depth=1、市场无「团队即 agent」 | `server/agent-discovery.js` | 【码】 |
+| P2-9 | ~~event 边无去抖~~ **已修**：`add-event-wake-coalesce` 在窗口内合并同源消息，合并回合记录 `coalesced` 条数 | `server/fleet-event-wake.js:64-106`、`archive/2026-11-08-add-event-wake-coalesce/` | —— |
 
 ---
 

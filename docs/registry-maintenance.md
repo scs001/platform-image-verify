@@ -7658,6 +7658,44 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 `test-migrate-single-to-cell` 共 **89 条全绿**；产上 `/api/auth/me` 返回 `{"mode":"logto",...}`（200），
 登录面在 OIDC 重试改造后仍正常。
 
+### §15.138 续二十一：凭证出口收口——真派发抓到「env 明文」，0.5.49 改 secretKeyRef（11-08 续十一）
+
+- **0.5.48 只做了一半**：命令行确实不再带 `--db-url`，但用平台自己的 `launch_policy` 做**真派发**（`cheap/crawl-policy-2659-20261108071716`）后查 Job spec 发现，`FD_OPEN_DATA_MCP_DATABASE_URL` / `REDIS_URL` 仍是**字面 `env.value`**——`_common_env()` 直接把 `clusters.runtime_hints.database_url/redis_url`（cheap 行里带明文口令）写进容器环境，任何 `get pods -o yaml` 都能读到。**只会 grep 命令行就以为修完了，是这一次的教训。**
+- **修法**：`_common_env()` 两个变量一律改 `secretKeyRef`（`fd-db-secret` 的 `DATABASE_URL`/`REDIS_URL`），并在 cheap `scraw` 补齐同名 secret（原本只有 fd-master 有）。`runtime_hints` 字段保留以兼容旧集群，但**不再被注入**。回归单测断言两个变量都是 secretKeyRef、无字面 `value`。
+- **实证（0.5.49 / `sha-5d8fad5` 真派发 `cheap/crawl-policy-2659-20261108080842`）**：command = `/opt/venv/bin/python /src/bulk_ingest_astock_daily.py --universe --slice-all 8 --slice-sleep 20`（`--db-url`=False、`postgresql/psycopg2`=False）；`FD_OPEN_DATA_MCP_DATABASE_URL -> {secretKeyRef: fd-db-secret/DATABASE_URL}`、`REDIS_URL -> {secretKeyRef: fd-db-secret/REDIS_URL}`；其余非敏感项（cluster id/name、forwarder、PYTHONUNBUFFERED）仍是字面值。
+- **过程中的两个坑**：①派发 pod 必须跑**新镜像**才会用新 launcher 代码——第一次验证用的是 0.5.48 的 pod，Job 仍是明文，白验一轮；②平台**单飞**（single-flight）会挡住第二次触发（`{"status":"skipped","reason":"open run"}`），需先让上一轮 run 收口（跑一轮 reconciler tick 即可把 `failed` 收掉）。
+- **镜像链**：PyPI **simple index 一度只出现 1 条**（只有 sdist），镜像构建直接 `No matching distribution found for fd-open-data-mcp>=0.5.49` 失败；等 simple 计数到 3 再 `gh run rerun` 即成功。这条与 0.5.46 的 PyPI 滞后是同一类坑，判据仍是 **simple 计数 ≥2**。
+- **凭证面的现状**：日志（0.5.46）、命令行（0.5.48）、env（0.5.49）三处已全部收口；`fd-db-secret` 现同时存在于 fd-master 与 cheap `scraw`，轮换时**两处都要改**（已记入 [[dsh-envrefs-plaintext-per-cell]] 系同类）。
+
+### §15.138 续二十二：四条挂账全清，尾部落成不变量（11-08 收官）
+
+- **四条挂账终态**（每条都有真证据，见续十四~续二十一）：④ yfinance 出口——换 9 个出口全封、代理池+chrome124 指纹 27/45 通，真凶是 `proxy-fw` 镜像落后一代（无 `source_provider_routes`/无 mihomo），cheap-1 出片 `fd-proxy-service:sha-f9e677b` 滚六节点后 `instrumented_fetch` 出 **23 行真行情**；① 日增量改按票自身缺口（cap 30 天，`000016:2026-09-03→2026-10-10` 实证）；③ 标识表类型错配（1,793 删 + 561 改型 + 282 去重，`512660` 等不再解析到人）；② 凭证三处收口（日志 0.5.46 / 命令行 0.5.48 / env 明文 0.5.49→`secretKeyRef`，真派发 Job 实证）。
+- **尾部①：污染源的结论——历史遗留，当前代码无入口**。逐个读过所有写标识的路径：`entities/resolver.py` 的 `seed_stock_identifiers`/`seed_country_identifiers`、`scripts/sync_xb_entities.py` 的 `IDENTIFIER_SQL`、`scripts/seed_fund_managers.py` 的 person 标识 upsert——**全部按实体自身类型写**；`git log -S` 也查不到现存脚本会写 stock 型标识。会改 `entities.entity_type` 的只剩 `scripts/migrate_etf_to_fund.py`（etf↔fund，且只按标识**自身**类型标签兜底重写，不按所属实体）。所以污染是 v0.4.4 基金控制中心那代的一次性产物。
+- **尾部①收口=把它变成可执行不变量**：新增 `scripts/check_identifier_integrity.py`——凡 `i.entity_type <> e.entity_type` 且不在 5 个**明示延后类**里即 `exit 1`；延后类超 `--max-deferred`（默认 500）也失败。生产实跑：`5 个延后类 / 335 行 / 0 违规 / exit 0`（organization 240、country→city 36、industry 32、index 24、exchange 3）。单测钉住"`stock` on `person` 永远不得进延后名单"。
+- **尾部②：`nbs-stats` 路由已消失**。库里 `source_provider_routes` 现在只有 `fred → ['mihomo']`、`yfinance → ['mihomo']`（那条 `nbs-stats → ['mihomo-cn']` 已不在，`mihomo-cn` 的 provider 类仍只在另一会话的未提交改动里）；nbs 近 2h **921 成功 / 14 失败**，走默认梯子，健康。**注意这条是并发会话动过的，不是我的改动**——记录以区分责任边界。
+- **收官时的不变量清单**（下次交接照这个查）：①`openspec validate --specs --strict` = 17/17；②`scripts/check_identifier_integrity.py` = exit 0；③两 CronJob 与 `clusters.image` = `sha-5d8fad5`；④reconciler tick 日志 `Database initialized: …REDACTED@…`；⑤`source_provider_routes` 无指向未部署 provider 的行；⑥两集群无 `zz-*` 探针残留。
+
+### §15.138 续二十三：延后类不是"垃圾"，是**有承载的错位**——查到承载后主动停手（11-08 续十二）
+
+- **我原本打算把剩下 335 行一并清掉，量完发现不能删**。5 个延后类逐类取样后的真面目：
+  - `stock on organization` 240 行 / 80 实体 —— 基金公司（景顺长城、易方达）身上挂着 `AEBIV`、`AED.L`
+  - `country on city` 36 / 18 —— 城市（北京/上海/深圳/悉尼）身上挂着 `CN`/`US`/`JP`/`NLD`
+  - `stock on industry` 32 / 16 —— 行业（医药生物 801150）身上挂着 `00712.HK`
+  - `stock on index` 24 / 8 —— 指数（中证全债 H11001）身上挂着 `AFYA`/`AG`
+  - `stock on exchange` 3 / 1 —— 交易所 XNAS 身上挂着 `AGFSW`
+  即：**别的实体的代码被挂到了这个实体上**，看着像垃圾。
+- **但它们是承重墙**：涉及的 **123 个实体，其"唯一"标识就是这些错配行**；同时这些 entity_id 上已经有 **13,288 条观测**（typed stock 8,500 / industry 3,911 / city 877，index/exchange 为 0）。删掉标识 = 这 1.3 万条数据变成**无法解析的孤儿**（dispatch 按标识表解析，没有标识就再也取不到）。
+- **处置：停手，不删**。真正的修法是**把观测与标识一起迁到正确实体**（按类逐批：HK 股票代码归到对应 stock 实体、国家码归到 country 实体、指数码归到 index 实体），属独立的数据迁移任务，不是一次 DELETE 能了结的。`check_identifier_integrity.py` 的 5 个延后类因此保留为**明示允许清单**（这正是它存在的意义：把"已知有承载的错位"与"新出现的错误"分开）。
+- **教训（写进纪律）**：清理数据前先问**"这行有没有承载"**——标识表的一行看着像元数据，实际是 dispatch 的解析键；本轮若按"看着像垃圾"直接删 335 行，会静默切断 1.3 万条观测的取数路径，而且监控上只会表现为"某些实体突然零产出"。
+
+### §15.138 续二十四：延后类分两半——零观测的三类已清（267 行），承重的两类留档（11-08 续十三）
+
+- **先量"承载"，再决定删不删**，量出来 5 类其实是两半：
+  - **零观测（纯残留）**：`stock on organization` 240 行 / 80 个基金公司实体（景顺长城、易方达身上挂 `AEBIV`/`AED.L`）、`stock on index` 24 / 8（中证全债身上挂 `AFYA`）、`stock on exchange` 3 / 1（XNAS 身上挂 `AGFSW`）——这些 entity_id 上**一条观测都没有**，删掉不影响任何取数。
+  - **承重（有数据挂靠）**：`country on city` 36 / 18（城市身上有 country 6,302 + city 877 条观测）、`stock on industry` 32 / 16（行业身上有 stock 8,500 + industry 3,911 条）。这些标识是那 123 个实体的**唯一**标识，删了 dispatch 就解析不到 → 取数静默归零。
+- **处置**：先快照（`/tmp/idfix-deferred-snapshot.tsv`，0600，267 行），再**删净零观测三类 267 行**；承重两类保留并写进允许清单。`check_identifier_integrity.py` 的 `DEFERRED` 从 6 组收窄到 **2 组**（`country/city`、`stock/industry`），被清掉的三类**此后一旦复现即判违规**。生产实跑：**2 组 / 68 行 / 0 违规 / exit 0**；单测硬断言 `DEFERRED == {("country","city"), ("stock","industry")}`。
+- **另一条被证伪的假设（重要）**：我原以为承重类可以"把观测与标识一起迁到正确实体"。实测 **121 个错位代码里 0 个能找到对应的 stock 实体**——根本没有目标可迁。所以承重类**不是"待迁"，是"无处可迁"**：要么先补建缺失的 stock 实体（真正的建模工作），要么就这么留着。这条已替代续二十三 里"迁到正确实体"的乐观说法。
+- **承接结论**：标识表的不一致从 2,971 行降到 **68 行**，且剩余 68 行有明确语义（城市身上的国家码、行业身上的港股码）和明确承载。要彻底清零，前置条件是**补建那 121 个代码对应的 stock 实体**——属建模任务，需单独立项，不在本轮。
 ### §15.138 续廿二（渠）：cell 崩溃台账上产——崩溃第一次变成「有数的」
 
 - **问题**：非预期退出只 `console.error`（`cell.error` 在内存），台账 `destroy_reason` 全空，
@@ -7699,3 +7737,30 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
   `headroomPct=-0.00295`、`projectedBytes 4307641056 > limit 4294967296` —— **唤醒被内存闸拒过**
   （投影超限），拒醒次数目前只留最后一次。另：公开快照 CI 的 biome 红在别人三笔文件
   （`gateway/packs.js`、`test-fleet-descendant-reports.mjs`、`test-main-chain-priority.mjs`），不挡 image 流水线。
+
+### §15.138 续二十五：活着的写入 bug 定谳——code→entity 映射只信标识类型；「重归位」被证伪两次（11-08 续十四）
+
+- **仍在写**：那 8,500 条 `financials.*` 错位观测**最新到 2026-09-30**，说明有在跑的写入口。定位到 `scripts/bulk_ingest_financials_aggregate.py::load_code_map`：它从 `entity_source_identifiers WHERE entity_type='stock'` 直接建 `{code: entity_id}` 且**后写覆盖先写**。行业实体 2053（医药生物 801150）身上挂着 `00712`（标成 stock），于是 `000712` 解析到**行业**，锦龙股份的报表就写进了医药生物。
+- **修法（已上产，`3225f4d`）**：**五个** ingest 的 code→entity 映射全部改为 `JOIN entities e ON e.id=i.entity_id ... AND e.entity_type=:et`——**标识上的 `entity_type` 是声明、不是事实**；聚合那支遇到同码冲突改为**保留首个并计数告警**（原来静默覆盖）。生产校验：新口径保留 **9,544** 行、剔除 **16** 行错位；`000712` 现在解析到真正的 stock 实体 3125。另加守卫测试扫描这五个脚本：任何 `FROM entity_source_identifiers` 后 260 字符内没有 `JOIN entities` 即失败。
+- **「重归位」两次被我自己的复核推翻，均未执行**：
+  1. 第一次：我报"121 个错位码 0 个有目标实体" → 错在**没做 zfill**（`00712` vs `000712`）。
+  2. 第二次（更危险）：补上 zfill 后算出 16 个"有目标、零键冲突"的漂亮方案（`00712→3125 锦龙股份`、`02001→584 新和成`…），差一步就执行。**自查目标身份发现是假匹配**：这些代码是**港股 5 位码**（`00712`/`01377`/`01586`，各带 `.HK` 孪生），zfill 到 6 位恰好撞上**毫不相干**的 A 股公司。零键冲突恰恰因为冲突发生在**公司之间**、不在行之间。
+  3. 最终分类：行业实体上 32 条 `stock` 标识 = **26 条港股 5 位码 + 6 条 ETF 代码**（`159133/159291/159834`，`.SZ` 孪生，挂在国防军工/计算机/传媒上）——**没有一条是真 A 股代码**。所以既无可迁之处，也不该迁。
+- **用户可见的风险（要点，待裁）**：这些行业 entity_id 上还躺着 `price` 1,173 条、`financials` 7,327 条（按家族：financials 7,327 / pwr 3,599 / price 1,173 / expr 254 / film 58）——**按 entity_id 查「国防军工」的行情会返回某只 ETF 的价格**。数据是真的但归属错，对外读面会串。处置只有两条：**为这些港股/ETF 建实体后迁走**，或**删掉这批错位观测**（破坏性，需你点头）。标识本身安全留着（守卫把它列在允许清单，且已挡在写入口之外）。
+- **纪律三条**：①`entity_type` 存的是**声明**，凡按它做关联/映射的地方都要 JOIN 回实体核对类型；②**迁移前先核目标实体身份**（名称 vs 代码），零键冲突不代表映射正确；③跨市场同码是真实存在的地雷——港股 5 位码 zfill 成 6 位必然撞 A 股。
+
+### §15.138 续二十六：读侧也补齐——series 读取按概念类型约束（0.5.50 / `sha-3d1ee01`）（11-08 续十五）
+
+- **续二十五 留的风险不是虚的，但口径要修正**：那 8,500 条错位观测（`financials` 7,327 + `price` 1,173）挂在 16 个**行业** entity_id 上。逐个读面核过：
+  - `analysis/backend.py::time_series` —— `filter(entity_type == entity_type)`，**安全**（按 industry 查看不到 stock 行）；
+  - `hotel_tools.py` 的 REVPAR/ADR/occupancy 分支 —— 硬编码 `o.entity_type='stock'`，按 industry id 查**取不到**，**安全**；
+  - **`hotel_tools.py::hotel_series` 通用路径 —— 只按 `concept_id`(+可选 `source_used`/`entity_id`) 过滤，完全没有 `entity_type` 约束**。它接受"任意概念码 + 任意 entity_id"，所以拿行业 id 去查 `financials.*`/`price.*` **能取到错位行**。这是真的洞。
+- **修法（比逐个调用方检查更根治）**：让 series 读取天然按**概念自身的 `entity_type`** 约束——概念是 stock，观测就必须是 stock：
+  ```python
+  where = ["o.concept_id = :cid", "o.entity_type = :cet"]
+  params["cet"] = concept["entity_type"]
+  ```
+  一个 series 只属于同类型实体，跨类混读从此不可能。加回归测试断言该谓词与绑定参数（不是断言"调了某函数"，而是断言 SQL 与参数）。
+- **至此错配数据读写两端都封住**：写侧=五个 ingest 的 code→entity 映射 JOIN entities（`3225f4d`，生产 9,544 保留 / 16 剔除）；读侧=series 按概念类型约束（`11c4ada`）。错位行本身仍留在库里（归属真、位置错），但既进不了写路径、也读不出来。
+- **发布链**：0.5.50 → `sha-3d1ee01`（tcr-relay 17:27:04 OK，145s）→ 两 CronJob 滚动 + `clusters.image` id9 + 清单对齐（`9978077`）→ 新镜像 tick 实测 `schema gate passed` / `Database initialized: …REDACTED@…` / `launched: []`。specs 17/17。
+- **仍然待裁（不变）**：那 8,500 条错位观测 + 32 条错标标识（26 港股码 + 6 ETF 码，无一可迁）怎么处置——建实体迁走 or 删除。标识已挡在写入口外、数据已挡在读面外，所以**不处置也不会再污染**，只是它们本身是错的。

@@ -799,12 +799,118 @@ const RUN_DETAIL = {
   ],
 };
 
+// An open run: the cockpit's stop control only exists while a run is still
+// running (explore P2-6 — the backend could always stop one, the UI had no
+// entry point).
+const RUN_OPEN = {
+  runId: "run_open", rootSource: "cron", rootMemberId: "ceo", rootMemberTitle: "CEO",
+  startedAt: 1000, endedAt: null, durationMs: null, status: "open", turns: 1, okCount: 0, failedCount: 0,
+  usage: { input: 40, output: 8 }, stoppedAt: null, stopReason: null,
+};
+
+const RUN_OPEN_DETAIL = {
+  run: RUN_OPEN,
+  turns: [
+    { id: 11, memberId: "ceo", source: "cron", status: "ok", errorKind: null, error: null, model: "deepseek", startedAt: 1000, endedAt: 2000, sessionId: "cron-ceo-open", turnId: "t_open_ceo", runId: "run_open", parentTurnId: null, edgeKind: null, usage: { input: 40, output: 8 }, traceTurnId: null },
+    { id: 12, memberId: "inv", source: "manual", status: "interrupted", errorKind: null, error: "interrupted", model: "deepseek", startedAt: 2100, endedAt: 2400, sessionId: "task-t_open_inv", turnId: "t_open_inv", runId: "run_open", parentTurnId: "t_open_ceo", edgeKind: "handoff", usage: { input: 0, output: 0 }, traceTurnId: null },
+  ],
+};
+
 const TRACE_INV = [
   { seq: 1, ts: 2300, method: "session.event", eventType: "tool/call", summary: "call", payload: { event: { data: { callId: "c1", name: "web_search", arguments: "{}" } } } },
   { seq: 2, ts: 2500, method: "session.event", eventType: "tool/result", summary: "result", payload: { event: { data: { callId: "c1", resultText: "ok" } } } },
   { seq: 3, ts: 2600, method: "session.event", eventType: "tool/call", summary: "call", payload: { event: { data: { callId: "c2", name: "save_file", arguments: "{}" } } } },
   { seq: 4, ts: 2900, method: "session.event", eventType: "tool/result", summary: "result", payload: { event: { data: { callId: "c2", resultText: "ok" } } } },
 ];
+
+test.describe("fleet run stop", () => {
+  let cancelCalls = 0;
+  test.beforeEach(async ({ page }) => {
+    cancelCalls = 0;
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Canvas Fleet", state: "active", memberCount: 3, statusCounts: { on_duty: 3 } }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs?**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 1, runs: [RUN_OPEN] }) }),
+    );
+    // The detail read reflects the stop once the cancel landed — the same way
+    // the real route reads the stamped header back.
+    await page.route(`**/api/fleets/${FLEET_ID}/runs/run_open`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(
+          cancelCalls > 0
+            ? { run: { ...RUN_OPEN, status: "interrupted", stoppedAt: 2500, stopReason: "owner stop" }, turns: RUN_OPEN_DETAIL.turns }
+            : RUN_OPEN_DETAIL,
+        ),
+      }),
+    );
+    // The cancel endpoint: the stub records the call and answers like the real
+    // route (stamped run + how many in-flight turns it aborted). The follow-up
+    // detail read then shows the stopped run, so the pill is assertable.
+    await page.route(`**/api/fleets/${FLEET_ID}/runs/run_open/cancel`, async (route) => {
+      cancelCalls += 1;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          cancelled: true,
+          alreadyStopped: false,
+          abortedTurns: 1,
+          run: { ...RUN_OPEN, status: "interrupted", stoppedAt: 2500, stopReason: "owner stop" },
+        }),
+      });
+    });
+    await page.route(`**/api/fleets/${FLEET_ID}/runs?status=&source=`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ total: 1, runs: [{ ...RUN_OPEN, status: "interrupted", stoppedAt: 2500, stopReason: "owner stop" }] }),
+      }),
+    );
+  });
+
+  test("an open run offers stop; confirming cancels exactly once and the header reports the stop", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+    // The newest run is auto-selected on first load, so the detail panel is
+    // already open — clicking the row again would TOGGLE it shut.
+    const detail = runs.locator("[data-testid^='run-detail-']");
+    await expect(detail).toBeVisible();
+    const stop = detail.getByTestId("run-stop");
+    await expect(stop).toBeVisible();
+    await expect(stop).toHaveText("Stop this run");
+
+    // Confirmation is required — the destructive action is never one click.
+    await stop.click();
+    const dialog = page.getByTestId("confirm-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("data-variant", "danger");
+    await expect(dialog).toContainText("Stop this run?");
+    expect(cancelCalls).toBe(0);
+
+    // Cancelling the dialog changes nothing.
+    await dialog.getByTestId("confirm-dialog-cancel").click();
+    await expect(dialog).toBeHidden();
+    expect(cancelCalls).toBe(0);
+    await expect(stop).toBeVisible();
+
+    // Confirming stops it: one call, an honest notice, and the stopped pill
+    // replaces the button (the run is no longer stoppable).
+    await stop.click();
+    await page.getByTestId("confirm-dialog").getByTestId("confirm-dialog-confirm").click();
+    await expect.poll(() => cancelCalls).toBe(1);
+    await expect(runs.getByTestId("run-stop-notice")).toContainText("interrupted 1 in-flight turn");
+    await expect(runs.getByTestId("run-stopped")).toContainText("owner stop");
+    await expect(runs.getByTestId("run-stop")).toHaveCount(0);
+  });
+});
 
 test.describe("fleet runs timeline", () => {
   test.beforeEach(async ({ page }) => {

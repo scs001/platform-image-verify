@@ -1209,7 +1209,9 @@
           "placeholder": "Elige uno de tus sistemas conectados…",
           "empty": "Ninguno de tus sistemas conectados cubre lo que necesita este paquete: conecta uno en la consola del conector.",
           "unavailable": "No se pudieron leer tus sistemas conectados en este momento.",
-          "currentNotUsable": "elegido actualmente, no disponible"
+          "currentNotUsable": "elegido actualmente, no disponible",
+          "emptyButRejected": "Tus sistemas conectados no cubren lo que necesita este paquete:",
+          "gapsMissing": "falta {{gaps}}"
         },
         "summaryUnmapped": "{{count}} esperando tu elección",
         "browseCatalog": "Ver el directorio de aplicaciones"
@@ -1957,7 +1959,16 @@
       "outcomes": "Qué obtienes",
       "coverage": "Esta entrada cubre {{covered}}/{{total}} campos de superficie en {{locale}}",
       "coverageFull": "Superficie completamente cubierta en {{locale}}",
-      "coverageMissing": "Campos faltantes"
+      "coverageMissing": "Campos faltantes",
+      "bindingsReady": "{{count}} enlace(s) de conector listos ({{keys}})",
+      "bindingsFailed": "{{count}} enlace(s) de conector sin preparar ({{keys}}): conecta el sistema y vuelve a desplegar para emitirlos",
+      "bindingsRevoked": "Se revocaron {{count}} token(s) de enlace que ya no hacían falta",
+      "bindingReason": {
+        "no_account": "No hay ninguna cuenta de conector conectada, así que no hay identidad de la que atenuar",
+        "empty_scope": "El enlace no declara ninguna superficie de lectura/escritura autorizable",
+        "connector_not_configured": "Este despliegue no tiene conector configurado",
+        "other": "Fallo inesperado ({{code}})"
+      }
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -3185,6 +3196,18 @@
       "noTrace": "sin trace",
       "filterMember": "Filtrar por puesto",
       "allMembers": "Todos los puestos",
+      "stopRun": "Detener esta ejecución",
+      "stopTitle": "¿Detener esta ejecución?",
+      "stopBody": "Los turnos en curso se interrumpen y quedan registrados como interrumpidos; los turnos finalizados y sus informes se conservan. No se encadenarán más traspasos ni despliegues desde esta ejecución.",
+      "stopConfirm": "Detener la ejecución",
+      "stopCancel": "Dejarla seguir",
+      "stopping": "Deteniendo…",
+      "stopDone": "Detenida: se interrumpieron {{turns}} turno(s) en curso.",
+      "stopAlready": "Esta ejecución ya estaba detenida.",
+      "stopFailed": "No se pudo detener: {{error}}",
+      "stopped": "Detenida",
+      "stoppedWithReason": "Detenida ({{reason}})",
+      "stopReasonDefault": "Detenida por el propietario desde el panel",
       "noMatch": "Ninguna ejecución de este puesto en esta página"
     },
     "inspector": {

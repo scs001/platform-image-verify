@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  cancelRun,
   getRun,
   getTurnTrace,
   listRuns,
@@ -22,6 +23,9 @@ import {
   type RunListEntry,
   type ToolSpan,
 } from "@/api/fleets-api";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { StatusPill } from "@/components/ui/status-pill";
 import { useFleetStore } from "@/store/fleet-store";
 
 const PAGE = 20;
@@ -64,6 +68,11 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [spans, setSpans] = useState<Record<string, ToolSpan[]>>({});
   const [error, setError] = useState<string | null>(null);
+  // Stop-a-run (explore P2-6): confirmation FIRST — this interrupts live turns,
+  // and an irreversible-feeling action must not be one stray click away.
+  const [confirmStop, setConfirmStop] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
 
   // Auto-select the newest run on the FIRST successful list load only
   // (add-cockpit-ux-polish): the waterfall is immediately visible without an
@@ -128,6 +137,37 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
       alive = false;
     };
   }, [fleetId, selected]);
+
+  // Stop the selected run. Async by nature (the abort reaches the running
+  // child), so the dialog closes on success and the notice states what actually
+  // happened — including "it had already stopped", which is not a failure but
+  // must not read as "we just did something".
+  const stopSelectedRun = useCallback(async () => {
+    if (!detail) return;
+    const runId = detail.run.runId;
+    setStopping(true);
+    setStopNotice(null);
+    try {
+      const res = await cancelRun(fleetId, runId, t("fleets.runs.stopReasonDefault"));
+      setStopNotice(
+        res.alreadyStopped
+          ? t("fleets.runs.stopAlready", { run: runId })
+          : t("fleets.runs.stopDone", { run: runId, turns: res.abortedTurns }),
+      );
+      const fresh = await getRun(fleetId, runId).catch(() => null);
+      if (fresh) setDetail(fresh);
+      const list = await listRuns(fleetId, { status: status || undefined, source: source || undefined, limit: PAGE, offset }).catch(() => null);
+      if (list) {
+        setRuns(list.runs);
+        setTotal(list.total);
+      }
+    } catch (e) {
+      setStopNotice(t("fleets.runs.stopFailed", { error: String((e as Error)?.message ?? e) }));
+    } finally {
+      setStopping(false);
+      setConfirmStop(false);
+    }
+  }, [detail, fleetId, status, source, offset, t]);
 
   // Leaving the timeline (or the fleet) must never strand a replay cursor.
   useEffect(
@@ -328,7 +368,7 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
 
         {detail && window ? (
           <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-3" data-testid={`run-detail-${detail.run.runId}`}>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-medium">{t("fleets.runs.waterfall")}</span>
               <span className="text-muted-foreground">
                 {new Date(window.start).toLocaleTimeString()} → {new Date(window.end).toLocaleTimeString()}
@@ -338,7 +378,36 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
                   {t("fleets.runs.replaying")}
                 </span>
               ) : null}
+              {/* The owner's stop (explore P2-6): the backend could always stop a
+                  run — without this control the only way was SQL. Offered only
+                  while the run is still open; once stopped, the header says who
+                  stopped it and why instead of looking like a finished run. */}
+              {detail.run.stoppedAt != null ? (
+                <StatusPill
+                  status="paused"
+                  label={detail.run.stopReason
+                    ? t("fleets.runs.stoppedWithReason", { reason: detail.run.stopReason })
+                    : t("fleets.runs.stopped")}
+                  data-testid="run-stopped"
+                />
+              ) : detail.run.status === "open" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7 px-2 text-xs"
+                  onClick={() => { setStopNotice(null); setConfirmStop(true); }}
+                  data-testid="run-stop"
+                >
+                  {t("fleets.runs.stopRun")}
+                </Button>
+              ) : null}
             </div>
+            {stopNotice ? (
+              <p className="text-xs text-muted-foreground" data-testid="run-stop-notice">
+                {stopNotice}
+              </p>
+            ) : null}
 
             {/* The waterfall: lanes grid + absolute-positioned turn bars and
                 an SVG overlay for chain connectors and the replay cursor. */}
@@ -445,6 +514,18 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
           </div>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        open={confirmStop}
+        onOpenChange={(open) => { if (!stopping) setConfirmStop(open); }}
+        title={t("fleets.runs.stopTitle")}
+        description={t("fleets.runs.stopBody")}
+        confirmLabel={stopping ? t("fleets.runs.stopping") : t("fleets.runs.stopConfirm")}
+        cancelLabel={t("fleets.runs.stopCancel")}
+        variant="danger"
+        closeOnConfirm={false}
+        onConfirm={() => { void stopSelectedRun(); }}
+      />
     </details>
   );
 }

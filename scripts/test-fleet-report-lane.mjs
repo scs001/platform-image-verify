@@ -385,7 +385,14 @@ test("fleet-context: renders child slots, blockers, overview; no-children segmen
   assert.match(text, /本周销售额（\$）: \$309/);
   assert.match(text, /库存告急/);
   assert.match(text, /今日大促/);
-  assert.ok(!text.includes("孙岗报数"), "only DIRECT children render");
+  // fix-fleet-descendant-reports MOVED this contract: the grandchild used to be
+  // invisible (the hierarchy relay was the only channel and no tool read other
+  // posts' reports). It still must not render as a DIRECT-child block — its
+  // material arrives in the separate, clearly-labelled deeper segment.
+  assert.ok(!/### 孙岗\n/.test(text), "not as a direct-child block");
+  assert.match(text, /【更深层报数（直接下级的下级及以下）】/);
+  assert.match(text, /### 孙岗（第 2 层｜CEO > 电商部）/, "but present, labelled with its layer and path");
+  assert.match(text, /孙岗报数/, "with its latest report");
 
   const _lonely = fixtureMember(fleetDb, fleet.id, { id: "m_solo", title: "独立岗", targetId: "persona-solo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
   const soloText = await buildFleetContext({ fleetId: fleet.id, memberId: "m_solo" }, {}, contextDeps(fleetDb));

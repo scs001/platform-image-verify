@@ -1,4 +1,6 @@
-# Proposal — fix-fleet-turn-budget
+# Proposal — fix-fleet-output-salvage
+
+> 原拟名 `fix-fleet-turn-budget` 与 2026-11-08 早先归档的同名 change 相撞；本题实为「点名上下文压力 + 抢救报数」，故改名。
 
 ## Why
 

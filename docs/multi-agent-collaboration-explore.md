@@ -351,6 +351,11 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
                                costUsd+pricedTurns、owner board 累加；有意推翻 add-turn-pricing D4a，
                                并用「回合行与日汇总必须一致」交叉校验钉住；镜像内 12/12 绿）**
   ⑫ fix-report-edge            实现 report 边或从枚举删除（消除死语法）
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-fix-report-edge/`
+                               （镜像 sha-18d0c79；选"投影"第三条路——report 边由 `parentId` 派生
+                               （读时计算、标 derived），声明与树一致才收、矛盾则拒并指名真上级；
+                               顺带修模板投影没带 `parentId` 导致官方种子真声明被误判；克隆内全量
+                               439 文件/3938 条、3936 绿；镜像内 seed 断言跑不了=种子不打进镜像）**
   ⑬ add-event-wake-coalesce    event 边按 (botId, chatKey) 窗口去抖合并
 ```
 

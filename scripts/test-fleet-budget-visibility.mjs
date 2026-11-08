@@ -87,7 +87,7 @@ test("舰队聚合：多岗额度失败 → 报出人数/次数/最早时间；�
 });
 
 test("岗位连败归因带上 budget（卡面读的就是这个字段）", () => {
-  const { db, fleet, turn } = fixtureDb();
+  const { db, turn } = fixtureDb();
   turn("m1", { kind: "budget" });
   turn("m1", { kind: "budget" });
   const streak = db.failureStreak("m1");

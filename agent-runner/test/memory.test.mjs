@@ -26,7 +26,12 @@ const { MEMORY_DISCIPLINE } = YongYi;
 // npm publish). Until a rebuilt 0.1.2 lands, the four shape tests below
 // skip with an explicit reason and re-activate automatically on install.
 const MOUNT_EXPORTS = ["memoryNamespaceFor", "podMemoryNamespace", "dshMemoryMount", "acpMemoryMount"];
-const missingMountExports = MOUNT_EXPORTS.filter((k) => typeof YongYi[k] !== "function");
+const mountExportNames = new Set(
+  Object.entries(YongYi)
+    .filter(([, value]) => typeof value === "function")
+    .map(([name]) => name),
+);
+const missingMountExports = MOUNT_EXPORTS.filter((name) => !mountExportNames.has(name));
 const mountsSkip = missingMountExports.length
   ? `SDK 0.1.1 published a stale dist without the mounts module (missing: ${missingMountExports.join(", ")}) — fd-memory/sdk needs a rebuild + 0.1.2 publish + npm install; these shape assertions activate automatically then`
   : false;

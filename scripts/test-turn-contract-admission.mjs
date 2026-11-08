@@ -26,7 +26,8 @@ process.env.DSH_HOME = path.join(tmpRoot, "dsh");
 fs.mkdirSync(process.env.DSH_HOME, { recursive: true });
 fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
 
-const engine = await import("../task-engine.js");
+// Engine imported for its module side effects (the route module reads it).
+await import("../task-engine.js");
 const { createFleetDatabase } = await import("../server/routes/fleets-db.js");
 const { createFleetTurnLedger } = await import("../server/fleet-runs.js");
 const { recordTurnEvent } = await import("../server/fleet-events.js");

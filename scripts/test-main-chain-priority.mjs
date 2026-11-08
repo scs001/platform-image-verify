@@ -107,7 +107,7 @@ test("a human wake jumps executions that have not started", async () => {
 });
 
 test("human wakes keep their own arrival order", async () => {
-  const a = make("A");
+  make("A"); // side effect only: this case never reads A's id
   await until(() => order.length === 1, "A running");
   const h1 = make("H1", { humanPriority: true });
   const h2 = make("H2", { humanPriority: true });

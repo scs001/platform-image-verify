@@ -39,6 +39,13 @@ async function gotoFreshChat(page) {
 
 test.describe("official starter teams", () => {
   test("fresh help center shows the ordered sequence and nothing auto-installs", async ({ page }) => {
+    // The e2e suite shares ONE server, so /api/fleets is not empty by the time
+    // this spec runs — earlier specs provision fleets and leave them. The
+    // contract under test is "rendering the help sequence installs nothing",
+    // so measure the delta instead of asserting global emptiness (that
+    // assertion was green on a machine where this spec ran first and red in
+    // CI's full sequence — run 42460822790).
+    const fleetsBefore = ((await (await page.request.get("/api/fleets")).json()).fleets ?? []).length;
     await gotoFreshChat(page);
     await page.getByTestId("composer-input").fill("/help");
     await page.keyboard.press("Escape"); // dismiss the slash picker, keep the text
@@ -54,9 +61,11 @@ test.describe("official starter teams", () => {
     await expect(first).toContainText("客服班组");
     await expect(first).toContainText("三岗");
 
-    // No auto-install: the sequence rendered, zero fleets exist.
-    const fleets = await (await page.request.get("/api/fleets")).json();
-    expect((fleets.fleets ?? []).length).toBe(0);
+    // No auto-install: the sequence rendered and the fleet count did not move.
+    const fleetsAfter = ((await (await page.request.get("/api/fleets")).json()).fleets ?? []).length;
+    expect(fleetsAfter, `fleets went ${fleetsBefore} → ${fleetsAfter} across the /help render`).toBe(
+      fleetsBefore,
+    );
   });
 
   test("installing the preferred starter provisions a paused three-post fleet", async ({ page }) => {

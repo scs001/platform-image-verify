@@ -31,7 +31,12 @@
 
 ## 5. 上线
 
-- [ ] 5.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 5.1 出片滚版 → 已在产（快照取自远端线 50245ed02 → GHA `sha-c721105`，digest `sha256:b0b76953`，
+      relay 120s；fd-infra-deploy `60b8f48` 双 bump → ArgoCD 75s → 两 rollout 完成；
+      镜像内 `keepFleetContextPlaceholder` cron.js×2 / fleets.js×1、套件 4/4 绿）
+      ⚠️ 过程事故：先滚了并发线的 `sha-d145aaf`，其快照基线早于本提交 → 镜像内 grep 为 0。
+      教训已落：**出片/滚版前必须验「这棵树/这片镜像含不含该提交」**（本次改为对快照树 grep + 核基线 sha），
+      不能只核「提交在分支上」
 - [ ] 5.2 观察项：滚版后点一次「立即执行」，确认该回合 prompt 含巡视上下文且裁定只出现一次
 
 ## 6. 挂账（不在本变更）

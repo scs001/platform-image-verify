@@ -204,7 +204,13 @@ test("market tab: the dock carries the facet line and the pack context flows int
   await page.getByTestId("copilot-fab").click();
   await expect(page.getByTestId("copilot-frame")).toBeVisible({ timeout: 15000 });
   const frame = copilotFrame(page);
-  await expect.poll(() => frame?.url() ?? "", { timeout: 15_000 }).toContain("board=facet");
+  // 30s, not 15: the embed is a same-origin iframe whose document load competes
+  // with the harness's own API traffic. Alone the frame commits in ~1s, but in
+  // the full 685-test run the server is saturated by other workers and 15s has
+  // been observed to elapse before the navigation commits — the src attribute is
+  // already correct by then, so a tighter budget reports "no board context" for
+  // a frame that is merely queued behind the run's other work.
+  await expect.poll(() => frame?.url() ?? "", { timeout: 30_000 }).toContain("board=facet");
   expect(frame.url()).toContain("preset=facet-assistant");
   // The embed applies the focused preset: wait for the app to mount (the bar
   // implies the store is wired), then simulate the runtime's agent_changed.
@@ -238,7 +244,13 @@ test("market tab without the assistant pack: honest hint, no preset", async ({ p
   await page.getByTestId("copilot-fab").click();
   await expect(page.getByTestId("copilot-frame")).toBeVisible({ timeout: 15000 });
   const frame = copilotFrame(page);
-  await expect.poll(() => frame?.url() ?? "", { timeout: 15_000 }).toContain("board=facet");
+  // 30s, not 15: the embed is a same-origin iframe whose document load competes
+  // with the harness's own API traffic. Alone the frame commits in ~1s, but in
+  // the full 685-test run the server is saturated by other workers and 15s has
+  // been observed to elapse before the navigation commits — the src attribute is
+  // already correct by then, so a tighter budget reports "no board context" for
+  // a frame that is merely queued behind the run's other work.
+  await expect.poll(() => frame?.url() ?? "", { timeout: 30_000 }).toContain("board=facet");
   expect(frame.url()).not.toContain("preset=");
   await expect(frame.getByTestId("copilot-focus")).toHaveAttribute("data-state", "unfocused", { timeout: 15000 });
 });

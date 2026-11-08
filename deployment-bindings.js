@@ -103,21 +103,21 @@ async function callChannel({ path, body, fetchImpl = fetch }) {
  * a split deployment stops reporting "the user never connected" for what is
  * really "this process cannot see them".
  */
-export async function mintBindingViaChannel({ email, packId, agentId, bindingKey, provider, operations, fetchImpl = fetch }) {
-  const out = await callChannel({
-    path: "/api/gateway/binding-mint",
-    body: { email, packId, agentId, bindingKey, provider, operations },
+export async function mintBindingsViaChannel({ email, packId, agentIds, fetchImpl = fetch }) {
+  // One round trip for the whole deployment: the cell owns the ledger AND the
+  // credential, so it is the only side that can answer "what does this need".
+  return callChannel({
+    path: "/api/gateway/binding-mint-batch",
+    body: { email, packId, agentIds: [...new Set(agentIds ?? [])] },
     fetchImpl,
   });
-  if (!out.ok) return { ok: false, bindingKey, code: out.code };
-  return { ok: true, bindingKey, name: out.name, secretRef: out.secretRef, secretValue: out.secretValue, patId: out.patId ?? null };
 }
 
 /** Revoke through the credential owner (same split as the mint). */
-export async function revokeBindingsViaChannel({ email, packId, agentIds = null, keepKeys = null, fetchImpl = fetch }) {
+export async function revokeBindingsViaChannel({ email, packId, agentIds = null, fetchImpl = fetch }) {
   return callChannel({
     path: "/api/gateway/binding-revoke",
-    body: { email, packId, agentIds, keepKeys },
+    body: { email, packId, agentIds },
     fetchImpl,
   });
 }
@@ -211,6 +211,26 @@ export async function mintDeploymentBindings({ email, packId, agentIds, record, 
   // (`no_account` = the person really has none), while the split topology always
   // carries the env and therefore reports the owner's answer instead.
   const local = hasLocalConnectorAccount(email) || !credentialChannel();
+  if (!local) {
+    const batch = await mintBindingsViaChannel({ email, packId, agentIds, fetchImpl });
+    if (!batch.ok) {
+      const failed = [...new Set(agentIds)].flatMap((agentId) =>
+        mintable.map((binding) => ({ agentId, ok: false, bindingKey: binding.bindingKey, code: batch.code ?? "channel_failed", via: "channel" })),
+      );
+      return { granted: [], failed, keys: mintable.map((b) => b.bindingKey), skipped: db.listConnectorBindingLedger(email, packId).length - mintable.length };
+    }
+    const granted = [];
+    for (const row of batch.granted ?? []) {
+      record({ packId, agentId: row.agentId, name: row.name, secretRef: row.secretRef, secretValue: row.secretValue, deployer: email });
+      granted.push({ agentId: row.agentId, ok: true, bindingKey: row.bindingKey, name: row.name, ...(row.patId ? { patId: row.patId } : {}), via: "channel" });
+    }
+    return {
+      granted,
+      failed: (batch.failed ?? []).map((f) => ({ agentId: f.agentId, ok: false, bindingKey: f.bindingKey, code: f.code, via: "channel" })),
+      keys: batch.keys ?? mintable.map((b) => b.bindingKey),
+      skipped: db.listConnectorBindingLedger(email, packId).length - mintable.length,
+    };
+  }
   for (const agentId of agentIds) {
     for (const binding of mintable) {
       const result = local
@@ -299,7 +319,7 @@ export async function pruneDeploymentBindings({ email, packId, agentIds, keepKey
   for (const row of staleSecrets) remove(row.agentId, row.name);
 
   if (!hasLocalConnectorAccount(email) && credentialChannel()) {
-    const viaChannel = await revokeBindingsViaChannel({ email, packId, agentIds: agents, keepKeys: keys, fetchImpl });
+    const viaChannel = await revokeBindingsViaChannel({ email, packId, agentIds: agents, fetchImpl });
     return {
       removedSecrets: staleSecrets.map((r) => ({ agentId: r.agentId, name: r.name })),
       revoked: viaChannel.revoked ?? [],
@@ -336,7 +356,7 @@ export async function revokeDeploymentBindingsForPack({ email, packId, secrets, 
   for (const row of rows) remove(row.agentId, row.name);
 
   if (!hasLocalConnectorAccount(email) && credentialChannel()) {
-    const viaChannel = await revokeBindingsViaChannel({ email, packId, keepKeys: [], fetchImpl });
+    const viaChannel = await revokeBindingsViaChannel({ email, packId, agentIds: [], fetchImpl });
     return {
       removedSecrets: rows.length,
       revoked: viaChannel.revoked ?? [],

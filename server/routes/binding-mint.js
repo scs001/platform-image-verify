@@ -64,20 +64,64 @@ export function registerBindingMintRoutes(app) {
     });
   });
 
+  // Batch door: the ledger that decides WHICH bindings are mintable also lives in
+  // the cell, so the market plane cannot even enumerate them. It asks for "what
+  // this deployment needs" and gets the minted rows back.
+  app.post("/api/gateway/binding-mint-batch", express.json({ limit: MAX_BODY }), async (req, res) => {
+    if (!fromGateway(req)) return res.status(401).json({ ok: false, code: "unauthorized" });
+    const { email, packId, agentIds } = req.body || {};
+    if (typeof email !== "string" || !email.trim()) return badRequest(res, "email is required");
+    if (typeof packId !== "string" || !packId) return badRequest(res, "packId is required");
+    const agents = Array.isArray(agentIds) ? agentIds.filter((a) => typeof a === "string" && a) : [];
+    if (!connectorCredentials.liveToken(email)) {
+      return res.status(409).json({ ok: false, code: "no_account" });
+    }
+    const mintable = deploymentBindings.mintableBindings({ email, packId });
+    const granted = [];
+    const failed = [];
+    for (const agentId of agents) {
+      for (const binding of mintable) {
+        const minted = await deploymentBindings.mintBindingForAgent({
+          email,
+          packId,
+          agentId,
+          bindingKey: binding.bindingKey,
+          provider: binding.provider,
+          operations: binding.operations,
+        });
+        if (minted.ok) {
+          granted.push({
+            agentId,
+            bindingKey: minted.bindingKey,
+            name: minted.name,
+            secretRef: minted.secretRef,
+            secretValue: minted.secretValue,
+            patId: minted.patId ?? null,
+          });
+        } else {
+          failed.push({ agentId, bindingKey: binding.bindingKey, code: minted.code ?? "mint_failed" });
+        }
+      }
+    }
+    res.json({ ok: true, granted, failed, keys: mintable.map((b) => b.bindingKey) });
+  });
+
   app.post("/api/gateway/binding-revoke", express.json({ limit: MAX_BODY }), async (req, res) => {
     if (!fromGateway(req)) return res.status(401).json({ ok: false, code: "unauthorized" });
-    const { email, packId, agentIds, keepKeys } = req.body || {};
+    const { email, packId, agentIds } = req.body || {};
     if (typeof email !== "string" || !email.trim()) return badRequest(res, "email is required");
     if (typeof packId !== "string" || !packId) return badRequest(res, "packId is required");
     if (!connectorCredentials.liveToken(email)) {
       return res.status(409).json({ ok: false, code: "no_account" });
     }
     try {
+      // The keep-set is the ledger's answer, and the ledger lives here.
+      const keepKeys = deploymentBindings.mintableBindings({ email, packId }).map((b) => b.bindingKey);
       const out = await deploymentBindings.pruneDeploymentBindings({
         email,
         packId,
         agentIds: Array.isArray(agentIds) ? agentIds : [],
-        keepKeys: Array.isArray(keepKeys) ? keepKeys : [],
+        keepKeys,
         // The caller owns the store; this side only revokes tokens.
         secrets: [],
         remove: () => {},

@@ -901,6 +901,9 @@ if (facetBase) {
         return res.status(503).json({ ok: false, code: timeout ? "cell_timeout" : "cell_unreachable" });
       }
     };
+    app.post("/api/gateway/binding-mint-batch", express.json({ limit: "16kb" }), (req, res) =>
+      relayToCell(req, res, "/api/gateway/binding-mint-batch"),
+    );
     app.post("/api/gateway/binding-mint", express.json({ limit: "16kb" }), (req, res) =>
       relayToCell(req, res, "/api/gateway/binding-mint"),
     );

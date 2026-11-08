@@ -17,6 +17,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { formatSearchAgentsText } from "./agent-discovery.js";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else.
@@ -79,12 +80,14 @@ function toolsFor(market) {
     {
       name: "search_agents",
       description:
-        "Search the ONLINE market Agent Services by keyword. Returns up to 8 candidates (id, name, description, category). " +
+        "Search the ONLINE market Agent Services by keyword. Returns up to 8 candidates (id, name, description, category) and " +
+        "states how many matched in total — when the list is capped it says so, so narrow the keyword or use limit to page. " +
         "Pick an id and pass it as delegate_task's agent parameter. An empty keyword lists the first candidates.",
       inputSchema: {
         type: "object",
         properties: {
           keyword: { type: "string", description: "Free-text keyword matched against id, name, description, category, tags." },
+          limit: { type: "number", description: "Optional page size (1–50, default 8). Only raise it when a broad keyword is all you have." },
         },
         required: [],
       },
@@ -134,13 +137,10 @@ async function toolDelegate({ persona, agent, prompt, name }) {
   );
 }
 
-async function toolSearchAgents({ keyword }) {
-  const { agents } = await call("GET", `/api/delegation/agents?search=${encodeURIComponent(keyword ?? "")}`);
-  if (!agents?.length) {
-    return textOut("No online market agents match — try another keyword, or drop the agent target.");
-  }
-  const lines = agents.map((a) => `- ${a.id} — ${a.name} (${a.category || "uncategorized"}): ${(a.description || "").slice(0, 120)}`);
-  return textOut(`Online market agents (${agents.length}):\n${lines.join("\n")}\nPass an id as delegate_task's agent parameter.`);
+async function toolSearchAgents({ keyword, limit }) {
+  const limitParam = Number.isFinite(Number(limit)) && Number(limit) > 0 ? `&limit=${Math.floor(Number(limit))}` : "";
+  const { agents, total, truncated } = await call("GET", `/api/delegation/agents?search=${encodeURIComponent(keyword ?? "")}${limitParam}`);
+  return textOut(formatSearchAgentsText({ agents: agents ?? [], total, truncated }));
 }
 
 function describeTask(t) {

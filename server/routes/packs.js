@@ -10,6 +10,7 @@
 // bodies through the edge.
 
 import * as packStore from "../../pack-store.js";
+import { revokeDeploymentBindingsForPack } from "../../deployment-bindings.js";
 import { fetchMarketManifest, fetchMarketDetail } from "../pack-manifest-source.js";
 import { projectPackList } from "../../lib/pack-locale.js";
 import { buildBundle, bundleFileName, fromBase64, readBundle, toBase64 } from "../offline-bundle.js";
@@ -411,7 +412,22 @@ export function registerPackRoutes(ctx) {
       // The pack root is gone: rewrite the skills patch so it stops listing
       // the dead root (full mode) — same rewrite/restart contract as install.
       await ctx.dshUpdateSkills?.().catch((e) => console.warn(`[packs] skills patch update failed: ${e.message}`));
-      res.json(result);
+      // Deployment-scoped connector bindings (add-deployment-binding-grant
+      // 2.3): uninstall is not undeploy — a pack can be gone from this cell
+      // while agents it published keep serving elsewhere, and revoking their
+      // credentials here would be a silent outage. The tokens die only once
+      // this cell holds no deployment of the pack.
+      let deploymentCleanup = null;
+      const registry = ctx.getPackRegistry?.() ?? null;
+      if (registry?.deployments?.(req.params.packId).length === 0) {
+        deploymentCleanup = await revokeDeploymentBindingsForPack({
+          email: req.user?.email ?? ctx.cellUserEmail ?? "owner@local",
+          packId: req.params.packId,
+          secrets: registry.deploymentSecretsForPack(req.params.packId),
+          remove: (agentId, name) => registry.deleteDeploymentSecret(req.params.packId, agentId, name),
+        }).catch((e) => ({ revoked: [], failed: [], code: e?.message || "unavailable" }));
+      }
+      res.json({ ...result, ...(deploymentCleanup ? { deploymentCleanup } : {}) });
     } catch (err) {
       res.status(err.status || 500).json({
         error: err.message,

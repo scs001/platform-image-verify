@@ -1209,7 +1209,9 @@
           "placeholder": "选择你已连通的系统…",
           "empty": "你已连通的系统都覆盖不了这个包需要的操作类——先去连接器里连一个。",
           "unavailable": "暂时读不到你已连通的系统。",
-          "currentNotUsable": "当前所选，暂不可用"
+          "currentNotUsable": "当前所选，暂不可用",
+          "emptyButRejected": "你已连通的系统满足不了这个包需要的操作类：",
+          "gapsMissing": "缺 {{gaps}}"
         },
         "summaryUnmapped": "{{count}} 项待你选定系统",
         "browseCatalog": "浏览应用目录"

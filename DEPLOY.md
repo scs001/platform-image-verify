@@ -1133,6 +1133,46 @@ The startup window is generous (`startupProbe` allows several minutes) because t
 
 ---
 
+## Unit suite (local)
+
+```bash
+npm run test:unit        # node --test --test-concurrency=1 scripts/test-*.mjs
+```
+
+Three prerequisites are **not** obvious and each one fails in a way that looks
+like a code regression (all hit on 2026-11-08):
+
+**1. Batch it.** A single run over all ~450 files gets interrupted (hundreds of
+cancelled, not failed). Split and run sequentially:
+
+```bash
+ls scripts/test-*.mjs | sort | split -l 40 - /tmp/batch-
+for b in /tmp/batch-*; do node --test --test-concurrency=1 $(cat $b); done
+```
+
+**2. `DSH_BIN` must point at a complete dsh runtime.** `scripts/test-session-resume.mjs`
+boots real dsh children; they resolve the profile's declared bundles
+(`@platform/supply-probe-bundle`, shipped as `dsh-matrix/samples/…`) **only** from
+the profile's own `node_modules`, which `dsh-profile.js` sources from
+`DSH_BIN`'s tree and otherwise from this repo's `node_modules` — where that
+package does not exist. Symptom: four resume tests fail together with
+`dsh: cannot resolve profile bundle "@platform/supply-probe-bundle"`.
+
+```bash
+DSH_BIN=$PWD/dsh-matrix/node_modules/@deepseek-ai/dsh/lib/bin.js npm run test:unit
+# or: (cd dsh-matrix && npm install)   # brings the file: sample dependency in
+```
+
+**3. `web/dist` must exist** for `scripts/test-cell-gateway.mjs` — the gateway
+serves the SPA shell to anonymous browsers, so a tree without a built `web/dist`
+returns 404 and the test reads as a broken route. `npm run web:build` once (or
+point at any existing build) before running the suite in a fresh worktree.
+
+Run from the repo root, never from a worktree that lacks `node_modules`,
+`dsh-matrix/node_modules` and `web/dist`.
+
+---
+
 ## Live service testing
 
 The repo ships a Playwright suite that runs **read-only** checks against the

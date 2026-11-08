@@ -27,7 +27,8 @@
 // never a failed turn (the seam wraps every call).
 
 import { randomUUID } from "node:crypto";
-import { buildTurnRequest } from "./turn-request.js";
+import { buildTurnRequest, assertTurnRequest } from "./turn-request.js";
+import { constraintsOf } from "./fleet-orchestration.js";
 import { resolveTurnPost, recordTurnEvent } from "./fleet-events.js";
 
 export function mintId(prefix) {
@@ -325,6 +326,26 @@ export function createFleetTurnLedger({
     }
   }
 
+  // Turn-contract admission (agent-turn-contract, explore P2-7). The depth
+  // bound is enforced where a chain position is CREATED (dispatch pins 1;
+  // handoff/fanout check the declaration at ignition), but the declaration can
+  // shrink AFTER a hop was queued: the queued turn then runs past the bound its
+  // fleet now states, and nothing refused it — `assertTurnRequest` existed with
+  // tests and no production caller. This is the last gate, at the turn, reading
+  // the fleet's CURRENT declaration. Returns null (admissible, or not a fleet
+  // turn at all — the caller must not treat null as a refusal) or { error }.
+  function admission(job) {
+    if (!job) return null;
+    const fleetId = job.origin?.fleet?.fleetId ?? job.sourceTag?.fleetId ?? null;
+    if (!fleetId) return null;
+    const fleet = db.getFleet(fleetId);
+    // A dead fleet is already handled by the existing skip paths (no post
+    // resolves); refusing here too would change their outcome shape.
+    if (!fleet) return null;
+    const { maxChainDepth } = constraintsOf(fleet.orchestration);
+    return assertTurnRequest(buildTurnRequest(job), { maxChainDepth });
+  }
+
   // Collector hook (design D4). `sessionId` is the collector key (rotated child
   // id for fleet rounds); the rows land under the stable mirror session.
   function tap(notif, sessionId, mirrorSessionId = sessionId) {
@@ -369,5 +390,5 @@ export function createFleetTurnLedger({
     return { run, abortedTurns: aborted };
   }
 
-  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, observedModelFor, tap, openTurns, stopRun, tapEnabled: traceTapEnabled };
+  return { begin, end, settle, sweepOpenRuns, chainFor, admission, lookupBySession, lookupByMember, observedModelFor, tap, openTurns, stopRun, tapEnabled: traceTapEnabled };
 }

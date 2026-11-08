@@ -30,6 +30,31 @@ import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ── 运行态前提：dsh 必须能解析 profile 声明的 bundle ───────────────────────
+// dsh-profile-template 的 dsh.profile.bundles 里有 `@platform/supply-probe-bundle`
+// （样本在 dsh-matrix/samples/，是 dsh-matrix 的 file: 依赖）。loader 只从 profile
+// 自己的 node_modules 解析，而那份由 dsh-profile.js 的 linkProfilePinnedModules()
+// 从 RUNTIME_NODE_MODULES 供给；DSH_BIN 未设时它退到**本仓 node_modules**，那里没有
+// 这个包 → 子进程起来即报
+//   `dsh: cannot resolve profile bundle "@platform/supply-probe-bundle" …`
+// 四条用例全红，且错误看起来完全不像环境问题（2026-11-08 实测踩过，误判了两轮）。
+//
+// 本机等价于生产的跑法是指向矩阵安装（镜像里 /opt/dsh 就是它）：
+//   DSH_BIN=$PWD/dsh-matrix/node_modules/@deepseek-ai/dsh/lib/bin.js \
+//     node --test scripts/test-session-resume.mjs
+// 若本机没有完整矩阵安装，先 `npm install`（dsh-matrix/），或用
+// `dsh plugin --profile platform install` 把 bundle 装进 profile。
+const RUNTIME_HINT = (() => {
+  const bin = process.env.DSH_BIN || "";
+  return bin.includes("dsh-matrix") ? null : bin;
+})();
+if (RUNTIME_HINT === "" && !fs.existsSync(path.join(ROOT, "node_modules", "@platform", "supply-probe-bundle"))) {
+  console.warn(
+    "[test-session-resume] 本仓 node_modules 没有 @platform/supply-probe-bundle；" +
+      "若下面四条全红并报 cannot resolve profile bundle，请按文件头注释设 DSH_BIN 指向 dsh-matrix 的 dsh。",
+  );
+}
+
 // ── Hermetic dsh home + stores (before dsh-profile.js is imported: it reads
 //    DSH_HOME / the store paths at module scope) ─────────────────────────────
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "paas-resume-"));

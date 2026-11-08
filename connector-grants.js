@@ -84,6 +84,13 @@ export async function mintBindingToken({
   actions = [],
   origin = bindings.connectorOrigin(),
   fetchImpl = fetch,
+  // Deployment-scoped minting names its PAT per (pack, AGENT, binding). The
+  // connector unions a same-name re-mint and revokes the replaced token, so
+  // sharing the interactive name across agents of one pack would make the
+  // second agent's mint silently kill the first agent's token
+  // (add-deployment-binding-grant 2.3).
+  patName = bindingPatName(packId, bindingKey),
+  patPurpose = bindingPurpose(packId, bindingKey),
 }) {
   const wanted = [...new Set(operations ?? [])].filter((operation) => GRANTABLE_OPERATIONS.includes(operation));
   const rules = [...new Set((actions ?? []).filter((rule) => typeof rule === "string" && rule.trim()))];
@@ -100,8 +107,8 @@ export async function mintBindingToken({
     pathname: "/api/tenant/pats",
     fetchImpl,
     body: {
-      name: bindingPatName(packId, bindingKey),
-      purpose: bindingPurpose(packId, bindingKey),
+      name: patName,
+      purpose: patPurpose,
       allowedOperations: wanted.map((operationType) => ({ provider, operationType })),
       ...(rules.length === 0 ? {} : { allowedActions: rules }),
     },
@@ -111,6 +118,53 @@ export async function mintBindingToken({
     return { ok: false, code: "unexpected_response" };
   }
   return { ok: true, token: minted.body.token, patId: minted.body.id ?? null, name: minted.body.name ?? null };
+}
+
+/**
+ * The PATs this identity already holds on the connector, by name.
+ *
+ * Deployment-minted tokens are ours to clean up, and their ids are never
+ * persisted platform-side (a deployment secret stores the value, not the id),
+ * so revoking one starts from its NAME: list, match, delete. The connector's
+ * list is tenant-scoped by the account token, so this can never see a token
+ * that belongs to someone else.
+ */
+export async function listBindingTokens({ email, fetchImpl = fetch, origin = bindings.connectorOrigin() }) {
+  if (!origin) return { ok: false, code: "connector_not_configured" };
+  const accountToken = connectorCredentials.liveToken(email);
+  if (!accountToken) return { ok: false, code: "no_account" };
+  const listed = await requestJson({ origin, token: accountToken, pathname: "/api/tenant/pats", method: "GET", fetchImpl });
+  if (!listed.ok) return listed;
+  const pats = Array.isArray(listed.body?.pats) ? listed.body.pats : [];
+  return {
+    ok: true,
+    pats: pats
+      .filter((pat) => pat && typeof pat.id === "string")
+      .map((pat) => ({ id: pat.id, name: typeof pat.name === "string" ? pat.name : "", purpose: pat.purpose ?? null })),
+  };
+}
+
+/**
+ * Revoke one of this identity's PATs by id.
+ *
+ * A 404 counts as success: the token is gone either way, and a cleanup that
+ * treats "already revoked" as failure would fire forever.
+ */
+export async function revokeBindingTokenById({ email, patId, fetchImpl = fetch, origin = bindings.connectorOrigin() }) {
+  if (!origin) return { ok: false, code: "connector_not_configured" };
+  const accountToken = connectorCredentials.liveToken(email);
+  if (!accountToken) return { ok: false, code: "no_account" };
+  const response = await requestJson({
+    origin,
+    token: accountToken,
+    pathname: `/api/tenant/pats/${encodeURIComponent(String(patId))}`,
+    method: "DELETE",
+    fetchImpl,
+  });
+  if (response.ok || response.status === 404 || response.code === "runtime_token_not_found") {
+    return { ok: true, alreadyGone: !response.ok };
+  }
+  return response;
 }
 
 /**

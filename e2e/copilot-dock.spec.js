@@ -197,7 +197,7 @@ test("market tab: the dock carries the facet line and the pack context flows int
   );
   await page.route("**/api/boards/facet/copilot", (route) => route.fulfill(json(ASSISTANT)));
   await page.goto("/packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("pack-market-guide-hint")).toHaveCount(0); // assistant resolves → no hint
 
   await seedAgent(page, "local", { pendingConfig: null });
@@ -238,7 +238,7 @@ test("market tab without the assistant pack: honest hint, no preset", async ({ p
   );
   await page.route("**/api/boards/facet/copilot", (route) => route.fulfill(json(NO_ASSISTANT)));
   await page.goto("/packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("pack-market-guide-hint")).toBeVisible({ timeout: 15000 });
 
   await page.getByTestId("copilot-fab").click();

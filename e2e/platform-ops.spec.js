@@ -17,7 +17,7 @@ const json = (body, status = 200) => ({ status, contentType: "application/json",
 async function gotoMarket(page) {
   await pinLocaleEn(page);
   await page.goto("/packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
 }
 
 test.beforeEach(async ({ page }) => {

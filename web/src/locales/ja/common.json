@@ -59,7 +59,9 @@
     "chat": "チャット",
     "family": {
       "knowledge": "ナレッジ",
-      "build": "構築"
+      "build": "構築",
+      "run": "実行",
+      "access": "接続"
     },
     "knowledge": "ライブラリ",
     "resources": "成果",
@@ -74,7 +76,14 @@
     "zhiyu": "Zhiyu",
     "memory": "記憶",
     "blueprints": "ブループリント工房",
-    "machines": "マシン"
+    "machines": "マシン",
+    "tuning": "チューニング",
+    "channels": "チャネル",
+    "shortcuts": {
+      "tools": "ツール / MCP",
+      "plugins": "プラグイン",
+      "models": "モデル"
+    }
   },
   "trace": {
     "title": "トレース",
@@ -145,7 +154,9 @@
     "createProject": "作成",
     "backToNewProject": "← プロジェクトを新規作成",
     "running": "応答中",
-    "queued": "メッセージ待機中"
+    "queued": "メッセージ待機中",
+    "collapseAllFamilies": "すべて折りたたむ",
+    "expandAllFamilies": "すべて展開"
   },
   "modelsPage": {
     "title": "モデル",
@@ -952,7 +963,8 @@
       "layout": "ワークスペース配置",
       "connections": "接続",
       "plugins": "プラグイン",
-      "delegation": "決裁の委任"
+      "delegation": "決裁の委任",
+      "pairing": "ペアリングと連携"
     },
     "groups": {
       "basics": "基本",
@@ -1215,7 +1227,8 @@
         },
         "summaryUnmapped": "{{count}} 件が選択待ち",
         "browseCatalog": "アプリディレクトリを見る"
-      }
+      },
+      "filterPlaceholder": "接続を絞り込む…"
     },
     "lines": {
       "title": "ライン操作",
@@ -1301,6 +1314,25 @@
       "model": "判断に使うモデル",
       "modelInherit": "空欄＝継承",
       "modelHint": "空欄ならエージェントチーム／セルの既定モデルに従います。値を入れると常務ポストに適用され、次回パトロールから有効になります。"
+    },
+    "searchPlaceholder": "設定を検索…",
+    "searchEmpty": "一致する設定がありません",
+    "pairing": {
+      "tabs": {
+        "wechat": "ミニプログラム",
+        "app": "デスクトップアプリ",
+        "machine": "マシン"
+      },
+      "machine": {
+        "body": "マシンのペアリング・収束・解除はマシンコンソールで行います。各マシンの実際の状態もそこで確認できるため、ここに二つ目のウィザードは置きません。",
+        "open": "マシンコンソールを開く"
+      }
+    },
+    "status": {
+      "tabs": {
+        "health": "ヘルス",
+        "trace": "ターントレース"
+      }
     }
   },
   "bindings": {
@@ -3954,7 +3986,9 @@
       "supply": "供給",
       "creations": "作成物",
       "tuning": "チューニング",
-      "apps": "アプリ"
+      "apps": "アプリ",
+      "market": "マーケット",
+      "mine": "マイ"
     },
     "market": {
       "subtitle": "作成と公開はサプライドメインへ；インストールと実行はこちら",

@@ -10,7 +10,7 @@
 // card. The install gates (credential-required) and the line-mint round trip
 // land here. Unknown panel values render the section normally.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -34,12 +34,23 @@ function CardAnchor({
   ids,
   active,
   subtitleKey,
+  searchText,
+  wide,
+  hidden,
   children,
 }: {
   ids: string[];
   active: boolean;
   // Optional: cards that render their own header (SearchServiceCard) skip it.
   subtitleKey?: string;
+  // Locale-resolved text the section filter matches (name + subtitle). Cards
+  // without it are never filtered out (the ledger is always first).
+  searchText?: string;
+  // List-heavy cards take the full row even when the grid goes two-up.
+  wide?: boolean;
+  // Filtered out — HIDDEN, never unmounted: a half-typed credential lives in
+  // the panel's own state, and dropping the component would silently discard it.
+  hidden?: boolean;
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
@@ -55,7 +66,15 @@ function CardAnchor({
       id={`conn-${ids[0]}`}
       data-panel={ids[0]}
       data-panel-active={active ? "true" : "false"}
-      className={cn("flex flex-col gap-1.5 rounded-lg", active && "ring-2 ring-primary/60 p-1")}
+      data-search={searchText}
+      className={cn(
+        "flex min-w-0 flex-col gap-1.5 rounded-lg",
+        wide && "min-[1100px]:col-span-2",
+        // `hidden` beats everything: an addressed card is never hidden, but a
+        // filtered-out one leaves the visual flow without losing its state.
+        hidden && !active && "hidden",
+        active && "ring-2 ring-primary/60 p-1",
+      )}
     >
       {subtitleKey && <p className="px-3 text-xs text-muted-foreground">{t(subtitleKey)}</p>}
       {children}
@@ -75,10 +94,36 @@ export function ConnectionsSection() {
   }, [refreshRegistryConnection]);
   const panel = searchParams.get("panel") ?? "";
   const isActive = (...ids: string[]) => ids.includes(panel);
+  // 节内筛选 (restructure-yizuo-ia): nine cards in one scroll is the section's
+  // biggest interaction cost. The filter only ever HIDES (never unmounts, so a
+  // typed secret survives) and it never hides the addressed card.
+  const [query, setQuery] = useState("");
+  const matches = (text: string | undefined) => {
+    const q = query.trim().toLowerCase();
+    if (!q || !text) return false;
+    return text.toLowerCase().includes(q);
+  };
+  // A card shows when the query is empty, when its own text matches, or when
+  // it is the deep-linked one.
+  const cardHidden = (text: string | undefined, active: boolean) => {
+    if (active) return false;
+    if (!query.trim()) return false;
+    return !matches(text);
+  };
 
   return (
     <div className="flex flex-col gap-5 p-6" data-testid="settings-connections">
       <p className="text-sm text-muted-foreground">{t("settings.connections.subtitle")}</p>
+
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t("settings.connections.filterPlaceholder")}
+        aria-label={t("settings.connections.filterPlaceholder")}
+        data-testid="connections-filter"
+        className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+      />
 
       {/* Brand quick-reference: collapsed by default, expands in place. */}
       <details
@@ -102,86 +147,138 @@ export function ConnectionsSection() {
         </dl>
       </details>
 
-      {/* 词元 account first (ciyuan-account-lane): the one key behind the model
-          lane and the 萬星 operations MCP. `line-wanxing-caller` is the retired
-          panel id kept as an alias so older deep links still land here. */}
-      <CardAnchor
-        ids={["ciyuan-account", "line-wanxing-caller"]}
-        active={isActive("ciyuan-account", "line-wanxing-caller")}
-        subtitleKey="settings.connections.cards.ciyuanAccount.subtitle"
-      >
-        <CiyuanAccountConnectPanel />
+      {/* The binding ledger comes FIRST and always renders (binding-first,
+          add-connector-bindings 6.2): "which of my installed packs still needs
+          something" is the question users open this section with, so it is never
+          filtered away and never placed after the accounts. */}
+      <CardAnchor ids={["connector-bindings-ledger"]} active={false} wide>
+        <ConnectorBindingsView className="px-1" />
       </CardAnchor>
 
-      {/* 谦面 grouped card: the tool market login and the market device
-          pairing are two rows of one brand family (settings-connect-center
-          D1) — same brand, two products, two auth models. */}
-      <section data-testid="connections-group-facet" className="flex flex-col gap-1.5">
-        <h2 className="px-3 text-sm font-semibold text-foreground">
-          {t("settings.connections.cards.facetGroup.title")}
-        </h2>
+      {/* Cards (restructure-yizuo-ia): one column at the modal's own width, two
+          columns when the viewport leaves room; list-heavy cards keep the full
+          row. Filtering HIDES a card instead of unmounting it — a half-typed
+          credential lives in the panel's state and must survive a search — and
+          the deep-linked card is never hidden. */}
+      <div className="grid grid-cols-1 gap-4 min-[1100px]:grid-cols-2" data-testid="connections-grid">
+        {/* 词元 account first (ciyuan-account-lane): the one key behind the model
+            lane and the 萬星 operations MCP. `line-wanxing-caller` is the retired
+            panel id kept as an alias so older deep links still land here. */}
         <CardAnchor
-          ids={["registry"]}
-          active={isActive("registry")}
-          subtitleKey="settings.connections.cards.registry.subtitle"
+          ids={["ciyuan-account", "line-wanxing-caller"]}
+          active={isActive("ciyuan-account", "line-wanxing-caller")}
+          subtitleKey="settings.connections.cards.ciyuanAccount.subtitle"
+          hidden={cardHidden(
+            t("settings.connections.cards.ciyuanAccount.subtitle"),
+            isActive("ciyuan-account", "line-wanxing-caller"),
+          )}
         >
-          <RegistryConnectPanel />
+          <CiyuanAccountConnectPanel />
         </CardAnchor>
-        <CardAnchor
-          ids={["facet-market"]}
-          active={isActive("facet-market")}
-          subtitleKey="settings.connections.cards.facetMarket.subtitle"
-        >
-          <FacetMarketConnectPanel />
-        </CardAnchor>
-      </section>
 
-      {/* 连接器：先答「我装的包还缺什么」（绑定视图），再答「我拿什么去连」
-          （账号区）。账户区保留「打开连接器控制台」入口，绑定写的是需求，
-          账号写的是供给，两者顺序固定 —— add-connector-bindings 6.2。
-          `connector-bindings` 是范围指引（chat-connect-guidance 6.3）用的别名
-          panel id：授权卡要落在这张卡的绑定区，所以两个 id 都算命中。 */}
-      <CardAnchor
-        ids={["connector", "connector-bindings"]}
-        active={isActive("connector", "connector-bindings")}
-        subtitleKey="settings.connections.cards.connector.subtitle"
-      >
-        <div className="flex flex-col gap-3">
-          <ConnectorBindingsView className="px-1" />
+        {/* 谦面 grouped card: the tool market login and the market device
+            pairing are two rows of one brand family (settings-connect-center
+            D1) — same brand, two products, two auth models. */}
+        <section
+          data-testid="connections-group-facet"
+          className={cn(
+            "flex min-w-0 flex-col gap-1.5",
+            query.trim() &&
+              !matches(t("settings.connections.cards.facetGroup.title")) &&
+              !isActive("registry") &&
+              !isActive("facet-market") &&
+              "hidden",
+          )}
+        >
+          <h2 className="px-3 text-sm font-semibold text-foreground">
+            {t("settings.connections.cards.facetGroup.title")}
+          </h2>
+          <CardAnchor
+            ids={["registry"]}
+            active={isActive("registry")}
+            subtitleKey="settings.connections.cards.registry.subtitle"
+            hidden={cardHidden(
+              t("settings.connections.cards.registry.subtitle"),
+              isActive("registry") || isActive("facet-market"),
+            )}
+          >
+            <RegistryConnectPanel />
+          </CardAnchor>
+          <CardAnchor
+            ids={["facet-market"]}
+            active={isActive("facet-market")}
+            subtitleKey="settings.connections.cards.facetMarket.subtitle"
+            hidden={cardHidden(
+              t("settings.connections.cards.facetMarket.subtitle"),
+              isActive("registry") || isActive("facet-market"),
+            )}
+          >
+            <FacetMarketConnectPanel />
+          </CardAnchor>
+        </section>
+
+        {/* 连接器账号：绑定写需求、账号写供给，顺序固定 —— add-connector-bindings
+            6.2。`connector-bindings` 是 chat-connect-guidance 6.3 指向授权动作的
+            别名 panel id：它和 `connector` 都落在这张卡上（账本自己用
+            `connector-bindings-ledger`，不占这个别名）。 */}
+        <CardAnchor
+          ids={["connector", "connector-bindings"]}
+          active={isActive("connector", "connector-bindings")}
+          subtitleKey="settings.connections.cards.connector.subtitle"
+          wide
+          hidden={cardHidden(
+            t("settings.connections.cards.connector.subtitle"),
+            isActive("connector", "connector-bindings"),
+          )}
+        >
           <ConnectorConnectPanel />
-        </div>
-      </CardAnchor>
+        </CardAnchor>
 
-      <CardAnchor
-        ids={["line-wire-customer", "line-lex"]}
-        active={isActive("line-wire-customer", "line-lex")}
-        subtitleKey="settings.connections.cards.lines.subtitle"
-      >
-        <LineOpsConnectPanel />
-      </CardAnchor>
+        <CardAnchor
+          ids={["line-wire-customer", "line-lex"]}
+          active={isActive("line-wire-customer", "line-lex")}
+          subtitleKey="settings.connections.cards.lines.subtitle"
+          wide
+          hidden={cardHidden(
+            t("settings.connections.cards.lines.subtitle"),
+            isActive("line-wire-customer", "line-lex"),
+          )}
+        >
+          <LineOpsConnectPanel />
+        </CardAnchor>
 
-      <CardAnchor
-        ids={["paper-trading"]}
-        active={isActive("paper-trading")}
-        subtitleKey="settings.connections.cards.paperTrading.subtitle"
-      >
-        <PaperTradingConnectPanel />
-      </CardAnchor>
+        <CardAnchor
+          ids={["paper-trading"]}
+          active={isActive("paper-trading")}
+          subtitleKey="settings.connections.cards.paperTrading.subtitle"
+          hidden={cardHidden(
+            t("settings.connections.cards.paperTrading.subtitle"),
+            isActive("paper-trading"),
+          )}
+        >
+          <PaperTradingConnectPanel />
+        </CardAnchor>
 
-      {/* 商家 Chatwoot BYOK（add-crm-desk-pack-embed）：自带 token 驱动自己的
-          租户面；登录对仅嵌入代登录用。 */}
-      <CardAnchor
-        ids={["chatwoot"]}
-        active={isActive("chatwoot")}
-        subtitleKey="settings.connections.cards.chatwoot.subtitle"
-      >
-        <ChatwootConnectPanel />
-      </CardAnchor>
+        {/* 商家 Chatwoot BYOK（add-crm-desk-pack-embed）：自带 token 驱动自己的
+            租户面；登录对仅嵌入代登录用。 */}
+        <CardAnchor
+          ids={["chatwoot"]}
+          active={isActive("chatwoot")}
+          subtitleKey="settings.connections.cards.chatwoot.subtitle"
+          hidden={cardHidden(t("settings.connections.cards.chatwoot.subtitle"), isActive("chatwoot"))}
+        >
+          <ChatwootConnectPanel />
+        </CardAnchor>
 
-      {/* The search card renders its own title + subtitle (SearchServiceCard). */}
-      <CardAnchor ids={["search"]} active={isActive("search")}>
-        <SearchServiceCard highlight={isActive("search")} />
-      </CardAnchor>
+        {/* The search card renders its own title + subtitle (SearchServiceCard). */}
+        <CardAnchor
+          ids={["search"]}
+          active={isActive("search")}
+          hidden={cardHidden(t("settings.connections.cards.search.title"), isActive("search"))}
+        >
+          <SearchServiceCard highlight={isActive("search")} />
+        </CardAnchor>
+      </div>
     </div>
   );
 }

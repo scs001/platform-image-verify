@@ -59,7 +59,9 @@
     "chat": "Chat",
     "family": {
       "knowledge": "Knowledge",
-      "build": "Build"
+      "build": "Build",
+      "run": "Run",
+      "access": "Reach"
     },
     "knowledge": "Library",
     "resources": "Outputs",
@@ -74,7 +76,14 @@
     "zhiyu": "Zhiyu",
     "memory": "Memory",
     "blueprints": "Blueprint Studio",
-    "machines": "Machines"
+    "machines": "Machines",
+    "tuning": "Tuning",
+    "channels": "Channels",
+    "shortcuts": {
+      "tools": "Tools / MCP",
+      "plugins": "Plugins",
+      "models": "Models"
+    }
   },
   "trace": {
     "title": "Trace",
@@ -145,7 +154,9 @@
     "createProject": "Create project",
     "backToNewProject": "← New project",
     "running": "Responding",
-    "queued": "Message queued"
+    "queued": "Message queued",
+    "collapseAllFamilies": "Collapse all sections",
+    "expandAllFamilies": "Expand all sections"
   },
   "modelsPage": {
     "title": "Models",
@@ -965,7 +976,8 @@
       "layout": "Workbench layout",
       "connections": "Connections",
       "plugins": "Plugins",
-      "delegation": "Decision delegation"
+      "delegation": "Decision delegation",
+      "pairing": "Pairing & binding"
     },
     "groups": {
       "basics": "Basics",
@@ -1228,7 +1240,8 @@
         },
         "summaryUnmapped": "{{count}} waiting for your choice",
         "browseCatalog": "Browse the app directory"
-      }
+      },
+      "filterPlaceholder": "Filter connections…"
     },
     "lines": {
       "title": "Line operations",
@@ -1314,6 +1327,25 @@
       "model": "Ruling model",
       "modelInherit": "Blank = inherit",
       "modelHint": "Blank follows the team/cell default model; a value is applied to the deputy post and takes effect from its next patrol."
+    },
+    "searchPlaceholder": "Search settings…",
+    "searchEmpty": "No matching setting",
+    "pairing": {
+      "tabs": {
+        "wechat": "Mini program",
+        "app": "Desktop app",
+        "machine": "Machines"
+      },
+      "machine": {
+        "body": "Machine pairing, convergence and unbinding live in the machine console — it also shows each machine's real state, so a second wizard here would only diverge.",
+        "open": "Open machine console"
+      }
+    },
+    "status": {
+      "tabs": {
+        "health": "Health",
+        "trace": "Turn trace"
+      }
     }
   },
   "preview": {
@@ -3954,7 +3986,9 @@
       "supply": "Supply",
       "creations": "My Creations",
       "tuning": "Tuning",
-      "apps": "Apps"
+      "apps": "Apps",
+      "market": "Market",
+      "mine": "Mine"
     },
     "market": {
       "subtitle": "Creation and publishing moved to the supply domain; installs and runtime stay here",

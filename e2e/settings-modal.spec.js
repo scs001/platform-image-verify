@@ -124,18 +124,29 @@ test.describe("settings modal", () => {
       ["/extensions/mcp", "mcp"],
       ["/extensions/skills", "skills", "skills"],
       ["/dashboard", "status"],
-      // Demoted work surfaces (simplify-ia-non-technical): the former /bots
-      // and /trace pages are Settings sections now.
-      ["/bots", "channels"],
-      ["/trace", "diagnostics"],
+      // /trace is the trace TAB of the status section now (restructure-yizuo-ia):
+      // the alias slug stays in the URL, the canonical section is `status`.
+      ["/trace", "diagnostics", undefined, "status"],
     ];
-    for (const [legacy, section, extensionType] of cases) {
+    for (const [legacy, section, extensionType, canonical] of cases) {
       await page.goto(legacy);
       await expect(page).toHaveURL(new RegExp(`/settings/${section}$`));
-      await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", extensionType ? "mcp" : section);
+      await expect(page.getByTestId("settings-panel")).toHaveAttribute(
+        "data-section",
+        extensionType ? "mcp" : (canonical ?? section),
+      );
       if (extensionType) {
         await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", extensionType);
       }
+    }
+
+    // /bots and /settings/channels LEFT Settings for the nav surface
+    // (restructure-yizuo-ia): both hand over to /channels without a modal.
+    for (const legacy of ["/bots", "/settings/channels"]) {
+      await page.goto(legacy);
+      await expect(page).toHaveURL(/\/channels$/);
+      await expect(page.getByTestId("settings-panel")).toHaveCount(0);
+      await expect(page.getByTestId("bots-page")).toBeVisible();
     }
   });
 

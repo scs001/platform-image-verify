@@ -238,8 +238,8 @@ async function gotoPacksTab(page, tab) {
   // plus the creator/wizard surfaces, which is what this file drives.
   await pinLocaleEn(page);
   await page.goto("/packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId(`packs-tab-${tab}`).click();
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId(`agent-market-tab-${tab}`).click();
 }
 
 async function getSkills(page) {
@@ -443,7 +443,7 @@ test("agent-size filter buckets rows and survives a refresh", async ({ page }) =
 
   // The bucket lives in the URL: a reload keeps it.
   await page.reload();
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
   // The page mounts on the market tab, and the select must come back on the
   // bucket the URL named — that is the contract, not the tab's own state.
   await expect(page.getByTestId("pack-agent-size-filter")).toHaveValue("2-3");
@@ -783,8 +783,10 @@ test("pack surfaces disappear when the deployment is not gateway-fronted", async
   // again in the next IA move.)
   await expect(page).toHaveURL(/\/agents(\?|$)/);
   await expect(page.getByTestId("agent-market-page")).toBeVisible();
-  await expect(page.getByTestId("packs-page")).toHaveCount(0);
-  await expect(page.getByTestId("packs-tab-market")).toHaveCount(0);
+  // restructure-yizuo-ia: the predicate gates the 市场 TAB, so the surface still
+  // renders its 我的 tab (local packs + drafts) while the market tab is gone.
+  await expect(page.getByTestId("agent-market-tab-market")).toHaveCount(0);
+  await expect(page.getByTestId("agent-market-tab-mine")).toBeVisible();
 });
 
 // ── Server-side manifest fetch (pack-install-server-side-manifest) ──────────

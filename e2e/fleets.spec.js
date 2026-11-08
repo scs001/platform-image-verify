@@ -648,7 +648,9 @@ test.describe("fleet canvas", () => {
 
     // Declared edges only: trigger + handoff; the implicit dispatch grant is
     // never drawn (the aggregate banner carries it above).
-    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
+    // Edges are laid out asynchronously after the canvas mounts; the default
+    // 5s expect timeout read 0 on a loaded runner (CI run 42479789722, flaky).
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2, { timeout: 15000 });
     await expect(canvas.locator('.react-flow__edge[data-id="cron:0 9 * * *→ceo:trigger"]')).toHaveCount(1);
     const handoff = canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"]');
     await expect(handoff).toHaveCount(1);
@@ -1280,7 +1282,7 @@ test.describe("fleet inspector & design mode", () => {
     // A blocked dry-run locks confirm and names the cycle: drop the draft,
     // flip the stub to failing, reconnect — the errors line shows, confirm is dead.
     await canvas.locator('.react-flow__edge[data-id="ceo→ops:handoff"]').click();
-    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2, { timeout: 15000 });
     draftOk = false;
     await connect(src, dst);
     await expect(page.getByTestId("design-errors")).toContainText("cycle", { timeout: 5000 });

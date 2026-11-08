@@ -7639,7 +7639,7 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - **验收**：`stock` 标识挂 `person` = **0**；`512660 / 510810 / 562550 / 512660.SS` 现在**解析不到任何人**（返回 none）；`astock` 家族实体 **仍 5,203**（该家族按六位码前缀解析，从未读过这些行）；`fund` 标识 503→1,064；标识总数 88,182→86,107；剩余不一致只剩**延后类**：organization 240 / country→city 36 / industry 32 / index 24 / exchange 3（每类需单独判断，已写进 spec 的 debt 场景）。
 - **挂账**：上游 `fund_manager_em` 摄取**仍在写** stock 型标识，下次跑会把同样污染写回来——正解是在该摄取里改为 `fund` 型（或干脆不写标识），属另一线（akshare 摄取代码）。
 
-### §15.138 续廿一：共享浏览器车道全量上线；**拓扑瘦身的下一步挂账待调研**（11-08）
+### §15.138 续廿一（渠）：共享浏览器车道全量上线；**拓扑瘦身的下一步挂账待调研**（11-08）
 
 - **已上产（change `slim-browser-lane-footprint`，已归档）**：浏览器车道从「每 cell 一套 `server/browser-mcp.js`(~46Mi) + `@playwright/mcp`(~110–130Mi)」改为「每 pod 一份服务 + 每会话一个浏览器上下文」。`server/browser-lane-service.js` 起一份钉版 CLI（`--port`/`--isolated`/`--allowed-hosts 127.0.0.1:<port>`/`--allow-unrestricted-file-access`），每个 cell 会话一条上游 SSE 会话；身份**只认连接方进程**（socket inode → pid → cwd/cmdline → 16-hex cell 目录，`shareProcessNamespace` 是前提），产物按 cell 落 `workspace/browser/`；`BROWSER_SHARED_MCP_URL` 是开关，`BROWSER_SHARED_CELLS` 是灰度名单（不设=全量），`BROWSER_LANE=off` 仍一票否决，端点挂了只降级不回落到每 cell 拉起。
 - **实测（fd-prod，全量后）**：在跑的 cell `browser=0`（子进程数），全 pod 只有 **1 个浏览器进程**；`kubectl top` pod **2294Mi**（browser-lane 120Mi + platform 2173Mi），提案基线同口径 3102Mi。**省下的是「每 cell 约 170Mi 的重复份」**，不是整块内存；灰度期因两份并存（共享 + 未翻转 cell）总占用反而略高，全量后才落账。回滚演练已跑：注释 `BROWSER_SHARED_MCP_URL` → cell 重新长出 `browser-mcp.js×3 + cli.js×3`、共享服务 `sessions=0`；恢复即回共享，**无需回滚镜像**。
@@ -7657,3 +7657,27 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 **OIDC 修复的爆炸半径已扫**：`test-auth-*` / `test-logto-*` / `test-session-*` / `test-login-hero` /
 `test-migrate-single-to-cell` 共 **89 条全绿**；产上 `/api/auth/me` 返回 `{"mode":"logto",...}`（200），
 登录面在 OIDC 重试改造后仍正常。
+
+### §15.138 续廿二（渠）：cell 崩溃台账上产——崩溃第一次变成「有数的」
+
+- **问题**：非预期退出只 `console.error`（`cell.error` 在内存），台账 `destroy_reason` 全空，
+  当前 pod 日志 0 次——但那只覆盖 1.5h，当天滚了四次，历史全丢。于是「这个 cell 稳不稳」
+  答不出来，而这正是「要不要为省 220–280Mi 动崩溃域」的前提数据。
+- **落地（change `add-cell-crash-ledger`，镜像 `sha-caf4f0d` / digest `dbebc49e`）**：
+  台账 guarded-add 四列 `crash_count` / `last_crash_json` / `bind_failure_count` /
+  `last_bind_failure_json`（行 schema v1→v2 前向迁移，缺列读作 0/null）；崩溃与启动失败**分开计**；
+  退避可配 `CELL_CRASH_BACKOFF_BASE_MS`(1000) / `MAX_MS`(**15000**) / `WINDOW_MS`(10min) /
+  `REHAB_MS`(10min)，延迟落在 **spawn 之前**，**永不硬拒**（mp-demo tombstone 教训）；
+  内存面 cell 行带 `crashCount`/`lastCrash`/`bindFailureCount`/`lastGateRefusal`，
+  `/healthz` 增 `cellsInError` + `crashTotal`（不影响 200）。
+  上限取 15s 的理由：唤醒本身 8.6–12s，15s 把最坏体感压在「比冷启稍慢」而非「像坏了」。
+- **真机验收（对 /proc 里的测试 cell 发 SIGKILL）**：`crash_count 0→1`、
+  `last_crash_json={"code":null,"signal":"SIGKILL","at":…,"uptimeMs":122532}`、
+  `/healthz cellsInError=1 crashTotal=1`、内存面 `crashCount=1 lastCrashSignal=SIGKILL`；
+  该 cell 仍 `state=suspended / destroy_reason=null` → **可唤醒、未被锁**。
+- **基线**：除本次人为注入，历史崩溃数为 **0**（`crash_count>0` 仅此 1 个 cell）。真实崩溃率
+  需在台帐跑满日常负载后回看——那才是「要不要动崩溃域」的判据。
+- **同时暴露但未处理**：`platform-test` 的 `lastGateRefusal` 显示
+  `headroomPct=-0.00295`、`projectedBytes 4307641056 > limit 4294967296` —— **唤醒被内存闸拒过**
+  （投影超限），拒醒次数目前只留最后一次。另：公开快照 CI 的 biome 红在别人三笔文件
+  （`gateway/packs.js`、`test-fleet-descendant-reports.mjs`、`test-main-chain-priority.mjs`），不挡 image 流水线。

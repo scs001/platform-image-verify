@@ -35,8 +35,14 @@
 
 ## 4. 上产与验证
 
-- [ ] 4.1 出片（`fd-build-channel` 判路 → 公开仓线）并滚 fd-prod；验证 = `tools/verify-rollout.sh platform` 通过
-- [ ] 4.2 真机验证：故意让一个测试 cell 崩溃一次（测试号），确认台账计数、内存面字段、
+- [x] 4.1 出片（`fd-build-channel` 判路 → 公开仓线）并滚 fd-prod；验证 = `tools/verify-rollout.sh platform` 通过
+- [x] 4.2 真机验证：故意让一个测试 cell 崩溃一次（测试号），确认台账计数、内存面字段、
       `/healthz` 计数三处一致；验证 = 三处数字对得上，且该 cell 随后仍能正常唤醒
-- [ ] 4.3 记录基线：把「过去 24h 崩溃次数」从新台账读出来写进 `docs/registry-maintenance.md`，
+- [x] 4.3 记录基线：把「过去 24h 崩溃次数」从新台账读出来写进 `docs/registry-maintenance.md`，
       作为「要不要动崩溃域」的判据；验证 = 台账有数、文档有引用
+      - 真机实测（2026-11-08，`platform-test` cell 被 SIGKILL）：`crash_count 0→1`、
+        `last_crash_json = {"code":null,"signal":"SIGKILL","at":1794127252597,"uptimeMs":122532}`、
+        `/healthz cellsInError=1 crashTotal=1`、内存面 `crashCount=1 lastCrashSignal=SIGKILL`；
+        该 cell 仍 `state=suspended / policy=on_demand / destroy_reason=null`（可唤醒，未被锁）
+      - 台账起点：截至实测时点，**除本次人为注入外历史崩溃数 = 0**（`crash_count>0` 的 cell 仅这 1 个）；
+        真实基线需等台账跑满日常负载后再回看

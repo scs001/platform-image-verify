@@ -155,6 +155,20 @@ test("--strict turns a one-way mirror lag into exit 1", () => {
   assert.equal(guard(repo, "--strict").code, 1, "--strict refuses any divergence");
 });
 
+test("the snapshot script gates on the guard before exporting", async () => {
+  // Prove the wiring, not just the guard: make-public-snapshot must call
+  // check-release-lines and abort on a non-zero result before any export.
+  const { readFileSync } = await import("node:fs");
+  const snapshot = readFileSync(new URL("./make-public-snapshot.mjs", import.meta.url), "utf8");
+  const guardCall = snapshot.indexOf("check-release-lines.mjs");
+  const exportCall = snapshot.indexOf("exported ");
+  assert.ok(guardCall > 0, "the snapshot script must call the line guard");
+  assert.ok(guardCall < snapshot.indexOf("git archive") || exportCall === -1 || guardCall < exportCall,
+    "the guard must run before the tree is exported");
+  assert.match(snapshot, /Base is not whole/, "a refused base must explain itself");
+  assert.match(snapshot, /SNAPSHOT_SKIP_LINE_CHECK/, "there must be a documented escape hatch");
+});
+
 test.after(() => {
   rmSync(WORK, { recursive: true, force: true });
 });

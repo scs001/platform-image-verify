@@ -100,6 +100,14 @@ jobs:
             '    - id: sdk-jsonrpc-server' \
             "      name: '@deepseek-ai/dsh-sdk-jsonrpc-server'" \
             > "$HOME/.dsh/profiles/platform/cordis.patch.yml"
+          # Materialize the BUNDLE level. `dsh plugin add` initializes the
+          # profile but never runs it, and only composing a profile heals
+          # `profiles/node_modules` (dsh-app-boot's healProfilesModuleFallback,
+          # reached through prepareProfile). Without this the probe below always
+          # says unusable and the e2e suite silently never runs on CI — which is
+          # how three baseline runs "passed" while e2e was a no-op. --dump-config
+          # composes without booting: no LLM, no network, no session.
+          dsh --profile platform --dump-config > /dev/null
 
       - name: Unit tests
         run: npm run test:unit
@@ -117,10 +125,9 @@ jobs:
 
       # The e2e server boots the real dsh runtime; that needs a COMPLETE
       # shared install (see scripts/lib/dsh-available.mjs). The bootstrap
-      # above installs the CLI + profile deps but the bundle level only
-      # materializes when dsh first RUNS a profile (healProfilesModuleFallback)
-      # — until the fresh-machine bootstrap teaches that, gate the runtime
-      # legs instead of failing them.
+      # above now heals the bundle level by composing the profile, so this
+      # probe is expected to be `true` — the gate below stays as the
+      # fresh-machine guard for any setup step that regresses.
       - name: Probe dsh runtime usability
         id: dsh
         run: echo "usable=$(node --input-type=module -e "const { dshRuntimeAvailable } = await import('./scripts/lib/dsh-available.mjs'); process.stdout.write(String(dshRuntimeAvailable()))")" >> "$GITHUB_OUTPUT"

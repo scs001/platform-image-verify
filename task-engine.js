@@ -277,7 +277,16 @@ function drainRepairQueue() {
     // matters started now, not when the previous process died.
     t.queuedAt = Date.now();
     void saveTasks();
-    chainExecution(id);
+    // Ownership: a replayed execution is the SAME work a fresh fire would be,
+    // so it must go through the same dispatch seam. Calling chainExecution
+    // here instead put every post-restart replay on the primary serial chain
+    // and hid them from the worker pool entirely (2026-11-08 live: cell with
+    // TASK_WORKER_MAX=2 logged `worker-pool active` but never spawned, while
+    // 17+ replayed catch-ups queued ahead of fresh triggers — the fresh ones
+    // then aged out at QUEUE_MAX_AGE_MS and were DROPPED, not delayed).
+    // dispatch() asks the slot dispatcher first (worker claim) and falls back
+    // to chainExecution, so nothing changes when no pool is configured.
+    dispatch(id);
   }
 }
 
@@ -759,21 +768,222 @@ function queueWatchdogMs(task) {
 // executions that have not started (never ahead of the running one: the chain is
 // already busy by then).
 function chainExecution(id) {
-  pendingExecutions.push({ id, human: tasks.get(id)?.humanPriority === true });
+  const t = tasks.get(id);
+  pendingExecutions.push({
+    id,
+    human: t?.humanPriority === true,
+    fleetId: fleetKey(t),
+    at: Date.now(),
+  });
   drainExecutions();
+}
+
+// ── Fleet fairness (split-meta-team-queue-capacity) ─────────────────────────
+//
+// Live 2026-11-08: one cell hosts every fleet of one owner, and the primary slot
+// is ONE serial chain. `drainExecutions` picked "first human, else oldest", so
+// arrival order decided everything: a single fleet's 8-hop handoff chain filled
+// 5-8 of 23 dispatch slots and the internal meta teams waited 78 and 48 minutes
+// (both then timed out). The fix is a distribution policy, not new machinery —
+// the selection point already exists here.
+//
+// Three tiers, in order:
+//   1. a human wake (unchanged: the owner's own ignition still goes first);
+//   2. fleet rotation — a fleet may not take more than FLEET_DISPATCH_BURST
+//      consecutive slots while another fleet is waiting;
+//   3. the meta lane — a fleet flagged internal gets one slot within
+//      META_LANE_ROTATIONS rotations, with the reverse bound that normal fleets
+//      never fall more than one slot behind the meta ones.
+//
+// Off by default (`FLEET_FAIR_QUEUE=1` enables): an unset env keeps the legacy
+// "human first, else FIFO" selection byte for byte, so a GitOps rollout that has
+// not synced yet cannot change production behaviour.
+const FLEET_FAIR_DEFAULTS = { burst: 2, metaRotations: 2 };
+
+function fairQueueEnabled() {
+  return process.env.FLEET_FAIR_QUEUE === "1";
+}
+
+function readPositiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+function fairQueueConfig() {
+  return {
+    burst: readPositiveIntEnv("FLEET_DISPATCH_BURST", FLEET_FAIR_DEFAULTS.burst),
+    metaRotations: readPositiveIntEnv("META_LANE_ROTATIONS", FLEET_FAIR_DEFAULTS.metaRotations),
+  };
+}
+
+// Who counts as an internal meta team is a POLICY question the engine must not
+// answer itself (hard-coding team names here would rot as teams come and go).
+// server.js injects the resolver — same seam style as setSlotDispatcher and
+// setMandateGate. With no resolver every fleet is a normal fleet, so rotation
+// still works and the meta lane simply never fires.
+let metaFleetResolverFn = null;
+function setMetaFleetResolver(fn) {
+  metaFleetResolverFn = typeof fn === "function" ? fn : null;
+}
+
+function isMetaFleet(fleetId) {
+  if (!fleetId || !metaFleetResolverFn) return false;
+  try {
+    return metaFleetResolverFn(fleetId) === true;
+  } catch {
+    return false; // a broken resolver degrades to "normal fleet", never throws
+  }
+}
+
+// The fairness unit is the fleet a task belongs to. Tasks with neither tag (web
+// lane manual work, cluster dispatches) share a single "unattributed" bucket so
+// they still participate in rotation instead of being pushed to the back.
+function fleetKey(t) {
+  const id = t?.sourceTag?.fleetId ?? t?.origin?.fleet?.fleetId ?? null;
+  return typeof id === "string" && id ? id : null;
+}
+
+// Rotation bookkeeping. Deliberately MONOTONIC (a dispatch counter plus "when did
+// this fleet last run"), never reset when the waiting set changes shape: a reset
+// keyed on the current set flips on every single-fleet tick and destroys the
+// burst comparison. Monotonic counters also make "how long has this fleet
+// waited" answerable without defining what a rotation is.
+const fairRotation = {
+  dispatchCount: 0, // total dispatches since boot
+  lastFleet: undefined, // burst-counter owner
+  burstCount: 0,
+  lastServed: new Map(), // fleetKey|null → dispatchCount at its last dispatch
+  metaServed: 0, // dispatches taken by internal fleets
+  normalServed: 0, // dispatches taken by everyone else
+};
+
+function fairResetRotation() {
+  fairRotation.dispatchCount = 0;
+  fairRotation.lastFleet = undefined;
+  fairRotation.burstCount = 0;
+  fairRotation.lastServed.clear();
+  fairRotation.metaServed = 0;
+  fairRotation.normalServed = 0;
+}
+
+function fairNoteDispatch(key) {
+  fairRotation.dispatchCount += 1;
+  if (key === fairRotation.lastFleet) fairRotation.burstCount += 1;
+  else {
+    fairRotation.lastFleet = key;
+    fairRotation.burstCount = 1;
+  }
+  fairRotation.lastServed.set(key, fairRotation.dispatchCount);
+  if (isMetaFleet(key)) fairRotation.metaServed += 1;
+  else fairRotation.normalServed += 1;
+}
+
+// Choose the index into `pendingExecutions` that runs next under the fair policy.
+// Split out so the policy is unit-testable without a live queue.
+//
+// Order of consideration:
+//   1. reverse bound — never let normal fleets trail the meta ones by ≥2 slots;
+//   2. meta lane — an internal fleet that has gone META_LANE_ROTATIONS dispatches
+//      without a slot jumps ahead;
+//   3. burst — keep feeding the fleet that just ran until it hits
+//      FLEET_DISPATCH_BURST, then hand the slot to the least-recently-served
+//      fleet (this is what keeps an 8-hop chain flowing instead of shattering it
+//      into 8 round-robin turns);
+//   4. arrival order as the final tiebreak.
+function pickFairIndex(pending, { burst, metaRotations } = fairQueueConfig()) {
+  if (pending.length === 0) return -1;
+  const keyOf = (e) => e.fleetId ?? null;
+  const waitOf = (e) => fairRotation.dispatchCount - (fairRotation.lastServed.get(keyOf(e)) ?? 0);
+
+  // 1. Reverse bound (spec: normal fleet slots ≥ meta slots − 1).
+  if (fairRotation.metaServed > 0 && fairRotation.normalServed <= fairRotation.metaServed - 2) {
+    let best = -1;
+    let bestWait = -1;
+    for (let i = 0; i < pending.length; i += 1) {
+      if (isMetaFleet(keyOf(pending[i]))) continue;
+      const w = waitOf(pending[i]);
+      if (w > bestWait) {
+        best = i;
+        bestWait = w;
+      }
+    }
+    if (best !== -1) return best;
+  }
+
+  // 2. Meta lane: an internal fleet overdue by metaRotations dispatches.
+  if (metaRotations > 0) {
+    let best = -1;
+    let bestWait = -1;
+    for (let i = 0; i < pending.length; i += 1) {
+      if (!isMetaFleet(keyOf(pending[i]))) continue;
+      const w = waitOf(pending[i]);
+      if (w >= metaRotations && w > bestWait) {
+        best = i;
+        bestWait = w;
+      }
+    }
+    if (best !== -1) return best;
+  }
+
+  // 3. Burst: keep the current fleet while it is under its burst limit.
+  if (fairRotation.lastFleet !== undefined && fairRotation.burstCount < burst) {
+    const same = pending.findIndex((e) => keyOf(e) === fairRotation.lastFleet);
+    if (same !== -1) return same;
+  }
+
+  // 4. Least-recently-served fleet, arrival order among equals.
+  let best = 0;
+  let bestWait = -1;
+  for (let i = 0; i < pending.length; i += 1) {
+    const w = waitOf(pending[i]);
+    if (w > bestWait) {
+      best = i;
+      bestWait = w;
+    }
+  }
+  return best;
 }
 
 function drainExecutions() {
   if (executionDraining || pendingExecutions.length === 0) return;
   // First human wake in arrival order, else the oldest — FIFO among equals.
-  const at = pendingExecutions.findIndex((e) => e.human);
-  const next = pendingExecutions.splice(at === -1 ? 0 : at, 1)[0];
+  let at = pendingExecutions.findIndex((e) => e.human);
+  if (at === -1) {
+    at = fairQueueEnabled() ? pickFairIndex(pendingExecutions) : 0;
+  }
+  const next = pendingExecutions.splice(at, 1)[0];
+  if (fairQueueEnabled()) fairNoteDispatch(next.fleetId ?? null);
   executionDraining = true;
   const done = () => {
     executionDraining = false;
     drainExecutions();
   };
   executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(next.id)).then(done, done);
+}
+
+// Read-only view for the readiness probe: who is waiting, per fleet.
+function queueFairnessSnapshot({ now = Date.now() } = {}) {
+  const byFleet = new Map();
+  for (const e of pendingExecutions) {
+    const key = e.fleetId ?? null;
+    const cur = byFleet.get(key) ?? { fleetId: key, queued: 0, oldestWaitMs: null };
+    cur.queued += 1;
+    const waited = Math.max(0, now - (Number.isFinite(e.at) ? e.at : now));
+    if (cur.oldestWaitMs === null || waited > cur.oldestWaitMs) cur.oldestWaitMs = waited;
+    byFleet.set(key, cur);
+  }
+  const config = fairQueueConfig();
+  return {
+    enabled: fairQueueEnabled(),
+    ...config,
+    rotations: fairRotation.dispatchCount,
+    served: Object.fromEntries(
+      [...fairRotation.lastServed].map(([k, at]) => [k ?? "(unattributed)", fairRotation.dispatchCount - at]),
+    ),
+    fleets: [...byFleet.values()].map((f) => ({ ...f, meta: isMetaFleet(f.fleetId) })),
+  };
 }
 
 async function runQueuedExecutionWithWatchdog(id) {
@@ -1292,7 +1502,22 @@ export {
   addOnFinished,
   setSlotDispatcher,
   setMandateGate,
+  // Fleet fairness (split-meta-team-queue-capacity): the selection policy and
+  // its read-only projection. The resolver is injected (the engine must not own
+  // the "which fleets are internal" question).
+  setMetaFleetResolver,
+  queueFairnessSnapshot,
+  // Pure policy surface (split-meta-team-queue-capacity 1.3/2.2/2.3): the
+  // selector and its rotation reset are exported so the dispatch ORDER can be
+  // pinned by a test over a synthetic pending list, without a live queue.
+  pickFairIndex,
+  fairResetRotation,
+  // Bookkeeping hook for the policy test: drainExecutions calls this after each
+  // pick; exposing it lets a test advance the rotation while asserting order.
+  fairNoteDispatch as __fairNoteDispatchForTest,
+  fleetKey as __fleetKeyForTest,
   beginExecution,
+  finishExecution,
   runOnPrimary,
   broadcastStatus,
   broadcastEvent,

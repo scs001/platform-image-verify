@@ -236,6 +236,17 @@ async function projectBindingLedger(email) {
   return { rows, summary: { packs: packs.size, bindings: active.length, unresolved, unwired, unmapped } };
 }
 
+// Fleet fairness projection for the readiness probe. A throwing snapshot must
+// read as "no fairness data", never as a broken queue: the probe's verdict is
+// still queueHealth's job.
+function safeFairnessSnapshot() {
+  try {
+    return taskEngine.queueFairnessSnapshot();
+  } catch (e) {
+    return { enabled: false, error: String(e?.message || e) };
+  }
+}
+
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
   registerRoleRoutes(ctx);
@@ -342,7 +353,14 @@ export function registerMiscRoutes(ctx) {
       // (win-install-smoke 2026-10-08) — lets probes distinguish "booting"
       // from "agent runtime unavailable".
       dshInitError: ctx.dshInitError ?? null,
-      queue,
+      queue: {
+        ...queue,
+        // Fleet fairness (split-meta-team-queue-capacity): who is waiting and how
+        // many slots each fleet took this rotation. Read-only extra — `ready` and
+        // `degraded` are still decided by queueHealth alone, so the liveness
+        // contract that fix-task-queue-deadlock landed is untouched.
+        fairness: safeFairnessSnapshot(),
+      },
     });
   });
 

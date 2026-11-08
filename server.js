@@ -1789,6 +1789,30 @@ engine.setMandateGate((task) => {
     return { ok: true };
   }
 });
+// Fleet fairness (split-meta-team-queue-capacity D3): the engine must not own
+// the question "which fleets are internal meta teams" — that list changes as
+// teams come and go, and hard-coding names in the queue would rot. The fleet
+// record is the authority here; the resolver below reads it, and a broken read
+// degrades to "normal fleet" (never throws, never blocks dispatch).
+//
+// Source of truth: a fleet is meta when its own record says so. Until the UI
+// grows that field, `FLEET_META_IDS` (comma-separated fleet ids) is the
+// bootstrap — explicitly configuration, not code.
+engine.setMetaFleetResolver((fleetId) => {
+  if (!fleetId) return false;
+  const configured = String(process.env.FLEET_META_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (configured.includes(fleetId)) return true;
+  try {
+    const fleet = getFleetDatabase().getFleet(fleetId);
+    return fleet?.internal === true || fleet?.meta === true;
+  } catch {
+    return false;
+  }
+});
+
 // Inbound disposition seam for bots.js guard drops (size/rate) — fire-and-
 // forget, failure never touches the chat path.
 ctx.recordSignalDisposition = (botId, entry) => {

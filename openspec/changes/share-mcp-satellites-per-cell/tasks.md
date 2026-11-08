@@ -55,8 +55,17 @@
 - [ ] 4.2 真机收益对照：同一 cell 在 cap=0 / cap=1 两种形态下的 pod 实扣与卫星数；验证 = `kubectl top`
       + /proc 扫描，数字进台账
       - **阻塞（2026-11-08）**：线上 `TASK_WORKER_MAX=0`（被并发会话从 2 改回 0），池关 → 每 cell
-        只有一个 dsh → 无重复卫星可省 → 本变更正确地未生效（日志 `worker pool off`）。验证需
-        worker-pool 线同意把 cap 设 1 滚一次（方案与观察项已记入台账 §15.144 续三十二（渠））
+        只有一个 dsh → 无重复卫星可省 → 本变更正确地未生效（日志 `worker pool off`）。
+      - **真因不是"没人批窗口"，是容量已否决**（2026-11-08 查 GitOps 变更史确认）：
+        `all-services/prod/platform.yaml` HEAD = `TASK_WORKER_MAX: "0"` + `limits.memory: 4Gi`；
+        `bad370c revert: platform memory limit back to 4Gi — namespace quota blocks 7Gi`；
+        更早 `e40ef37` 的行内注释写死「TASK_WORKER_MAX=0 是**刻意的容量决定**，节点预算不含
+        并行 dsh 子进程」。链条：开槽需 pod 有富余内存 → 7Gi 被命名空间 quota（`limits.memory`
+        38Gi 满）否掉 → 回 4Gi → 现有 3 cell 已占 ≈4.1Gi → 再开一个 worker 槽
+        （共享后约 +430Mi 标称；不共享则 ≈+990Mi）放不下。
+        **本变更是让开槽变便宜的那一刀，不是那个决定本身。**
+      - 结论：4.2/4.3/4.4 等的不是「10 分钟窗口」，是**命名空间配额/节点预算腾出 ≈0.5Gi 的决定**
+        （或换更大预算的节点）。在此之前本变更保持"已实现、正确地未启用"。
       - 现状基线（cap=0，2026-11-08 真机）：3 cell / 每 cell 1 dsh / 卫星 14·13·13 颗 /
         997–1120Mi per cell / 全 pod 40 颗 —— cap=1 时的对照就拿这一行比
       - **取数命令**：`node scripts/probe-satellite-sharing.mjs`（只读，进 pod 用镜像自带的

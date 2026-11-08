@@ -30,7 +30,10 @@ process.env.MCP_CONFIG_PATH = path.join(TMP, "mcp.json");
 fs.mkdirSync(process.env.DSH_HOME, { recursive: true });
 fs.writeFileSync(process.env.MCP_CONFIG_PATH, JSON.stringify({ mcpServers: {} }));
 
-const Database = (await import("better-sqlite3")).default;
+// (No direct better-sqlite3 handle here: every scenario goes through db.js's
+// own connection so the migration path under test is the one production runs —
+// the import that used to sit on this line was dead weight and failed the lint
+// gate with noUnusedVariables.)
 
 // db.js opens the handle from DB_PATH and keeps it module-private, so every
 // scenario drives it through initDb() after mutating the file underneath.

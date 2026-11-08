@@ -3277,6 +3277,8 @@
       "memoryLow": "余裕がしきい値未満（{{pct}}% < {{thresholdPct}}%）",
       "memoryUnavailable": "メモリ計測は利用不可",
       "memoryUngrouped": "未分類 {{mb}} MB",
+      "memoryBrowserLane": "ブラウザ共有サービス {{mb}} MB",
+      "memoryBrowserLaneDown": "サービス到達不可",
       "cellSleeping": "休眠中（プレースホルダー）",
       "deltaUnknown": "—",
       "digestDaily": "日報",

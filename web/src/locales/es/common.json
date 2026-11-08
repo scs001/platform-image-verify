@@ -3277,6 +3277,8 @@
       "memoryLow": "margen bajo el umbral ({{pct}}% < {{thresholdPct}}%)",
       "memoryUnavailable": "métricas de memoria no disponibles",
       "memoryUngrouped": "sin agrupar {{mb}} MB",
+      "memoryBrowserLane": "servicio de navegador compartido {{mb}} MB",
+      "memoryBrowserLaneDown": "servicio no disponible",
       "cellSleeping": "en reposo (marcador)",
       "deltaUnknown": "—",
       "digestDaily": "Diario",

@@ -3277,6 +3277,8 @@
       "memoryLow": "headroom below threshold ({{pct}}% < {{thresholdPct}}%)",
       "memoryUnavailable": "memory metrics unavailable",
       "memoryUngrouped": "ungrouped {{mb}} MB",
+      "memoryBrowserLane": "browser lane {{mb}} MB",
+      "memoryBrowserLaneDown": "lane down",
       "failingBadge": "failing {{count}}",
       "onDutyLine": "on-duty {{on}}/{{total}}",
       "turnsLine": "{{turns}} turns·{{runs}} runs",

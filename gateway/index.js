@@ -53,6 +53,7 @@ import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { registerOwnerCellsRoute } from "./fleet-board.js";
 import { registerMemoryFaceRoute } from "./memory-face.js";
+import { createBrowserLaneHealthProbe } from "../lib/browser-lane-health.js";
 import { createProcMemorySampler } from "../lib/proc-memory.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
@@ -107,6 +108,12 @@ const CELL_MEMORY_FLOOR = Number(process.env.CELL_MEMORY_ADMISSION_FLOOR ?? 0.15
 const CELL_WAKE_DEFAULT_FOOTPRINT_MB = Number(process.env.CELL_WAKE_DEFAULT_FOOTPRINT_MB ?? 512);
 // One sampler for the whole process: the gate, the read face, and any future
 // reader share one TTL-cached /proc scan (高频请求不放大扫描开销).
+// Shared browser lane reachability (slim-browser-lane-footprint 3.2): once the
+// lane is one pod-level service, "is the browser lane up?" can only be answered
+// by the service itself. Unconfigured deployments (desktop, single-process)
+// report configured:false and every face simply omits the row.
+const browserLaneProbe = createBrowserLaneHealthProbe({ env: process.env });
+
 const procMemorySampler = createProcMemorySampler({
   ttlMs: Number(process.env.CELL_MEMORY_SAMPLE_TTL_MS || 2000),
 });
@@ -439,8 +446,17 @@ app.delete("/api/app/bind/:deviceId", async (req, res) => {
 
 // Liveness. Public by design — a probe has no session cookie — and it reports
 // no per-user information.
-app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, uptimeMs: Date.now() - startedAt, cells: registry.cells.size });
+app.get("/healthz", async (_req, res) => {
+  // The shared browser lane is a pod-level dependency now, so it belongs in
+  // liveness: reachable=false is visible, while /healthz itself stays 200 (a
+  // dead browser lane must not take the whole platform out of rotation).
+  const lane = browserLaneProbe.configured ? await browserLaneProbe.probe() : null;
+  res.json({
+    ok: true,
+    uptimeMs: Date.now() - startedAt,
+    cells: registry.cells.size,
+    ...(lane ? { browserLane: { reachable: lane.reachable, url: lane.url } } : {}),
+  });
 });
 
 // The admin group name(s) — see registerAuth's ADMIN_GROUPS for the rationale
@@ -1171,6 +1187,7 @@ registerMemoryFaceRoute(app, {
   rejectUnauthenticated,
   isAdminUser,
   threshold: CELL_MEMORY_FLOOR,
+  browserLaneProbe,
 });
 
 app.use(async (req, res) => {

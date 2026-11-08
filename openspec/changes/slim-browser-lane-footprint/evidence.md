@@ -82,3 +82,39 @@ EXIT=0
   `BROWSER_SHARED_OUTPUT_ROOT`）→ 先只给一个测试 cell 的 patch 打开 → 走查工具面 /
   产物 / 降级三项 → 全量 → 复测 §1 的两条命令 → 回滚演练（删 env + 停 sidecar）。
   生产清单不在本仓，本仓 `k8s/deployment.yaml` 只是设计权威版。
+
+## 6. 灰度实测（5.1，2026-11-08，fd-prod，灰度 cell = aloadtree@finddatatech.cloud / a61f1beddc5297e5）
+
+pod `platform-84c885bc6c-4f6dj`：**2/2 Running**，容器 `platform + browser-lane`，
+`shareProcessNamespace: true`。`kubectl -n fd-prod top pod --containers`（两次取样）：
+
+| 采样 | browser-lane | platform | pod 合计 |
+|---|---|---|---|
+| T+1min | 102Mi | 1864Mi | 1966Mi |
+| T+2min | 101Mi | 1629Mi | **1730Mi** |
+
+**走查三项**
+
+1. 工具面 / 服务可达 —— ✅ sidecar `/healthz`：
+   `{"ok":true,"sessions":0,"calls":0,"artifactRoot":"/data/browser-lane",
+   "upstream":{"mode":"spawn","pid":37,"restarts":0,"reachable":true,"url":"http://127.0.0.1:9311"}}`；
+   gateway `/healthz`：`{"cells":2,"browserLane":{"reachable":true,...}}` —— 健康面已带该行。
+2. 产物路由 —— ⏳ 待灰度 cell 唤醒后观测（`sessions=0`，该 cell 现为 suspended；产物根
+   `/data/browser-lane` 已就位，路由逻辑由单测 + 本机真机冒烟证明）。
+3. 降级 —— ✅ 负例成立：未列入 `BROWSER_SHARED_CELLS` 的 cell（`3fdc7b8e8ac03b68` /
+   platform-test，真实 cell boot 时写入的 patch）仍是
+   `serverName: playwright / transport: stdio / command: node` —— 灰度没有波及其它 cell。
+
+**仅灰度态的成本（重要口径）**：此刻 pod 内同时存在「pod 级一份 sidecar（101Mi）」与
+「两个尚未翻转的 cell 各自那份 shim+CLI（RSS 口径约 2×(50+130)≈340Mi）」，所以灰度期总
+占用比改造前**略高**，省下的部分要等全量翻转才落地。按进程表口径对照：
+
+| | 浏览器车道占用 |
+|---|---|
+| 改造前 | 2 cell × (`browser-mcp.js` ~50Mi + `cli.js` ~110–130Mi) ≈ 340Mi |
+| 灰度态 | sidecar 101Mi + 2 个未翻转 cell 的 340Mi |
+| 全量后（预期） | 仅 sidecar（101Mi 空闲 + 会话期 chromium），cell 侧 0 |
+
+**探针坑（已在 GitOps 修复，cf45601）**：`hostNetwork` 下 `httpGet` 探针按 pod IP
+（节点 IP）连，实测 `Get "http://100.64.0.14:9310/healthz": connection refused`，Pod 卡
+1/2、Service 无端点；必须 `httpGet.host: 127.0.0.1`（或 exec 探针）。

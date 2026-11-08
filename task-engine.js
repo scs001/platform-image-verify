@@ -556,7 +556,18 @@ function enqueueExecution(id, opts = {}) {
     return { ok: false, error: `task is ${t.paused ? "paused" : t.status}` };
   }
   if (t.state === "queued" || t.state === "running") {
-    return { ok: true, already: true, state: t.state };
+    // fix-task-queue-deadlock D4: this used to answer a bare {ok:true,
+    // already:true}, which read exactly like a successful enqueue. On
+    // 2026-11-08 that is what hid a wedged queue — every manual `run` looked
+    // fine while the task had been parked for hours. Carry the state AND how
+    // long it has waited so the caller can tell "just queued" from "been
+    // sitting there since 00:34".
+    return {
+      ok: true,
+      already: true,
+      state: t.state,
+      queuedForMs: typeof t.queuedAt === "number" ? Math.max(0, Date.now() - t.queuedAt) : null,
+    };
   }
   // Mandate revalidation (add-turn-mandate-lane): a mandate-carrying task
   // re-executing revalidates FIRST — a failed check refuses the resume
@@ -983,6 +994,62 @@ function stats({ now = Date.now(), windowMs = 3_600_000 } = {}) {
   };
 }
 
+// ── Queue liveness (fix-task-queue-deadlock D3) ─────────────────────────────
+//
+// 2026-11-08 实盘：owner cell 的 776 个任务里 1 个 running（已 6.5 分钟未结算）
+// + 22 个 queued（最早 00:34 就在排），而 /api/ready 仍报 {"ready":true}。
+// 串行队列停摆时探针必须看得见，否则「假绿」会把一次停摆拖成数小时误诊。
+//
+// 纯函数：不带 IO、不缓存、不被队列状态反向影响——探针不能变成第二个
+// 不透明点。`budgetOf(task)` 由调用方注入（引擎内部的预算解析器），缺席时
+// 退化为只看排队的积压阈值。
+export const QUEUE_MAX_OLDEST_QUEUED_MS = 10 * 60_000;
+
+function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {}) {
+  let queued = 0;
+  let running = 0;
+  let oldestQueuedMs = null;
+  let oldestRunningMs = null;
+  let overBudget = 0;
+
+  for (const t of tasks.values()) {
+    if (t.state === "queued") {
+      queued += 1;
+      if (typeof t.queuedAt === "number") {
+        const waited = Math.max(0, now - t.queuedAt);
+        if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
+      }
+    } else if (t.state === "running") {
+      running += 1;
+      const startedAt = t.lastRun ? Date.parse(t.lastRun) : NaN;
+      if (Number.isFinite(startedAt)) {
+        const elapsed = Math.max(0, now - startedAt);
+        if (oldestRunningMs === null || elapsed > oldestRunningMs) oldestRunningMs = elapsed;
+        if (typeof budgetOf === "function") {
+          let budget = null;
+          try {
+            budget = budgetOf(t);
+          } catch { /* a broken resolver must not fail the snapshot */ }
+          if (Number.isFinite(budget) && budget > 0) {
+            const grace = Number.isFinite(graceMs) ? graceMs : budget;
+            if (elapsed > budget + grace) overBudget += 1;
+          }
+        }
+      }
+    }
+  }
+
+  const queuedTooLong = oldestQueuedMs !== null && oldestQueuedMs > QUEUE_MAX_OLDEST_QUEUED_MS;
+  return {
+    queued,
+    running,
+    oldestQueuedMs,
+    oldestRunningMs,
+    overBudget,
+    degraded: queuedTooLong || overBudget > 0,
+  };
+}
+
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 
 // Timer cancellation is the scheduling front-end's (cron.js owns the
@@ -1026,6 +1093,12 @@ export {
   broadcastEvent,
   getDashboardState,
   stats,
+  queueHealth,
+  // Budget resolver passthrough (fix-task-queue-deadlock D3): the readiness
+  // probe asks the engine for each running task's own budget so "running past
+  // budget+grace" is judged by the same number the turn was given — one
+  // authority, no second copy of the policy in the probe.
+  resolveBudgetFor,
   // Retry policy resolver (harden-cell-execution-reliability) — exported so
   // the env contract (default off, fail-closed, per-kind override) is pinned
   // by a test rather than only exercised on a failed execution.

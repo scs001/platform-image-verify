@@ -101,8 +101,17 @@ export function registerCronRoutes(ctx) {
   router.post("/:id/run", async (req, res) => {
     // runJobNow returns the engine's enqueue result; ok=false with a message
     // (paused/expired/queued-already) is a normal answer, not a server error.
+    // `already` + `queuedForMs` ride through verbatim (fix-task-queue-deadlock
+    // D4): a repeat ignition must be distinguishable from a fresh one, or a
+    // wedged queue reads exactly like a healthy one.
     const r = await cron.runJobNow(req.params.id);
-    res.json({ ok: r?.ok === true, ...(r?.state ? { state: r.state } : {}), ...(r?.error ? { message: r.error } : {}) });
+    res.json({
+      ok: r?.ok === true,
+      ...(r?.state ? { state: r.state } : {}),
+      ...(r?.already ? { already: true } : {}),
+      ...(typeof r?.queuedForMs === "number" ? { queuedForMs: r.queuedForMs } : {}),
+      ...(r?.error ? { message: r.error } : {}),
+    });
   });
 
   router.delete("/:id", async (req, res) => {

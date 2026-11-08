@@ -233,8 +233,38 @@ pod 内 /proc 扫描（RSS，含共享页重复计）
 3. 任何路线都要先过 ①：一个 dsh 进程同一时刻只能跑一个回合（`scripts/probe-concurrent-turn-close.mjs`
    双版本实证），所以「减进程」和「加并发」在 R1/R3 上是对立的。
 
+### R2 可行性清单：进程边界现在承担什么（逐条对位代码）
+
+R2 的想法是「cell-server 职责并入 gateway，pod 内只留 dsh child」。它省的是每 cell
+220–280Mi，但要拿**当前由进程边界免费提供的东西**去换。逐条对位后，结论是：
+**R2 不是「搬代码」，是把一个单租户进程改造成多租户运行时**，且崩溃域会退化。
+
+| # | 维度 | 今天谁保证 | R2 需要什么 | 判定 |
+|---|---|---|---|---|
+| 1 | 数据根（文件面） | 每个 cell 进程一个 `PLATFORM_DATA_DIR`／`AGENT_WORKSPACE`，spawner 注入 | 所有路径改成按租户传入：**34 个文件在导入期就 `const X = process.env…`** 捕获（`paths.js:17`、`db.js:20 DEFAULT_DB_PATH` 是其中两个代表） | **需重做（面最大）** |
+| 2 | store 目录常量 | `storeDir()` 在模块顶层算死：`server/owner-groups.js:13`、`server/routes/files.js:19 UPLOADS_DIR`、`task-engine.js:19 TASK_STORAGE_DIR`、`llm-providers.js:28/:29`、`skill-materialize.js:32` | 每个常量都要变成 per-tenant 实例；仓库里**没有** `createX({root})` 工厂先例可抄（grep 无命中），属净新增模式 | **需重做** |
+| 3 | SQLite 句柄与事件循环 | 每 cell 一个进程 = 一个事件循环，同步 `better-sqlite3`（**37 个模块**）阻塞只影响自己 | 单进程要开 N 套句柄，**同步查询会在同一 loop 上串行**：一个租户的慢查询/大迁移会卡住所有人的 HTTP | **会退化（架构级）** |
+| 4 | 内存上限 | 已经是 **pod 级 cgroup**（4Gi），一个 cell 泄漏不会单独爆，是整 pod OOM | 无需改 | **不变（本来就没按 cell 隔离）** |
+| 5 | 崩溃域 | 一个 cell 崩只死自己，gateway 记账后重生（`gateway/index.js:584 live = registry.cells.get`） | 单进程里任一租户的未捕获异常/内存越界**打死全部 cell**；要靠 per-request 兜底 + domain 隔离补，但补不回进程级硬隔离 | **会退化（不可逆）** |
+| 6 | 身份与凭据面 | cell 只信 gateway：`CELL_GATEWAY_SECRET` + `forward_auth`，跨进程传 `x-cloud-gateway-secret` | 边界消失 → 头信任没了对手方，反而**少一个伪造面**（这条是加分） | **改善** |
+| 7 | dsh child 生命周期 | 每 cell 一份 `dsh-bridge` + `agent-session`，`server.js:639 ensureCredentialsStore({cellOwnerEmail})`、`:1123 db.initDb()` 都是导入/启动期一次 | 要变成 N 个 bridge 会话对象 + 一个进程内的重启/退避状态机；且 ①回合收尾串行仍是物理约束 | **需重做 + 不解 ①** |
+| 8 | 定时器 / cron | `server/cron-runner.js` 在 cell 进程内跑（`activeTurns`、`readyRetryByJob` 都是模块级 Map） | 单进程要一个按租户分片的调度器，且不能互相饿死 | **需重做** |
+| 9 | 长连接 / WS | 每 cell 自己的 WS 升级（`proxyUpgrade`） | 单进程多租户 WS 路由 + 会话归属校验 | **需重做** |
+| 10 | 生命周期与清理 | **13 处** `process.on("SIGTERM"/"exit")` / `process.exit()` 假设「一个进程 = 一个租户」 | 租户级启停不能用进程信号，要自建生命周期 | **需重做** |
+| 11 | 可观测性 | 日志前缀 `[cell <hex>]` 来自 spawner 的 stdio 转发；内存面按 cwd/cmdline 归组（`lib/proc-memory.js`） | 单进程后 cwd/cmdline 不再区分租户 → 内存面**归组机制失效**（正是我这次改的那套），要改成按句柄/按租户记账 | **需重做（观测面）** |
+
+**底线（给调研用）**：R2 买到「每 cell −220–280Mi」，付出的是 ① 11 个维度里 8 个要重做、
+② 事件循环串行化、③ 崩溃域从 cell 放大到 pod（不可逆）、④ 观测面归组失效。
+而 §三 定案里 B 路线（R1）被排到最后的原因正是「要动 pod 内存与配额」——R2 比 R1 动得更多。
+**若目标是密度**，更便宜的顺序是 R4（休眠摊密度，已部分在产）→ 再看 R2；
+**若目标是并发**，R2 帮不上（不解决 ①），该走 R1 或 R3。
+
 ## 附：本文引用的实证坐标
 
+- R2 隔离面清单（§八）：34 个文件导入期捕获 env（`paths.js:17`、`db.js:20`）；模块顶层 `storeDir()` 常量
+  5 处（`server/owner-groups.js:13`、`server/routes/files.js:19`、`task-engine.js:19`、`llm-providers.js:28/:29`、
+  `skill-materialize.js:32`）；`better-sqlite3` 同步用户 37 个模块；13 处 `process.on("SIGTERM"/"exit")`；
+  gateway 代理面 `gateway/index.js:584/:647/:696`；cell 启动期单例 `server.js:639/:1123`。
 - 2026-11-08 复测（§八）：`kubectl -n fd-prod top pod --containers`（browser-lane 101–139Mi /
   platform 1629–2206Mi）+ pod 内 /proc 扫描（在跑 cell 每个 procs=2、425–466Mi、browser=0；全 pod 1 个浏览器进程）。
 - 串行四层：scripts/probe-concurrent-turn-close.mjs；archive/2026-10-14-add-dsh-pod-adapter/design.md:9；

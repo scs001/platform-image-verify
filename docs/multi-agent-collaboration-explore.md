@@ -217,7 +217,7 @@
 | P2-2 | `report` 边死语法 | `fleet-orchestration.js:14` |
 | P2-3 | 产物只能传散文（无句柄/附件） | `fleet-handoffs.js:98-100` |
 | P2-4 | 所有岗位共享同一 workspace cwd（无 per-member 隔离） | `server.js:810` |
-| P2-5 | fanout 在产串行；主链无公平性 | `worker-slots.js:55-58`、`task-engine.js:616-631` |
+| P2-5 | ~~fanout 在产串行；主链无公平性~~ **主链已修**：`humanPriority` 从「只有 worker 池认」改为主槽串行链出队时选序（越过未开始的执行，不抢正在跑的；cap 0 同样生效，`idle()` 同步等清空）→ `openspec/changes/archive/2026-11-08-fix-main-chain-human-priority/`（镜像 sha-e58cf30）。**残留**：产线 fanout 仍串行——一条 dsh 运行时是物理限制，要并行只能开 `TASK_WORKER_MAX>0`（基建决定，未动） | `task-engine.js:727-756`、`worker-slots.js:45-70` | 【码】 |
 | P2-6 | 无 run 预算闸 / 无取消 run / spanMax 只 warn | `fleet-orchestration.js:228` |
 | P2-7 | 跨舰队不可能；peer/blackboard 保留未实现；`assertTurnRequest` 无调用方 | `fleets.js:1057`、`turn-request.js:16-21` |
 | P2-8 | A2A 不做能力协商、discovery N=8 硬编码、出站恒 depth=1、市场无「团队即 agent」 | `a2a-client.js:13`、`delegation.js:170-178` |

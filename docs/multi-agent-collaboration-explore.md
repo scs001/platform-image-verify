@@ -210,6 +210,11 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**P0′-1 根因的处置边界（2026-11-08 二次取证，结论=平台侧无切口）**：
+- 量到的事实：单 cell trace 里 `tool/result` 共 **47MB / 5728 条（均 8KB）**，最大会话 3MB；单条最大仅 26KB，超时回合整轮 533KB / 240 事件。**不是某条工具结果爆炸，而是逐条累积**把 128K 窗口占满后反复压缩。
+- 可写面勘察：`dsh` 的 patch 面只有九类（mcp/skills/presets/permissions/toolSearch/chartBind/userQuestions/pluginSupply/saveLibrary），**无上下文/压缩/工具输出上限旋钮**；`settings.yaml` 只有 `contextWindow` / `maxTokens`；结果进入模型前的那层截断在 dsh 内部。
+- 因此「只对舰队回合收紧上下文进入量」**在平台侧不可实现**。三条备选（需投入决策）：①改 dsh 上游（给每轮工具结果加字节上限 + 截断标记）；②只约束**我们自家** MCP 工具（`fd-open-data`/`fd-memory`/`wire-*` 加 `limit` 参数与默认上限）——治标但可控、当天可落；③按岗位把回合预算调高——已验证是推墙，不建议。
+
 **P0′-2 处置**：`fix-fleet-budget-visibility`——`ERROR_KINDS` 增 `budget` 且**排在 `model_upstream` 之前**（原分类被 `model` 字样吞掉，441 条失败的读面因此与上游抖动混同）；`fleets-db.budgetPressure` 按舰队聚合 24h 内额度失败（岗位数/次数/最早时刻，无则 null）；驾驶舱健康区渲染醒目提示，无该状态不渲染。e2e 顺带抓到一个真缺陷：文案占位符写 `{{windowHours}}`、代码传 `hours`，**占位符当字面量显示给了用户**——五语种已统一并由 e2e 断言真实数字。
 
 **今晚滚动的验证结论（正面）**：`turn_contract_refused=0`（新加的 turn 契约门在产零误伤）；四个 cell 的滚动后小时段与滚动前同量级，无新塌方。

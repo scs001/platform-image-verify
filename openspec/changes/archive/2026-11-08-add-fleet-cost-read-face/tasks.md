@@ -53,7 +53,12 @@
 
 ## 6. 上线
 
-- [ ] 6.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 6.1 出片滚版 → 已在产（快照取自远端线 bbc147390 → GHA `sha-873377b`，digest `sha256:80be630f`，
+      relay OK 09:41；fd-infra-deploy `fe67e13` 双 bump → ArgoCD 75s → 两 rollout 完成；
+      镜像内 `test-fleet-cost-read-face`+`test-turn-pricing` = 12/12 绿；
+      实弹探针：回合行四列存在、`runCost` = {usd:1, pricedTurns:1, turns:1}、`spendProjection` 同值）
+      ⚠️ 过程事故：本 change 的源码面曾整批丢失（共享工作树被并发线改写），首次提交只带上
+      openspec 与新测试；已按远端线内容重贴三处源码并在 clone 内验证后重推（`bbc147390`）
 - [ ] 6.2 观察项：滚版后取一个真实 run 的详情，确认金额与样本量合理（不为 0、不虚高）；
       核对 cockpit 边流量上的金额与 run 详情同源
 

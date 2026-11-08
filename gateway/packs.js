@@ -27,6 +27,7 @@ import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { collectPublishVerdict, CREATOR_GROUP_REQUIRED } from "./pack-publish-gates.js";
+import { mintDeploymentBindings } from "../deployment-bindings.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
 import { safePackagePath } from "../lib/skill-files.js";
@@ -2542,6 +2543,23 @@ export function registerPackRoutes(app, {
         deployer: user.email,
       });
     }
+    // Deployment-scoped connector bindings (add-deployment-binding-grant): a
+    // served agent has no session to mint from, so the mint happens here, with
+    // the DEPLOYER's own account as the parent, and lands in deployment_secrets
+    // (value platform-side, opaque reference on the descriptor). A failure never
+    // fails the deploy — an unresolved binding is reported, not fatal.
+    let deploymentBindings = null;
+    try {
+      deploymentBindings = await mintDeploymentBindings({
+        email: user.email,
+        packId: id,
+        agentIds: out.deployed.map((d) => d.agentId),
+        record: (row) => registry.recordDeploymentSecret(row),
+      });
+    } catch (e) {
+      console.warn(`[packs] deployment binding mint failed for ${id}: ${e?.message || e}`);
+    }
+
     res.json({
       deployed: out.deployed.map((d) => ({
         agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card,
@@ -2552,6 +2570,16 @@ export function registerPackRoutes(app, {
       })),
       billing,
       effectiveWithinSecs: out.effectiveWithinSecs,
+      // Which deployment bindings got a token, and which could not — names
+      // only; the token itself never leaves the platform side.
+      ...(deploymentBindings
+        ? {
+            deploymentBindings: {
+              granted: deploymentBindings.granted.map((g) => ({ agentId: g.agentId, bindingKey: g.bindingKey })),
+              failed: deploymentBindings.failed.map((f) => ({ agentId: f.agentId, bindingKey: f.bindingKey, code: f.code })),
+            },
+          }
+        : {}),
     });
   };
 

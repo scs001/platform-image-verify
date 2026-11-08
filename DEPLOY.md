@@ -622,6 +622,15 @@ then rewrites `filename`/`saveAs` to an absolute path under
 produced into the same dir — inside the workspace `/api/files` serves, so the
 owning cell sees them and no other cell can.
 
+**Sessions are retired server-side.** dsh's MCP client defines
+`terminateSession()` (the DELETE that would end a session) but never calls it —
+its teardown only closes the transport locally. On a shared pod that would leak
+one session (and one browser context) per cell restart, so the service reaps
+sessions idle longer than `BROWSER_SHARED_SESSION_IDLE_MS` (default 30 min,
+`0` disables; sweep every `BROWSER_SHARED_SESSION_SWEEP_MS`, default 60s) and
+logs the retired cell. An actively used session touches the service constantly
+and is never reaped; `/healthz` reports per-session `idleMs`.
+
 **Degrade, never fall back.** If the service or its upstream is down, cells get
 the ordinary MCP failure path (tools grey out, reason logged, other tools
 unaffected) and NO per-cell playwright is spawned — falling back would silently

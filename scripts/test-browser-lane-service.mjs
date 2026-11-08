@@ -132,7 +132,7 @@ function freePort() {
   });
 }
 
-async function startFrontend({ upstreamUrl, sharedDir, identifyCell }) {
+async function startFrontend({ upstreamUrl, sharedDir, identifyCell, extraEnv = null }) {
   const port = await freePort();
   const service = createBrowserLaneService({
     env: {
@@ -140,6 +140,7 @@ async function startFrontend({ upstreamUrl, sharedDir, identifyCell }) {
       BROWSER_SHARED_PORT: String(port),
       BROWSER_SHARED_UPSTREAM_URL: upstreamUrl,
       BROWSER_SHARED_OUTPUT_ROOT: sharedDir,
+      ...(extraEnv ?? {}),
     },
     cellsRoot: join(sharedDir, "cells"),
     identifyCell,
@@ -434,4 +435,55 @@ test("1.5 a filename with path segments cannot escape the cell dir", () => {
   // Upload paths are inputs, never rewritten.
   const uploads = rewriteArtifactArgs({ paths: ["/tmp/some.pdf"] }, dir);
   assert.deepEqual(uploads.args, { paths: ["/tmp/some.pdf"] });
+});
+
+// ── Session retirement (a dsh client never sends DELETE) ────────────────────
+// The MCP client dsh ships defines terminateSession() but never calls it: its
+// teardown only closes the transport locally. Without this reaper every cell
+// restart leaves a session + browser context alive in the shared pod forever.
+test("idle sessions are retired so a reconnecting cell cannot leak contexts", async () => {
+  const sharedDir = mkdtempSync(join(tmpdir(), "browser-lane-idle-"));
+  const upstream = await startSseUpstream({ sharedDir });
+  const frontend = await startFrontend({
+    upstreamUrl: upstream.url,
+    sharedDir,
+    identifyCell: () => ({ cellId: CELL_A, attributedVia: "test" }),
+    extraEnv: { BROWSER_SHARED_SESSION_IDLE_MS: "400", BROWSER_SHARED_SESSION_SWEEP_MS: "100" },
+  });
+  try {
+    const a = await connectClient(frontend.url);
+    await a.client.callTool({ name: "echo", arguments: { text: "x" } });
+    assert.equal(frontend.service.sessions.size, 1, "the session is live while in use");
+    // Close only locally — exactly what dsh does (no DELETE reaches the server).
+    await a.transport.close();
+    assert.equal(frontend.service.sessions.size, 1, "a local close alone leaves the session registered");
+    await new Promise((r) => setTimeout(r, 900));
+    assert.equal(frontend.service.sessions.size, 0, "the reaper retires it without client cooperation");
+  } finally {
+    await frontend.service.stop();
+    await upstream.stop();
+  }
+});
+
+test("an actively used session is never reaped", async () => {
+  const sharedDir = mkdtempSync(join(tmpdir(), "browser-lane-busy-"));
+  const upstream = await startSseUpstream({ sharedDir });
+  const frontend = await startFrontend({
+    upstreamUrl: upstream.url,
+    sharedDir,
+    identifyCell: () => ({ cellId: CELL_A, attributedVia: "test" }),
+    extraEnv: { BROWSER_SHARED_SESSION_IDLE_MS: "400", BROWSER_SHARED_SESSION_SWEEP_MS: "100" },
+  });
+  try {
+    const a = await connectClient(frontend.url);
+    for (let i = 0; i < 5; i += 1) {
+      await a.client.callTool({ name: "echo", arguments: { text: String(i) } });
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    assert.equal(frontend.service.sessions.size, 1, "activity keeps the session alive");
+    await a.client.close();
+  } finally {
+    await frontend.service.stop();
+    await upstream.stop();
+  }
 });

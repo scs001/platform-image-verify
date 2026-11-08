@@ -164,6 +164,14 @@ export function createBrowserLaneService({
   // (and any future transport that can name its peer) inject the resolver.
   const resolveIdentity = identifyCell ?? ((socket) => resolvePeerCell({ socket, cellsRoot }));
   const callTimeoutMs = Number(env.BROWSER_SHARED_CALL_TIMEOUT_MS || 600000);
+  // Session retirement. The MCP client dsh ships DEFINES `terminateSession()`
+  // (which sends DELETE) but never calls it — its teardown closes the transport,
+  // which only aborts locally. Without a reaper every cell restart would leave a
+  // session (and its browser context) alive in this service forever: a shared
+  // pod would leak one context per boot. Idle > threshold is the honest proxy
+  // for "this caller is gone" (an actively used session touches us constantly).
+  const sessionIdleMs = Number(env.BROWSER_SHARED_SESSION_IDLE_MS ?? 1800000); // 30 min; 0 disables
+  const sessionSweepMs = Number(env.BROWSER_SHARED_SESSION_SWEEP_MS || 60000);
   const outputRoot =
     (env.BROWSER_SHARED_OUTPUT_ROOT || "").trim() ||
     join((env.AGENT_WORKSPACE || tmpdir()).trim() || tmpdir(), "browser-lane");
@@ -188,6 +196,7 @@ export function createBrowserLaneService({
   let upstreamConfigDir = null;
   let stopping = false;
   let restartTimer = null;
+  let sweepTimer = null;
 
   const upstreamBase = attachUrl || `http://127.0.0.1:${upstreamPort}`;
   state.upstream.url = upstreamBase;
@@ -312,6 +321,7 @@ export function createBrowserLaneService({
       upstream,
       transport: null,
       createdAt: Date.now(),
+      lastActivity: Date.now(),
       calls: 0,
     };
 
@@ -429,7 +439,13 @@ export function createBrowserLaneService({
       calls: state.calls,
       artifactRoot: outputRoot,
       upstream: { ...state.upstream },
-      cells: [...sessions.values()].map((s) => ({ cellId: s.cellId, calls: s.calls, since: s.createdAt })),
+      sessionIdleMs,
+      cells: [...sessions.values()].map((s) => ({
+        cellId: s.cellId,
+        calls: s.calls,
+        since: s.createdAt,
+        idleMs: Date.now() - s.lastActivity,
+      })),
     };
   }
 
@@ -485,6 +501,7 @@ export function createBrowserLaneService({
         );
         return;
       }
+      known.lastActivity = Date.now();
       await known.transport.handleRequest(req, res, body);
     } catch (err) {
       logger.error(`[browser-lane] request failed: ${err?.message || err}`);
@@ -535,11 +552,27 @@ export function createBrowserLaneService({
         httpServer.listen(port, host, resolve);
       });
       logger.log(`[browser-lane] streamable-http frontend listening on ${host}:${port}/mcp`);
+      if (sessionIdleMs > 0) {
+        sweepTimer = setInterval(() => {
+          const now = Date.now();
+          for (const [id, session] of [...sessions.entries()]) {
+            if (now - session.lastActivity <= sessionIdleMs) continue;
+            logger.log(
+              `[browser-lane] retiring idle session ${String(id).slice(0, 8)} ` +
+                `(cell ${session.cellId ?? "unknown"}, idle ${Math.round((now - session.lastActivity) / 1000)}s)`,
+            );
+            void closeSession(id, "idle");
+          }
+        }, sessionSweepMs);
+        sweepTimer.unref?.();
+      }
       return this;
     },
     async stop() {
       stopping = true;
       if (restartTimer) clearTimeout(restartTimer);
+      if (sweepTimer) clearInterval(sweepTimer);
+      sweepTimer = null;
       for (const id of [...sessions.keys()]) await closeSession(id, "service stopping");
       if (httpServer) {
         await new Promise((r) => {

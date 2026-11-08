@@ -142,3 +142,21 @@ sidecar 侧证据：
 落点核对：该 cell 的 `workspace/browser/` 出现 `s51-walkthrough.png`（4254B）**以及**
 自动命名的 `page-2026-11-08T04-49-26-455Z.yml`（未命名产物被清扫归位）；另一个 cell
 （3fdc7b8e）同名文件计数 **0**。走查后已删除这两份产物，只留台账。
+
+### 6.2 灰度第二次滚动（带会话退役，2026-11-08）
+
+滚动后 pod `platform-6669d48ddc-lgch6` 2/2；`platform` 容器镜像 `sha-c4b5573`（并发会话的
+基线），`browser-lane` 容器镜像 `sha-6da050d`（本变更 + 会话退役）。sidecar `/healthz`：
+`{"ok":true,"sessions":0,"calls":0,"sessionIdleMs":1800000,"upstream":{"pid":37,"reachable":true,"restarts":0}}`
+—— `sessionIdleMs` 字段本身就是新构建在产的证据。gateway `/healthz` 仍带
+`browserLane.reachable=true`。
+
+`kubectl top --containers`：browser-lane **103Mi** / platform 2206Mi（此时两个非灰度 cell
+各有一条 dsh 回合在跑，platform 侧取数偏高，不用于对比）。进程表口径：
+`(no-cell) cli.js:105Mi + browser-mcp.js:45Mi + 47Mi` —— 105Mi 那份是**共享服务自己的**
+上游 CLI；另两份 shim 属于尚未翻转的 cell。
+
+**滚动期间观测到的既有脆弱点（非本变更引入）**：platform 容器首启 3 次因
+`FetchTimeoutError: outbound fetch timed out after 10000ms: https://auth.finddatatech.cloud/oidc/.well-known/openid-configuration`
+CrashLoop，第 4 次才起。与 `fd-deploy` 侧 auth 的 boot 期 OIDC fail-fast 同源，见
+memory 的「登录链两侧脆弱点」。共享车道的 sidecar 不受影响（它不依赖 OIDC）。

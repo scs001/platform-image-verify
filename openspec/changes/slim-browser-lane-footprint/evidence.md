@@ -160,3 +160,40 @@ sidecar 侧证据：
 `FetchTimeoutError: outbound fetch timed out after 10000ms: https://auth.finddatatech.cloud/oidc/.well-known/openid-configuration`
 CrashLoop，第 4 次才起。与 `fd-deploy` 侧 auth 的 boot 期 OIDC fail-fast 同源，见
 memory 的「登录链两侧脆弱点」。共享车道的 sidecar 不受影响（它不依赖 OIDC）。
+
+### 6.3 全量 + 回滚演练（5.2 / 4.3 终值，2026-11-08，用户批准）
+
+**全量**：去掉 `BROWSER_SHARED_CELLS`（不设 = 全部 cell）→ Argo 同步 → 滚动。验证：
+
+- **所有在跑的 cell patch 都是 `transport: streamable-http`**（3fdc7b8e / 2b043ce / 1da519d4，
+  05:27 写入）；suspended cell 保留旧 patch，下次开机自然翻转（懒翻转，符合预期）。
+- **cell 内 browser 子进程 = 0**（三个在跑 cell 的 `browser=0`）：
+  `1da519d4 466Mi procs=2 browser=0`、`3fdc7b8e 434Mi procs=2 browser=0`、
+  `2b043ce 374Mi procs=2 browser=0`。
+- **整个 pod 只有 1 个浏览器进程**（`browser_procs=1`，共享服务那一份）。
+- 共享服务会话按 cell 分布：`sessions=4`，覆盖 3 个 cell（其中一个 cell 两条会话）。
+
+**footprint（`kubectl top`，全量后、4 个活跃 cell）**
+
+| | 值 |
+|---|---|
+| pod 合计 | **2294Mi**（browser-lane 120Mi + platform 2173Mi） |
+| 提案基线（4 cell，改造前） | 3102Mi |
+| 差值 | **约 −800Mi** |
+
+同一口径的进程表（RSS，含共享页重复计）：改造前 3523Mi/37 procs → 全量后
+4406–4671Mi/51 procs；差异来自活跃 cell 数从 2 涨到 4、且此刻**真有浏览器在跑**
+（改造前 chromium 数为 0）。**省下的部分是"每 cell 的重复份"**（每个在跑 cell 约
+170Mi：shim ~46Mi + CLI ~110–130Mi），而不是整块内存。
+
+**回滚演练（完整一次）**
+
+1. 注释 `BROWSER_SHARED_MCP_URL` + 滚动 → pod 内该 env 计数 **0**；cell 侧重新长出
+   `browser-mcp.js ×3 + cli.js ×3`（`1da519d4 613Mi browser=1 cli 129Mi`、
+   `3fdc7b8e 542Mi browser=1 cli 132Mi`、`2b043ce 496Mi browser=1 cli 128Mi`）；
+   共享服务 `sessions=0`。**删 env 即回每 cell 自家进程，无需回滚镜像** —— 与设计一致。
+2. 恢复 `BROWSER_SHARED_MCP_URL` + 滚动 → Argo `Synced/Healthy`，pod 2/2，
+   cell 侧 `browser=0` 再次成立，共享服务重新接会话。
+
+**滚动期间**：每次滚动 platform 容器仍可能因 boot 期 OIDC discovery 10s 超时被
+CrashLoop 一到数次（既有脆弱点，与本变更无关）；sidecar 不受影响。

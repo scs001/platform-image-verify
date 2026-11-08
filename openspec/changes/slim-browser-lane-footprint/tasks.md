@@ -23,10 +23,10 @@
 
 - [x] 4.1 跨 cell 隔离哨兵：两 cell 同时登录不同账号，互不可见；会话结束后不残留；验证 = 该用例在 CI 常驻
 - [x] 4.2 产物跨 cell 不可读哨兵：cell B 列举/获取不到 cell A 的截图；验证 = 该用例在 CI 常驻
-- [ ] 4.3 内存对照：改造前后同一 pod 的 footprint 与 cell 进程表对照（预期 platform pod ≤2.5GB，cell 内无 browser 子进程）；验证 = 记录到台账，数字来自 `kubectl top` 与 /proc 实测
+- [x] 4.3 内存对照：改造前后同一 pod 的 footprint 与 cell 进程表对照（预期 platform pod ≤2.5GB，cell 内无 browser 子进程）；验证 = 记录到台账，数字来自 `kubectl top` 与 /proc 实测
 
 ## 5. 灰度与文档
 
 - [x] 5.1 灰度：先给一个测试 cell 设 `BROWSER_SHARED_MCP_URL`，走查工具面、产物、降级三项；验证 = 走查记录三项均符合
-- [ ] 5.2 全量打开后观测 footprint 与降水域，保留回滚面（删 env 即回到每 cell 自家进程）；验证 = 观测记录 + 回滚演练一次
+- [x] 5.2 全量打开后观测 footprint 与降水域，保留回滚面（删 env 即回到每 cell 自家进程）；验证 = 观测记录 + 回滚演练一次
 - [x] 5.3 文档：`docs/` 补供应说明（两种形态、环境变量、降级语义、回滚），`.env.example` 同步；验证 = 文档与环境样例一致

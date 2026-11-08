@@ -163,9 +163,20 @@ jobs:
         timeout-minutes: 45
         run: npm run test:e2e
 
-      - name: E2E skipped (no shared dsh runtime)
+      # The escape hatch is now a FAILURE, not a notice. For months this branch
+      # was a silently-skipped step, so every "green" CI run above it certified a
+      # suite that never executed — the exact false green this landing removed.
+      # The bootstrap composes the profile from dsh-matrix, so on CI the probe
+      # must be true; a `false` here means that step regressed and the gate would
+      # go quiet again. Loud beats green.
+      - name: E2E could not run (runtime unusable)
         if: steps.dsh.outputs.usable != 'true'
-        run: echo "::notice::E2E skipped — shared dsh runtime incomplete on this runner (bundle level missing; see scripts/lib/dsh-available.mjs)"
+        run: |
+          echo "::error::E2E did not run: the shared dsh runtime is not usable on this runner."
+          echo "The bootstrap step composes the profile from dsh-matrix (healProfilesModuleFallback),"
+          echo "so 'usable=false' means that step regressed — not that this runner is special."
+          echo "See scripts/lib/dsh-available.mjs for the two paths the probe checks."
+          exit 1
 
   # dsh-contracts gate (add-dsh-contracts, ADR-0007): when a PR touches the
   # dsh install matrix, the six upstream-behavior contracts run against the

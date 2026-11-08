@@ -220,7 +220,7 @@
 | P2-5 | ~~fanout 在产串行；主链无公平性~~ **主链已修**：`humanPriority` 从「只有 worker 池认」改为主槽串行链出队时选序（越过未开始的执行，不抢正在跑的；cap 0 同样生效，`idle()` 同步等清空）→ `openspec/changes/archive/2026-11-08-fix-main-chain-human-priority/`（镜像 sha-e58cf30）。**残留**：产线 fanout 仍串行——一条 dsh 运行时是物理限制，要并行只能开 `TASK_WORKER_MAX>0`（基建决定，未动） | `task-engine.js:727-756`、`worker-slots.js:45-70` | 【码】 |
 | P2-6 | ~~无 run 预算闸~~ **已修**（`add-fleet-run-budget`：maxTurns/maxTokens/maxMinutes 三闸，`handoffs.js:85` 实证拦截）。**仍开**：无取消 run（跑到一半的波无法停）、`spanMax` 只 warn 不拦 | `fleet-orchestration.js:29-44,311` | 【码】 |
 | P2-7 | 跨舰队不可能；peer/blackboard 保留未实现（`RESERVED_SOURCES`/`RESERVED_RESULT_SINKS` 只声明不给路）；`assertTurnRequest` **仍只有测试调用**（生产无入口） | `server/turn-request.js:14-21,103` | 【码】 |
-| P2-8 | A2A 不做能力协商、discovery N=8 硬编码、出站恒 depth=1、市场无「团队即 agent」 | `a2a-client.js:13`、`delegation.js:170-178` |
+| P2-8 | ~~discovery N=8 硬编码~~ **已修**：发现面改为 `{agents,total,truncated}`（total=匹配数）、确定性排序、limit 默认 8 上限 50，工具文案写「showing 8 of 12 matches」→ `openspec/changes/archive/2026-11-08-fix-agent-discovery-honesty/`（镜像 sha-e4d4b3a）。**仍开**：A2A 不做能力协商、出站恒 depth=1、市场无「团队即 agent」 | `server/agent-discovery.js` | 【码】 |
 | P2-9 | ~~event 边无去抖~~ **已修**：`add-event-wake-coalesce` 在窗口内合并同源消息，合并回合记录 `coalesced` 条数 | `server/fleet-event-wake.js:64-106`、`archive/2026-11-08-add-event-wake-coalesce/` | —— |
 
 ---

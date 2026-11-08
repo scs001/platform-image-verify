@@ -161,9 +161,11 @@ const RUNTIME_READY_POLL_MS = 1_000;
 // the outcome is NAMED (and lets the wrap-up lane help), never when the turn
 // stops.
 const CONTEXT_PRESSURE_COMPACTIONS = 2;
-// The wrap-up lane's own budget: a "report only, no tools" round needs seconds,
-// not minutes. Bounded hard so it can never become a second full turn.
-const WRAPUP_TIMEOUT_MS = 90_000;
+// The wrap-up lane's own budget (fix-fleet-output-salvage D2): 90s proved too
+// short — the one live salvage attempt returned nothing. A session that just
+// compacted eight times needs room to emit one short call. Still hard-bounded so
+// it can never become a second full turn.
+const WRAPUP_TIMEOUT_MS = 240_000;
 // Bounded retry ladder for a fleet round whose runtime was not ready
 // (2026-11-08): the round is transient-blocked, not doomed, so it comes back
 // instead of being lost. Escalating delays cover a cold boot (~seconds) and a
@@ -227,12 +229,18 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     // over 535s, every large gap inside compaction/start|summary|end).
     // Counting them here is passive: it changes no settlement.
     let compactions = 0;
+    // Did this round actually FILE its report? (fix-fleet-output-salvage D2)
+    // `hasOutput` only proves the assistant said something — live 2026-11-08:
+    // five pressure-killed rounds had output and still landed no report, so the
+    // salvage lane declined to help exactly where it was needed. A completed
+    // report_status call is the fact that matters.
+    let reported = false;
     // Turn metering (add-turn-metering): the first assistant event's absolute
     // timestamp — ttft_ms derives from it at the executor. Absent on a
     // zero-output turn (honest NULL, never a 0).
     let firstAssistantAt = null;
     const timer = setTimeout(
-      () => settle(reject, timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text) })),
+      () => settle(reject, timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported })),
       timeoutMs,
     );
     activeTurns.set(sessionId, (reason) => {
@@ -252,7 +260,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       ctx.fleetTurnLedger?.tap?.(notif, sessionId, mirrorSessionId);
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
-        return settle(resolve, { text, error, usage, firstAssistantAt, compactions });
+        return settle(resolve, { text, error, usage, firstAssistantAt, compactions, reported });
       }
       // A user-questions ask in an unattended session (scheduled task or
       // worker slot — both use this collector) has no human to answer it:
@@ -328,6 +336,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         if (acc) {
           acc.result = resultText;
           acc.resultAt = Date.now();
+          // A report only counts once its result came back (a call that never
+          // returns wrote nothing).
+          if (/report_status/i.test(String(acc.name ?? ""))) reported = true;
         }
       }
     });
@@ -351,7 +362,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
 // `turn_budget_exceeded` (raise the budget or shorten the work). A turn with
 // no tool history at all summarizes honestly empty — the model may have been
 // thinking, and an invented tool name would misdirect triage.
-export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compactions = 0, hasOutput = false } = {}) {
+export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compactions = 0, hasOutput = false, reported = false } = {}) {
   const err = new Error("turn timed out");
   const pending = [...toolBlocks].reverse().find((b) => b.result === undefined);
   err.detail = pending
@@ -374,6 +385,7 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compac
   // `hasOutput` travels with the failure so the caller can decide whether a
   // wrap-up report is worth asking for (an empty round is the one that needs it).
   err.detail.hasOutput = hasOutput === true;
+  err.detail.reported = reported === true;
   if (compactions >= CONTEXT_PRESSURE_COMPACTIONS) {
     err.detail.contextPressure = true;
     err.message = `turn timed out — context pressure (${compactions} compactions)`;
@@ -399,7 +411,10 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compac
 // driving a whole fleet turn. Exported for exactly that reason.
 export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {
   return detail?.contextPressure === true
-    && detail.hasOutput !== true
+    // The round did not file its report. `hasOutput` is NOT the test: live
+    // 2026-11-08 showed five pressure-killed rounds that had produced text and
+    // still landed nothing — the lane stayed silent exactly where it was needed.
+    && detail.reported !== true
     && interrupted !== true
     && isFleet === true;
 }
@@ -407,9 +422,8 @@ export function shouldSalvageReport(detail, { interrupted = false, isFleet = fal
 export async function runWrapUpReport(ctx, { childSessionId, mirrorSessionId, timeoutMs = WRAPUP_TIMEOUT_MS } = {}) {
   if (!childSessionId || !ctx?.dshBridge?.prompt) return null;
   const prompt =
-    "上下文压力已使本轮超时。现在只做一件事：调用 report_status 交本轮已有结论" +
-    "（槽位值、阻塞项、一句摘要），不要调用任何其他工具，不要继续分析，交完即结束。" +
-    "如果本轮确实没有任何新数据，就报「本轮无新数据」。";
+    "只做一件事：立刻调用 report_status 提交本轮已有结论（槽位值 + 阻塞项 + 一句摘要）。" +
+    "不要调用其他工具，不要解释，不要继续分析，调用完立即结束。没有新数据就报「本轮无新数据」。";
   try {
     const collected = collectTurn(ctx, childSessionId, timeoutMs, new Map(), ctx.sessionCollectors, mirrorSessionId ?? childSessionId);
     await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);

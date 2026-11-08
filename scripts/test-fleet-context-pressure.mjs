@@ -48,10 +48,16 @@ test("collector counts compaction/start and reports it on idle", async () => {
   push({ method: "session.event", params: { event: { type: "compaction/summary" } } });
   push({ method: "session.event", params: { event: { type: "compaction/start" } } });
   push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "部分结论" }] } } } } });
+  // The report must land BEFORE the idle that settles the turn — the collector
+  // is deregistered on settlement, so anything after it is dropped (this is
+  // exactly the ordering mistake a real turn cannot make).
+  push({ method: "session.event", params: { event: { type: "tool/call", data: { callId: "c9", name: "mcp__fleet__report_status", arguments: "{}" } } } });
+  push({ method: "session.event", params: { event: { type: "tool/result", data: { message: { source: { callId: "c9" }, content: [{ type: "text", text: "ok" }] } } } } });
   push({ method: "session.status", params: { status: "idle" } });
   const out = await p;
   assert.equal(out.compactions, 2, "two starts counted; summaries are not");
   assert.equal(out.text, "部分结论");
+  assert.equal(out.reported, true, "a completed report_status call is observed as filed");
 });
 
 test("timeout attribution names context pressure only past the threshold", () => {
@@ -61,10 +67,15 @@ test("timeout attribution names context pressure only past the threshold", () =>
   assert.equal(plain.detail.contextPressure, undefined);
   assert.equal(plain.detail.compactions, 1, "the count still rides for diagnosis");
 
-  const storm = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: false });
+  const storm = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: false, reported: false });
   assert.equal(storm.detail.contextPressure, true);
   assert.match(storm.message, /context pressure \(3 compactions\)/);
   assert.equal(storm.detail.hasOutput, false);
+  assert.equal(storm.detail.reported, false, "the report fact rides the attribution");
+
+  const filed = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: true, reported: true });
+  assert.equal(filed.detail.reported, true);
+  assert.equal(shouldSalvageReport(filed.detail, { isFleet: true }), false, "a timeout after filing needs no salvage");
 });
 
 test("wrap-up asks the same session for the report, tool-free and bounded", async () => {
@@ -82,7 +93,8 @@ test("wrap-up asks the same session for the report, tool-free and bounded", asyn
   assert.equal(prompts.length, 1, "exactly one follow-up");
   assert.equal(prompts[0].sessionId, "child-1", "same child session — it still has the work in context");
   assert.match(prompts[0].text, /report_status/);
-  assert.match(prompts[0].text, /不要调用任何其他工具/, "the follow-up refuses tools");
+  assert.match(prompts[0].text, /不要调用其他工具/, "the follow-up refuses other tools");
+  assert.match(prompts[0].text, /不要解释|不要继续分析/, "and refuses prose — one call, then done");
   assert.equal(out.text, "已交报数");
 });
 
@@ -95,12 +107,15 @@ test("wrap-up never becomes the outcome: a failing follow-up returns null", asyn
 });
 
 test("判据：压力 + 空产出 + 舰队任务，三者同时成立才补收尾", () => {
-  const pressure = { kind: "turn_budget_exceeded", compactions: 3, contextPressure: true, hasOutput: false };
+  const pressure = { kind: "turn_budget_exceeded", compactions: 3, contextPressure: true, reported: false, hasOutput: false };
   assert.equal(shouldSalvageReport(pressure, { isFleet: true }), true, "the round this lane exists for");
-  assert.equal(shouldSalvageReport({ ...pressure, hasOutput: true }, { isFleet: true }), false, "a round that said something is not empty");
+  assert.equal(shouldSalvageReport({ ...pressure, reported: true }, { isFleet: true }), false, "a round that already filed its report needs nothing");
+  // The live correction: five pressure-killed rounds HAD text and still filed
+  // nothing. Output is not the test — the report is.
+  assert.equal(shouldSalvageReport({ ...pressure, hasOutput: true, reported: false }, { isFleet: true }), true, "text without a report still needs the lane");
   assert.equal(shouldSalvageReport(pressure, { isFleet: false }), false, "fleet-only");
   assert.equal(shouldSalvageReport(pressure, { isFleet: true, interrupted: true }), false, "a runtime abort is not the round's fault");
-  assert.equal(shouldSalvageReport({ kind: "turn_budget_exceeded", compactions: 1, hasOutput: false }, { isFleet: true }), false, "one compaction is not a storm");
+  assert.equal(shouldSalvageReport({ kind: "turn_budget_exceeded", compactions: 1, reported: false }, { isFleet: true }), false, "one compaction is not a storm");
   assert.equal(shouldSalvageReport(null, { isFleet: true }), false);
 });
 

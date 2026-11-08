@@ -62,24 +62,6 @@ At patch-write time the lane SHALL resolve exactly one of three shapes:
 - **WHEN** a deployment supplies a local runtime but sets `BROWSER_LANE=off`
 - **THEN** the patch SHALL omit the lane
 
-### Requirement: Each cell owns one shared browser state
-
-Where the lane is local, browser state (tabs, cookies, login state) SHALL be shared
-by every session of the owning cell or installation, because the MCP sidecar process
-is shared per dsh runtime. Login state persisting across a user's sessions within one
-cell SHALL be treated as intended behavior, while state SHALL NOT cross cells: two
-users' cells SHALL hold independent browsers.
-
-#### Scenario: login persists across sessions in one cell
-
-- **WHEN** an agent in session A logs into a site and a later prompt in session B (same cell) revisits that site
-- **THEN** the site SHALL present as logged in, without extra configuration
-
-#### Scenario: no cross-cell leakage
-
-- **WHEN** two hosted cells compose their lanes
-- **THEN** each lane SHALL drive a separate browser process with separate profile state
-
 ### Requirement: Lane failures degrade explicitly
 
 A lane that composed but whose browser fails to launch or attach SHALL surface the
@@ -104,3 +86,36 @@ launch and complete a navigation, not merely that the package is present.
 - **WHEN** image smoke runs against a built cell image
 - **THEN** it SHALL launch the bundled chromium headlessly and complete a navigation
 - **AND** a missing or broken runtime SHALL fail the smoke
+
+### Requirement: Each cell owns one browser state per session
+
+Where the lane is local, browser state (tabs, cookies, login state) SHALL persist for
+the duration of one session of the owning cell, and SHALL NOT cross cells: two users'
+cells SHALL hold independent browser state. Isolation SHALL be carried by a per-session
+browser context, not necessarily by a separate browser process — a pod may serve several
+cells from one shared browser runtime and one shared driver process, provided each
+session's context stays invisible to the others. A later session of the same cell MAY
+start with a fresh context and no login carried over: the shared lane never writes a
+browser profile to disk. `BROWSER_LANE=off`, the local/remote/absent supply gate, and
+the no-silent-redispatch rule for a failed remote endpoint SHALL be unchanged.
+
+#### Scenario: login persists within one session
+
+- **WHEN** an agent logs into a site and a later prompt in the SAME session revisits that site
+- **THEN** the site SHALL present as logged in, without extra configuration
+
+#### Scenario: a new session of the same cell starts clean
+
+- **WHEN** a session of a cell ends and a new session of the same cell revisits that site
+- **THEN** the site MAY present as logged out
+- **AND** no other cell ever observes that login
+
+#### Scenario: no cross-cell leakage
+
+- **WHEN** two hosted cells use the browser lane in the same pod
+- **THEN** each cell's browser state SHALL remain invisible to the other (cookie, login state, tabs, artifacts), regardless of whether the two cells share one browser process
+
+#### Scenario: supply gate unchanged
+
+- **WHEN** a deployment supplies a local runtime but sets `BROWSER_LANE=off`, or supplies nothing at all
+- **THEN** the lane's entry SHALL be omitted from the generated patch exactly as before

@@ -275,12 +275,20 @@ test("a live PUT rewrites both patches for the next session and rejects mid-stre
 
   // The set_preset guard: `prompt` sets isStreaming synchronously at dispatch
   // (no await before it), so a PUT fired right after the WS frame hits the
-  // guard — deterministically, without waiting on any real model output. A
-  // lost race would CLEAR the diff (a 200), so restore + retry once.
+  // guard — deterministically, without waiting on any real model output.
+  //
+  // The probe re-sends the overlay the test ALREADY established, never a null
+  // one: a lost race must leave the precondition intact. It used to PUT
+  // `overlay: null` and "restore" afterwards — but the restore PUT raced the
+  // very prompt the probe had just admitted, so when the race was lost BOTH
+  // writes were rejected, the diff stayed cleared, and the final assertion
+  // ("the rejected PUT stored nothing: the diff still holds the removal") could
+  // never hold. Idempotent content makes the outcome irrelevant: 409 proves the
+  // guard, 200 rewrites the same diff.
   const intended = { addMcp: [EXTRA_MCP], removeMcp: ["memory"], addSkills: [], removeSkills: [] };
   const guardProbe = () =>
     page.evaluate(
-      (presetId) =>
+      ({ presetId, overlay }) =>
         new Promise((resolve, reject) => {
           const ws = new WebSocket(window.location.origin.replace(/^http/, "ws") + "/");
           const timer = setTimeout(() => reject(new Error("guard probe timeout")), 30000);
@@ -291,7 +299,7 @@ test("a live PUT rewrites both patches for the next session and rejects mid-stre
             fetch("/api/agent/overlay", {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ preset: presetId, overlay: null }),
+              body: JSON.stringify({ preset: presetId, overlay }),
             }).then((r) => {
               clearTimeout(timer);
               ws.close();
@@ -299,13 +307,10 @@ test("a live PUT rewrites both patches for the next session and rejects mid-stre
             }, (e) => reject(new Error(String(e))));
           };
         }),
-      AGENT_ID,
+      { presetId: AGENT_ID, overlay: intended },
     );
   let outcome = await guardProbe();
-  if (outcome !== 409) {
-    await putOverlay(page, AGENT_ID, intended);
-    outcome = await guardProbe();
-  }
+  if (outcome !== 409) outcome = await guardProbe();   // one retry, still non-destructive
   expect(outcome).toBe(409);
 
   // The rejected PUT stored nothing: the diff still holds the removal.

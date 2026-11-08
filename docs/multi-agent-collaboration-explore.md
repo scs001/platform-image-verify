@@ -213,7 +213,7 @@
 
 | # | 缺陷 | 证据 |
 |---|---|---|
-| P2-1 | 报数只有直属下级一层可见 | `fleet-context.js:325-327` |
+| P2-1 | ~~报数只有直属下级一层可见~~ **已修**：直接下级段之后追加「更深层报数」紧凑块（标题带层号与路径、槽值/阻塞/摘要/时间；BFS 近层优先、防环、独立 6KB 子池、最多 8 条，永不挤占直接下级；超量显式标注）→ `openspec/changes/archive/2026-11-08-fix-fleet-descendant-reports/`（镜像 sha-2d084d4）。两层舰队（现网 6 套官方模板）该段为空、上下文逐字节不变 | `server/fleet-context.js` | 【码】 |
 | P2-2 | `report` 边死语法 | `fleet-orchestration.js:14` |
 | P2-3 | 产物只能传散文（无句柄/附件） | `fleet-handoffs.js:98-100` |
 | P2-4 | 所有岗位共享同一 workspace cwd（无 per-member 隔离） | `server.js:810` |

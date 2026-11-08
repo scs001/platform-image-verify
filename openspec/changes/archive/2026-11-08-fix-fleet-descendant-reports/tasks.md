@@ -25,5 +25,6 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → skopeo digest → GitOps bump → ArgoCD → 舱内实测
-- [ ] 4.2 归档（`openspec validate --strict` 通过后）
+- [x] 4.1 快照 2d084d4 → GHA image ✅ → relay OK 4s → skopeo digest `sha256:64351eb0` → GitOps 31f58c0 →
+      ArgoCD 对齐 → platform/facet 滚完 → **舱内跑本套件 4/4 绿**
+- [x] 4.2 归档（`openspec validate --strict` 通过后）

@@ -657,6 +657,25 @@ function dispatch(id) {
 // chained promise resolves, letting the queue advance.
 const QUEUE_WATCHDOG_GRACE_MS = 5 * 60_000;
 
+// Queue staleness bound (fix-cell-turn-throughput 2.2). The cell executes on ONE
+// serial slot, so a burst of cadence fires (a restart's catch-up wave) can build
+// an hours-long backlog; a scheduled fire that finally reaches the front hours
+// later would run a patrol for a slot that has long passed while newer fires
+// wait behind it. Above this age a scheduled fire is dropped as `skipped`
+// without spending budget; the next cadence fire supersedes it. Env override
+// `QUEUE_MAX_AGE_MS`; 0 disables the policy (pre-2.2 behaviour).
+const QUEUE_MAX_AGE_MS_DEFAULT = 30 * 60_000;
+
+function queueMaxAgeMs() {
+  const raw = process.env.QUEUE_MAX_AGE_MS;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n;
+  }
+  return QUEUE_MAX_AGE_MS_DEFAULT;
+}
+
 function queueWatchdogMs(task) {
   const raw = process.env.QUEUE_WATCHDOG_MS;
   if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
@@ -744,6 +763,33 @@ async function runQueuedExecution(id) {
       releaseCatchUpMarker(t);
       void saveTasks();
     }
+    return;
+  }
+  // Queue staleness (fix-cell-turn-throughput 2.2): the serial slot is the
+  // cell's only executor, so a burst of cadence fires (restart catch-up) can
+  // build a backlog measured in HOURS — live 2026-11-08: 18 executions queued
+  // behind one slot, the oldest 3.5h old, while a `run now` waited 180s and saw
+  // nothing. A scheduled fire that has waited longer than the staleness bound
+  // is not worth running at all: its patrol would read "now" data for a slot
+  // that has already passed, and it holds every newer fire behind it. Drop it
+  // as `skipped` (honest, no budget spent, no ledger instance) and let the next
+  // cadence fire supersede it. Manual/event fires are never aged out — a human
+  // asked for THAT round.
+  const maxAgeMs = queueMaxAgeMs();
+  if (
+    maxAgeMs > 0
+    && t.trigger === "schedule"
+    && Number.isFinite(t.queuedAt)
+    && Date.now() - t.queuedAt > maxAgeMs
+  ) {
+    const waitedMin = Math.round((Date.now() - t.queuedAt) / 60_000);
+    const boundMin = Math.round(maxAgeMs / 60_000);
+    finishExecution(t, new Date().toISOString(), {
+      ok: false,
+      skipped: true,
+      error: `queue staleness: a scheduled fire waited ${waitedMin}min behind the cell's serial slot (>${boundMin}min) — dropped without running; the next cadence fire supersedes it`,
+    });
+    console.log(`[task-engine] ${t.id}: dropped stale queued fire (waited ${waitedMin}min > ${boundMin}min)`);
     return;
   }
   await runExecutionTurn(t, runTurnFn);

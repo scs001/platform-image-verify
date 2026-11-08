@@ -53,24 +53,21 @@ const neverTurn = () => new Promise(() => {});
 // load sees nothing.
 async function freshEngine() {
   const init = () => initTaskEngine({ broadcast: () => {}, runTurn: neverTurn, isBusy: () => false });
+  // Clear the STORE FILE, not the directory. Removing the directory raced the
+  // chained save: its rename of a .tmp into place hit ENOENT ("[persistence]
+  // flush lost (dir vanished mid-write)"), which surfaced in CI as a
+  // file-level 'test failed' rather than an assertion (run 42469296542).
+  // With the directory intact every rename lands; the second init then loads
+  // an empty store. Retry once if a late save slipped in between.
+  const store = path.join(process.env.CRON_STORAGE_PATH, "jobs.json");
   await init();
-  // A save can still be landing here (`insertTask` fires `void saveTasks()`), and
-  // deleting a directory with a write in flight yields ENOTEMPTY / EINVAL on the
-  // temp file — which surfaces as "asynchronous activity after the test ended" in
-  // an unrelated, later test. Retry instead of racing: the await below already
-  // covers the write chain for the common case, this covers the boundary.
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      fs.rmSync(process.env.CRON_STORAGE_PATH, {
-        recursive: true, force: true, maxRetries: 5, retryDelay: 20,
-      });
-      break;
-    } catch (e) {
-      if (attempt >= 5) throw e;
-      await new Promise((r) => setTimeout(r, 20));
-    }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await new Promise((r) => setTimeout(r, 0)); // let the write chain settle
+    fs.rmSync(store, { force: true });
+    await init();
+    const h = queueHealth();
+    if (h.queued === 0 && h.running === 0) return;
   }
-  await init();
 }
 
 function addTask(id) {

@@ -26,5 +26,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → skopeo digest → GitOps bump → ArgoCD → 舱内实测
-- [ ] 4.2 归档（`openspec validate --strict` 通过后）
+- [x] 4.1 快照 → GHA → relay → skopeo digest `sha256:5c174f7e` → GitOps（并发会话已推同一 tag `5d79069`，其快照基线 004cbdb2c ⊃ 本提交，
+      已按树 grep 验证含本刀）→ ArgoCD 对齐 → platform/facet 滚完 → **舱内实证**：`RunTimeline-BoBV99JO.js` 含
+      `run-stop`(3)/`run-stopped`/`run-stop-notice`/`cancel`(3)，中英文文案齐
+- [x] 4.2 归档（`openspec validate --strict` 通过后）

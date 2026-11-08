@@ -88,7 +88,25 @@ function mcpNames(binding) {
 async function selectableModel(headers) {
   const snapshot = await api("/api/users/me/bindings", { headers });
   const model = snapshot.json?.model ?? null;
-  return model && model.id && model.provider ? model : null;
+  if (!model || !model.id || !model.provider) return null;
+  // The snapshot can name a model the roster does not carry: GET reports
+  // ctx.defaultModel, PUT validates against ctx.dshModels, and the two diverge
+  // on a deployment with no provider configured (defaultModel survives, the
+  // roster is empty) — probing only the snapshot still left both tests red in
+  // CI run 42465181088. Ask the roster itself, the same list the selector
+  // offers (ws "list_models" → the models the client can actually pick).
+  const roster = await new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${new URL(BASE).port}/`, { headers });
+    const done = (value) => { try { ws.close(); } catch {} resolve(value); };
+    ws.on("open", () => ws.send(JSON.stringify({ type: "list_models" })));
+    ws.on("message", (raw) => {
+      const msg = JSON.parse(raw.toString());
+      if (msg.type === "models") done(msg.models ?? []);
+    });
+    ws.on("error", () => done([]));
+    setTimeout(() => done([]), 5000);
+  });
+  return roster.some((m) => m.id === model.id && m.provider === model.provider) ? model : null;
 }
 
 test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {

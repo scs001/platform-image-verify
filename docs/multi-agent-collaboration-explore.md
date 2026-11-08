@@ -198,6 +198,18 @@
 | P0-4 | dispatch 结果回投错位（web 车道对、定时车道错） | `fleets.js:1112`、`server.js:1013` | 【码】 |
 | P0-5 | 非 judge 扇出未传 `initiatorPreset` → 汇总人格错位 | `fleet-handoffs.js:160-162`、`delegation-aggregator.js:96` | 【码】 |
 
+### P0′ — 产线实测新增（2026-11-08 夜，读面取证，未立项）
+
+> 来源：今晚五次滚动后在产逐 cell 读 `fleets.db/member_turn_events` 与 `trace.db`（48 个 cell、14 个有舰队库）。
+> 记录在此是因为它**比清单里任何一条 P2 都严重**，且与本轮改动无关——不是今晚弄坏的。
+
+| # | 缺陷 | 证据 | 等级 |
+|---|---|---|---|
+| P0′-1 | **单轮任务量超过上下文预算 → 压缩反复触发 → 到点被砍且零产出**：今日 143 回合仅 82 成功（57%）；28 条失败为 `turn_budget_exceeded`（都卡在 600s），其中 **22 条该窗口内没有任何报数**——整轮白跑。抽一条 trace：240 事件跨 535s，大间隔（15–49s）全在 `compaction/start|summary|end` 与 `platform/stream`，最后事件停在 `compaction/start`。**已排除**「边回合未轮转会话 id」：`roundChildSessionId` 生效（trace 落的是镜像 id，见 `fleet-runs.js:349-357` 注释），且这些任务 647/805 条有 `sourceTag.fleetId`。故归因是**单轮内容 >> 上下文窗口**（容量/口径），修法涉及压缩策略与单轮输入上界，属产品决策 | `trace.db` turn_78aae05dca1642a982dd；`fleets.db` 28 条 `turn timed out`；`member_reports` 交叉查询；`jobs.json` sourceTag 统计 | 【产】 |
+| P0′-2 | 昨日额度打满的余波：**441 条 `budget_exhausted: all candidate models over daily/monthly budget`**（最后一条 2026-11-07T22:17Z），集中在两个 cell（350/91）。不是代码缺陷，但说明舰队在额度耗尽时是**成批静默失败**，管理面没有上限预警 | `member_turn_events.error` 聚合 | 【产】 |
+
+**今晚滚动的验证结论（正面）**：`turn_contract_refused=0`（新加的 turn 契约门在产零误伤）；四个 cell 的滚动后小时段与滚动前同量级，无新塌方。
+
 ### P1 — 重复花钱 / 串味 / 不可见
 
 | # | 缺陷 | 证据 | 等级 |
@@ -216,7 +228,7 @@
 | P2-1 | ~~报数只有直属下级一层可见~~ **已修**：直接下级段之后追加「更深层报数」紧凑块（标题带层号与路径、槽值/阻塞/摘要/时间；BFS 近层优先、防环、独立 6KB 子池、最多 8 条，永不挤占直接下级；超量显式标注）→ `openspec/changes/archive/2026-11-08-fix-fleet-descendant-reports/`（镜像 sha-2d084d4）。两层舰队（现网 6 套官方模板）该段为空、上下文逐字节不变 | `server/fleet-context.js` | 【码】 |
 | P2-2 | ~~`report` 边死语法~~ **文档陈旧，早已修**：`fix-report-edge` 把 report 边改成 **parentId 的读时投影**（每个父子对一条，不落库），与树相符的声明接受且不重复，**与树相悖的声明直接校验失败并指出真实上级**——`scripts/test-report-edge-derived.mjs` 5 条实证（含「report 边不授予 dispatch」） | `openspec/changes/archive/2026-11-08-fix-report-edge/` | —— |
 | P2-3 | ~~产物只能传散文~~ **文档陈旧，已修**：`add-fleet-artifact-handoff` 让上游回合产物以资源库句柄（库 id + workspace 相对路径）随点火/接棒跨边传递；**残留口径**：persona 目标才带句柄（a2a 是另一服务，句柄无意义） | `server/fleet-handoffs.js:97-170`、`archive/2026-11-08-add-fleet-artifact-handoff/` | —— |
-| P2-4 | 所有岗位共享同一 workspace cwd（无 per-member 隔离） | `server.js:810` |
+| P2-4 | 所有岗位共享同一 workspace cwd（无 per-member 隔离）。**危害口径已核实收窄（2026-11-08）**：产物**不会**串——`storeFileCopy` 复制字节进库、按内容哈希去重，`file_path` 是库内路径而非工作区路径（`resources.js:293,365`），交接给下游的是资源库 id + 库内路径（`fleet-handoffs.js:124`），同名不同内容 = 两个不同条目。剩余风险仅「同轮读到别人留下的临时文件」，而巡逻纪律已明令不读工作区旧副本、上下文每轮现算，产线又串行。**结论：per-member 私有 scratch 是功能项（要动 `/api/files`、侧栏分组、资源抓取三处读面语义），不是缺陷**，待拍板 | `resources.js:293-365`、`fleet-handoffs.js:113-131` | 【待裁】 |
 | P2-5 | ~~fanout 在产串行；主链无公平性~~ **主链已修**：`humanPriority` 从「只有 worker 池认」改为主槽串行链出队时选序（越过未开始的执行，不抢正在跑的；cap 0 同样生效，`idle()` 同步等清空）→ `openspec/changes/archive/2026-11-08-fix-main-chain-human-priority/`（镜像 sha-e58cf30）。**残留**：产线 fanout 仍串行——一条 dsh 运行时是物理限制，要并行只能开 `TASK_WORKER_MAX>0`（基建决定，未动） | `task-engine.js:727-756`、`worker-slots.js:45-70` | 【码】 |
 | P2-6 | ~~无 run 预算闸 / 无取消 run / 取消无 UI 入口~~ **已收口**：三闸（maxTurns/maxTokens/maxMinutes，`handoffs.js:85` 拦截）+ `fleet-runs.stopRun` 取消（中断在飞会话）+ **驾驶舱停止入口**（详情头「停止这一轮」→ 危险态确认 → 如实回执已停止/此前已停止/失败，停止后呈停止标记与原因）→ `openspec/changes/archive/2026-11-08-add-cockpit-run-stop/`。**残留（设计如此）**：`spanMax` 只 warn 不拦（advisory） | `fleet-orchestration.js:29-44,311`、`web/src/components/fleet/RunTimeline.tsx` | 【码】 |
 | P2-7 | 跨舰队不可能；peer/blackboard 保留未实现（`RESERVED_SOURCES`/`RESERVED_RESULT_SINKS` 只声明不给路）。~~`assertTurnRequest` 无生产调用方~~ **已修**：起轮前按**当前**声明再校验派生的 turnRequest（声明在入队后收紧时，已排队的超界回合会被拒并落事件）→ `openspec/changes/archive/2026-11-08-fix-turn-contract-admission/` | `server/fleet-runs.js`（admission）、`server/cron-runner.js` | 【码】 |

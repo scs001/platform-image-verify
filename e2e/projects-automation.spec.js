@@ -198,9 +198,11 @@ test.describe("batch export", () => {
     const alpha = await zip.files["alpha.txt"].async("string");
     expect(alpha).toContain("汉字内容");
 
-    // Deselect-all hides the bar again.
-    await boxes.nth(0).uncheck();
-    await boxes.nth(1).uncheck();
+    // Deselect-all hides the bar again (same scoped locators as the check
+    // above — a global `boxes` list would also touch rows this test did not
+    // seed, and it stopped existing when the count assertion was scoped).
+    await box("exp-1").uncheck();
+    await box("exp-2").uncheck();
     await expect(page.getByTestId("resources-export")).toHaveCount(0);
   });
 });

@@ -1293,6 +1293,13 @@ export {
   setSlotDispatcher,
   setMandateGate,
   beginExecution,
+  // Exported for the worker pool's watchdog: it settles a turn through the same
+  // path the turn itself uses, so history/state semantics stay in one place.
+  // (A local-only branch already exported this; the release base did not, which
+  // is how the pool called `engine.finishExecution?.(...)` and silently did
+  // nothing — the optional chain hid a missing dependency. Owned here so this
+  // change does not inherit it from an unpushed commit.)
+  finishExecution,
   runOnPrimary,
   broadcastStatus,
   broadcastEvent,

@@ -23,7 +23,13 @@
       密钥名合法性（含冒号/超长/空键）、一次铸一枚并存值/记部署者、铸造失败只登记不上抛且不落库、
       无父凭证时**连连接器都不调用**（`no_account` 反证）；另加：两 agent 不共用 PAT 名（同名重铸会吊销
       前一枚）、prune 只吊销本命名空间且不删非绑定密钥、无账号时仍删行并报 `no_account`、卸载全量收口不越界
-- [ ] 2.5 全量 `npm run test:unit`，增量不新增红——**未跑**
+- [x] 2.5 全量单测：逐文件跑（454 文件、6 并发、90s 上限）——当前 `tests=3983 fail=6 cancelled=11`，
+      同协议在基线 `351e74186` 上 `tests=3979 fail=7 cancelled=11`。差异只有三处并行抖动
+      （`test-cell-containment`/`test-queue-health` 基线红当前绿、`test-fleet-orchestration` 当前红），
+      三者单独重跑均全绿。**无新增红**；新增 4 条用例。
+      注意：`node --test` 串行整跑会被第一个挂死文件卡住不动（`test-deploy-*`/`test-agent-serving`/
+      `test-opening-gates`/`test-platform-billing`/`test-deployment-secrets` 6 个文件在基线上同样挂，
+      属既有问题），必须加 `--test-force-exit` 并按文件跑才拿得到全量结论
 
 ## 3. runner 侧接线（待批，单独验收）
 

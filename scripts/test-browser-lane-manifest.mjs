@@ -4,8 +4,8 @@
 // that wire cells to it. This file renders the checked-in manifest and asserts
 // the container + env contract, because a sidecar that is missing from the
 // documented design is how a "shipped" change reaches production unshipped
-// (k8s/deployment.yaml is the repo's design of record; the LIVE fd-infra-deploy
-// manifest is edited in that repo — see DEPLOY.md → Shared browser lane).
+// (the in-repo deployment manifest is the design of record; the live manifest
+// is edited in the deployment repository).
 //
 // 3.2: the health/memory faces must report the lane. The probe is tested here
 // against a fake fetch: reachable, unreachable, and unconfigured deployments.
@@ -14,7 +14,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -23,9 +23,18 @@ import { memoryFace } from "../gateway/memory-face.js";
 import { groupScan } from "../lib/proc-memory.js";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const MANIFEST = join(REPO_ROOT, "k8s", "deployment.yaml");
+
+// The open-source snapshot excludes deployment manifests, so the 3.1 contract
+// can only be asserted where that file exists. Skipping is the honest answer:
+// a manifest that is not in the tree has nothing to assert, and a green tick
+// over an absent file would be worse than no test. 3.2 is pure and always runs.
+const NO_MANIFEST = existsSync(MANIFEST)
+  ? false
+  : "deployment manifest not in this tree (manifests are internal)";
 
 function manifest() {
-  return yaml.load(readFileSync(join(REPO_ROOT, "k8s", "deployment.yaml"), "utf8"));
+  return yaml.load(readFileSync(MANIFEST, "utf8"));
 }
 
 function envOf(container) {
@@ -33,7 +42,7 @@ function envOf(container) {
 }
 
 // ── 3.1 ────────────────────────────────────────────────────────────────────
-test("3.1 the pod carries the shared browser service as its own container", () => {
+test("3.1 the pod carries the shared browser service as its own container", { skip: NO_MANIFEST }, () => {
   const containers = manifest().spec.template.spec.containers;
   const lane = containers.find((c) => c.name === "browser-lane");
   assert.ok(lane, "k8s/deployment.yaml must declare the browser-lane container");
@@ -49,7 +58,7 @@ test("3.1 the pod carries the shared browser service as its own container", () =
   assert.ok((lane.volumeMounts ?? []).some((m) => m.name === "data" && m.mountPath === "/data"));
 });
 
-test("3.1 the platform container receives the shared endpoint and artifact root", () => {
+test("3.1 the platform container receives the shared endpoint and artifact root", { skip: NO_MANIFEST }, () => {
   const containers = manifest().spec.template.spec.containers;
   const platform = containers.find((c) => c.name === "platform");
   const env = envOf(platform);
@@ -60,8 +69,8 @@ test("3.1 the platform container receives the shared endpoint and artifact root"
   assert.equal(env.BROWSER_RUNTIME_PATH, undefined);
 });
 
-test("3.1 the manifest never asks for a shared browser context", () => {
-  const raw = readFileSync(join(REPO_ROOT, "k8s", "deployment.yaml"), "utf8");
+test("3.1 the manifest never asks for a shared browser context", { skip: NO_MANIFEST }, () => {
+  const raw = readFileSync(MANIFEST, "utf8");
   // Comments may DISCUSS the flag (they explain why it is absent); only real
   // configuration counts.
   const configured = raw

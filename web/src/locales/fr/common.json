@@ -1211,7 +1211,8 @@
           "unavailable": "Impossible de lire vos systèmes connectés pour le moment.",
           "currentNotUsable": "actuellement choisi, indisponible"
         },
-        "summaryUnmapped": "{{count}} en attente de votre choix"
+        "summaryUnmapped": "{{count}} en attente de votre choix",
+        "browseCatalog": "Parcourir le répertoire des applications"
       }
     },
     "lines": {

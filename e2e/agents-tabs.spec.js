@@ -43,26 +43,28 @@ test.describe("agent market facade (/agents after the supply migration)", () => 
     }
   });
 
-  test("primary affordance deep-links to the supply-domain market hall", async ({ page }) => {
+  test("the only outbound door is authoring — the market itself is in-product", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/agents");
-    const openMarket = page.getByTestId("agent-market-open");
-    await expect(openMarket).toHaveAttribute("href", `${STUDIO_ORIGIN}/#/packs`);
-    await expect(openMarket).toHaveAttribute("target", "_blank");
-    await expect(openMarket).toHaveAttribute("rel", /noopener/);
+    // drop-external-market-door: the marketplace is this deployment's own market
+    // plane, so no link leaves the product for "the market". The authoring entry
+    // (supply-domain Studio) stays — different surface, same repository.
+    await expect(page.getByTestId("agent-market-open")).toHaveCount(0);
     // Same origin definition as the studio redirect and the fleet 来源蓝图 chip
     // (web/src/lib/studio-origin.ts) — three copies of this literal drifted once
     // already and one landed on the platform domain's error face.
-    await expect(page.getByTestId("agent-market-studio")).toHaveAttribute(
-      "href",
-      `${STUDIO_ORIGIN}/#/studio`,
-    );
+    const studio = page.getByTestId("agent-market-studio");
+    await expect(studio).toHaveAttribute("href", `${STUDIO_ORIGIN}/#/studio`);
+    await expect(studio).toHaveAttribute("target", "_blank");
+    await expect(studio).toHaveAttribute("rel", /noopener/);
   });
 
   test("install panel is the runtime half that stays in 壹座", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/agents");
-    const installed = page.getByTestId("agent-market-installed");
+    // restructure-yizuo-ia: installed packs + drafts moved into the 我的 tab of
+    // the merged market surface (they used to sit under the market façade).
+    await page.goto("/agents?tab=mine");
+    const installed = page.getByTestId("agent-market-mine-installed");
     await expect(installed).toBeVisible({ timeout: 15000 });
     // MyPacksView resolves to the list, the loading skeleton, or the honest
     // error card — all three mean the panel is mounted; an empty section would
@@ -214,9 +216,9 @@ test.describe("packs install face", () => {
   test("/packs mounts the marketplace page instead of falling to chat, deep link param rides", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/packs?deployCastPack=cast_probe_pack");
-    await expect(page).toHaveURL(/\/packs\?deployCastPack=cast_probe_pack$/);
-    await expect(page.getByTestId("packs-page")).toBeVisible();
-    await expect(page.getByTestId("packs-tabs")).toContainText("Market");
+    await expect(page).toHaveURL(/\/agents\?deployCastPack=cast_probe_pack$/);
+    await expect(page.getByTestId("agent-market-page")).toBeVisible();
+    await expect(page.getByTestId("agent-market-tabs")).toContainText("Market");
     // Not the chat catch-all: no composer.
     await expect(page.locator("textarea[data-testid='composer-input']")).toHaveCount(0);
   });
@@ -224,7 +226,7 @@ test.describe("packs install face", () => {
   test("/packs without params still mounts (direct navigation)", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/packs");
-    await expect(page.getByTestId("packs-page")).toBeVisible();
+    await expect(page.getByTestId("agent-market-page")).toBeVisible();
   });
 
   // add-supply-studio-migration 2.2 (live 2026-11-08): the SSO callback returns
@@ -234,8 +236,8 @@ test.describe("packs install face", () => {
   test("login bounce keeps the deploy handoff query", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/login?deployCastPack=cast_probe_pack&v=1");
-    await expect(page).toHaveURL(/\/packs\?deployCastPack=cast_probe_pack&v=1$/);
-    await expect(page.getByTestId("packs-page")).toBeVisible();
+    await expect(page).toHaveURL(/\/agents\?deployCastPack=cast_probe_pack&v=1$/);
+    await expect(page.getByTestId("agent-market-page")).toBeVisible();
   });
 });
 

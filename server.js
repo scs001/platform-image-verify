@@ -101,6 +101,7 @@ import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
+import { registerBindingMintRoutes } from "./server/routes/binding-mint.js";
 import { createTrialExecRoutes } from "./server/routes/trial-exec.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
 import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
@@ -289,6 +290,10 @@ registerDocumentRoutes(ctx);
 // 它自带会话闸（无会话 401），不依赖全局闸对 /erp 的判断。
 registerErpProxyRoutes(ctx);
 registerMiscRoutes(ctx);
+// Credential-owner door for deployment bindings (fix-deploy-binding-mint-process):
+// registered before the SPA fallback like every other /api family. In the split
+// topology the gateway forwards here; single-process deployments never see it.
+registerBindingMintRoutes(app);
 registerLlmRoutes(ctx);
 registerExtensionRoutes(ctx);
 registerChatHistoryRoutes(ctx);

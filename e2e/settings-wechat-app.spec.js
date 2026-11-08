@@ -26,15 +26,15 @@ const JSQR = require.resolve("jsqr/dist/jsQR.js");
 // What the forward-auth proxy injects in front of the app (server/auth.js).
 const IDENTITY = { "x-forwarded-email": "binder@corp.com", "x-forwarded-groups": "users" };
 
-const BIND_LABEL = "WeChat App";
+const BIND_LABEL = "Pairing & binding";
 // The canonical section order the settings-surface delta declares, relative to
-// each other. The surface also carries the Account section, which that delta
-// does not enumerate — so this asserts the order of the declared ones rather
-// than the whole list. (add-device-pairing-auth: devices sits between
-// wechat-app and status.)
+// each other. The surface also carries sections that delta does not enumerate
+// (account, plugins, roles, layout, delegation, brandings), so this asserts the
+// order of the declared ones rather than the whole list.
 // simplify-ia-non-technical regrouped Settings (Basics → Capabilities →
-// Management) and merged skills into mcp; the order here mirrors sections.ts.
-const CANONICAL = ["general", "wechat-app", "devices", "mcp", "models", "status"];
+// Management) and merged skills into mcp; restructure-yizuo-ia merged the two
+// pairing sections into `pairing` and folded diagnostics into `status`.
+const CANONICAL = ["general", "pairing", "mcp", "models", "status"];
 
 function freePort() {
   return new Promise((resolve) => {
@@ -147,7 +147,11 @@ test.describe("settings → WeChat App", () => {
     await page.goto(`${BASE}/settings/wechat-app`);
     await page.addScriptTag({ path: JSQR });
 
-    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "wechat-app");
+    // restructure-yizuo-ia: `wechat-app` is now an alias opening the merged
+    // pairing section's mini-program tab; the URL keeps the alias slug so a
+    // scanned QR (which encodes this path) never dead-ends.
+    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "pairing");
+    await expect(page.getByTestId("pairing-tab-wechat")).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("settings-wechat-app")).toBeVisible();
 
     const code = await shownCode(page);
@@ -195,7 +199,6 @@ test.describe("settings → WeChat App", () => {
   test("the modal lists the declared sections in order and routes as before", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto(`${BASE}/settings/wechat-app`);
-    await page.getByTestId(`settings-section-wechat-app`).filter({ hasText: BIND_LABEL }).waitFor();
 
     const order = await page.$$eval('[data-testid^="settings-section-"]', (els) =>
       els.map((el) => el.getAttribute("data-testid")),
@@ -204,7 +207,7 @@ test.describe("settings → WeChat App", () => {
     expect(order.filter((id) => wanted.includes(id))).toEqual(wanted);
 
     // The section list speaks the active locale; the slug does not follow it.
-    await expect(page.getByTestId("settings-section-wechat-app")).toContainText(BIND_LABEL);
+    await expect(page.getByTestId("settings-section-pairing")).toContainText(BIND_LABEL);
 
     await page.goto(`${BASE}/settings`);
     await expect(page).toHaveURL(/\/settings\/general$/);

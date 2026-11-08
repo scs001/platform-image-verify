@@ -20,7 +20,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  Blocks,
   BookOpen,
+  ChevronsDownUp,
+  ChevronsUpDown,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -34,6 +37,7 @@ import {
   MessageSquare,
   MessagesSquare,
   Network,
+  Package,
   PanelLeftClose,
   Search,
   Server,
@@ -75,14 +79,25 @@ const NAV_ICONS: Record<string, typeof MessageSquare> = {
   resources: FolderOpen,
   memory: Brain,
   agents: Sparkles,
+  tuning: SlidersHorizontal,
   apps: LayoutGrid,
   tasks: Clock,
   fleets: Network,
   machines: Server,
   fleet: Ship,
+  channels: MessagesSquare,
   zhiyu: MessagesSquare,
   blueprints: DraftingCompass,
 };
+
+// 构建 family footer (restructure-yizuo-ia): the capability Settings sections
+// that sit one click from where capabilities are acquired and iterated. Order
+// is fixed — connect/tools/plugins/models reads as "what the agent can use".
+const SETTINGS_SHORTCUTS: { slug: string; labelKey: string; icon: typeof MessageSquare }[] = [
+  { slug: "mcp", labelKey: "nav.shortcuts.tools", icon: Blocks },
+  { slug: "plugins", labelKey: "nav.shortcuts.plugins", icon: Package },
+  { slug: "models", labelKey: "nav.shortcuts.models", icon: Sparkles },
+];
 
 // Route for a nav slug (the registry slug IS the route segment — the R1
 // "slug is public API" rule).
@@ -137,6 +152,16 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 构建 family footer rows (restructure-yizuo-ia). Visibility follows the
+  // resolved Settings list: a deployment that hides `plugins` must not offer a
+  // row that dead-ends on a section it will not render. A server without the
+  // field keeps every row (the pre-change behaviour of the sections).
+  const settingsShortcuts = useMemo(() => {
+    const resolved = resolvedLayout?.settings;
+    if (!resolved) return SETTINGS_SHORTCUTS;
+    return SETTINGS_SHORTCUTS.filter((s) => resolved.includes(s.slug));
+  }, [resolvedLayout]);
+
   // ── Nav families (add-knowledge-memory-surface D1) ────────────────────────
   // Registry-resolved nav entries arranged into collapsible families
   // (Codex-style). Membership comes from @platform/core; the resolver already
@@ -148,6 +173,10 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     return m;
   }, []);
   const NAV_FAMILY_COLLAPSED_KEY = "nav.families.collapsed";
+  // Families start EXPANDED (sidebar-nav-families): hiding members behind a
+  // collapse state by default would re-create exactly the "surfaces I cannot
+  // see" problem this change exists to fix. On a short rail the region scrolls
+  // within its share of the column instead (see the nav region's max height).
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(NAV_FAMILY_COLLAPSED_KEY);
@@ -167,6 +196,34 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
         /* storage blocked — the toggle just stops persisting */
       }
       return n;
+    });
+  };
+  // Families actually rendered (a family with one present member flattens to a
+  // plain entry and has nothing to collapse).
+  const renderedFamilyIds = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of visibleNav) {
+      const fam = navFamilyOf.get(item.slug);
+      if (fam) counts.set(fam, (counts.get(fam) ?? 0) + 1);
+    }
+    return NAV_FAMILIES.filter((f) => (counts.get(f.id) ?? 0) > 1).map((f) => f.id);
+  }, [visibleNav, navFamilyOf]);
+  const allFamiliesCollapsed =
+    renderedFamilyIds.length > 0 && renderedFamilyIds.every((id) => collapsedFamilies.has(id));
+  const toggleAllFamilies = () => {
+    setCollapsedFamilies((prev) => {
+      const collapseAll = !renderedFamilyIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      for (const id of renderedFamilyIds) {
+        if (collapseAll) next.add(id);
+        else next.delete(id);
+      }
+      try {
+        localStorage.setItem(NAV_FAMILY_COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        /* storage blocked — the toggle just stops persisting */
+      }
+      return next;
     });
   };
   const activeFamilyId = useMemo(() => {
@@ -241,17 +298,39 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // (add-projects-automation-flow) and the switch chain does the rest;
   // advanced mode keeps the raw absolute-path input for existing folders.
   const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [wsMode, setWsMode] = useState<"name" | "path">("name");
   const [wsDraft, setWsDraft] = useState("");
   const [wsError, setWsError] = useState<string | null>(null);
   const [wsBusy, setWsBusy] = useState(false);
   const wsPopoverRef = useRef<HTMLDivElement>(null);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
 
   // The server bumps catalogVersion via `catalog_changed`; refetch the
   // switchable agent list so catalog/role edits appear live.
   useEffect(() => {
     if (catalogVersion > 0) send({ type: "list_agents" });
   }, [catalogVersion, send]);
+
+  // Dismiss the project switcher on outside click / Escape (same contract as
+  // the new-workspace popover above it).
+  useEffect(() => {
+    if (!projectMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (projectMenuRef.current && !projectMenuRef.current.contains(e.target as Node)) {
+        setProjectMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProjectMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [projectMenuOpen]);
 
   // Dismiss the new-workspace popover on outside click / Escape.
   useEffect(() => {
@@ -299,6 +378,21 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
         ? currentSession.projectId
         : DEFAULT_PROJECT
       : undefined;
+
+  // Which project the switcher states (web only). A live session's attribution
+  // wins; with none, the workspace the runtime is pointed at decides — that is
+  // the project a new session will be stamped with. Anything unknown reads as
+  // 默认项目 so the control never shows a dangling name.
+  const currentProjectId = useMemo(() => {
+    if (IS_DESKTOP) return null;
+    if (activeKey) return activeKey;
+    const byPath = projects.find((p) => p.backingPath && p.backingPath === currentWorkspace);
+    return byPath?.id ?? DEFAULT_PROJECT;
+  }, [activeKey, projects, currentWorkspace]);
+  const currentProjectName =
+    currentProjectId && currentProjectId !== DEFAULT_PROJECT
+      ? (projectNameById.get(currentProjectId) ?? t("sidebar.defaultProject"))
+      : t("sidebar.defaultProject");
 
   const groups = useMemo(() => {
     const map = new Map<string, SessionMeta[]>();
@@ -540,6 +634,27 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       )}
       <div className="flex items-center justify-between gap-2 border-b border-border p-4">
         <div className="text-base font-semibold">{t("sidebar.brand", { brand })}</div>
+        <div className="flex shrink-0 items-center gap-0.5">
+        {/* 全部折叠 / 展开 (restructure-yizuo-ia). On a short rail the expanded
+            families cannot all fit; one click folds every family so all six
+            top-level entries are visible at once, and one click brings them
+            back. Default stays EXPANDED — a collapsed default would hide
+            surfaces, which is the problem this change exists to fix. */}
+        <button
+          type="button"
+          onClick={toggleAllFamilies}
+          aria-label={allFamiliesCollapsed ? t("sidebar.expandAllFamilies") : t("sidebar.collapseAllFamilies")}
+          title={allFamiliesCollapsed ? t("sidebar.expandAllFamilies") : t("sidebar.collapseAllFamilies")}
+          data-testid="nav-families-toggle-all"
+          data-collapsed={allFamiliesCollapsed ? "true" : "false"}
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          {allFamiliesCollapsed ? (
+            <ChevronsUpDown className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <ChevronsDownUp className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
         {onCollapse && (
           <button
             type="button"
@@ -553,9 +668,17 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
             <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
+        </div>
       </div>
 
-      <div className="flex flex-col gap-0.5 p-2">
+      {/* The nav region scrolls on its own: with thirteen entries and four
+          families plus the build-family shortcuts, a tall viewport is not a
+          given — and an unbounded region used to overflow over the session
+          list and the footer (the settings button became unclickable). */}
+      <div
+        className="flex max-h-[52%] min-h-0 shrink flex-col gap-0.5 overflow-y-auto overscroll-contain p-2 [scrollbar-color:var(--color-border)_transparent] [scrollbar-width:thin]"
+        data-testid="nav-region"
+      >
         {navRender.map((entry) => {
           const navLink = (n: (typeof visibleNav)[number], indented: boolean) => {
             const Icon = n.icon;
@@ -620,16 +743,70 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                 )}
                 <span className="truncate">{t(`nav.family.${entry.id}`)}</span>
               </button>
-              {collapsed ? null : <div className="flex flex-col gap-0.5">{entry.items.map((n) => navLink(n, true))}</div>}
+              {collapsed ? null : (
+                <div className="flex flex-col gap-0.5">
+                  {entry.items.map((n) => navLink(n, true))}
+                  {/* 构建 family footer (restructure-yizuo-ia): the three
+                      capability Settings sections sit one level under the
+                      family that uses them, so "where are my tools" is one
+                      click instead of a hunt through the gear. Shortcuts, not
+                      surfaces: no active state, never counted as tabs, and
+                      rendered only when the section survives the resolved
+                      layout (a deployment-hidden section gets no row). */}
+                  {entry.id === "build" && settingsShortcuts.length > 0 ? (
+                    <div
+                      className="mt-1 flex flex-col gap-0.5 border-t border-border/60 pt-1"
+                      data-testid="nav-family-build-shortcuts"
+                    >
+                      {settingsShortcuts.map((shortcut) => {
+                        const ShortcutIcon = shortcut.icon;
+                        return (
+                          <button
+                            key={shortcut.slug}
+                            type="button"
+                            data-testid={`nav-shortcut-${shortcut.slug}`}
+                            onClick={() => {
+                              // Carry the CURRENT view as the modal's background
+                              // (or keep the one already recorded), so closing
+                              // returns here instead of falling back to /chat.
+                              const existing = (location.state as { backgroundLocation?: unknown } | null)
+                                ?.backgroundLocation;
+                              navigate(settingsPath(shortcut.slug), {
+                                state: existing ? location.state : { backgroundLocation: location },
+                              });
+                              onNavigate?.();
+                            }}
+                            className="flex items-center gap-2 rounded-md py-1.5 pl-6 pr-3 text-left text-xs text-muted-foreground/80 hover:bg-muted hover:text-foreground"
+                          >
+                            <ShortcutIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{t(shortcut.labelKey)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* Workspaces section: header + workspace-grouped session list */}
-      <div className="flex min-h-0 flex-1 flex-col border-t border-border p-2" data-testid="session-list-section">
+      {/* Workspaces section: header (which IS the project switcher) + grouped
+          session list. The switcher is the VISIBLE form of a container that used
+          to exist only as an implicit grouping key (project-container): it states
+          which project the next session belongs to, and selecting one only sets
+          that context — group membership stays fixed at a session's first turn
+          (sidebar-workspaces). */}
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border p-2"
+        data-testid="session-list-section"
+      >
         <div
-          ref={wsPopoverRef}
+          ref={(el) => {
+            wsPopoverRef.current = el;
+            projectMenuRef.current = el;
+          }}
           className="relative flex items-center justify-between px-1 pb-2 pt-1 text-xs font-semibold text-muted-foreground"
         >
           {searchOpen ? (
@@ -666,8 +843,70 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
             </div>
           ) : (
             <>
-              <span>{t("sidebar.workspaces")}</span>
-              <span className="flex items-center gap-1">
+              {IS_DESKTOP ? (
+                <div
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-xs"
+                  title={currentWorkspace || t("sidebar.defaultProject")}
+                  data-testid="project-switcher"
+                >
+                  <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate font-mono" data-testid="project-switcher-desktop">
+                    {currentWorkspace || t("sidebar.ungrouped")}
+                  </span>
+                </div>
+              ) : (
+                <div className="relative flex min-w-0 flex-1 items-center" data-testid="project-switcher">
+                  <button
+                    type="button"
+                    data-testid="project-switcher-current"
+                    data-project={currentProjectId ?? DEFAULT_PROJECT}
+                    aria-haspopup="menu"
+                    aria-expanded={projectMenuOpen}
+                    onClick={() => setProjectMenuOpen((v) => !v)}
+                    className="flex min-w-0 flex-1 items-center gap-1 text-[11px] font-semibold text-foreground hover:text-foreground/80"
+                  >
+                    <span className="truncate" data-testid="project-switcher-label">
+                      {currentProjectName}
+                    </span>
+                    <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  </button>
+                  {projectMenuOpen ? (
+                    <div
+                      role="menu"
+                      data-testid="project-switcher-menu"
+                      className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover p-1 shadow-lg"
+                    >
+                      {[
+                        { id: DEFAULT_PROJECT, name: t("sidebar.defaultProject"), path: null as string | null },
+                        ...projects.map((p) => ({ id: p.id, name: p.name, path: p.backingPath })),
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={option.id === (currentProjectId ?? DEFAULT_PROJECT)}
+                          data-testid={`project-switcher-option-${option.id}`}
+                          onClick={() => {
+                            setProjectMenuOpen(false);
+                            if (!option.path) return; // 默认项目 is the read-time fallback, not a switch target
+                            if (option.path === currentWorkspace) return;
+                            submitWorkspacePath(option.path, () => undefined);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted",
+                            option.id === (currentProjectId ?? DEFAULT_PROJECT)
+                              ? "font-medium text-foreground"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          <span className="truncate">{option.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+              <span className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {

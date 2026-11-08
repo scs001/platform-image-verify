@@ -136,8 +136,8 @@ async function gotoPacksTab(page, tab) {
   // /packs, not /agents?tab=market: the agents hub dissolved (W2 teardown) and
   // PacksPage is mounted at its own route since add-supply-studio-migration 5.2.
   await page.goto("/packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId(`packs-tab-${tab}`).click();
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId(`agent-market-tab-${tab}`).click();
 }
 
 test.beforeEach(async ({ page }) => {

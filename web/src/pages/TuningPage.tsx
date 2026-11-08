@@ -1,9 +1,11 @@
 // 壹座原生调优面 (add-supply-studio-migration 4.4, design D5): the tuning
 // area leaves the retired /agents four-zone facade and becomes its own route.
 // Behavior contracts are untouched — skill-candidate review and the persona-
-// amendment placeholder are the same views the hub mounted; only the doorway
-// moved (route /tuning, sidebar entry under the workspace family). The route
-// name re-checks against the lexicon before archive (task 4.4 note).
+// amendment placeholder are the same views the hub mounted.
+//
+// Doorway (restructure-yizuo-ia): the nav entry lives in the 构建 family next to
+// 智能体市场 (acquire ↦ iterate). This page was URL-only between the hub's
+// teardown and that change — nothing in the UI linked to it.
 import { useTranslation } from "react-i18next";
 import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
 import { PersonaAmendmentsView } from "@/components/persona/PersonaAmendmentsView";

@@ -93,7 +93,7 @@ test("resolveForUser composes deployment + role + user layers", () => {
   assert.deepEqual(layout.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);
   // `connections` is part of the simple skeleton — business-role users need
   // it to make tools/search work (2026-10-18).
-  assert.deepEqual(layout.settings, ["general", "account", "wechat-app", "devices", "connections"]);
+  assert.deepEqual(layout.settings, ["general", "account", "pairing", "connections"]);
 });
 
 test("resolveForUser: a role with no preset entry keeps the deployment default", () => {
@@ -101,7 +101,7 @@ test("resolveForUser: a role with no preset entry keeps the deployment default",
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "screenplay", secondary: [] } });
   assert.deepEqual(layout.nav, FACTORY_NAV);
   assert.deepEqual(layout.settings, ALL_SETTINGS);
-  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas (add-agent-builder-hub)
+  assert.deepEqual(layout.agentsTabs, ["market", "mine"]); // the two market tabs (restructure-yizuo-ia)
 });
 
 test("resolveForUser: user tweaks apply on top of the role layer", () => {
@@ -111,8 +111,8 @@ test("resolveForUser: user tweaks apply on top of the role layer", () => {
   const { layout } = resolveForUser({ db, env: {}, email: "u@e.c", roles: { primary: "standard", secondary: [] } });
   assert.deepEqual(layout.nav, ["chat", "agents"]);
   // Containers the user did not speak to keep their full set (the factory
-  // default — the hub four areas, apps retired from every factory preset).
-  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]);
+  // default — 市场 + 我的, the retired hub slugs stay alias-only).
+  assert.deepEqual(layout.agentsTabs, ["market", "mine"]);
 });
 
 test("facts filter admin sections and marketplace tabs server-side", () => {
@@ -125,10 +125,9 @@ test("facts filter admin sections and marketplace tabs server-side", () => {
   });
   assert.equal(layout.settings.includes("roles"), false);
   assert.equal(layout.settings.includes("branding"), false);
-  // add-agent-builder-hub: the market gate moved to the supply cabinet, so a
-  // market-less deployment keeps the full hub set (apps retired from every
-  // factory preset).
-  assert.deepEqual(layout.agentsTabs, ["build", "supply", "creations", "tuning"]);
+  // restructure-yizuo-ia: the pack-marketplace predicate gates the 市场 TAB,
+  // so a market-less deployment keeps 我的 (installed packs + drafts are local).
+  assert.deepEqual(layout.agentsTabs, ["mine"]);
 });
 
 // ── User tweaks ─────────────────────────────────────────────────────────────
@@ -339,9 +338,10 @@ test("/api/config ships the resolved layout for the requesting user", async () =
   assert.deepEqual(res.json.resolvedLayout.settings, [
     "general",
     "account",
-    "wechat-app",
-    "devices",
+    "pairing",
     "connections",
   ]);
-  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["build", "supply", "creations", "tuning"]);
+  // PACK_MARKETPLACE is off in this harness, so the 市场 tab is dropped by the
+  // predicate and 我的 survives alone (installed packs + drafts are local).
+  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["mine"]);
 });

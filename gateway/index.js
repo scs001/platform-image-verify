@@ -858,6 +858,49 @@ if (facetBase) {
   // configured positive value widens the timeout — prod sets 120000 because a
   // pack deploy forwarding through this proxy can exceed 30s (deployToRegistry).
   const proxyTimeout = Number(process.env.FACET_PROXY_TIMEOUT_MS);
+  // ── Credential-owner relay (fix-deploy-binding-mint-process) ─────────────
+  // The market plane lives in facet and owns the deployment-secret store, but
+  // the connector account a binding attenuates from lives in the USER'S CELL.
+  // facet therefore asks here, and this gateway answers by calling that cell over
+  // the same forged-identity channel it uses for every other cell request.
+  //
+  // Authenticated with FACET_INTERNAL_TOKEN only: this is a service-to-service
+  // door, never a user door, and the value it returns is a freshly minted
+  // binding token — it must not be reachable from the browser.
+  {
+    const facetToken = process.env.FACET_INTERNAL_TOKEN || "";
+    const relayToCell = async (req, res, path) => {
+      if (!facetToken || req.headers["x-facet-token"] !== facetToken) {
+        return res.status(401).json({ ok: false, code: "unauthorized" });
+      }
+      const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+      if (!email) return res.status(400).json({ ok: false, code: "invalid_input", error: "email is required" });
+      try {
+        const cell = await registry.ensure({ email, groups: [] });
+        if (!cell?.port) return res.status(503).json({ ok: false, code: "cell_unavailable" });
+        const upstream = await fetch(`http://127.0.0.1:${cell.port}${path}`, {
+          method: "POST",
+          headers: {
+            ...forwardedHeaders(req, { email, groups: [] }, SECRET),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(req.body ?? {}),
+          signal: AbortSignal.timeout(20_000),
+        });
+        const parsed = await upstream.json().catch(() => null);
+        return res.status(upstream.status).json(parsed ?? { ok: false, code: "upstream_body" });
+      } catch (err) {
+        const timeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+        return res.status(503).json({ ok: false, code: timeout ? "cell_timeout" : "cell_unreachable" });
+      }
+    };
+    app.post("/api/gateway/binding-mint", express.json({ limit: "16kb" }), (req, res) =>
+      relayToCell(req, res, "/api/gateway/binding-mint"),
+    );
+    app.post("/api/gateway/binding-revoke", express.json({ limit: "16kb" }), (req, res) =>
+      relayToCell(req, res, "/api/gateway/binding-revoke"),
+    );
+  }
   registerFacetProxy(app, {
     base: facetBase,
     resolveUser,

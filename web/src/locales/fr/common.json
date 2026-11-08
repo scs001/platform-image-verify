@@ -59,7 +59,9 @@
     "chat": "Discussion",
     "family": {
       "knowledge": "Connaissances",
-      "build": "Construire"
+      "build": "Construire",
+      "run": "Exécution",
+      "access": "Accès"
     },
     "knowledge": "Bibliothèque",
     "resources": "Résultats",
@@ -74,7 +76,14 @@
     "zhiyu": "Zhiyu",
     "memory": "Mémoire",
     "blueprints": "Studio de plans",
-    "machines": "Machines"
+    "machines": "Machines",
+    "tuning": "Réglage",
+    "channels": "Canaux",
+    "shortcuts": {
+      "tools": "Outils / MCP",
+      "plugins": "Plugins",
+      "models": "Modèles"
+    }
   },
   "trace": {
     "title": "Traçage",
@@ -145,7 +154,9 @@
     "createProject": "Créer le projet",
     "backToNewProject": "← Nouveau projet",
     "running": "Réponse en cours",
-    "queued": "Message en file d'attente"
+    "queued": "Message en file d'attente",
+    "collapseAllFamilies": "Tout replier",
+    "expandAllFamilies": "Tout déplier"
   },
   "modelsPage": {
     "title": "Modèles",
@@ -952,7 +963,8 @@
       "layout": "Disposition de l'espace",
       "connections": "Connexions",
       "plugins": "Extensions",
-      "delegation": "Délégation des décisions"
+      "delegation": "Délégation des décisions",
+      "pairing": "Appairage"
     },
     "groups": {
       "basics": "Général",
@@ -1215,7 +1227,8 @@
         },
         "summaryUnmapped": "{{count}} en attente de votre choix",
         "browseCatalog": "Parcourir le répertoire des applications"
-      }
+      },
+      "filterPlaceholder": "Filtrer les connexions…"
     },
     "lines": {
       "title": "Opérations par ligne",
@@ -1301,6 +1314,25 @@
       "model": "Modèle de décision",
       "modelInherit": "Vide = hériter",
       "modelHint": "Vide suit le modèle par défaut de l'équipe/cellule ; une valeur s'applique au poste d'adjoint dès sa prochaine ronde."
+    },
+    "searchPlaceholder": "Rechercher un réglage…",
+    "searchEmpty": "Aucun réglage correspondant",
+    "pairing": {
+      "tabs": {
+        "wechat": "Mini-programme",
+        "app": "Application bureau",
+        "machine": "Machines"
+      },
+      "machine": {
+        "body": "L'appairage, la convergence et le détachement des machines se font dans la console des machines : elle montre aussi l'état réel de chacune, un second assistant ici ne ferait que diverger.",
+        "open": "Ouvrir la console des machines"
+      }
+    },
+    "status": {
+      "tabs": {
+        "health": "Santé",
+        "trace": "Trace par tour"
+      }
     }
   },
   "bindings": {
@@ -3954,11 +3986,12 @@
       "supply": "Catalogue",
       "creations": "Mes créations",
       "tuning": "Ajustement",
-      "apps": "Apps"
+      "apps": "Apps",
+      "market": "Marché",
+      "mine": "Les miens"
     },
     "market": {
       "subtitle": "La création et la publication ont déménagé vers le domaine d'approvisionnement ; l'installation et l'exécution restent ici",
-      "openMarket": "Ouvrir le marché d'agents",
       "openStudio": "Ouvrir Studio",
       "installed": "Packs installés sur cette machine"
     }

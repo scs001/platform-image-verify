@@ -35,31 +35,28 @@ const FACTORY_NAV = ALL_NAV.filter((slug) => slug !== "blueprints");
 
 // ── Factory baseline ────────────────────────────────────────────────────────
 
-test("factory preset baseline: nav/settings full; agentsTabs are the hub four areas", () => {
+test("factory preset baseline: nav/settings full; agentsTabs are the two market tabs", () => {
   const p = FACTORY_PRESETS[FACTORY_PRESET_SLUG];
   assert.deepEqual(p.nav, FACTORY_NAV);
   assert.deepEqual(p.settings, ALL_SETTINGS);
-  // add-agent-builder-hub: the hub's four areas replace the retired
-  // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES);
-  // the Apps sub-tab is retired from every factory preset while its slug
-  // stays in the registry (stored presets and deep links keep validating).
-  assert.deepEqual(p.agentsTabs, ["build", "supply", "creations", "tuning"]);
-  assert.equal(ALL_TABS.includes("apps"), true);
+  // restructure-yizuo-ia: `/agents` is the single pack doorway with exactly
+  // 市场/我的. The retired hub slugs (build/supply/creations/tuning/apps) stay
+  // resolvable via SURFACE_SLUG_ALIASES but render no tab.
+  assert.deepEqual(p.agentsTabs, ["market", "mine"]);
+  assert.equal(ALL_TABS.includes("apps"), false);
 });
 
 test("stored presets referencing legacy agentsTabs slugs degrade safely", () => {
   // Validation still accepts the retired slugs (registry compat)…
   const v = validatePreset({ version: 1, agentsTabs: ["agents", "market", "apps"] });
   assert.equal(v.ok, true);
-  // …they canonicalize to their successors (agents→creations, market→supply,
-  // add-agent-builder-hub D5), and resolution never selects apps: the
-  // factory/deployment layer drops it first, and no lower layer can re-reveal
-  // what a narrower layer removed. The user preset's order governs.
+  // …they canonicalize to their successors (agents→mine, market→market,
+  // apps→market), and the user preset's order governs the survivors.
   const r = resolveLayout({
     deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
     user: { preset: { version: 1, agentsTabs: ["agents", "market", "apps"] } },
   });
-  assert.deepEqual(r.agentsTabs, ["creations", "supply"]);
+  assert.deepEqual(r.agentsTabs, ["mine", "market"]);
 });
 
 test("no layers resolves to the registry order", () => {
@@ -93,17 +90,16 @@ test("a preset cannot conjure the fleet into a browser", () => {
   assert.equal(r.nav.includes("fleet"), false);
 });
 
-test("supply area survives a market-less deployment (the pack cabinet gates client-side)", () => {
-  // add-agent-builder-hub: the marketplace gate moved from the tab to the
-  // market cabinet inside the supply area — skills/MCP cabinets exist on
-  // every deployment, so the supply tab itself carries no predicate.
-  const supply = AGENTS_TAB_SURFACES.find((s) => s.slug === "supply");
-  assert.equal(predicateAllows(supply, { packMarketplace: false }), true);
+test("the market tab is gated by the pack-marketplace predicate; 我的 is not", () => {
+  // restructure-yizuo-ia: the marketplace gate moved from the whole page to
+  // the 市场 tab — installed packs and creator drafts are local state, so 我的
+  // must survive a market-less deployment.
+  const market = AGENTS_TAB_SURFACES.find((s) => s.slug === "market");
+  const mine = AGENTS_TAB_SURFACES.find((s) => s.slug === "mine");
+  assert.equal(predicateAllows(market, { packMarketplace: false }), false);
+  assert.equal(predicateAllows(mine, { packMarketplace: false }), true);
   const r = resolveLayout({}, { packMarketplace: false });
-  // Raw no-layers resolution returns the REGISTRY set minus predicates — apps
-  // stays here because no factory-preset layer was applied (the server's
-  // resolveForUser always applies one, where apps retires).
-  assert.deepEqual(r.agentsTabs, ALL_TABS);
+  assert.deepEqual(r.agentsTabs, ["mine"]);
 });
 
 test("admin-only section needs an affirmative admin answer when auth is on", () => {
@@ -128,8 +124,9 @@ test("role preset narrows within the deployment default", () => {
   assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);
   // `connections` rides in the simple skeleton (2026-10-18); `memory` since
   // add-unified-memory-and-outputs (the panel is a work surface for the same
-  // non-technical users the skeleton serves).
-  assert.deepEqual(r.settings, ["general", "account", "wechat-app", "devices", "connections"]);
+  // non-technical users the skeleton serves). restructure-yizuo-ia merged the
+  // two pairing sections into `pairing`, so the Basics set names it once.
+  assert.deepEqual(r.settings, ["general", "account", "pairing", "connections"]);
 });
 
 test("no layer can re-reveal what a more general layer hid", () => {
@@ -167,7 +164,7 @@ test("an admin with a business role resolves to the deployment default", () => {
   const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
   assert.deepEqual(admin.nav, FACTORY_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
   assert.deepEqual(admin.settings, ALL_SETTINGS);
-  assert.deepEqual(admin.agentsTabs, ["build", "supply", "creations", "tuning"]); // the hub four areas
+  assert.deepEqual(admin.agentsTabs, ["market", "mine"]); // the two market tabs
   // The same input for a non-admin still narrows to the simple skeleton.
   const user = resolveLayout(layers, { authOn: true, isAdmin: false });
   assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);

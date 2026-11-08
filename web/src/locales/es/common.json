@@ -59,7 +59,9 @@
     "chat": "Chat",
     "family": {
       "knowledge": "Conocimiento",
-      "build": "Construir"
+      "build": "Construir",
+      "run": "Ejecución",
+      "access": "Acceso"
     },
     "knowledge": "Biblioteca",
     "resources": "Resultados",
@@ -74,7 +76,14 @@
     "zhiyu": "Zhiyu",
     "memory": "Memoria",
     "blueprints": "Estudio de planos",
-    "machines": "Máquinas"
+    "machines": "Máquinas",
+    "tuning": "Ajuste",
+    "channels": "Canales",
+    "shortcuts": {
+      "tools": "Herramientas / MCP",
+      "plugins": "Complementos",
+      "models": "Modelos"
+    }
   },
   "trace": {
     "title": "Traza",
@@ -145,7 +154,9 @@
     "createProject": "Crear proyecto",
     "backToNewProject": "← Nuevo proyecto",
     "running": "Respondiendo",
-    "queued": "Mensaje en cola"
+    "queued": "Mensaje en cola",
+    "collapseAllFamilies": "Contraer todo",
+    "expandAllFamilies": "Expandir todo"
   },
   "modelsPage": {
     "title": "Modelos",
@@ -952,7 +963,8 @@
       "layout": "Diseño del espacio",
       "connections": "Conexiones",
       "plugins": "Complementos",
-      "delegation": "Delegación de decisiones"
+      "delegation": "Delegación de decisiones",
+      "pairing": "Emparejamiento"
     },
     "groups": {
       "basics": "Básico",
@@ -1215,7 +1227,8 @@
         },
         "summaryUnmapped": "{{count}} esperando tu elección",
         "browseCatalog": "Ver el directorio de aplicaciones"
-      }
+      },
+      "filterPlaceholder": "Filtrar conexiones…"
     },
     "lines": {
       "title": "Operaciones por línea",
@@ -1301,6 +1314,25 @@
       "model": "Modelo para decidir",
       "modelInherit": "Vacío = heredar",
       "modelHint": "Vacío sigue el modelo por defecto del equipo/celda; un valor se aplica al puesto de adjunto desde su próxima ronda."
+    },
+    "searchPlaceholder": "Buscar ajustes…",
+    "searchEmpty": "Ningún ajuste coincide",
+    "pairing": {
+      "tabs": {
+        "wechat": "Mini programa",
+        "app": "App de escritorio",
+        "machine": "Máquinas"
+      },
+      "machine": {
+        "body": "El emparejamiento, la convergencia y la desvinculación de máquinas se hacen en la consola de máquinas: allí también se ve el estado real de cada una, así que un segundo asistente aquí solo divergiría.",
+        "open": "Abrir consola de máquinas"
+      }
+    },
+    "status": {
+      "tabs": {
+        "health": "Salud",
+        "trace": "Traza por turno"
+      }
     }
   },
   "bindings": {
@@ -3954,11 +3986,12 @@
       "supply": "Catálogo",
       "creations": "Mis creaciones",
       "tuning": "Ajuste",
-      "apps": "Apps"
+      "apps": "Apps",
+      "market": "Mercado",
+      "mine": "Míos"
     },
     "market": {
       "subtitle": "La creación y publicación se movieron al dominio de suministro; la instalación y ejecución quedan aquí",
-      "openMarket": "Abrir mercado de agentes",
       "openStudio": "Abrir Studio",
       "installed": "Packs instalados en esta máquina"
     }

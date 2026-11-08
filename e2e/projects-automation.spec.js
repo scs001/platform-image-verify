@@ -141,7 +141,7 @@ function insertFile(id, title, rel, size) {
   const now = new Date().toISOString();
   handle
     .prepare(
-      `INSERT INTO resources (id, type, title, source, session_id, session_title, message_id,
+      `INSERT OR REPLACE INTO resources (id, type, title, source, session_id, session_title, message_id,
          payload, file_path, file_size, file_mime, content_hash, created_at, updated_at, last_seen_at, seeded)
        VALUES (@id, @type, @title, @source, @session_id, @session_title, @message_id,
          @payload, @file_path, @file_size, @file_mime, @content_hash, @created_at, @updated_at, @last_seen_at, @seeded)`,
@@ -168,13 +168,21 @@ test.describe("batch export", () => {
     }
     await pinLocaleFor(page);
     await page.goto("/resources");
-    await expect(page.getByTestId("resource-card")).toHaveCount(2, { timeout: 15000 });
 
-    // Chart entries never appear here, so both cards are files with checkboxes.
-    const boxes = page.getByTestId("resource-select");
-    await expect(boxes).toHaveCount(2);
-    await boxes.nth(0).check();
-    await boxes.nth(1).check();
+    // Scope to the two rows THIS test seeded. The suite shares one server and
+    // its resources store, so earlier specs leave cards behind — a global
+    // toHaveCount(2) read 4 in CI (run 42460822790) while passing on a machine
+    // where this spec ran first. data-resource-id is the stable handle.
+    const card = (id) => page.locator(`[data-testid="resource-card"][data-resource-id="${id}"]`);
+    await expect(card("exp-1")).toBeVisible({ timeout: 15000 });
+    await expect(card("exp-2")).toBeVisible();
+
+    // Chart entries never appear here, so both seeded cards carry checkboxes.
+    const box = (id) => card(id).getByTestId("resource-select");
+    await expect(box("exp-1")).toHaveCount(1);
+    await expect(box("exp-2")).toHaveCount(1);
+    await box("exp-1").check();
+    await box("exp-2").check();
     await expect(page.getByTestId("resources-export")).toBeVisible();
 
     const [download] = await Promise.all([

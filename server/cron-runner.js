@@ -580,7 +580,7 @@ async function runA2aRemoteTurn(ctx, job, timeoutMs) {
       ok: true, usage: null, text: out.text ?? null,
       metering: {
         carrier: "remote", carrierInstance: null,
-        queueWaitMs: job.queuedAt != null ? Math.max(0, Date.now() - job.queuedAt) : null,
+        queueWaitMs: _queueWaitMs(job, Date.now()),
       },
     };
   } catch (e) {
@@ -589,10 +589,25 @@ async function runA2aRemoteTurn(ctx, job, timeoutMs) {
       ok: false, error: e.message,
       metering: {
         carrier: "remote", carrierInstance: null,
-        queueWaitMs: job.queuedAt != null ? Math.max(0, Date.now() - job.queuedAt) : null,
+        queueWaitMs: _queueWaitMs(job, Date.now()),
       },
     };
   }
+}
+
+// True queue wait = dequeue time − **first** time this fire asked for a slot.
+//
+// `job.queuedAt` is deliberately re-stamped on every re-enqueue and again by
+// drainRepairQueue at boot (task-engine.js), so measuring from it reports only
+// the current attempt. After a restart every backlogged fire looks brand new and
+// `queue_wait_ms` under-reports exactly when the queue is worst — and that number
+// feeds fleet-cost-digest's `queue_wait_ms_max`, i.e. the signal that proposes
+// raising cell concurrency. `firstQueuedAt` survives (it is whitelisted in
+// saveTasks for this reason); fall back to `queuedAt` when it is absent.
+function _queueWaitMs(job, dequeueAt) {
+  const anchor = Number.isFinite(job?.firstQueuedAt) ? job.firstQueuedAt : job?.queuedAt;
+  if (anchor == null || !Number.isFinite(anchor)) return null;
+  return Math.max(0, dequeueAt - anchor);
 }
 
 // Round-scoped child conversation disposal (fix-fleet-round-discipline D5):
@@ -770,7 +785,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   const metering = {
     carrier: job.executionCarrier?.carrier ?? "cell",
     carrierInstance: job.executionCarrier?.instance ?? null,
-    queueWaitMs: job.queuedAt != null ? Math.max(0, startedAt - job.queuedAt) : null,
+    queueWaitMs: _queueWaitMs(job, startedAt),
     ...(job.preset ? { spinUpMs } : {}),
     ...(modeled?.landed ? { provider: (ctx.dshModels ?? []).find((m) => m.id === modeled.landed)?.provider ?? null } : {}),
     ...(modeled?.effort ? { effort: modeled.effort } : {}),
@@ -1412,6 +1427,25 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       readyRetryByJob.delete(job.id);
     }
 
+    // Turn-contract admission (agent-turn-contract, explore P2-7): the depth
+    // bound is checked where a chain position is created, but a declaration
+    // that SHRANK after the hop was queued would let it run past the bound the
+    // fleet now states. Refuse BEFORE the ledger opens (same shape as the
+    // runtime-not-ready gate above) so the refusal is the turn's honest
+    // outcome, recorded — not a silently missing row. Degrade open: no ledger
+    // mounted (legacy mounts, tests) means no gate.
+    const admission = ctx.fleetTurnLedger?.admission?.(job) ?? null;
+    if (admission?.error) {
+      const refusedOut = { ok: false, error: `turn contract refused: ${admission.error}` };
+      try {
+        ctx.recordFleetTurnEvent?.(job, refusedOut, { startedAt, endedAt: Date.now(), model: null, ledgerTurn: null });
+      } catch (e) {
+        console.warn(`[fleets] refused-turn record failed for ${job.id}: ${e?.message || e}`);
+      }
+      console.warn(`[fleets] ${job.id}: ${refusedOut.error}`);
+      return refusedOut;
+    }
+
     // Run ledger (agent-fleet-runs D2): the turn's id — and for a root turn
     // its run id — exist from the START, because a mid-turn dispatch_post must
     // stamp the upstream turn id on the task it creates. Registered under the
@@ -1559,3 +1593,5 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     return out;
   };
 }
+
+export { _queueWaitMs };

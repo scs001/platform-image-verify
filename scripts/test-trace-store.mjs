@@ -350,3 +350,74 @@ test("request/header stores identity only — the tool roster never lands (slim-
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// ── 5. 损坏要自己说出来（2026-11-08 实证）─────────────────────────────────
+//
+// owner cell 的 trace.db btree 坏了 8 天而无人知：`isTraceReady()` 一直 true、
+// 埋点照常调用、prune 每小时抛一行 malformed 埋在日志里，文件从 300MB 涨到 2.3GB。
+// 现在打开时跑 quick_check，并把它放进 traceStoreInfo 的读面。
+test("a healthy store reports integrity ok", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "trace-integrity-"));
+  process.env.PLATFORM_DATA_DIR = root;
+  const trace = await import(path.join(REPO, "server/trace.js"));
+  try {
+    await trace.initTrace();
+    const info = trace.traceStoreInfo();
+    assert.ok(info, "store info must be readable");
+    assert.equal(info.integrity?.ok, true, `expected integrity ok, got ${JSON.stringify(info.integrity)}`);
+  } finally {
+    trace.shutdownTrace();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a corrupt store reports integrity not ok instead of looking healthy", async () => {
+  // 必须在子进程里跑：paths.js 在模块加载时就把 PLATFORM_DATA_DIR 冻死
+  // （同一个进程里改 env 再 import 无效），同文件里 self-check 那条测试也是这么做的。
+  const root = await mkdtemp(path.join(tmpdir(), "trace-corrupt-"));
+  const file = path.join(root, "trace.db");
+  try {
+    const Database = (await import("better-sqlite3")).default;
+    const db = new Database(file);
+    db.exec(`CREATE TABLE trace_events (id INTEGER PRIMARY KEY AUTOINCREMENT, turn_id TEXT, session_id TEXT, seq INTEGER, ts INTEGER, method TEXT, event_type TEXT, payload TEXT);
+             CREATE INDEX idx_trace_ts ON trace_events(ts);`);
+    const ins = db.prepare(
+      "INSERT INTO trace_events (turn_id, session_id, seq, ts, method, event_type, payload) VALUES (?,?,?,?,?,?,?)");
+    db.transaction(() => {
+      for (let i = 0; i < 400; i += 1) ins.run("t", "s", i, Date.now(), "m", "e", JSON.stringify({ i, pad: "x".repeat(200) }));
+    })();
+    db.close();
+
+    // 打坏 **schema 页**（第 2 页）。打文件中部可能落在空闲页上，quick_check 仍 ok——
+    // 第一版测试就是这么假绿的（2026-11-08）。
+    const { open } = await import("node:fs/promises");
+    const fh = await open(file, "r+");
+    await fh.write(Buffer.alloc(4096, 0xff), 0, 4096, 4096);
+    await fh.close();
+
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const run = promisify(execFile);
+    const script = `
+      const trace = await import(${JSON.stringify(path.join(REPO, "server", "trace.js"))});
+      await trace.initTrace();
+      const info = trace.traceStoreInfo();
+      console.log(JSON.stringify({ integrity: info ? info.integrity : null }));
+      trace.shutdownTrace();
+    `;
+    const { stdout } = await run(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, DB_PATH: path.join(root, "app.db"), TRACE_DB_PATH: file },
+      timeout: 60_000,
+    });
+    const line = stdout.trim().split("\n").pop();
+    const parsed = JSON.parse(line);
+    // 两种都算"不自称健康"：打不开（info=null）或打开了但 integrity 非 ok。
+    // 唯一不允许的是「库坏了却报告健康」——那正是 2026-11-08 静默失效的形态。
+    assert.ok(
+      parsed.integrity == null || parsed.integrity.ok !== true,
+      `a corrupted store must not report ok: ${line}`,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

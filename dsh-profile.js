@@ -676,6 +676,26 @@ function linkProfilePinnedModules() {
   }
 }
 
+// Satellites the per-cell MCP host may serve (share-mcp-satellites-per-cell).
+// Membership is NOT a convenience list: a satellite belongs here only if its
+// startup env is cell-scoped. Member-scoped servers (library collections,
+// websearch user key, fd-memory member token) and the session-scoped `actions`
+// (DSH_SESSION_ID) MUST stay per-runtime — pairing them through a shared host
+// would show one member's view to another. The unit test in
+// scripts/test-mcp-satellite-sharing.mjs asserts this list against the
+// satellites' actual env reads, so adding a member-scoped server here fails.
+export const SHARED_SATELLITE_SERVERS = Object.freeze([
+  "fleet",
+  "cron",
+  "delegation",
+  "bench-proposal",
+  "fleet-architect",
+  "blueprint-author",
+  "pack-author",
+  "skill-evolution",
+  "persona-evolution",
+]);
+
 // Gray-rollout switch for the shared browser lane (slim-browser-lane-footprint):
 // `BROWSER_SHARED_CELLS` is a comma/space list of owner emails, or "*" for all.
 // Unset/empty = everyone (the normal steady state after the rollout completes).
@@ -1103,6 +1123,23 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
       servers[name] = { ...config, env: { ...(config.env ?? {}), BROWSER_OUTPUT_DIR: outputDir } };
     } else {
       console.log(`[dsh-profile] browser lane "${name}": no session workspace resolved — outputs fall back to the MCP default dir`);
+    }
+  }
+
+  // Shared MCP satellites (share-mcp-satellites-per-cell): when this cell runs a
+  // satellite host (TASK_WORKER_MAX>0), the shareable servers are served ONCE
+  // per cell and every dsh generation attaches by url instead of spawning its
+  // own copy. Same shape as the shared browser lane — url entry, no command.
+  // Safety: anything carrying credentials or envRefs is skipped even if it were
+  // mis-listed above, because those are per-tenant by definition.
+  const satelliteHostUrl = (process.env.MCP_SATELLITE_HOST_URL || "").trim().replace(/\/+$/, "");
+  if (satelliteHostUrl) {
+    for (const [name, config] of Object.entries(servers)) {
+      if (!SHARED_SATELLITE_SERVERS.includes(name)) continue;
+      if (config?.credentialEnv || config?.credentialRef || config?.credential) continue;
+      if (Array.isArray(config?.envRefs) && config.envRefs.length) continue;
+      servers[name] = { url: `${satelliteHostUrl}/${name}/mcp` };
+      console.log(`[dsh-profile] MCP "${name}": shared per-cell satellite host (${satelliteHostUrl}/${name}/mcp)`);
     }
   }
 

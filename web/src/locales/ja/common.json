@@ -3196,6 +3196,18 @@
       "noTrace": "trace なし",
       "filterMember": "ポストで絞り込み",
       "allMembers": "すべてのポスト",
+      "stopRun": "この実行を停止",
+      "stopTitle": "この実行を停止しますか？",
+      "stopBody": "実行中のターンは中断され「中断」として記録されます。完了済みのターンとその報告は残ります。この実行から新たな引き継ぎやファンアウトは点火されません。",
+      "stopConfirm": "実行を停止",
+      "stopCancel": "継続させる",
+      "stopping": "停止中…",
+      "stopDone": "停止しました：実行中のターン {{turns}} 件を中断しました。",
+      "stopAlready": "この実行はすでに停止されています。",
+      "stopFailed": "停止に失敗しました：{{error}}",
+      "stopped": "停止済み",
+      "stoppedWithReason": "停止済み（{{reason}}）",
+      "stopReasonDefault": "オーナーがコックピットから停止",
       "noMatch": "このページに該当ポストの実行なし"
     },
     "inspector": {

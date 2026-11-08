@@ -7748,3 +7748,19 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
   3. 最终分类：行业实体上 32 条 `stock` 标识 = **26 条港股 5 位码 + 6 条 ETF 代码**（`159133/159291/159834`，`.SZ` 孪生，挂在国防军工/计算机/传媒上）——**没有一条是真 A 股代码**。所以既无可迁之处，也不该迁。
 - **用户可见的风险（要点，待裁）**：这些行业 entity_id 上还躺着 `price` 1,173 条、`financials` 7,327 条（按家族：financials 7,327 / pwr 3,599 / price 1,173 / expr 254 / film 58）——**按 entity_id 查「国防军工」的行情会返回某只 ETF 的价格**。数据是真的但归属错，对外读面会串。处置只有两条：**为这些港股/ETF 建实体后迁走**，或**删掉这批错位观测**（破坏性，需你点头）。标识本身安全留着（守卫把它列在允许清单，且已挡在写入口之外）。
 - **纪律三条**：①`entity_type` 存的是**声明**，凡按它做关联/映射的地方都要 JOIN 回实体核对类型；②**迁移前先核目标实体身份**（名称 vs 代码），零键冲突不代表映射正确；③跨市场同码是真实存在的地雷——港股 5 位码 zfill 成 6 位必然撞 A 股。
+
+### §15.138 续二十六：读侧也补齐——series 读取按概念类型约束（0.5.50 / `sha-3d1ee01`）（11-08 续十五）
+
+- **续二十五 留的风险不是虚的，但口径要修正**：那 8,500 条错位观测（`financials` 7,327 + `price` 1,173）挂在 16 个**行业** entity_id 上。逐个读面核过：
+  - `analysis/backend.py::time_series` —— `filter(entity_type == entity_type)`，**安全**（按 industry 查看不到 stock 行）；
+  - `hotel_tools.py` 的 REVPAR/ADR/occupancy 分支 —— 硬编码 `o.entity_type='stock'`，按 industry id 查**取不到**，**安全**；
+  - **`hotel_tools.py::hotel_series` 通用路径 —— 只按 `concept_id`(+可选 `source_used`/`entity_id`) 过滤，完全没有 `entity_type` 约束**。它接受"任意概念码 + 任意 entity_id"，所以拿行业 id 去查 `financials.*`/`price.*` **能取到错位行**。这是真的洞。
+- **修法（比逐个调用方检查更根治）**：让 series 读取天然按**概念自身的 `entity_type`** 约束——概念是 stock，观测就必须是 stock：
+  ```python
+  where = ["o.concept_id = :cid", "o.entity_type = :cet"]
+  params["cet"] = concept["entity_type"]
+  ```
+  一个 series 只属于同类型实体，跨类混读从此不可能。加回归测试断言该谓词与绑定参数（不是断言"调了某函数"，而是断言 SQL 与参数）。
+- **至此错配数据读写两端都封住**：写侧=五个 ingest 的 code→entity 映射 JOIN entities（`3225f4d`，生产 9,544 保留 / 16 剔除）；读侧=series 按概念类型约束（`11c4ada`）。错位行本身仍留在库里（归属真、位置错），但既进不了写路径、也读不出来。
+- **发布链**：0.5.50 → `sha-3d1ee01`（tcr-relay 17:27:04 OK，145s）→ 两 CronJob 滚动 + `clusters.image` id9 + 清单对齐（`9978077`）→ 新镜像 tick 实测 `schema gate passed` / `Database initialized: …REDACTED@…` / `launched: []`。specs 17/17。
+- **仍然待裁（不变）**：那 8,500 条错位观测 + 32 条错标标识（26 港股码 + 6 ETF 码，无一可迁）怎么处置——建实体迁走 or 删除。标识已挡在写入口外、数据已挡在读面外，所以**不处置也不会再污染**，只是它们本身是错的。

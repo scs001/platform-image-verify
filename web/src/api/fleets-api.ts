@@ -17,6 +17,11 @@ export interface RunListEntry {
   okCount: number;
   failedCount: number;
   usage: { input: number | null; output: number | null } | null;
+  // add-fleet-run-budget: `status` stays the derived outcome; these two carry
+  // WHY it stopped (owner cancel or a budget ceiling). Absent/null = not stopped.
+  stoppedAt?: number | null;
+  stopReason?: string | null;
+  cost?: { usd: number | null; pricedTurns: number } | null;
 }
 
 export interface RunTurn {
@@ -83,6 +88,31 @@ export async function listRuns(fleetId: string, { status, source, since, until, 
 export async function getRun(fleetId: string, runId: string): Promise<RunDetail> {
   const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/runs/${encodeURIComponent(runId)}`);
   if (!r.ok) throw new Error(`run ${r.status}`);
+  return await r.json();
+}
+
+// Cancel a run (explore P2-6): the backend has always been able to stop one
+// (fleet-runs.stopRun → POST …/runs/:runId/cancel, aborting in-flight turns);
+// the cockpit had no entry point, so a runaway wave could only be stopped by
+// SQL. The response says whether it was already stopped, so the UI can stay
+// honest instead of pretending it just did something.
+export async function cancelRun(
+  fleetId: string,
+  runId: string,
+  reason?: string,
+): Promise<{ cancelled: boolean; alreadyStopped: boolean; abortedTurns: number; run: RunListEntry }> {
+  const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/runs/${encodeURIComponent(runId)}/cancel`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
+  if (!r.ok) {
+    let detail = "";
+    try {
+      detail = (await r.json())?.error ?? "";
+    } catch { /* non-JSON error body */ }
+    throw new Error(detail || `cancel ${r.status}`);
+  }
   return await r.json();
 }
 

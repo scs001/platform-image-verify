@@ -20,5 +20,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测
-- [ ] 4.2 归档（`openspec validate --strict` 通过后）
+- [x] 4.1 快照 7b92fa7 → GHA ✅ → relay OK → digest sha256:ed7289a3 → GitOps 2eba07c → ArgoCD →
+      platform/facet 滚完 → **舱内 4/4 绿**；并对真实 cell 实弹：817 个任务 → 默认页 30 行、
+      头部「817 total: 158 operator, 659 fleet-materialized」
+- [x] 4.2 归档（`openspec validate --strict` 通过后）

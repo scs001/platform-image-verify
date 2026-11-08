@@ -880,9 +880,16 @@ if (facetBase) {
         if (!cell?.port) return res.status(503).json({ ok: false, code: "cell_unavailable" });
         const upstream = await fetch(`http://127.0.0.1:${cell.port}${path}`, {
           method: "POST",
+          // Minimal identity headers, built rather than forwarded: copying the
+          // caller's headers carries its content-length across, and the body is
+          // RE-SERIALIZED here, so undici refuses with
+          // UND_ERR_REQ_CONTENT_LENGTH_MISMATCH (measured 2026-11-08 — the relay
+          // answered cell_unreachable for a cell that was answering fine).
           headers: {
-            ...forwardedHeaders(req, { email, groups: [] }, SECRET),
             "Content-Type": "application/json",
+            "x-forwarded-email": email,
+            "x-forwarded-groups": "",
+            "x-cloud-gateway-secret": SECRET,
           },
           body: JSON.stringify(req.body ?? {}),
           signal: AbortSignal.timeout(20_000),

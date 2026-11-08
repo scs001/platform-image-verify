@@ -66,8 +66,14 @@ const WATCHED_DEPLOYS = (process.env.WATCHED_DEPLOYS || "platform,platform-demo,
 const WATCH_CRONJOBS = (process.env.WATCH_CRONJOBS || "erp-event-archive-backup:26,registry-credential-renewal:26")
   .split(",").map((s) => s.trim()).filter(Boolean)
   .map((s) => {
-    const [name, hours] = s.split(":");
-    return { name, maxAgeHours: Number(hours) || 26 };
+    const [name, raw] = s.split(":");
+    const hours = Number(raw);
+    // NOT `Number(raw) || 26`: that makes 0 (and every typo) collapse to 26
+    // silently — a misconfigured allowance would look configured. Say so instead
+    // (found by drill: `:0` rendered max=26h).
+    const usable = Number.isFinite(hours) && hours > 0;
+    if (!usable) console.warn(`[ops-console] WATCH_CRONJOBS "${s}": no usable max-age — using 26h`);
+    return { name, maxAgeHours: usable ? hours : 26 };
   });
 const JENKINS_URL = process.env.JENKINS_URL?.replace(/\/$/, "");
 const JENKINS_JOB = process.env.JENKINS_JOB || "platform";

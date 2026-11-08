@@ -375,6 +375,28 @@ export function applyDeploymentSecrets(home, secrets) {
   writeFileSync(credentialsPath, yaml.dump(doc, YAML_DUMP_OPTS), { mode: 0o600 });
 }
 
+/**
+ * Deployment-scoped connector bindings as MCP rows (add-deployment-binding-grant
+ * 3.x). Each row names a deployment secret; the value authenticates the server,
+ * so a binding whose secret is missing is SKIPPED rather than emitted
+ * unauthenticated — an unauthenticated connector row would fail at call time,
+ * which is worse than an agent simply not offering that tool.
+ */
+export function connectorBindingEntries(connectorBindings, secretValues) {
+  const rows = Array.isArray(connectorBindings) ? connectorBindings : [];
+  const values = secretValues && typeof secretValues === "object" ? secretValues : {};
+  const entries = [];
+  for (const row of rows) {
+    const name = typeof row?.serverName === "string" ? row.serverName : "";
+    const url = typeof row?.url === "string" ? row.url : "";
+    const secretName = typeof row?.secretName === "string" ? row.secretName : "";
+    const token = secretName ? values[secretName] : undefined;
+    if (!name || !url || typeof token !== "string" || token === "") continue;
+    entries.push(mcpEntry(name, { url, token }));
+  }
+  return entries;
+}
+
 // One dsh-mcp-client loader entry per registry server — the http branch of
 // dsh-profile's toMcpClientEntry, verbatim shape.
 export function mcpEntry(name, { url, token }) {

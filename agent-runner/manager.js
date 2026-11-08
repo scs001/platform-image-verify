@@ -66,7 +66,7 @@ function tokensOf(usage) {
   if (Number.isFinite(input) && Number.isFinite(output)) return input + output;
   return null;
 }
-import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
+import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, connectorBindingEntries, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
 import { MemoryCapture, compactJsonText } from "./memory-capture.js";
 import { MEMORY_DISCIPLINE, dshMemoryMount, acpMemoryMount, memoryNamespaceFor, podMemoryNamespace } from "@finddatatechnology/yongyi-client";
@@ -1297,8 +1297,30 @@ export class ChildManager {
     for (const p of descriptor.skills ?? []) {
       skillContents[p] = await this.registryClient.fetchSkillContent(p);
     }
-    const mcpServers = (descriptor.mcpServers ?? []).map((name) =>
-      mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.mcpToken }),
+    // Deployment secrets (add-deployment-secrets D4; reordered for
+    // add-deployment-binding-grant 3.x): fetch EVERY declared secret by
+    // reference BEFORE composing the MCP rows, because a connector binding row
+    // is authenticated by one of those values. A fetch that cannot resolve still
+    // fails composition loudly with the reference named — no partial set, no
+    // fallback value.
+    const secretRefs = descriptor.secret_refs ?? {};
+    const secretValues = {};
+    if (Object.keys(secretRefs).length > 0) {
+      if (!config.packsBaseUrl) {
+        throw new Error(`deployment secrets declared (${Object.keys(secretRefs).join(", ")}) but the pack gateway URL is not configured (AGENT_RUNNER_PACKS_URL)`);
+      }
+      for (const [name, ref] of Object.entries(secretRefs)) {
+        try {
+          secretValues[name] = await this.#fetchSecretValue(ref);
+        } catch (e) {
+          throw new Error(`deployment secret '${name}' (ref ${maskSecretRef(ref)}) could not be fetched — refusing to compose ${key}: ${e.message}`);
+        }
+      }
+    }
+    const mcpServers = connectorBindingEntries(descriptor.connector_bindings, secretValues).concat(
+      (descriptor.mcpServers ?? []).map((name) =>
+        mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.mcpToken }),
+      ),
     );
     let memoryDiscipline = null;
     if (this.memory) {
@@ -1337,26 +1359,9 @@ export class ChildManager {
     // Billing-gate pin record (add-billing-failure-parking D3): captured at
     // the pin point itself, runner-level fallback when nothing was pinned.
     await this.#recordBillingPin(key, pinnedBillingKey);
-    // Deployment secrets (add-deployment-secrets D4): fetch EVERY declared
-    // secret by reference first, then pin the complete set in one write. A
-    // fetch that cannot resolve fails composition loudly with the reference
-    // named — no partial set, no fallback value; the child is never
-    // half-credentialed and never runs on a substitute.
-    const secretRefs = descriptor.secret_refs ?? {};
-    if (Object.keys(secretRefs).length > 0) {
-      if (!config.packsBaseUrl) {
-        throw new Error(`deployment secrets declared (${Object.keys(secretRefs).join(", ")}) but the pack gateway URL is not configured (AGENT_RUNNER_PACKS_URL)`);
-      }
-      const values = {};
-      for (const [name, ref] of Object.entries(secretRefs)) {
-        try {
-          values[name] = await this.#fetchSecretValue(ref);
-        } catch (e) {
-          throw new Error(`deployment secret '${name}' (ref ${maskSecretRef(ref)}) could not be fetched — refusing to compose ${key}: ${e.message}`);
-        }
-      }
-      applyDeploymentSecrets(spec.home, values);
-      this.log.log(`[agent-runner] ${key} pinned ${Object.keys(values).length} deployment secret(s): ${Object.entries(secretRefs).map(([n, ref]) => `${n} ${maskSecretRef(ref, values[n])}`).join(", ")}`);
+    if (Object.keys(secretValues).length > 0) {
+      applyDeploymentSecrets(spec.home, secretValues);
+      this.log.log(`[agent-runner] ${key} pinned ${Object.keys(secretValues).length} deployment secret(s): ${Object.entries(secretRefs).map(([n, ref]) => `${n} ${maskSecretRef(ref, secretValues[n])}`).join(", ")}`);
     }
     // Effective turn budget (add-serving-budgets D3): the descriptor's
     // declared minutes take precedence; otherwise the runner's deployment

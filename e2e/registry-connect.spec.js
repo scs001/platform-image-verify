@@ -118,48 +118,55 @@ test.describe("MCP market credential", () => {
   });
 
   test("registry install: no credential field with a live credential, header injected into the profile", async ({ page, request }) => {
-    // NOTE: deliberately NO delete-first here. DELETE rewrites the WHOLE dsh
-    // profile patch fire-and-forget (`ctx.dshUpdateMcp?.(...).catch(...)` in
-    // routes/extensions.js), and that background rewrite landed while later
-    // specs were asserting on the patch file — websearch's "serverName:
-    // websearch" check then read a half-written patch and went red three times
-    // (CI run 42489009784). This spec must not trigger a global profile write.
+    // Clean up FIRST **and** in a finally: the suite shares one server and CI
+    // retries re-run this test, so an attempt that dies mid-way leaves the row
+    // installed — the retry then hits "already exists", the dialog stays open,
+    // and all three attempts die at the same assertion (runs 42460822790 /
+    // 42489009784 / 42493112483). Idempotent start + guaranteed cleanup is what
+    // breaks that loop. The name must stay REGISTRY_MCP: credentialRef is
+    // injected by the registry-provided config, so a renamed install has no
+    // credentialRef to assert on (tried; it fails at that line).
+    await request.delete(`${baseURL}/api/extensions/mcp/${REGISTRY_MCP}`);
+
     // Connect first through the API (the popup flow has its own test above).
     const connect = await request.post(`${baseURL}/api/registry/credential`, {
       data: { token: "opaque-e2e-token", source: "paste" },
     });
     expect(connect.ok()).toBeTruthy();
 
-    await gotoStore(page);
-    const card = page.locator(`[data-testid="mcp-market-card"][data-market-name="${REGISTRY_MCP}"]`);
-    await expect(card).toBeVisible();
-    await expect(card.getByTestId("mcp-registry-badge")).toBeVisible();
+    try {
+      await gotoStore(page);
+      const card = page.locator(`[data-testid="mcp-market-card"][data-market-name="${REGISTRY_MCP}"]`);
+      await expect(card).toBeVisible();
+      await expect(card.getByTestId("mcp-registry-badge")).toBeVisible();
 
-    await card.getByRole("button", { name: /install/i }).click();
-    const dialog = page.getByRole("heading", { name: /add mcp/i });
-    await expect(dialog).toBeVisible();
+      await card.getByRole("button", { name: /install/i }).click();
+      const dialog = page.getByRole("heading", { name: /add mcp/i });
+      await expect(dialog).toBeVisible();
 
-    // No fillable credential field, and Add is enabled immediately.
-    await expect(dialogPanel(page)).toHaveAttribute("data-registry-state", "connected");
-    await expect(page.getByLabel("Authorization")).toHaveCount(0);
-    await expect(page.getByTestId("form-submit")).toBeEnabled();
+      // No fillable credential field, and Add is enabled immediately.
+      await expect(dialogPanel(page)).toHaveAttribute("data-registry-state", "connected");
+      await expect(page.getByLabel("Authorization")).toHaveCount(0);
+      await expect(page.getByTestId("form-submit")).toBeEnabled();
 
-    await page.getByTestId("form-submit").click();
-    await expect(dialog).not.toBeVisible();
+      await page.getByTestId("form-submit").click();
+      await expect(dialog).not.toBeVisible();
 
-    // The stored record references the credential; it embeds no secret. The
-    // effective profile dsh loads carries the resolved header (task 3.2).
-    const servers = await request.get(`${baseURL}/api/extensions/mcp`).then((r) => r.json());
-    const installed = servers.servers.find((s) => s.name === REGISTRY_MCP);
-    expect(installed.config.credentialRef).toBe("registry");
-    expect(installed.config.headers).toBeUndefined();
+      // The stored record references the credential; it embeds no secret. The
+      // effective profile dsh loads carries the resolved header (task 3.2).
+      const servers = await request.get(`${baseURL}/api/extensions/mcp`).then((r) => r.json());
+      const installed = servers.servers.find((s) => s.name === REGISTRY_MCP);
+      expect(installed.config.credentialRef).toBe("registry");
+      expect(installed.config.headers).toBeUndefined();
 
-    await expect
-      .poll(() => readPatch().includes("Authorization: Bearer opaque-e2e-token"), { timeout: 15000 })
-      .toBe(true);
-
-    // Cleanup: the row is shared with the other specs.
-    await request.delete(`${baseURL}/api/extensions/mcp/${REGISTRY_MCP}`);
+      await expect
+        .poll(() => readPatch().includes("Authorization: Bearer opaque-e2e-token"), { timeout: 15000 })
+        .toBe(true);
+    } finally {
+      // Cleanup runs even when an assertion above throws, so a retry starts from
+      // the same clean state the first attempt did.
+      await request.delete(`${baseURL}/api/extensions/mcp/${REGISTRY_MCP}`);
+    }
   });
 
   test("registry install without a credential routes to connect and keeps Add disabled", async ({ page }) => {

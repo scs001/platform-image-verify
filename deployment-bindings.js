@@ -22,6 +22,25 @@ import * as grants from "./connector-grants.js";
 export const DEPLOYMENT_BINDING_PREFIX = "connector_binding_";
 
 /**
+ * PAT name for a deployment-scoped binding: `deploy:<pack>:<agent>:<binding>`.
+ *
+ * Two deliberate choices. `deploy:` keeps this namespace disjoint from the
+ * interactive bindings' `pack:<pack>:<binding>` — pruning must never be able to
+ * reach a token a person granted by hand. And the agent segment is what makes
+ * the name unique per agent: the connector unions same-name mints and revokes
+ * the replaced token, so two agents sharing a name would make the second
+ * mint silently kill the first agent's credential.
+ */
+export function deploymentBindingPatName(packId, agentId, bindingKey) {
+  return `deploy:${packId}:${agentId}:${bindingKey}`;
+}
+
+/** The namespace a pack's deployment tokens live in (prune/uninstall scope). */
+export function deploymentBindingPatPrefix(packId) {
+  return `deploy:${packId}:`;
+}
+
+/**
  * Deployment secret name for a binding key. Secret names are `[a-z0-9_]{1,32}`
  * (SECRET_NAME_RE), so the key is folded into that alphabet and truncated —
  * consults `deploymentBindingKey()` to read it back rather than parsing.
@@ -65,6 +84,8 @@ export async function mintDeploymentBinding({ email, packId, agentId, bindingKey
     provider,
     operations,
     fetchImpl,
+    patName: deploymentBindingPatName(packId, agentId, bindingKey),
+    patPurpose: `deploy:${packId}/${agentId}/${bindingKey}`,
   });
   if (!minted.ok) return { ok: false, bindingKey, code: minted.code ?? "mint_failed" };
   const name = deploymentBindingSecretName(bindingKey);
@@ -107,5 +128,84 @@ export async function mintDeploymentBindings({ email, packId, agentIds, record, 
       (result.ok ? granted : failed).push({ agentId, ...result });
     }
   }
-  return { granted, failed, skipped: db.listConnectorBindingLedger(email, packId).length - mintable.length };
+  return {
+    granted,
+    failed,
+    // The keys the deployment intends to carry. Kept even when a mint failed:
+    // pruning decides "no longer declared", not "not freshly minted", so a
+    // transient mint failure must not revoke a token that still works.
+    keys: mintable.map((binding) => binding.bindingKey),
+    skipped: db.listConnectorBindingLedger(email, packId).length - mintable.length,
+  };
+}
+
+/**
+ * Drop what the deployment no longer needs (add-deployment-binding-grant 2.3).
+ *
+ * Two kinds of leftovers, both of which would otherwise outlive their reason:
+ *   - a deployment secret whose agent left the serving set or whose binding the
+ *     pack stopped declaring (or stopped satisfying);
+ *   - the connector PAT behind it — deleting the local row alone leaves a live
+ *     credential on the connector, which is the exact leak this closes.
+ *
+ * Scope is the `deploy:<pack>:` namespace, so a token a person granted through
+ * the interactive path is never reachable from here. A missing parent
+ * credential is reported, not thrown: the local rows still go.
+ */
+export async function pruneDeploymentBindings({ email, packId, agentIds, keepKeys, secrets, remove, fetchImpl = fetch }) {
+  const agents = [...new Set(agentIds ?? [])];
+  const keys = [...new Set(keepKeys ?? [])];
+  const keepPats = new Set();
+  const keepSecrets = new Set();
+  for (const agentId of agents) {
+    for (const bindingKey of keys) {
+      keepPats.add(deploymentBindingPatName(packId, agentId, bindingKey));
+      keepSecrets.add(`${agentId}\u0000${deploymentBindingSecretName(bindingKey)}`);
+    }
+  }
+
+  const staleSecrets = (secrets ?? []).filter(
+    (row) => typeof row?.name === "string" && row.name.startsWith(DEPLOYMENT_BINDING_PREFIX) && !keepSecrets.has(`${row.agentId}\u0000${row.name}`),
+  );
+  for (const row of staleSecrets) remove(row.agentId, row.name);
+
+  const listed = await grants.listBindingTokens({ email, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
+  if (!listed.ok) {
+    return { removedSecrets: staleSecrets.map((r) => ({ agentId: r.agentId, name: r.name })), revoked: [], failed: [], code: listed.code ?? "unavailable" };
+  }
+  const prefix = deploymentBindingPatPrefix(packId);
+  const stalePats = listed.pats.filter((pat) => pat.name.startsWith(prefix) && !keepPats.has(pat.name));
+  const revoked = [];
+  const failed = [];
+  for (const pat of stalePats) {
+    const result = await grants.revokeBindingTokenById({ email, patId: pat.id, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
+    (result.ok ? revoked : failed).push({ name: pat.name, ...(result.ok ? {} : { code: result.code ?? "revoke_failed" }) });
+  }
+  return { removedSecrets: staleSecrets.map((r) => ({ agentId: r.agentId, name: r.name })), revoked, failed };
+}
+
+/**
+ * Revoke every deployment token of a pack, and drop its binding secrets.
+ *
+ * This is the uninstall half of 2.3, and it is NOT the same event as a
+ * redeploy: a pack can be uninstalled while agents it published keep serving
+ * elsewhere, and revoking their credentials then would be a silent outage. So
+ * the caller gates this on "this cell holds no deployment of the pack any more"
+ * — the only state in which the tokens have no consumer left.
+ */
+export async function revokeDeploymentBindingsForPack({ email, packId, secrets, remove, fetchImpl = fetch }) {
+  const rows = (secrets ?? []).filter((row) => typeof row?.name === "string" && row.name.startsWith(DEPLOYMENT_BINDING_PREFIX));
+  for (const row of rows) remove(row.agentId, row.name);
+
+  const listed = await grants.listBindingTokens({ email, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
+  if (!listed.ok) return { removedSecrets: rows.length, revoked: [], failed: [], code: listed.code ?? "unavailable" };
+  const prefix = deploymentBindingPatPrefix(packId);
+  const ours = listed.pats.filter((pat) => pat.name.startsWith(prefix));
+  const revoked = [];
+  const failed = [];
+  for (const pat of ours) {
+    const result = await grants.revokeBindingTokenById({ email, patId: pat.id, fetchImpl }).catch((e) => ({ ok: false, code: e?.message || "unavailable" }));
+    (result.ok ? revoked : failed).push({ name: pat.name, ...(result.ok ? {} : { code: result.code ?? "revoke_failed" }) });
+  }
+  return { removedSecrets: rows.length, revoked, failed };
 }

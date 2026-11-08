@@ -15,10 +15,14 @@
 - [x] 2.2 部署路径接线 `gateway/packs.js` 的 deployHandler：部署成功后对每个已部署 agent 铸绑定，
       经 `registry.recordDeploymentSecret` 落库（`name = connector_binding_<key>`，`deployer = 部署者`）；
       响应只回 `deploymentBindings.{granted,failed}` 的**名字与键**，令牌值永不进响应
-- [ ] 2.3 撤销/卸载：删除对应部署密钥，并吊销连接器侧令牌（`revokeOnConnector`）——**未做**
-- [x] 2.4 单测 `scripts/test-deployment-bindings.mjs` 5/5：四态判定表（satisfied+非optional 唯一可铸）、
+- [x] 2.3 撤销/卸载：重新部署时删掉不再需要的部署密钥并**吊销**连接器令牌（`pruneDeploymentBindings`：
+      在 `deploy:<pack>:<agent>:<binding>` 命名空间内列表比对保留下限，只吊销本命名空间令牌，人手授权的
+      `pack:` 令牌不可达）；卸载只在「本单元已无该包部署」时全量收口（`revokeDeploymentBindingsForPack`），
+      否则保留——卸载不等于下线，撤销在跑的凭证是静默停服
+- [x] 2.4 单测 `scripts/test-deployment-bindings.mjs` 9/9：四态判定表（satisfied+非optional 唯一可铸）、
       密钥名合法性（含冒号/超长/空键）、一次铸一枚并存值/记部署者、铸造失败只登记不上抛且不落库、
-      无父凭证时**连连接器都不调用**（`no_account` 反证）
+      无父凭证时**连连接器都不调用**（`no_account` 反证）；另加：两 agent 不共用 PAT 名（同名重铸会吊销
+      前一枚）、prune 只吊销本命名空间且不删非绑定密钥、无账号时仍删行并报 `no_account`、卸载全量收口不越界
 - [ ] 2.5 全量 `npm run test:unit`，增量不新增红——**未跑**
 
 ## 3. runner 侧接线（待批，单独验收）

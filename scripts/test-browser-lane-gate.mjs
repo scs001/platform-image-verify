@@ -42,9 +42,9 @@ function makeHome() {
 
 // Each case imports dsh-profile.js fresh with its own env domain: the module
 // resolves MCP_PATCH_PATH and MCP_CONFIG_PATH at import time.
-async function patchEntries(home, { workspace = null } = {}) {
+async function patchEntries(home, { workspace = null, ownerEmail = null } = {}) {
   const mod = await import(`${pathToFileURL(join(REPO_ROOT, "dsh-profile.js")).href}?case=${Date.now()}-${Math.random()}`);
-  await mod.writeMcpPatch({ workspace });
+  await mod.writeMcpPatch({ workspace, ownerEmail });
   const patchPath = join(home, "profiles", "platform", "mcp.patch.yml");
   // Zero composed servers → the writer emits no patch file at all; "no entry"
   // and "no file" are the same omission from the lane's point of view.
@@ -60,7 +60,7 @@ async function patchEntries(home, { workspace = null } = {}) {
 
 async function withEnv(home, env, fn) {
   const saved = {};
-  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_SHARED_MCP_URL", "BROWSER_OUTPUT_DIR", "AGENT_WORKSPACE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT", "BROWSER_MCP_CLI", "BROWSER_CHROMIUM_PATH"]) {
+  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_SHARED_MCP_URL", "BROWSER_SHARED_CELLS", "BROWSER_OUTPUT_DIR", "AGENT_WORKSPACE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT", "BROWSER_MCP_CLI", "BROWSER_CHROMIUM_PATH"]) {
     saved[key] = process.env[key];
     delete process.env[key];
   }
@@ -185,4 +185,44 @@ test("no shared endpoint: the stdio lane is byte-identical to the pre-change sha
     env: { BROWSER_OUTPUT_DIR: workspace },
     cwd: REPO_ROOT,
   });
+});
+
+// ── Gray rollout switch (BROWSER_SHARED_CELLS) ──────────────────────────────
+
+test("gray: a listed cell takes the shared shape, an unlisted one keeps the per-cell shape", async () => {
+  const home = makeHome();
+  const url = "http://127.0.0.1:9310/mcp";
+  const workspace = join(home, "workspace");
+  mkdirSync(workspace, { recursive: true });
+  const env = {
+    BROWSER_SHARED_MCP_URL: url,
+    BROWSER_SHARED_CELLS: "tester@example.com",
+    BROWSER_RUNTIME_PATH: home, // the unlisted cell still has a local supply
+  };
+
+  const listed = await withEnv(home, env, () =>
+    patchEntries(home, { workspace, ownerEmail: "tester@example.com" }),
+  );
+  const listedRow = listed.find((r) => r.id === "mcp-playwright");
+  assert.equal(listedRow.config.transport, "streamable-http", "the gray cell rides the shared service");
+  assert.equal(listedRow.config.command, undefined);
+
+  const other = await withEnv(home, env, () =>
+    patchEntries(home, { workspace, ownerEmail: "someone-else@example.com" }),
+  );
+  const otherRow = other.find((r) => r.id === "mcp-playwright");
+  assert.equal(otherRow.config.transport, "stdio", "an unlisted cell keeps its own browser process");
+  assert.equal(otherRow.config.command, "node", "no cell loses the lane during a gray rollout");
+});
+
+test("gray: '*' (and unset) means every cell shares", async () => {
+  const home = makeHome();
+  const url = "http://127.0.0.1:9310/mcp";
+  for (const value of ["*", ""]) {
+    const rows = await withEnv(home, { BROWSER_SHARED_MCP_URL: url, BROWSER_SHARED_CELLS: value }, () =>
+      patchEntries(home, { ownerEmail: "anyone@example.com" }),
+    );
+    const row = rows.find((r) => r.id === "mcp-playwright");
+    assert.equal(row.config.transport, "streamable-http", `BROWSER_SHARED_CELLS="${value}" shares for all`);
+  }
 });

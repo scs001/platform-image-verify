@@ -676,6 +676,21 @@ function linkProfilePinnedModules() {
   }
 }
 
+// Gray-rollout switch for the shared browser lane (slim-browser-lane-footprint):
+// `BROWSER_SHARED_CELLS` is a comma/space list of owner emails, or "*" for all.
+// Unset/empty = everyone (the normal steady state after the rollout completes).
+export function sharedCellAllowed(ownerEmail, env = process.env) {
+  const raw = (env.BROWSER_SHARED_CELLS || "").trim();
+  if (!raw) return true;
+  const wanted = raw
+    .split(/[,\s]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (wanted.includes("*")) return true;
+  if (!ownerEmail) return false;
+  return wanted.includes(String(ownerEmail).trim().toLowerCase());
+}
+
 // Map one host MCP config ({command,args,env,cwd} stdio | {url,headers} http) to
 // a dsh-mcp-client cordis loader entry. Unknown shape → null (skipped, warned).
 // `scopedEnv` (optional name→value map) overrides process.env for envRefs
@@ -1032,7 +1047,12 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
       continue;
     }
     const sharedUrl = (process.env.BROWSER_SHARED_MCP_URL || "").trim();
-    if (sharedUrl) {
+    // Gray switch: BROWSER_SHARED_CELLS narrows the shared shape to a list of
+    // owner emails ("*" = everyone). The env is deployment-wide but a rollout
+    // must be able to start with ONE test cell — unlisted cells fall through to
+    // the per-cell shape below rather than losing the lane entirely. Values are
+    // author emails (what an operator actually knows), never cell ids.
+    if (sharedUrl && sharedCellAllowed(ownerEmail)) {
       servers[name] = {
         url: sharedUrl,
         ...(config.headers && typeof config.headers === "object" ? { headers: config.headers } : {}),
@@ -1042,6 +1062,12 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
           "no per-cell browser process, no BROWSER_OUTPUT_DIR (artifacts follow the cell at the service)",
       );
       continue;
+    }
+    if (sharedUrl) {
+      console.log(
+        `[dsh-profile] browser lane "${name}": shared endpoint configured but cell "${ownerEmail ?? "(machine)"}" ` +
+          "is not in BROWSER_SHARED_CELLS — keeping the per-cell shape for this cell",
+      );
     }
     const runtimePath = (process.env.BROWSER_RUNTIME_PATH || "").trim();
     const chromiumPath = (process.env.BROWSER_CHROMIUM_PATH || "").trim();

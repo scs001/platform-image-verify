@@ -604,11 +604,11 @@ gives every HTTP session its own browser context, and the service never passes
 `--shared-browser-context`; `--isolated` keeps the profile in memory so a
 pod-level browser leaves no cookie jar on disk. One chromium, many contexts:
 cookies, login state, tabs and downloads never cross cells.
-> Note: this means login state does NOT persist across separate MCP sessions of
-> one cell the way the per-cell shape's shared profile did. Within one session
-> (one agent conversation) it persists normally. Open decision — see the change
-> proposal's follow-up: either accept per-session state or add a per-cell
-> persistent profile.
+> Decided (2026-11-08): isolation is per SESSION. Login state persists for the
+> duration of one agent session and a later session of the same cell starts
+> clean — the deliberate cost of never writing a shared profile to disk, which
+> would otherwise be cross-cell readable state. The `browser-use` delta's
+> "login persists across sessions in one cell" scenario was rewritten to match.
 
 **Artifacts follow the calling cell.** The service resolves the caller from the
 CONNECTION (its peer process: socket inode → pid → cwd/cmdline → the 16-hex cell
@@ -623,6 +623,12 @@ the ordinary MCP failure path (tools grey out, reason logged, other tools
 unaffected) and NO per-cell playwright is spawned — falling back would silently
 restore the footprint this change removes. The service supervises its CLI with
 exponential backoff, so recovery needs no cell restart.
+
+**Gray rollout.** `BROWSER_SHARED_CELLS` narrows the shared shape to a comma list
+of owner emails (`*`/unset = all). An unlisted cell keeps its per-cell browser
+process, so a rollout can start with one real cell and no cell ever loses the
+lane; deleting an address moves that cell back. Remove the env (or set `*`) when
+the rollout completes.
 
 **Deployment.** `k8s/deployment.yaml` (this repo, design of record) carries a
 `browser-lane` container and the two platform envs. The LIVE `fd-prod` manifest

@@ -130,7 +130,13 @@ jobs:
           mkdir -p "$HOME/.dsh/profiles/platform"
           ln -sfn "$HOME/.dsh-matrix/node_modules" "$HOME/.dsh/profiles/platform/node_modules"
           ln -sfn "$HOME/.dsh-matrix/node_modules" "$HOME/.dsh/profiles/node_modules"
-          dsh --profile platform --dump-config > /dev/null
+          # Invoke the MATRIX tree's own CLI, not whatever is on PATH: the
+          # composing binary and the plugins must be one generation, and the
+          # matrix lock is that generation's single truth. (Removing the old
+          # global install is why `dsh` alone is no longer found — exit 127.)
+          DSH_BIN="$HOME/.dsh-matrix/node_modules/.bin/dsh"
+          echo "dsh: $("$DSH_BIN" --version)"
+          "$DSH_BIN" --profile platform --dump-config > /dev/null
 
       - name: Probe dsh runtime usability
         id: dsh

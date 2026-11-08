@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
-import type { PackDetail, PackDeployment, PackReport } from "@/lib/packs-api";
+import type { DeployBindingReport, PackDetail, PackDeployment, PackReport } from "@/lib/packs-api";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import {
   Dialog,
@@ -88,6 +88,26 @@ function budgetDraftValid(text: string): boolean {
   return n > 0 && n <= BUDGET_MAX_MINUTES;
 }
 
+// Deployment-scoped connector bindings (add-deployment-binding-grant). The
+// deploy answer names what it granted and what it could not; the reason codes
+// are the platform's `mintBindingToken` refusals, and each one has a different
+// fix, so they are not collapsed into "failed".
+function hasBindingReport(report: DeployBindingReport): boolean {
+  return report.granted.length > 0 || report.failed.length > 0 || (report.revoked ?? 0) > 0;
+}
+
+function uniqueKeys(rows: { bindingKey: string }[]): string {
+  return [...new Set(rows.map((r) => r.bindingKey))].join(", ");
+}
+
+const BINDING_REASON_KEYS = new Set(["no_account", "empty_scope", "connector_not_configured"]);
+
+function bindingReasonLabel(code: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  return BINDING_REASON_KEYS.has(code)
+    ? t(`packs.detail.bindingReason.${code}`)
+    : t("packs.detail.bindingReason.other", { code });
+}
+
 export function PackDetailDialog({
   packId,
   onOpenChange,
@@ -128,6 +148,11 @@ export function PackDetailDialog({
   const [deployments, setDeployments] = useState<PackDeployment[]>([]);
   const [deploying, setDeploying] = useState(false);
   const [deployNote, setDeployNote] = useState<string | null>(null);
+  // Connector bindings the deploy actually carried (add-deployment-binding-
+  // grant): the server reports granted/failed/revoked and the surface owes the
+  // deployer that truth — a binding that quietly failed to mint leaves an
+  // agent that looks deployed but cannot reach the system it was built for.
+  const [bindingReport, setBindingReport] = useState<DeployBindingReport | null>(null);
   // Deployer rhythm overrides (add-agent-residency D7): agentId → entries.
   const [overrides, setOverrides] = useState<Record<string, RhythmEntry[]>>({});
   // Deploy-time model/budget drafts (add-deploy-form-model-budget): agentId →
@@ -350,6 +375,7 @@ export function PackDetailDialog({
       setModelDrafts({});
       setBudgetDrafts({});
       api.getBillingBindings(packId).then(setBindings).catch(() => {});
+      setBindingReport(out.deploymentBindings ?? null);
       setDeployNote(t("packs.detail.deployEffective", { minutes: Math.ceil(out.effectiveWithinSecs / 60) }));
     } catch (err) {
       const e = err as Error & { body?: { code?: string; reason?: string } };
@@ -1004,6 +1030,34 @@ export function PackDetailDialog({
                   </ul>
                 )}
                 {deployNote && <p className="text-xs text-primary mb-2">{deployNote}</p>}
+                {bindingReport && hasBindingReport(bindingReport) && (
+                  <div className="mb-2 space-y-0.5 text-xs" data-testid="pack-deploy-bindings">
+                    {bindingReport.granted.length > 0 && (
+                      <p className="text-primary">
+                        {t("packs.detail.bindingsReady", {
+                          count: bindingReport.granted.length,
+                          keys: uniqueKeys(bindingReport.granted),
+                        })}
+                      </p>
+                    )}
+                    {bindingReport.failed.length > 0 && (
+                      <p className="text-status-waiting">
+                        {t("packs.detail.bindingsFailed", {
+                          count: bindingReport.failed.length,
+                          keys: uniqueKeys(bindingReport.failed),
+                        })}{" "}
+                        <span className="text-muted-foreground">
+                          {bindingReport.failed.map((f) => bindingReasonLabel(f.code, t)).filter((s, i, a) => a.indexOf(s) === i).join(" · ")}
+                        </span>
+                      </p>
+                    )}
+                    {(bindingReport.revoked ?? 0) > 0 && (
+                      <p className="text-muted-foreground">
+                        {t("packs.detail.bindingsRevoked", { count: bindingReport.revoked })}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => void deploy()}

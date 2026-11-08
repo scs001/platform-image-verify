@@ -1959,7 +1959,16 @@
       "outcomes": "何が得られるか",
       "coverage": "本エントリの {{locale}} 組織面カバー：{{covered}}/{{total}}",
       "coverageFull": "{{locale}} の組織面はすべてカバー済み",
-      "coverageMissing": "未カバー項目"
+      "coverageMissing": "未カバー項目",
+      "bindingsReady": "コネクタバインディング {{count}} 件が利用可能（{{keys}}）",
+      "bindingsFailed": "コネクタバインディング {{count}} 件が未準備（{{keys}}）— 対象システムに接続して再デプロイすると発行されます",
+      "bindingsRevoked": "不要になったバインディングトークンを {{count}} 件失効させました",
+      "bindingReason": {
+        "no_account": "コネクタアカウントが未接続のため、減衰元となる身元がありません",
+        "empty_scope": "このバインディングは許可できる読み取り・書き込み範囲を宣言していません",
+        "connector_not_configured": "このデプロイにはコネクタが接続されていません",
+        "other": "想定外の失敗（{{code}}）"
+      }
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

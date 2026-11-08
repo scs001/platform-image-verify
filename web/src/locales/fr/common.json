@@ -1959,7 +1959,16 @@
       "outcomes": "Ce que vous obtenez",
       "coverage": "Cette entrée couvre {{covered}}/{{total}} champs de surface en {{locale}}",
       "coverageFull": "Surface entièrement couverte en {{locale}}",
-      "coverageMissing": "Champs manquants"
+      "coverageMissing": "Champs manquants",
+      "bindingsReady": "{{count}} liaison(s) de connecteur prête(s) ({{keys}})",
+      "bindingsFailed": "{{count}} liaison(s) de connecteur non prête(s) ({{keys}}) — connectez le système puis redéployez pour les émettre",
+      "bindingsRevoked": "{{count}} jeton(s) de liaison devenus inutiles ont été révoqués",
+      "bindingReason": {
+        "no_account": "Aucun compte de connecteur n’est connecté : aucune identité à atténuer",
+        "empty_scope": "La liaison ne déclare aucune surface de lecture/écriture autorisable",
+        "connector_not_configured": "Ce déploiement n’a aucun connecteur configuré",
+        "other": "Échec inattendu ({{code}})"
+      }
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

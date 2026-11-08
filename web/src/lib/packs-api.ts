@@ -486,6 +486,17 @@ export function getPack(id: string) {
 export interface DeployResult {
   deployed: { agentId: string; agentPath: string; skills: string[] }[];
   effectiveWithinSecs: number;
+  // Connector bindings the deploy carried (add-deployment-binding-grant):
+  // names and keys only — the token never leaves the platform side. `failed`
+  // carries the reason code the deploy surface explains, and `revoked` counts
+  // the tokens this deploy retired because the pack stopped declaring them.
+  deploymentBindings?: DeployBindingReport;
+}
+
+export interface DeployBindingReport {
+  granted: { agentId: string; bindingKey: string }[];
+  failed: { agentId: string; bindingKey: string; code: string }[];
+  revoked?: number;
 }
 
 export interface PackDeployment {

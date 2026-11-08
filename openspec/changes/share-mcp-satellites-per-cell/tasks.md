@@ -18,7 +18,7 @@
       fleet-architect/blueprint-author/pack-author/persona-evolution/skill-evolution）+ bench-proposal；
       `actions` 本期不做（需 `DSH_SESSION_ID` 按请求注入）；library/websearch/fd-memory 留 per-worker。
       收益按此重算 = ≈560Mi 标称 / **≈270Mi 实扣**（不是 proposal 初稿的 450Mi）
-- [ ] 2.1 cell server 起一份卫星宿主，仅承接该 cell 的 dsh 世代；`TASK_WORKER_MAX=0` 时**不启动**
+- [x] 2.1 cell server 起一份卫星宿主，仅承接该 cell 的 dsh 世代；`TASK_WORKER_MAX=0` 时**不启动**
       （单 dsh 走原路径，形态不变）；验证 = 单测：cap=0 不启动、cap>0 启动一次
 - [x] 2.2 宿主以 streamable-http 暴露，dsh 侧以 `url` 条目接入（`toMcpClientEntry` 已支持）；
       验证 = 单测断言生成的 patch 里该条目 `transport: streamable-http` 且无 `command`

@@ -1959,7 +1959,16 @@
       "outcomes": "What you get",
       "coverage": "This entry covers {{covered}}/{{total}} org-surface fields in {{locale}}",
       "coverageFull": "All org-surface fields are covered in {{locale}}",
-      "coverageMissing": "Missing fields"
+      "coverageMissing": "Missing fields",
+      "bindingsReady": "{{count}} connector binding(s) ready ({{keys}})",
+      "bindingsFailed": "{{count}} connector binding(s) not ready ({{keys}}) — connect the system, then redeploy to mint",
+      "bindingsRevoked": "{{count}} binding token(s) that are no longer needed were revoked",
+      "bindingReason": {
+        "no_account": "No connector account is connected, so there is no identity to attenuate from",
+        "empty_scope": "The binding declares no grantable read/write surface",
+        "connector_not_configured": "This deployment has no connector wired up",
+        "other": "Unexpected failure ({{code}})"
+      }
     },
     "report": {
       "title": "Install result for “{{name}}”",

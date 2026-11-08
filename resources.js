@@ -448,6 +448,36 @@ export async function captureFilesFromTurn({ sessionId, messageId, blocks = null
 // translatable), and whether a refresh would even be attempted. `refreshable`
 // is computed from the deployment's allowlist rather than stored: the file is
 // the operator's control, so flipping it must not require a data migration.
+// Artifacts a turn produced, as ADDRESSABLE handles (add-fleet-artifact-handoff).
+// Reads the same rows `captureFilesFromTurn` wrote, bounded to the turn's window
+// so a successor is handed THIS turn's output, not the session's whole history.
+// Returns [] on an unready db — the caller degrades open (an edge must never
+// fail because the library is unavailable).
+export async function artifactsForSession({ sessionId, sinceMs = null, limit = 8 } = {}) {
+  if (!db.isDbReady() || typeof sessionId !== "string" || !sessionId) return [];
+  const capped = Math.min(Math.max(Number(limit) || 8, 1), 32);
+  const sinceIso = Number.isFinite(sinceMs) ? new Date(sinceMs).toISOString() : null;
+  try {
+    const rows = db
+      .getDb()
+      .prepare(
+        `SELECT id, type, title, file_path, created_at FROM resources
+         WHERE session_id = ? AND (? IS NULL OR created_at >= ?)
+         ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+      )
+      .all(sessionId, sinceIso, sinceIso, capped);
+    return rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      filePath: r.file_path ?? null,
+      createdAt: r.created_at,
+    }));
+  } catch {
+    return []; // legacy db without the table — honest absence
+  }
+}
+
 export function bindingView(binding, stats = null) {
   const allowlisted = bindings.isReplayable(binding.server, binding.tool);
   return {

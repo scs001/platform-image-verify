@@ -94,7 +94,43 @@ export function runAdmissionBlocked(db, engine, runId, budget, { now = Date.now(
   return null;
 }
 
-export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rosterPresetId = (id) => id, chainFor = () => null }) {
+// ── Upstream artifacts (add-fleet-artifact-handoff) ─────────────────────────
+//
+// A handoff used to relay PROSE only: the downstream post read a 2000-char
+// summary and, if it needed the actual chart/doc/sheet the upstream produced,
+// had to regenerate it from scratch — paying twice and often landing on a
+// different artifact. The platform already captures turn-produced files into
+// the resource library (`resources.captureFilesFromTurn`), so the handles exist;
+// they just never crossed the edge.
+//
+// Handles are addressed by the library id (stable, server-side) plus the
+// workspace-relative path (usable by a resident persona that shares the cwd).
+// Persona targets only: an a2a target is another service — a library id means
+// nothing there — and a tool target's prompt must stay pure JSON args.
+//
+// Degrade open: no db handle, a missing resources table, or a refused read all
+// yield no section (the edge still ignites with the prose it always had).
+async function upstreamArtifactSection(sessionId, { sinceMs = null, limit = 8 } = {}) {
+  if (!sessionId) return "";
+  let rows = [];
+  try {
+    const mod = await import("../resources.js");
+    rows = (await mod.artifactsForSession({ sessionId, sinceMs, limit })) ?? [];
+  } catch {
+    return ""; // a resources hiccup never blocks the handoff
+  }
+  if (!rows.length) return "";
+  const lines = rows.map((r) => {
+    const where = r.filePath ? ` · workspace: ${r.filePath}` : "";
+    return `- 资源库 ${r.id}「${r.title}」${where}`;
+  });
+  return (
+    "【上游产物】上游回合产出了以下可寻址产物——直接用它们，不要重新生成：" +
+    "\n" + lines.join("\n")
+  );
+}
+
+export async function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rosterPresetId = (id) => id, chainFor = () => null }) {
   const withChain = (fleet, edgeKind) => {
     const chain = chainFor(edgeKind);
     return chain ? { ...fleet, chain } : fleet;
@@ -120,6 +156,11 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
   const nextDepth = chainDepth + 1;
   const now = Date.now();
   const dispatched = [];
+  // The upstream turn's artifacts ride the ignition (add-fleet-artifact-handoff):
+  // captured under the upstream's mirror session, bounded to this turn's window.
+  const artifactSection = await upstreamArtifactSection(job?.sessionId ?? null, {
+    sinceMs: ledgerTurn?.startedAt ?? null,
+  });
   const turnKey = ignitionTurnKey(job, ledgerTurn);
   const fired = firedIgnitionKeys(engine);
   const hopKey = (edgeKind, targetId) => `${turnKey}:${edgeKind}:${targetId}`;
@@ -217,6 +258,11 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
       prompt:
         `【舰队接棒】上游岗位回合结束,依声明边接棒(链位 ${nextDepth}/${constraints.maxChainDepth})。\n` +
         `上游结果:\n${summary}` +
+        // add-fleet-artifact-handoff: the upstream's artifacts as ADDRESSABLE
+        // handles (library id + workspace path), so the successor reuses them
+        // instead of regenerating. Persona only, and absent when the upstream
+        // produced none.
+        (target.targetKind === "persona" && artifactSection ? `\n\n${artifactSection}` : "") +
         // add-fleet-edge-context D1: the fleet view rides along, rendered at the
         // engine's one injection seam. Persona only — an a2a target is another
         // service, and a tool target's prompt IS its JSON arguments.
@@ -285,6 +331,8 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
         prompt:
           `【舰队并行扇出】上游岗位「${db.getMember(memberId)?.title ?? memberId}」回合结束,你与同波同伴并行接令(轮次 1/${rounds})。\n` +
           `上游结果:\n${summary}` +
+          // add-fleet-artifact-handoff: same handles, same reason as handoff.
+          (target.targetKind === "persona" && artifactSection ? `\n\n${artifactSection}` : "") +
           // add-fleet-edge-context D1: same seam, same reason as handoff.
           (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),

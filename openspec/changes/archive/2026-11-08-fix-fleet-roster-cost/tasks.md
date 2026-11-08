@@ -18,5 +18,6 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测
-- [ ] 4.2 归档（`openspec validate --strict` 通过后）
+- [x] 4.1 快照 6f121f5 → GHA ✅ → relay OK → digest sha256:7e4a27dd → GitOps 5c23c77 → ArgoCD →
+      platform/facet 滚完 → **舱内 6/6 绿**（现网基线 a4b4e00bd ⊂ 我的快照基线且无独有提交）
+- [x] 4.2 归档（`openspec validate --strict` 通过后）

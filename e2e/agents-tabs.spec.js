@@ -43,20 +43,20 @@ test.describe("agent market facade (/agents after the supply migration)", () => 
     }
   });
 
-  test("primary affordance deep-links to the supply-domain market hall", async ({ page }) => {
+  test("the only outbound door is authoring — the market itself is in-product", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/agents");
-    const openMarket = page.getByTestId("agent-market-open");
-    await expect(openMarket).toHaveAttribute("href", `${STUDIO_ORIGIN}/#/packs`);
-    await expect(openMarket).toHaveAttribute("target", "_blank");
-    await expect(openMarket).toHaveAttribute("rel", /noopener/);
+    // drop-external-market-door: the marketplace is this deployment's own market
+    // plane, so no link leaves the product for "the market". The authoring entry
+    // (supply-domain Studio) stays — different surface, same repository.
+    await expect(page.getByTestId("agent-market-open")).toHaveCount(0);
     // Same origin definition as the studio redirect and the fleet 来源蓝图 chip
     // (web/src/lib/studio-origin.ts) — three copies of this literal drifted once
     // already and one landed on the platform domain's error face.
-    await expect(page.getByTestId("agent-market-studio")).toHaveAttribute(
-      "href",
-      `${STUDIO_ORIGIN}/#/studio`,
-    );
+    const studio = page.getByTestId("agent-market-studio");
+    await expect(studio).toHaveAttribute("href", `${STUDIO_ORIGIN}/#/studio`);
+    await expect(studio).toHaveAttribute("target", "_blank");
+    await expect(studio).toHaveAttribute("rel", /noopener/);
   });
 
   test("install panel is the runtime half that stays in 壹座", async ({ page }) => {

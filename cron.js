@@ -534,6 +534,24 @@ async function addJob({
   if (agentCount !== undefined && (!Number.isInteger(agentCount) || agentCount < 1)) {
     throw new Error("agentCount must be a positive integer");
   }
+  // Tool posts: the prompt IS the tool's arguments, so it must parse as a JSON
+  // object. Rejected HERE rather than at turn time (fix-cell-turn-throughput
+  // 4.1) — 2026-11-08 live had 4 tasks failing every fire with
+  // "tool post promptTemplate must be a JSON object": a deterministic
+  // misconfiguration no retry could ever fix.
+  if (tool) {
+    let parsedArgs = null;
+    try {
+      parsedArgs = JSON.parse(prompt ?? "");
+    } catch {
+      parsedArgs = null;
+    }
+    if (!parsedArgs || typeof parsedArgs !== "object" || Array.isArray(parsedArgs)) {
+      throw new Error(
+        "tool post prompt must be a JSON object — it is the tool's arguments (e.g. {\"query\":\"…\"})",
+      );
+    }
+  }
   const policyInvalid = validateClusterPolicy({ executionPolicy, targetAgents });
   if (policyInvalid) throw new Error(policyInvalid);
 

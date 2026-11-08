@@ -62,6 +62,8 @@ let retentionDays = Number(process.env.TRACE_RETENTION_DAYS) || 7;
 let traceDb = null;
 let traceDbPath = null;
 let pruneTimer = null;
+// 打开时 quick_check 的结论；读面（traceStoreInfo）据此暴露"库坏了"。
+let integrity = null;
 
 function resolveTraceDbPath() {
   if (process.env.TRACE_DB_PATH) return path.resolve(process.env.TRACE_DB_PATH);
@@ -171,6 +173,22 @@ function openTraceDb() {
   db.pragma("auto_vacuum = INCREMENTAL");
   db.pragma("journal_mode = WAL");
   for (const sql of TRACE_SCHEMA) db.exec(sql);
+  // 损坏必须自己说出来（2026-11-08 实证）：owner cell 的库 btree 坏了 8 天，
+  // 期间 `isTraceReady()` 一直 true、埋点照常调用，只有 prune 每小时抛一行
+  // `database disk image is malformed` 被埋在日志里。结果是"可观测性静默失效"：
+  // 2.3 GB 的库只增不减（DELETE 全失败），而没有任何读面暴露"这个库坏了"。
+  // quick_check 是 O(索引) 的轻量检查，放在打开时跑一次足够——它抓到的正是
+  // 那次故障的形态（btree 页错误），比 integrity_check 便宜两个数量级。
+  try {
+    const qc = db.pragma("quick_check", { simple: true });
+    integrity = qc === "ok" ? { ok: true, checkedAt: Date.now() } : { ok: false, detail: String(qc), checkedAt: Date.now() };
+    if (!integrity.ok) {
+      console.warn(`[trace] STORE CORRUPT: quick_check reported '${integrity.detail}' — writes and pruning may fail from here on; rebuild the file (see ops notes)`);
+    }
+  } catch (e) {
+    integrity = { ok: false, detail: `quick_check failed: ${e.message}`, checkedAt: Date.now() };
+    console.warn(`[trace] STORE CORRUPT: quick_check threw (${e.message})`);
+  }
   return db;
 }
 
@@ -187,7 +205,13 @@ function prune() {
     }
     return info.changes;
   } catch (e) {
-    console.warn(`[trace] prune failed: ${e.message}`);
+    const msg = String(e.message || e);
+    if (/malformed|corrupt/i.test(msg)) {
+      integrity = { ok: false, detail: `prune: ${msg}`, checkedAt: Date.now() };
+      console.warn(`[trace] STORE CORRUPT: prune failed with '${msg}' — the store is no longer being bounded`);
+    } else {
+      console.warn(`[trace] prune failed: ${msg}`);
+    }
     return 0;
   }
 }
@@ -254,6 +278,7 @@ export async function initTrace() {
     try { traceDb.close(); } catch { /* best-effort */ }
     traceDb = null;
   }
+  integrity = null;
   try {
     traceDb = openTraceDb();
   } catch (e) {
@@ -306,6 +331,7 @@ export function traceStoreInfo() {
     retentionDays,
     freelistCount: freelist,
     autoVacuum,
+    integrity,
     sizeBytes: pageSize * pageCount,
     rows: traceDb.prepare(`SELECT COUNT(*) AS n FROM trace_events`).get().n,
   };

@@ -45,7 +45,9 @@
 
 ## 6. 上线
 
-- [ ] 6.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 6.1 出片滚版 → 已在产（快照取自远端线 750ae41f3 → GHA `sha-cc3b5d2`，digest `sha256:25c2317a`，
+      relay 105s 到位；fd-infra-deploy `633bb40` 双 bump → ArgoCD 75s → 两 rollout 完成；
+      镜像内 `test-fleet-ruling-ledger` = 7/7 绿；源码面 `rulingTurnJob`×4、`byMemberId`×3 均在）
 - [ ] 6.2 观察项：滚版后看一次真实扇出的 run 详情，确认裁决回合在列表里且合计含它
 
 ## 7. 挂账（不在本变更）

@@ -61,7 +61,7 @@ function findRuleTarget(db, memberId) {
   return null;
 }
 
-function createWakeTask(engine, roster, { fleet, target, source, senderName, chatKey, text, mandate, ruleId = null }) {
+function createWakeTask(engine, roster, { fleet, target, source, senderName, chatKey, text, mandate, ruleId = null, coalesced = 1 }) {
   return engine.createManualTask({
     prompt:
       wakePrompt(source, senderName, chatKey, text) +
@@ -72,7 +72,14 @@ function createWakeTask(engine, roster, { fleet, target, source, senderName, cha
     sessionTitle: `事件 · ${target.title}`,
     origin: {
       fleet: { fleetId: fleet.id, memberId: target.id, depth: 0 },
-      event: { botId: mandate.trigger.botId, chatKey: chatKey ?? null, ...(ruleId ? { rule: ruleId } : {}) },
+      // `coalesced` = how many inbound messages this one wake carries
+      // (add-event-wake-coalesce): 1 is the old one-message-one-turn shape.
+      event: {
+        botId: mandate.trigger.botId,
+        chatKey: chatKey ?? null,
+        ...(ruleId ? { rule: ruleId } : {}),
+        ...(coalesced > 1 ? { coalesced } : {}),
+      },
       mandate,
     },
   });
@@ -83,7 +90,101 @@ function createWakeTask(engine, roster, { fleet, target, source, senderName, cha
 // without the app; returns the created task list for the log. `meta.addressed`
 // is the bots.js mention heuristic (v1: bot name appears in the text) — only
 // the non-edge table rows read it.
-export function triggerFleetEventWake({ db, engine, roster = rosterPresetId }, botId, { chatKey, senderName, text, addressed = false } = {}) {
+// ── Coalescing window (add-event-wake-coalesce) ─────────────────────────────
+//
+// A chat bot's inbound burst is one conversation, not N assignments: "在吗" +
+// "帮我看下昨天的数" + 一张图 arrives as three webhooks within seconds, and each
+// used to wake the bound post with its own turn — three runs, three payments,
+// and the post answering three fragments. The window below collects messages
+// for the SAME (bot, chat) for a short moment and wakes ONCE with the merged
+// conversation.
+//
+// Off switch: `EVENT_WAKE_COALESCE_MS=0` restores the previous behavior
+// exactly (synchronous, one wake per message) — tests and any caller that
+// needs the immediate task id use it.
+//
+// Honesty: the merged wake records how many messages it carries (`coalesced`),
+// and messages are truncated with a mark, never silently dropped. A process
+// death inside the window loses the buffered messages — the window is short on
+// purpose; that window is the price of not paying for N turns.
+const COALESCE_MESSAGES_MAX = 8;
+const COALESCE_TEXT_MAX = 4000;
+
+export function coalesceWindowMs() {
+  const v = Number(process.env.EVENT_WAKE_COALESCE_MS ?? 800);
+  return Number.isFinite(v) && v >= 0 ? v : 800;
+}
+
+const pendingWakes = new Map(); // `${botId}:${chatKey ?? "-"}` → slot
+
+// Merge a burst into the one message the wake lane understands. Sender = the
+// last human who spoke (that is who the post should answer); addressed = any
+// message mentioned the bot.
+export function mergeWakeMessages(messages) {
+  const kept = messages.slice(-COALESCE_MESSAGES_MAX);
+  const dropped = messages.length - kept.length;
+  const body = kept
+    .map((m) => String(m.text ?? "").trim())
+    .filter(Boolean)
+    .join("\n---\n");
+  const bounded =
+    body.length > COALESCE_TEXT_MAX
+      ? `${body.slice(0, COALESCE_TEXT_MAX)}…（消息过长已截断）`
+      : body;
+  const header = dropped > 0 ? `（此前另有 ${dropped} 条同类消息已合并/略去）\n` : "";
+  const lastSender = [...kept].reverse().find((m) => m.senderName)?.senderName ?? null;
+  return {
+    senderName: lastSender,
+    text: `${header}${bounded}`,
+    addressed: kept.some((m) => m.addressed === true),
+    coalesced: messages.length,
+  };
+}
+
+// Deliver every buffered burst NOW (tests, and graceful shutdown paths).
+export function flushEventWakes() {
+  const keys = [...pendingWakes.keys()];
+  const out = [];
+  for (const key of keys) out.push(...flushWakeKey(key));
+  return out;
+}
+
+function flushWakeKey(key) {
+  const slot = pendingWakes.get(key);
+  if (!slot) return [];
+  pendingWakes.delete(key);
+  if (slot.timer) clearTimeout(slot.timer);
+  const merged = mergeWakeMessages(slot.messages);
+  return deliverFleetEventWake(slot.deps, slot.botId, { chatKey: slot.chatKey, ...merged });
+}
+
+export function triggerFleetEventWake(deps, botId, meta = {}) {
+  const windowMs = coalesceWindowMs();
+  if (windowMs <= 0) return deliverFleetEventWake(deps, botId, meta); // coalescing off
+  const key = `${botId}:${meta.chatKey ?? "-"}`;
+  let slot = pendingWakes.get(key);
+  if (!slot) {
+    slot = { botId, chatKey: meta.chatKey ?? null, deps, messages: [], timer: null };
+    pendingWakes.set(key, slot);
+  }
+  // The newest wiring wins: a restart or a re-registered bridge must use the
+  // current db/engine handles when the timer fires.
+  slot.deps = deps;
+  slot.messages.push({
+    senderName: meta.senderName ?? null,
+    text: meta.text ?? "",
+    addressed: meta.addressed === true,
+    at: Date.now(),
+  });
+  if (!slot.timer) {
+    slot.timer = setTimeout(() => flushWakeKey(key), windowMs);
+    // Never hold the process open for a buffered wake.
+    if (typeof slot.timer.unref === "function") slot.timer.unref();
+  }
+  return []; // nothing is created until the window closes
+}
+
+function deliverFleetEventWake({ db, engine, roster = rosterPresetId }, botId, { chatKey, senderName, text, addressed = false, coalesced = 1 } = {}) {
   const source = `bot:${botId}`;
   const policy = readSignalPolicy(botId);
   const created = [];
@@ -130,10 +231,11 @@ export function triggerFleetEventWake({ db, engine, roster = rosterPresetId }, b
         chatKey,
         senderName,
       });
-      const task = createWakeTask(engine, roster, { fleet, target, source, senderName, chatKey, text, mandate });
+      const task = createWakeTask(engine, roster, { fleet, target, source, senderName, chatKey, text, mandate, coalesced });
       recordDisposition(botId, {
         fate: "admitted",
         reason: "edge_hit",
+        ...(coalesced > 1 ? { coalesced } : {}),
         chatKey: chatKey ?? null,
         sender: senderName ?? null,
         post: target.id,
@@ -182,10 +284,12 @@ export function triggerFleetEventWake({ db, engine, roster = rosterPresetId }, b
             text,
             mandate,
             ruleId: gate.ruleId,
+            coalesced,
           });
           recordDisposition(botId, {
             fate: "admitted",
             reason: "rule_match",
+        ...(coalesced > 1 ? { coalesced } : {}),
             ruleId: gate.ruleId ?? null,
             chatKey: chatKey ?? null,
             sender: senderName ?? null,

@@ -152,8 +152,18 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       await worker.bridge.prompt(sessionId, [{ type: "text", text: task.prompt }]);
       result = await collected;
     } catch (e) {
+      // prompt 抛错时 collectTurn 的 promise 还挂着：它内部挂着 turnTimeout 定时器
+      // （默认 10 分钟），而这里原先只 delete 掉 abort/collector 两个表项，没有让它结算
+      // ——于是十分钟后它以**未处理拒绝**的形式炸出来（实测 2026-11-08：一条
+      // "prompt 抛错"的用例让整个测试文件以 "promise pending while event loop resolved" 失败）。
+      // 正确做法是先主动结算（interrupted 语义），再清表；真正的错误照旧返回给引擎。
+      const abortTurn = worker.activeTurns.get(sessionId);
       worker.collectors.delete(sessionId);
       worker.activeTurns.delete(sessionId);
+      try {
+        abortTurn?.(`worker prompt failed: ${e?.message || String(e)}`);
+        collected.catch(() => {}); // 结算后的拒绝由此吞掉；调用方拿的是下面的返回值
+      } catch { /* 结算失败不能掩盖原始错误 */ }
       return { ok: false, error: e?.message || String(e), interrupted: e?.interrupted === true };
     } finally {
       worker.currentSession = null;

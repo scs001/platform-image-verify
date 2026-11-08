@@ -7657,3 +7657,20 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 **OIDC 修复的爆炸半径已扫**：`test-auth-*` / `test-logto-*` / `test-session-*` / `test-login-hero` /
 `test-migrate-single-to-cell` 共 **89 条全绿**；产上 `/api/auth/me` 返回 `{"mode":"logto",...}`（200），
 登录面在 OIDC 重试改造后仍正常。
+
+### §15.138 续二十一：凭证出口收口——真派发抓到「env 明文」，0.5.49 改 secretKeyRef（11-08 续十一）
+
+- **0.5.48 只做了一半**：命令行确实不再带 `--db-url`，但用平台自己的 `launch_policy` 做**真派发**（`cheap/crawl-policy-2659-20261108071716`）后查 Job spec 发现，`FD_OPEN_DATA_MCP_DATABASE_URL` / `REDIS_URL` 仍是**字面 `env.value`**——`_common_env()` 直接把 `clusters.runtime_hints.database_url/redis_url`（cheap 行里带明文口令）写进容器环境，任何 `get pods -o yaml` 都能读到。**只会 grep 命令行就以为修完了，是这一次的教训。**
+- **修法**：`_common_env()` 两个变量一律改 `secretKeyRef`（`fd-db-secret` 的 `DATABASE_URL`/`REDIS_URL`），并在 cheap `scraw` 补齐同名 secret（原本只有 fd-master 有）。`runtime_hints` 字段保留以兼容旧集群，但**不再被注入**。回归单测断言两个变量都是 secretKeyRef、无字面 `value`。
+- **实证（0.5.49 / `sha-5d8fad5` 真派发 `cheap/crawl-policy-2659-20261108080842`）**：command = `/opt/venv/bin/python /src/bulk_ingest_astock_daily.py --universe --slice-all 8 --slice-sleep 20`（`--db-url`=False、`postgresql/psycopg2`=False）；`FD_OPEN_DATA_MCP_DATABASE_URL -> {secretKeyRef: fd-db-secret/DATABASE_URL}`、`REDIS_URL -> {secretKeyRef: fd-db-secret/REDIS_URL}`；其余非敏感项（cluster id/name、forwarder、PYTHONUNBUFFERED）仍是字面值。
+- **过程中的两个坑**：①派发 pod 必须跑**新镜像**才会用新 launcher 代码——第一次验证用的是 0.5.48 的 pod，Job 仍是明文，白验一轮；②平台**单飞**（single-flight）会挡住第二次触发（`{"status":"skipped","reason":"open run"}`），需先让上一轮 run 收口（跑一轮 reconciler tick 即可把 `failed` 收掉）。
+- **镜像链**：PyPI **simple index 一度只出现 1 条**（只有 sdist），镜像构建直接 `No matching distribution found for fd-open-data-mcp>=0.5.49` 失败；等 simple 计数到 3 再 `gh run rerun` 即成功。这条与 0.5.46 的 PyPI 滞后是同一类坑，判据仍是 **simple 计数 ≥2**。
+- **凭证面的现状**：日志（0.5.46）、命令行（0.5.48）、env（0.5.49）三处已全部收口；`fd-db-secret` 现同时存在于 fd-master 与 cheap `scraw`，轮换时**两处都要改**（已记入 [[dsh-envrefs-plaintext-per-cell]] 系同类）。
+
+### §15.138 续二十二：四条挂账全清，尾部落成不变量（11-08 收官）
+
+- **四条挂账终态**（每条都有真证据，见续十四~续二十一）：④ yfinance 出口——换 9 个出口全封、代理池+chrome124 指纹 27/45 通，真凶是 `proxy-fw` 镜像落后一代（无 `source_provider_routes`/无 mihomo），cheap-1 出片 `fd-proxy-service:sha-f9e677b` 滚六节点后 `instrumented_fetch` 出 **23 行真行情**；① 日增量改按票自身缺口（cap 30 天，`000016:2026-09-03→2026-10-10` 实证）；③ 标识表类型错配（1,793 删 + 561 改型 + 282 去重，`512660` 等不再解析到人）；② 凭证三处收口（日志 0.5.46 / 命令行 0.5.48 / env 明文 0.5.49→`secretKeyRef`，真派发 Job 实证）。
+- **尾部①：污染源的结论——历史遗留，当前代码无入口**。逐个读过所有写标识的路径：`entities/resolver.py` 的 `seed_stock_identifiers`/`seed_country_identifiers`、`scripts/sync_xb_entities.py` 的 `IDENTIFIER_SQL`、`scripts/seed_fund_managers.py` 的 person 标识 upsert——**全部按实体自身类型写**；`git log -S` 也查不到现存脚本会写 stock 型标识。会改 `entities.entity_type` 的只剩 `scripts/migrate_etf_to_fund.py`（etf↔fund，且只按标识**自身**类型标签兜底重写，不按所属实体）。所以污染是 v0.4.4 基金控制中心那代的一次性产物。
+- **尾部①收口=把它变成可执行不变量**：新增 `scripts/check_identifier_integrity.py`——凡 `i.entity_type <> e.entity_type` 且不在 5 个**明示延后类**里即 `exit 1`；延后类超 `--max-deferred`（默认 500）也失败。生产实跑：`5 个延后类 / 335 行 / 0 违规 / exit 0`（organization 240、country→city 36、industry 32、index 24、exchange 3）。单测钉住"`stock` on `person` 永远不得进延后名单"。
+- **尾部②：`nbs-stats` 路由已消失**。库里 `source_provider_routes` 现在只有 `fred → ['mihomo']`、`yfinance → ['mihomo']`（那条 `nbs-stats → ['mihomo-cn']` 已不在，`mihomo-cn` 的 provider 类仍只在另一会话的未提交改动里）；nbs 近 2h **921 成功 / 14 失败**，走默认梯子，健康。**注意这条是并发会话动过的，不是我的改动**——记录以区分责任边界。
+- **收官时的不变量清单**（下次交接照这个查）：①`openspec validate --specs --strict` = 17/17；②`scripts/check_identifier_integrity.py` = exit 0；③两 CronJob 与 `clusters.image` = `sha-5d8fad5`；④reconciler tick 日志 `Database initialized: …REDACTED@…`；⑤`source_provider_routes` 无指向未部署 provider 的行；⑥两集群无 `zz-*` 探针残留。

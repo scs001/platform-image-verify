@@ -112,6 +112,30 @@ export function createCellRegistry(config) {
   const defaultFootprintBytes = Math.max(0, Math.round(wakeDefaultFootprintMb * 1024 * 1024));
   const gateArmed = () => Boolean(procMemory && memoryFloor > 0);
 
+  // ── Crash backoff (add-cell-crash-ledger) ────────────────────────────────
+  // A cell that crashes on every spawn must not be retried in a tight loop, but
+  // it must never be REFUSED either: refusing would lock the user out of their
+  // own data with no path back (the mp-demo tombstone lesson above). So the
+  // only lever is the delay before the next spawn, and it is deliberately
+  // UX-first: the ceiling is one wake's worth of waiting (boot is 8.6–12s), so
+  // the worst case a user feels is "slightly slower than a cold start" instead
+  // of "it is broken". All three knobs are deployment-tunable.
+  const cfgEnv = baseEnv ?? process.env;
+  const crashBackoffBaseMs = Math.max(0, Number(cfgEnv.CELL_CRASH_BACKOFF_BASE_MS ?? 1000));
+  const crashBackoffMaxMs = Math.max(0, Number(cfgEnv.CELL_CRASH_BACKOFF_MAX_MS ?? 15000));
+  const crashWindowMs = Math.max(1, Number(cfgEnv.CELL_CRASH_WINDOW_MS ?? 10 * 60 * 1000));
+  const crashRehabMs = Math.max(0, Number(cfgEnv.CELL_CRASH_REHAB_MS ?? 10 * 60 * 1000));
+
+  // Crashes only inside the window count toward the delay; a cell that has been
+  // quiet longer than that starts from zero (its crash was not a loop).
+  function crashDelayMs(row) {
+    const count = Number(row?.crashCount ?? 0);
+    const at = Number(row?.lastCrash?.at ?? 0);
+    if (!(count > 0) || !at) return 0;
+    if (Date.now() - at > crashWindowMs) return 0;
+    return Math.min(crashBackoffMaxMs, crashBackoffBaseMs * 2 ** Math.min(count - 1, 16));
+  }
+
   // Sum of OTHER wakes' reservations (the caller's own entry excluded — it is
   // fed separately as the wake's own contribution).
   function inflightBytesExcluding(userId) {
@@ -376,6 +400,26 @@ export function createCellRegistry(config) {
         cell.error = `exited (code=${code} signal=${signal})`;
         cell.child = null;
         console.error(`[gateway] cell ${userId} exited unexpectedly: ${cell.error}`);
+        // Crash ledger: this line used to be the ONLY trace, so "is this cell
+        // stable?" died with the process. Persist the scene (code/signal/at/
+        // uptime) and the count; a crash is NOT a lifecycle transition, so the
+        // row's state/holder semantics stay untouched.
+        if (registryDb) {
+          try {
+            const row = registryRowForSafe(userId);
+            if (row) {
+              const at = Date.now();
+              const uptimeMs = cell.startedAt ? Math.max(0, at - cell.startedAt) : null;
+              registryDb.put({
+                ...row,
+                crashCount: Number(row.crashCount ?? 0) + 1,
+                lastCrash: { code: code ?? null, signal: signal ?? null, at, uptimeMs, message: cell.error },
+              });
+            }
+          } catch (e) {
+            console.warn(`[gateway] crash ledger write failed for ${userId}: ${e?.message || e}`);
+          }
+        }
       });
 
       try {
@@ -390,10 +434,46 @@ export function createCellRegistry(config) {
         await terminateChild(child, userId);
         if (cells.get(userId) === cell) cells.delete(userId);
         reg(userId, { type: "bindFailed", now: Date.now() });
+        // Startup failure is its own counter: "came up but never listened" is a
+        // different cause from "crashed while running", and the two must not be
+        // summed into one scary number.
+        if (registryDb) {
+          try {
+            const row = registryRowForSafe(userId);
+            if (row) {
+              registryDb.put({
+                ...row,
+                bindFailureCount: Number(row.bindFailureCount ?? 0) + 1,
+                lastBindFailure: { at: Date.now(), message: err.message, timeoutMs: startTimeoutMs },
+              });
+            }
+          } catch (e) {
+            console.warn(`[gateway] bind-failure ledger write failed for ${userId}: ${e?.message || e}`);
+          }
+        }
         throw err;
       }
       cell.state = "running";
       reg(userId, { type: "up", now: Date.now() });
+      // Rehabilitation (add-cell-crash-ledger): a crash count that never resets
+      // would keep reporting a defect the deploy already fixed. Once the cell
+      // has been running longer than the rehab window, clear the COUNT but keep
+      // the last scene — the history stays readable, the alarm does not.
+      if (registryDb && crashRehabMs > 0) {
+        const rehabTimer = setTimeout(() => {
+          try {
+            const row = registryRowForSafe(userId);
+            if (!row || !(Number(row.crashCount ?? 0) > 0)) return;
+            if (cells.get(userId) !== cell || cell.state !== "running") return;
+            if (Date.now() - (cell.startedAt ?? 0) < crashRehabMs) return;
+            registryDb.put({ ...row, crashCount: 0 });
+            console.log(`[gateway] cell ${userId} rehabilitated (crash count reset, last scene kept)`);
+          } catch (e) {
+            console.warn(`[gateway] crash-ledger rehab failed for ${userId}: ${e?.message || e}`);
+          }
+        }, crashRehabMs);
+        rehabTimer.unref?.();
+      }
       console.log(`[gateway] cell ${userId} running on 127.0.0.1:${port} (pid ${cell.pid})`);
       return cell;
     })();
@@ -648,6 +728,17 @@ export function createCellRegistry(config) {
             evictedCellIds: evicted,
           };
           throw err;
+        }
+        // Crash backoff: pay the delay BEFORE a process exists, so a crash
+        // loop costs one spawn per delay instead of a fork bomb. Never a
+        // refusal — the wake still happens, just later.
+        const backoff = crashDelayMs(registryRowForSafe(userId));
+        if (backoff > 0) {
+          console.warn(
+            `[gateway] cell ${userId} crashed recently (count ${registryRowForSafe(userId)?.crashCount ?? 0}); ` +
+              `delaying respawn by ${backoff}ms (window ${Math.round(crashWindowMs / 1000)}s)`,
+          );
+          await new Promise((r) => setTimeout(r, backoff));
         }
         return await spawnCell(user); // await: the finally below must fire on SETTLE, not on return — the reservation covers materialization
       } finally {

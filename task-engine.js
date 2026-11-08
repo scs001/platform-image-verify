@@ -103,6 +103,13 @@ function saveTasks() {
       // stays transient (re-derived at enqueue — restart re-queues nothing in
       // flight).
       queuedAt: t.queuedAt ?? null,
+      // Staleness anchor (fix-cell-turn-throughput 2.3): `queuedAt` is re-stamped
+      // on every re-enqueue and again by drainRepairQueue at boot, so it can only
+      // measure the current attempt. `firstQueuedAt` is the clock that survives —
+      // without persisting it, a restart made the whole catch-up wave look brand
+      // new and the age policy could never fire (live 2026-11-08: 18 queued
+      // executions, all stamped within a second of boot).
+      firstQueuedAt: t.firstQueuedAt ?? null,
       // Cluster binding (agent-cluster-platform): persisted alongside the ref
       // in `preset` — without these a cell restart reloaded cluster tasks with
       // their policy/subset/label gone (prod 2026-10-21: list showed null,

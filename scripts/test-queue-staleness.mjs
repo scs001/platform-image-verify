@@ -151,3 +151,32 @@ test("a re-stamped wait clock does not refresh the staleness age", async () => {
     assert.equal(await waitFor(() => started.includes("after-restart")), true);
   } finally { delete process.env.QUEUE_MAX_AGE_MS; }
 });
+
+// The anchor must survive a process restart, and `saveTasks` persists by
+// WHITELIST — a field it does not name is dropped even though `loadTasks`
+// spreads whatever it finds. Without this the policy looked correct in-process
+// and could never fire in production: every boot handed the whole backlog a
+// fresh anchor (live 2026-11-08: 18 queued, all stamped inside one second).
+test("the first-queue anchor is persisted, so a restart cannot refresh it", async () => {
+  // Hold the serial slot so the task under test stays QUEUED (leaving the queue
+  // for a real run clears the anchor by design — that is not what this tests).
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await boot((task) => (task.id === "blocker" ? gate : Promise.resolve({ ok: true })));
+  addScheduledTask("blocker");
+  engine.enqueueExecution("blocker");
+  addScheduledTask("persisted-anchor");
+  engine.enqueueExecution("persisted-anchor");
+  const rec = engine.getRecord("persisted-anchor");
+  assert.equal(rec.state, "queued", "the task must still be waiting behind the blocker");
+  const anchoredAt = Date.now() - 90_000;
+  rec.firstQueuedAt = anchoredAt;
+  await engine.saveTasks();
+
+  const saved = JSON.parse(fs.readFileSync(path.join(process.env.CRON_STORAGE_PATH, "jobs.json"), "utf8"));
+  const row = saved.find((r) => r.id === "persisted-anchor");
+  assert.ok(row, "the task must be on disk");
+  assert.equal(row.firstQueuedAt, anchoredAt, "saveTasks must whitelist the anchor");
+  release({ ok: true });
+  await engine.idle();
+});

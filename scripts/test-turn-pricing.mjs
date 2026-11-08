@@ -108,23 +108,36 @@ const record = (id, model, usage) => recordTurnEvent(
   { startedAt: Date.now(), endedAt: Date.now() + 1000, model },
 );
 
-test("priced turn: event row stamps pricing_at (no money), daily row accumulates the estimate", async () => {
+test("priced turn: event row carries the estimate AND the stamp; the daily row accumulates the same numbers", async () => {
   const ev = record("job_p1", "m-priced", { input: 1000, output: 500, cacheReadTokens: 10000, cacheWriteTokens: 200 });
   assert.ok(ev);
   assert.ok(Number.isFinite(ev.pricingAt), "the version stamp rides the event row");
 
   const d = new Database(DB_FILE, { readonly: true });
   try {
-    const t = d.prepare("SELECT pricing_at FROM member_turn_events ORDER BY id DESC LIMIT 1").get();
+    const t = d.prepare("SELECT * FROM member_turn_events ORDER BY id DESC LIMIT 1").get();
     assert.equal(t.pricing_at, ev.pricingAt, "stamp on the turn row");
+    // SUPERSEDES add-turn-pricing D4a (add-fleet-cost-read-face): money used to
+    // live on the daily row alone, which made per-run and per-edge attribution
+    // impossible — the daily key has no run/edge dimension, and re-pricing old
+    // turns at today's rates would rewrite history. The same estimate now lands
+    // on the turn row as well. It is still an ESTIMATE with `pricing_at`
+    // provenance, never a bill; the duplication is cross-checked below so the
+    // two copies cannot silently diverge.
     const eventCols = d.prepare("PRAGMA table_info(member_turn_events)").all().map((c) => c.name);
-    assert.ok(!eventCols.includes("cost_input_usd"), "NO money columns on the turn row (D4a)");
+    for (const c of ["cost_input_usd", "cost_output_usd", "cost_cache_write_usd", "cost_cache_read_usd"]) {
+      assert.ok(eventCols.includes(c), c);
+    }
+    assert.ok(Math.abs(t.cost_input_usd - 1000 * 1e-6) < 1e-12, "turn row carries the input component");
+    assert.ok(Math.abs(t.cost_output_usd - 500 * 2e-6) < 1e-12, "turn row carries the output component");
     const daily = d.prepare("SELECT * FROM member_turn_daily WHERE member_id = 'm_price' AND model = 'm-priced'").get();
     assert.ok(daily, "the priced model's daily row");
     assert.ok(Math.abs(daily.cost_input_usd - 1000 * 1e-6) < 1e-12);
     assert.ok(Math.abs(daily.cost_output_usd - 500 * 2e-6) < 1e-12);
     assert.ok(Math.abs(daily.cost_cache_read_usd - 10000 * 1e-7) < 1e-12);
     assert.equal(daily.cost_cache_write_usd, 0);
+    // The two copies must agree (one turn in this member's priced row so far).
+    assert.ok(Math.abs(t.cost_cache_read_usd - daily.cost_cache_read_usd) < 1e-12, "turn row and daily row agree");
   } finally { d.close(); }
 });
 

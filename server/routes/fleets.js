@@ -779,6 +779,9 @@ export function createFleetRoutes(app, ctx = null) {
       // for the tool waterfall — without it every non-live span lookup fell
       // through (live-found in production walkthrough 2026-10-27).
       traceTurnId: event.traceTurnId ?? null,
+      // Estimated USD for this turn (add-fleet-cost-read-face): null when the
+      // turn was never priced — the timeline must not draw a $0 it cannot prove.
+      cost: event.cost ?? null,
     };
   }
 
@@ -844,7 +847,7 @@ export function createFleetRoutes(app, ctx = null) {
   const RUN_STATUSES = ["open", "ok", "failed", "partial"];
   const TURN_SOURCES = ["cron", "manual", "delegation", "event"];
 
-  function runListEntry(run, memberTitles) {
+  function runListEntry(run, memberTitles, costEntry = null) {
     return {
       runId: run.runId,
       rootSource: run.rootSource,
@@ -862,12 +865,18 @@ export function createFleetRoutes(app, ctx = null) {
       // says so — `status` stays the derived outcome, these two carry the WHY.
       stoppedAt: run.stoppedAt ?? null,
       stopReason: run.stopReason ?? null,
+      // add-fleet-cost-read-face: estimated USD, summed from this run's own turn
+      // rows at the price each turn ran under. `pricedTurns` is the sample size;
+      // `usd` is null when nothing in the run was priced (never a fake 0).
+      cost: costEntry,
     };
   }
 
   function runTurnEntry(event) {
     return {
       ...turnTimelineEntry(event),
+      // Per-turn estimate as it was computed at turn time (add-fleet-cost-read-face).
+      cost: event.cost ?? null,
       turnId: event.turnId,
       runId: event.runId,
       parentTurnId: event.parentTurnId,
@@ -903,7 +912,9 @@ export function createFleetRoutes(app, ctx = null) {
       const db = getFleetDatabase();
       const { total, runs } = db.listRuns(owned.fleet.id, { status, source, since, until, limit, offset });
       const memberTitles = new Map(db.listMembers(owned.fleet.id).map((m) => [m.id, m.title]));
-      res.json({ total, runs: runs.map((r) => runListEntry(r, memberTitles)) });
+      // One grouped query for the whole page — never one per run.
+      const costs = db.runCosts(owned.fleet.id, { sinceMs: Number.isFinite(since) ? since : 0 });
+      res.json({ total, runs: runs.map((r) => runListEntry(r, memberTitles, costs.get(r.runId) ?? null)) });
     } catch (err) {
       console.error("[fleets] runs list error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -921,7 +932,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
       const memberTitles = new Map(db.listMembers(owned.fleet.id).map((m) => [m.id, m.title]));
       res.json({
-        run: runListEntry(run, memberTitles),
+        run: runListEntry(run, memberTitles, db.runCost(run.runId)),
         turns: db.listRunTurns(run.runId).map(runTurnEntry),
       });
     } catch (err) {
@@ -946,7 +957,7 @@ export function createFleetRoutes(app, ctx = null) {
         return res.status(404).json({ error: "Run not found" });
       }
       if (run.stoppedAt != null) {
-        return res.json({ cancelled: true, alreadyStopped: true, run: runListEntry(run, new Map()), abortedTurns: 0 });
+        return res.json({ cancelled: true, alreadyStopped: true, run: runListEntry(run, new Map(), db.runCost(run.runId)), abortedTurns: 0 });
       }
       const reason = typeof req.body?.reason === "string" && req.body.reason.trim()
         ? req.body.reason.trim().slice(0, 200)
@@ -965,7 +976,7 @@ export function createFleetRoutes(app, ctx = null) {
       res.json({
         cancelled: true,
         alreadyStopped: false,
-        run: runListEntry(finalRun ?? run, new Map()),
+        run: runListEntry(finalRun ?? run, new Map(), db.runCost(run.runId)),
         abortedTurns: stopped?.abortedTurns ?? 0,
       });
     } catch (err) {
@@ -1451,7 +1462,7 @@ export function createFleetRoutes(app, ctx = null) {
     const fleetLine = line("fleet", "owner.fleet", async () => {
       const db = getFleetDatabase();
       const fleets = db.listFleets({ ownerEmail: email });
-      const agg = { runs: 0, turns: 0, usageInput: null, usageOutput: null };
+      const agg = { runs: 0, turns: 0, usageInput: null, usageOutput: null, costUsd: null, pricedTurns: 0 };
       for (const f of fleets) {
         const p = db.spendProjection(f.id);
         agg.runs += p.allTime?.runs ?? 0;
@@ -1462,6 +1473,10 @@ export function createFleetRoutes(app, ctx = null) {
         if (p.allTime?.usageOutput != null) {
           agg.usageOutput = (agg.usageOutput ?? 0) + p.allTime.usageOutput;
         }
+        // Money (add-fleet-cost-read-face): only priced turns contribute, and the
+        // total stays null until at least one fleet has a priced turn.
+        if (p.allTime?.costUsd != null) agg.costUsd = (agg.costUsd ?? 0) + p.allTime.costUsd;
+        agg.pricedTurns += p.allTime?.pricedTurns ?? 0;
       }
       return { ...agg, fleets: fleets.length };
     });

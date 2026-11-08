@@ -380,9 +380,19 @@ export function createFleetDatabase({ file } = {}) {
     "queue_wait_ms INTEGER",
     "spin_up_ms INTEGER",
     "ttft_ms INTEGER",
-    // Turn pricing (add-turn-pricing): the price-table version stamp only —
-    // money lives on the DAILY row (D4a: estimates never impersonate billing).
+    // Turn pricing (add-turn-pricing): the price-table version stamp.
     "pricing_at INTEGER",
+    // Cost read face (add-fleet-cost-read-face): the four estimate components
+    // now ALSO land on the turn row. The seam already computed them for the
+    // daily rollup; without them a per-run / per-edge money slice could only be
+    // re-priced at TODAY's rates, which would rewrite history. Nullable on
+    // purpose — an unpriced turn carries NULL, never a 0 pretending to be an
+    // observation. (Supersedes add-turn-pricing D4a's "money lives only on the
+    // daily row": that rule made run/edge attribution structurally impossible.)
+    "cost_input_usd REAL",
+    "cost_output_usd REAL",
+    "cost_cache_write_usd REAL",
+    "cost_cache_read_usd REAL",
   ]) {
     try {
       db.exec(`ALTER TABLE member_turn_events ADD COLUMN ${col}`);
@@ -1112,10 +1122,20 @@ export function createFleetDatabase({ file } = {}) {
           INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
                                           turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail,
                                           preset_id, preset_source, provider, effort, carrier, carrier_instance, lane_id, depth, wave,
-                                          usage_cached_input, usage_cache_write, usage_reasoning, queue_wait_ms, spin_up_ms, ttft_ms, pricing_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          usage_cached_input, usage_cache_write, usage_reasoning, queue_wait_ms, spin_up_ms, ttft_ms, pricing_at,
+                                          cost_input_usd, cost_output_usd, cost_cache_write_usd, cost_cache_read_usd)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
-        .run(...base, ...meteringArgs, Number.isFinite(pricing?.pricingAt) ? pricing.pricingAt : null);
+        .run(
+          ...base,
+          ...meteringArgs,
+          Number.isFinite(pricing?.pricingAt) ? pricing.pricingAt : null,
+          // Only a PRICED turn contributes money; unpriced stays NULL.
+          Number.isFinite(pricing?.inputUsd) ? pricing.inputUsd : null,
+          Number.isFinite(pricing?.outputUsd) ? pricing.outputUsd : null,
+          Number.isFinite(pricing?.cacheWriteUsd) ? pricing.cacheWriteUsd : null,
+          Number.isFinite(pricing?.cacheReadUsd) ? pricing.cacheReadUsd : null,
+        );
     } catch (e) {
       meteringWarnOnce(`metering columns unavailable, legacy event shape (${e.message})`);
       out = db
@@ -1461,6 +1481,49 @@ export function createFleetDatabase({ file } = {}) {
       .map(deserializeTurnEvent);
   }
 
+  // Per-run money (add-fleet-cost-read-face D2): summed from the turn rows the
+  // run already owns, so it is the price that was in force WHEN each turn ran —
+  // not a re-price at today's rates. `pricedTurns` is the sample size (a run
+  // with unpriced turns reports a smaller sample, never a smeared average).
+  // Returns Map<runId, {usd, pricedTurns, turns}>; `sinceMs` bounds started_at.
+  function runCosts(fleetId, { sinceMs = 0 } = {}) {
+    const rows = db
+      .prepare(`
+        SELECT run_id,
+               COUNT(*) AS turns,
+               SUM(CASE WHEN pricing_at IS NOT NULL THEN 1 ELSE 0 END) AS priced_turns,
+               SUM(COALESCE(cost_input_usd, 0) + COALESCE(cost_output_usd, 0)
+                   + COALESCE(cost_cache_write_usd, 0) + COALESCE(cost_cache_read_usd, 0)) AS usd
+        FROM member_turn_events
+        WHERE fleet_id = ? AND run_id IS NOT NULL AND started_at >= ?
+        GROUP BY run_id
+      `)
+      .all(fleetId, sinceMs);
+    const out = new Map();
+    for (const r of rows) {
+      out.set(r.run_id, {
+        usd: Number.isFinite(r.usd) ? r.usd : null,
+        pricedTurns: r.priced_turns ?? 0,
+        turns: r.turns ?? 0,
+      });
+    }
+    return out;
+  }
+
+  function runCost(runId) {
+    const r = db
+      .prepare(`
+        SELECT COUNT(*) AS turns,
+               SUM(CASE WHEN pricing_at IS NOT NULL THEN 1 ELSE 0 END) AS priced_turns,
+               SUM(COALESCE(cost_input_usd, 0) + COALESCE(cost_output_usd, 0)
+                   + COALESCE(cost_cache_write_usd, 0) + COALESCE(cost_cache_read_usd, 0)) AS usd
+        FROM member_turn_events WHERE run_id = ?
+      `)
+      .get(runId);
+    if (!r) return null;
+    return { usd: Number.isFinite(r.usd) ? r.usd : null, pricedTurns: r.priced_turns ?? 0, turns: r.turns ?? 0 };
+  }
+
   // 花销读数(a)：回合/token 事实投影 (fleet-owner-surface)。与 fleet_runs 同
   // 纪律 —— always a projection (SUM 现算, 不落计数器), usage 缺失的行如实进
   // 缺数（NULL 合计不虚构 token）。
@@ -1475,11 +1538,24 @@ export function createFleetDatabase({ file } = {}) {
            FROM fleet_runs WHERE fleet_id = ? AND started_at >= ?`,
         )
         .get(fleetId, sinceMs);
+      // Money for the same window, from the turn rows (the only place the
+      // per-turn estimate lives). `costUsd` stays null when NOTHING in the
+      // window was priced — honest absence, never a zero posing as a reading.
+      const money = db
+        .prepare(`
+          SELECT SUM(CASE WHEN pricing_at IS NOT NULL THEN 1 ELSE 0 END) AS priced_turns,
+                 SUM(COALESCE(cost_input_usd, 0) + COALESCE(cost_output_usd, 0)
+                     + COALESCE(cost_cache_write_usd, 0) + COALESCE(cost_cache_read_usd, 0)) AS usd
+          FROM member_turn_events WHERE fleet_id = ? AND started_at >= ?
+        `)
+        .get(fleetId, sinceMs);
       return {
         runs: agg.runs ?? 0,
         turns: agg.turns ?? 0,
         usageInput: agg.usage_input ?? null,
         usageOutput: agg.usage_output ?? null,
+        costUsd: money?.priced_turns > 0 && Number.isFinite(money?.usd) ? money.usd : null,
+        pricedTurns: money?.priced_turns ?? 0,
       };
     };
     const day = 24 * 3600_000;
@@ -1506,6 +1582,9 @@ export function createFleetDatabase({ file } = {}) {
                COUNT(*) AS turns,
                SUM(CASE WHEN c.status = 'ok' THEN 1 ELSE 0 END) AS ok_count,
                SUM(CASE WHEN c.status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+               SUM(CASE WHEN c.pricing_at IS NOT NULL THEN 1 ELSE 0 END) AS priced_turns,
+               SUM(COALESCE(c.cost_input_usd, 0) + COALESCE(c.cost_output_usd, 0)
+                   + COALESCE(c.cost_cache_write_usd, 0) + COALESCE(c.cost_cache_read_usd, 0)) AS usd,
                MAX(c.ended_at) AS last_ended
         FROM member_turn_events c
         JOIN member_turn_events p ON p.turn_id = c.parent_turn_id
@@ -1520,6 +1599,11 @@ export function createFleetDatabase({ file } = {}) {
         turns: r.turns,
         ok: r.ok_count ?? 0,
         failed: r.failed_count ?? 0,
+        // What this hop cost (add-fleet-cost-read-face D3): the CHILD turn's own
+        // estimate — the hop is the child. Null when none of its turns were
+        // priced, so the canvas never draws a $0 edge it cannot prove.
+        costUsd: r.priced_turns > 0 && Number.isFinite(r.usd) ? r.usd : null,
+        pricedTurns: r.priced_turns ?? 0,
         lastEndedAt: r.last_ended ?? null,
       }));
   }
@@ -1711,6 +1795,8 @@ export function createFleetDatabase({ file } = {}) {
     finalizeRun,
     stopRun,
     runUsage,
+    runCosts,
+    runCost,
     listRuns,
     listRunTurns,
     edgeTraffic,
@@ -1926,6 +2012,23 @@ function usageInt(v) {
   return Number.isFinite(v) ? Math.max(0, Math.round(v)) : null;
 }
 
+// The four-component USD estimate carried on a turn row (nullable per row).
+// Null when the turn was never priced — callers must not read null as 0.
+function costOf(row) {
+  const parts = [row.cost_input_usd, row.cost_output_usd, row.cost_cache_write_usd, row.cost_cache_read_usd];
+  if (parts.every((v) => v == null)) return null;
+  const n = (v) => (Number.isFinite(v) ? v : 0);
+  return {
+    inputUsd: n(row.cost_input_usd),
+    outputUsd: n(row.cost_output_usd),
+    cacheWriteUsd: n(row.cost_cache_write_usd),
+    cacheReadUsd: n(row.cost_cache_read_usd),
+    totalUsd:
+      n(row.cost_input_usd) + n(row.cost_output_usd) + n(row.cost_cache_write_usd) + n(row.cost_cache_read_usd),
+    pricingAt: row.pricing_at ?? null,
+  };
+}
+
 function usageOf(row) {
   if (row.usage_input == null && row.usage_output == null) return null;
   return { input: row.usage_input ?? null, output: row.usage_output ?? null };
@@ -1970,9 +2073,13 @@ function deserializeTurnEvent(row) {
       cacheWrite: row.usage_cache_write ?? null,
       reasoning: row.usage_reasoning ?? null,
     },
-    // Turn pricing (add-turn-pricing): the version stamp only — money reads
-    // from the DAILY row, never from the event (D4a).
+    // Turn pricing (add-turn-pricing + add-fleet-cost-read-face): the version
+    // stamp, and the four estimate components as they were computed AT TURN
+    // TIME. `cost` is null for an unpriced turn (never a fabricated zero), and
+    // it is an ESTIMATE — the daily row is the long-range truth, this is the
+    // per-turn attribution that makes run/edge slices possible.
     pricingAt: row.pricing_at ?? null,
+    cost: costOf(row),
   };
 }
 

@@ -295,12 +295,14 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       sendJson("PUT", `/api/connector/role-mappings/${encodeURIComponent(row.role ?? "")}`, { provider }),
     );
 
-  // Unknown, or an installed set that declares no bindings: nothing to say.
-  // (An empty state here would read as an achievement; the account area below
-  // already carries the "connect something" affordance.)
+  // Unknown stays unknown — never render "nothing needed" on a failed read.
   if (!rows) return null;
   const visible = rows.filter((row) => row.status !== "deprecated");
-  if (visible.length === 0) return null;
+  // No declared bindings is not "nothing to say" any more: the header still
+  // carries the entrance to the app directory, which is where a user with no
+  // pack-declared needs actually goes to connect something. The empty list
+  // itself stays unrendered (an empty state here would read as an achievement).
+  const hasRows = visible.length > 0;
 
   const byPack = new Map<string, BindingRow[]>();
   for (const row of visible) {
@@ -386,6 +388,19 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
       <div className="flex flex-wrap items-center gap-2">
         <Icon name="plug" size={14} className="text-muted-foreground" />
         <span className="text-xs font-medium text-foreground">{t("settings.connections.bindings.title")}</span>
+        {/* The directory itself lives in the connector console: one catalog, one
+            place to keep it honest. This is the door, not a second wall. */}
+        {meUrl && (
+          <a
+            href={`${meUrl}#catalog`}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="connector-browse-catalog"
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            {t("settings.connections.bindings.browseCatalog")}
+          </a>
+        )}
         {summary && (
           <span className="text-xs text-muted-foreground" data-testid="connector-bindings-summary">
             {t("settings.connections.bindings.summary", {
@@ -415,6 +430,7 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
         </p>
       )}
 
+      {hasRows && (
       <ul className="flex flex-col gap-2">
         {[...byPack.entries()].map(([packId, packRows]) => (
           <li key={packId} data-testid="connector-binding-pack" data-pack={packId} className="flex flex-col gap-1">
@@ -483,6 +499,7 @@ export function ConnectorBindingsView({ className = "" }: { className?: string }
           </li>
         ))}
       </ul>
+      )}
 
       {/* `unwired` and `undetermined` get one sentence each, and only when
           present: they are the two states a badge alone misreads. The first is

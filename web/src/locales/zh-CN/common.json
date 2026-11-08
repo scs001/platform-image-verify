@@ -1211,7 +1211,8 @@
           "unavailable": "暂时读不到你已连通的系统。",
           "currentNotUsable": "当前所选，暂不可用"
         },
-        "summaryUnmapped": "{{count}} 项待你选定系统"
+        "summaryUnmapped": "{{count}} 项待你选定系统",
+        "browseCatalog": "浏览应用目录"
       }
     },
     "lines": {

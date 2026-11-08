@@ -7866,3 +7866,54 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 - **遗留**：①`liuliangdmh1xr0w9ryu` 的 pause 镜像拉取要修（否则任何新 pod 落上去都起不来）
   ②`fd-mcp-env` 是带外 secret，口令再轮换时必须记得两处都改，建议纳入轮换清单
   ③面板与 MCP 服务的清单都不在 GitOps 里，建议收编，否则下次又会悄悄落后。
+
+### §15.142 续三十：口令漂移全舰扫描 + cheap-2 证书/镜像源坏点（11-08）
+
+**一、口令漂移不止一处（这是「重启即死」类隐患，比版本滞后更险）**
+
+按「secret 里带 DSN 的键」全舰扫（只比口令 md5 指纹，不读明文），指向
+`100.64.0.3:30432/fd_open_data` 的键共 9 个：
+
+| 位置 | 键 | 状态 |
+|---|---|---|
+| fd-master/fd-db-secret | DATABASE_URL | 当前（真源） |
+| fd-mcp/fd-mcp-env | FD_OPEN_DATA_MCP_DATABASE_URL | **旧** → 已修 |
+| fd-prod/fd-mcp-env | FD_OPEN_DATA_MCP_DATABASE_URL | **旧** → 已修 |
+| fd-prod/edu-catalog-env | EDU_CATALOG_DSN | **旧** → 已修 |
+| fd-prod/fd-paper-trading-env | ASTOCK_DSN | **旧** → 已修 |
+| fd-prod/fd-paper-trading-env | FD_OPEN_DATA_MCP_DATABASE_URL | **旧** → 已修 |
+| fd-prod/infra-telemetry-env | FD_CENTRAL_PG_DSN | **旧** → 已修 |
+| scraw/fd-db-secret | DATABASE_URL | **旧** → 已修 |
+
+七个工作负载（MCP API、面板、edu-catalog、paper-trading、infra-telemetry、cheap 侧
+爬虫 Job 的 secretKeyRef）**都靠口令轮换前建立的连接池活着**，任何一个重启都起不来——
+它们显示 Running 只是因为没重启。修法：只替换 DSN 里的口令段，`scheme/user/host/db`
+逐条比对后原样保留（有 `postgresql` 与 `postgresql+psycopg2` 两种 scheme，不能统一），
+补丁文件 0600、用完即删；修完 5 个键全部 `psycopg2.connect` 实测 `fd@fd_open_data` 连通，
+重扫 9/9 为当前。**没有重启任何服务**（密码在环境里不热载，重启才有意义，而那些服务本来就在跑）。
+
+**二、cheap-2（`liuliangdmh1xr0w9ryu` / 100.64.0.16）拉不了任何新 pod**
+
+现象：`failed to pull image "rancher/mirrored-pause:3.10.2" ... short read: expected
+892 bytes but got 0: unexpected EOF`，pod 永远卡 `Init:0/1`。
+定位：该节点 `registries.yaml` 的 `docker.io.endpoint` 第一条是本地 pull-through 缓存
+`http://100.64.0.16:5000`（`regcache-k8s`，registry:2）。直连该缓存取 pause 的
+**config blob** 返回 `HTTP 200 + Content-Length: 892 + 实际 0 字节`——正是报错里那个 892。
+manifest 与 layer 都正常（316,650 字节），只有 config blob 是空壳；缓存卷本身是空的
+（20K），所以是它上游 `k8s.m.daocloud.io` 的坏响应被原样透传。
+修法：备份 `registries.yaml` → 删掉 `docker.io` 下的 `- http://100.64.0.16:5000` 一条 →
+`systemctl restart k3s-agent`（写配置与重启分开执行，避免同秒竞态）→ 校验
+`certs.d/docker.io/hosts.toml` 已不再含该地址 → `k3s crictl pull` 成功
+（`Image is up to date for sha256:4a83b1…`）。节点 17 个 pod 与 1 个刚完成的 Job 全部无恙，
+且**修复后新起的 Job pod 在这台机器上成功创建 sandbox**（这才是节点恢复的实证）。
+**其它节点若也把 `:5000` 放在 docker.io 首位，同样有风险**（这份坏 blob 是全局共享的）。
+
+**三、撤掉上一轮加的 cheap-3 硬钉**
+
+根因修好后，`nodeSelector: kubernetes.io/hostname: liuliangjkiimypbdzxa` 反而成了生产 API 的
+单点。已在 `fd-infra-deploy` 撤掉并重滚：无钉调度成功、`version 0.5.52`、person 被拒、
+真股票 21 点。**教训：钉节点是临时止血，不是修复；根因在节点上就修节点。**
+
+**四、仍未解决**：`fd-mcp-env`／`fd-db-secret`／`edu-catalog-env` 等都是**带外 secret**，
+口令再轮换还会漏。建议把「口令轮换后 9 个键全部更新」写进轮换清单，或让这些服务改为
+引用单一 `fd-db-secret`（secretKeyRef）而不是各自抄一份 DSN。

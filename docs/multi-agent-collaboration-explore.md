@@ -210,6 +210,12 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**P0′-1 第三批（2026-11-08，镜像 sha-6f121f5）**：`fleet_list` —— 53 次调用 × **单次 31.5KB**（共 1.7MB），而每行只 6 个短字段：体积全在 `JSON.stringify(…,null,2)` 的缩进。改紧凑 + 六字段投影，**名册仍完整下发**（漏项=谎报不存在）；200 行病态上限并回带 total/truncated。剩余最大单次：`cron_list` **112KB/次**（12 次 1.3MB）。
+
+**P0′-1 第二批（2026-11-08，镜像 sha-00b4640 / fd-memory sha-28db31e）**：按工具归账后修自家第二大与第三大输出——`fleet_turns_read`（100 条全字段美化缩进 → 诊断字段 + 紧凑 JSON + 默认 20 条 + truncated）与 `memory_overview`（旧判据只看分区数 ≥50 → 分区 25 / 每区标题 3 双维度上限，truncated 如实）。两处均保留原视图、只减少字节并说出「这是页不是全部」。自家工具剩余：`fleet_list`(1.7MB)、`cron_list`(1.3MB)、`list_concepts`(1.1MB)。
+
+**P0′-1 第一步实际落地（2026-11-08，镜像 sha-d2bd68b）**：`fix-fleet-workspace-hygiene`——巡逻纪律段末尾追加**可核对的工作区现状**（文件数 / 体积 / 自己的往轮文件数）与代价说明（重复、过期副本、直接扣本轮预算）。产线实证：某 cell 工作区 325 文件 / 3.2MB / 该岗位往轮 59 个，渲染正确。只报告不删除（文件是岗位产出）。这是**让代价可见**，不是硬约束；机械性约束仍需 dsh 上游加每轮工具结果字节上限（见下）。
+
 **P0′-1 根因的处置边界（2026-11-08 二次取证，结论=平台侧无切口）**：
 - 量到的事实：单 cell trace 里 `tool/result` 共 **47MB / 5728 条（均 8KB）**，最大会话 3MB；单条最大仅 26KB，超时回合整轮 533KB / 240 事件。**不是某条工具结果爆炸，而是逐条累积**把 128K 窗口占满后反复压缩。
 - 可写面勘察：`dsh` 的 patch 面只有九类（mcp/skills/presets/permissions/toolSearch/chartBind/userQuestions/pluginSupply/saveLibrary），**无上下文/压缩/工具输出上限旋钮**；`settings.yaml` 只有 `contextWindow` / `maxTokens`；结果进入模型前的那层截断在 dsh 内部。

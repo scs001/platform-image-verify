@@ -17,6 +17,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { shapeTurnsPage, shapeFleetRoster, TURNS_PAGE_MAX } from "./fleet-turns-view.js";
 
 function bridgeOrigin() {
   if (process.env.FLEET_ARCHITECT_MCP_URL) return process.env.FLEET_ARCHITECT_MCP_URL.replace(/\/$/, "");
@@ -89,7 +90,7 @@ const TOOLS = [
         fleetId: { type: "string" },
         status: { type: "string", enum: ["ok", "failed", "interrupted"] },
         source: { type: "string", enum: ["cron", "manual", "delegation", "event"] },
-        limit: { type: "number", description: "Max events, default 50" },
+        limit: { type: "number", description: "Max events, default 20 (cap 100); the reply says whether it was truncated" },
       },
       required: ["fleetId"],
     },
@@ -144,7 +145,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     switch (name) {
       case "fleet_list":
-        return textOut(JSON.stringify((await call("GET", "/api/fleet-architect/fleets")).fleets, null, 2));
+        // Compact + projected (fix-tool-result-cost): the roster ships whole —
+        // a missing fleet reads as "it does not exist" — the bytes came from
+        // pretty-printing, not from the content.
+        return textOut(JSON.stringify(shapeFleetRoster((await call("GET", "/api/fleet-architect/fleets")).fleets)));
       case "fleet_spec_read":
         return textOut(JSON.stringify(await call("GET", `/api/fleet-architect/fleets/${encodeURIComponent(args.fleetId)}`), null, 2));
       case "fleet_draft":
@@ -159,8 +163,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         const q = new URLSearchParams();
         if (args.status) q.set("status", args.status);
         if (args.source) q.set("source", args.source);
-        if (args.limit) q.set("limit", String(args.limit));
-        return textOut(JSON.stringify((await call("GET", `/api/fleet-architect/fleets/${encodeURIComponent(args.fleetId)}/turns?${q}`)).turns, null, 2));
+        // Read the full cap from the bridge, then page locally — the view owns
+        // the page size so the tool cannot drift from its description.
+        q.set("limit", String(TURNS_PAGE_MAX));
+        // Page + projection (fix-tool-result-cost): same view, a fraction of
+        // the bytes — see server/fleet-turns-view.js for why.
+        const body = await call("GET", `/api/fleet-architect/fleets/${encodeURIComponent(args.fleetId)}/turns?${q}`);
+        return textOut(JSON.stringify(shapeTurnsPage(body.turns, args.limit)));
       }
       default:
         return errOut(`unknown tool: ${name}`);

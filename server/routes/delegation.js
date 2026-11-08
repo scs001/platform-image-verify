@@ -15,6 +15,7 @@ import { Router } from "express";
 import * as engine from "../../task-engine.js";
 import * as chatHistory from "../../chat-history.js";
 import * as catalog from "../../catalog.js";
+import { searchAgentsView } from "../agent-discovery.js";
 
 // Facade a2a target matching (add-principal-facade): a declared ref matches
 // a catalog entry by exact id, or by registry path form embedded in the
@@ -167,15 +168,7 @@ export function registerDelegationRoutes(ctx) {
       for (const a of all) counts[a.category || "其他"] = (counts[a.category || "其他"] ?? 0) + 1;
       return res.json({ total: all.length, categories: counts });
     }
-    const q = String(req.query.search || "").trim().toLowerCase();
-    const scored = all
-      .map((a) => {
-        const hay = `${a.id} ${a.name} ${a.description} ${a.category} ${a.tags.join(" ")}`.toLowerCase();
-        return { a, hit: q ? hay.includes(q) : true };
-      })
-      .filter((x) => x.hit)
-      .slice(0, 8);
-    res.json({ agents: scored.map((x) => x.a) });
+    res.json(searchAgentsView({ all, search: req.query.search, limit: req.query.limit }));
   });
 
   // Live progress of the current session's delegated tasks (manual trigger,

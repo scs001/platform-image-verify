@@ -7627,3 +7627,14 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
   - **实证（0.5.48 / `sha-7632f17` pod 内跑 launcher）**：命令 `… bulk_ingest_astock_daily.py --universe --slice-all 8`，`--db-url`=False、`postgresql`=False、env 里有 `FD_OPEN_DATA_MCP_DATABASE_URL`=True。带回归单测断言命令不含 `--db-url`/`postgresql`。
 - **两条 change 已归档**（`add-astock-per-symbol-window`、`stop-passing-dsn-on-argv`），specs **16/16 全绿**；0.5.48 出片并滚两 CronJob + `clusters.image` id9 + 清单（`sha-7632f17`）。
 - **同日三版连贯**：0.5.46（日志脱敏）→ 0.5.47（yfinance 代理车道）→ 0.5.48（argv 脱敏）；凭证类问题只剩一处已知残余：`clusters.runtime_hints` 里 cheap 集群的 `database_url`/`redis_url` 是**明文**，靠 launcher 以 env `value` 注入——下一步应改成 `secretKeyRef`（属库内数据 + launcher 双改，记挂账）。
+
+### §15.138 续二十：标识表类型错配根治——1,793 个「基金代码认成基金经理」清掉（11-08 续十）
+
+- **真缺陷（比"ETF 被标成股票"严重得多）**：`entity_source_identifiers.entity_type` 与 `entities.entity_type` 有 **2,971 行**不一致，最大一类是 **`stock` 标识挂在 `person` 实体上：1,793 行 / 895 实体**——akshare 的 `fund_manager_em` 把**基金经理管理的基金代码写成了该经理的 stock 标识**。实测样本：`刘伟琳 ← 562550`、`纪骏炜 ← 510810`、`金泽宇 ← 512660`（含 `.SS` 孪生）。后果=任何按标识表做的 code→entity 解析都可能把 ETF 代码解析到**人**的实体 id 上；这也是先前"1,825 个 A 股代码没数据"的大部分真相（它们是挂在人身上的基金代码，真 A 股缺口只有 626，已补完）。
+- **顺带纠正我自己的两处误判**：① `92xxxx` 是**北交所 A 股**，本来就该是 `stock`，不算错标；② 早先"基金类 1,085 个代码"里混着这些"人身上的基金代码"，口径不能只看前缀。
+- **执行（快照先行 + 逐语句独立事务）**：先导出 `/tmp/idfix-snapshot.tsv`（0600，2,636 行：id/entity_id/type/source/identifier/所属实体类型，不入仓），再分三步：
+  1. 删除 `stock` 挂在 `person` 上的 **1,793** 行（人不可能拥有股票代码，这是摄取垃圾）；
+  2. `stock` 挂在 `fund` 上的 843 行里，**561 行改型为 `fund`**；
+  3. 余下 **282 行删除**——同一 `(entity_id, source)` 已有 `fund` 行，改型会撞唯一约束 `uq_entity_source`（首次尝试正是被它挡下：`Key (entity_type, entity_id, source)=(fund, 9877, akshare) already exists`，事务整体回滚、零落账）。
+- **验收**：`stock` 标识挂 `person` = **0**；`512660 / 510810 / 562550 / 512660.SS` 现在**解析不到任何人**（返回 none）；`astock` 家族实体 **仍 5,203**（该家族按六位码前缀解析，从未读过这些行）；`fund` 标识 503→1,064；标识总数 88,182→86,107；剩余不一致只剩**延后类**：organization 240 / country→city 36 / industry 32 / index 24 / exchange 3（每类需单独判断，已写进 spec 的 debt 场景）。
+- **挂账**：上游 `fund_manager_em` 摄取**仍在写** stock 型标识，下次跑会把同样污染写回来——正解是在该摄取里改为 `fund` 型（或干脆不写标识），属另一线（akshare 摄取代码）。

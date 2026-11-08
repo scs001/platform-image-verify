@@ -12,7 +12,7 @@ import {
   verifySignedCookie,
   STATE_TTL_MS,
 } from "./session.js";
-import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { fetchWithTimeout, isRetryableFetchError, isRetryableHttpStatus } from "../lib/fetch-with-timeout.js";
 
 const SESSION_COOKIE = "paas_session";
 const STATE_COOKIE = "paas_oauth_state";
@@ -86,8 +86,50 @@ function redirectUrl(discovery, params) {
 // fetchImpl stays the test seam.
 async function fetchJson(fetchImpl, url, options) {
   const response = await fetchWithTimeout(url, options, { fetchImpl });
-  if (!response.ok) throw new Error(`Logto HTTP ${response.status}`);
+  // LogtoRequestError (not a bare Error) so the boot retry below can tell a
+  // transient 5xx/429 from a semantic 4xx. Message shape is unchanged.
+  if (!response.ok) throw new LogtoRequestError(`Logto HTTP ${response.status}`, response.status);
   return response.json();
+}
+
+// Boot-time discovery is the one place where a SINGLE transient network blip is
+// fatal: createLogtoAuth runs before the server listens, so one 10s timeout
+// exits the process and kubelet restarts the whole platform — every cell with
+// it (fd-prod 2026-11-08: three consecutive restarts on
+// auth.finddatatech.cloud/oidc/.well-known/openid-configuration, which also
+// takes the admin surface down while it retries). Retry the TRANSIENT classes
+// (timeout, connect/DNS failure, 408/429/5xx) with bounded backoff; semantic
+// failures (bad config, incomplete discovery, 4xx) still fail fast so a real
+// misconfiguration stays loud instead of becoming a slow crash loop.
+class LogtoRequestError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "LogtoRequestError";
+    this.status = status;
+  }
+}
+
+function retryable(err) {
+  if (err instanceof LogtoRequestError) return isRetryableHttpStatus(err.status);
+  return isRetryableFetchError(err);
+}
+
+async function fetchJsonWithRetry(fetchImpl, url, options, { attempts = 5, backoffMs = 1000, log = console } = {}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt += 1) {
+    try {
+      return await fetchJson(fetchImpl, url, options);
+    } catch (err) {
+      lastError = err;
+      if (attempt === attempts || !retryable(err)) break;
+      const delay = backoffMs * 2 ** (attempt - 1);
+      log.warn(
+        `[auth] ${url} failed (${err?.message || err}); retry ${attempt}/${attempts - 1} in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
 }
 
 function keyForHeader(header, jwks) {
@@ -143,11 +185,14 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
   const discoveryUrl = endpoint.endsWith("/oidc")
     ? `${endpoint}/.well-known/openid-configuration`
     : `${endpoint}/oidc/.well-known/openid-configuration`;
-  const discovery = await fetchJson(fetchImpl, discoveryUrl);
+  const attempts = Number(config.LOGTO_DISCOVERY_ATTEMPTS || 5);
+  const backoffMs = Number(config.LOGTO_DISCOVERY_BACKOFF_MS || 1000);
+  const retryOpts = { attempts: Number.isFinite(attempts) && attempts > 0 ? attempts : 5, backoffMs: Number.isFinite(backoffMs) && backoffMs >= 0 ? backoffMs : 1000 };
+  const discovery = await fetchJsonWithRetry(fetchImpl, discoveryUrl, undefined, retryOpts);
   if (!discovery.authorization_endpoint || !discovery.token_endpoint || !discovery.jwks_uri) {
     throw new Error("Logto OIDC discovery response is incomplete");
   }
-  const jwks = await fetchJson(fetchImpl, discovery.jwks_uri);
+  const jwks = await fetchJsonWithRetry(fetchImpl, discovery.jwks_uri, undefined, retryOpts);
   const sessionSecret = await config.resolveSessionSecret();
   const ttlMs = Math.max(1, Number(config.SESSION_TTL_HRS || 24)) * 60 * 60 * 1000;
   const endSessionEnabled = config.LOGTO_END_SESSION === "true";

@@ -384,3 +384,88 @@ test("logout without end-session support just goes home", async () => {
   await registerHandlers(auth)["/api/auth/logout"](request("/api/auth/logout"), res);
   assert.equal(res.redirectUrl, "/");
 });
+
+// ── Boot-time discovery resilience (2026-11-08 live CrashLoop) ──────────────
+// A single 10s timeout at boot used to exit the process, so kubelet restarted
+// the whole platform (every cell with it). Transient classes are retried;
+// semantic failures still fail fast.
+
+test("discovery retries a transient timeout instead of killing the boot", async () => {
+  let calls = 0;
+  const auth = await createLogtoAuth(
+    config({ LOGTO_DISCOVERY_BACKOFF_MS: "1" }),
+    {
+      fetchImpl: async (url) => {
+        calls += 1;
+        if (url.includes("openid-configuration") && calls === 1) {
+          const err = new Error("outbound fetch timed out after 10000ms");
+          err.name = "FetchTimeoutError";
+          err.code = "FETCH_TIMEOUT";
+          err.retryable = true;
+          throw err;
+        }
+        if (url.includes("openid-configuration")) return response(discovery);
+        return response(jwks);
+      },
+    },
+  );
+  assert.ok(auth, "auth was created after the retry");
+  assert.equal(calls, 3, "one failed attempt + discovery + jwks");
+});
+
+test("discovery retries a transient 503", async () => {
+  let first = true;
+  const auth = await createLogtoAuth(config({ LOGTO_DISCOVERY_BACKOFF_MS: "1" }), {
+    fetchImpl: async (url) => {
+      if (url.includes("openid-configuration")) {
+        if (first) {
+          first = false;
+          // transient class: 503 (isRetryableHttpStatus), not the 400 the
+          // generic helper produces
+          return { ok: false, status: 503, json: async () => ({ error: "unavailable" }) };
+        }
+        return response(discovery);
+      }
+      return response(jwks);
+    },
+  });
+  assert.ok(auth);
+});
+
+test("a semantic 4xx still fails fast (no retry, loud config error)", async () => {
+  let calls = 0;
+  await assert.rejects(
+    createLogtoAuth(config({ LOGTO_DISCOVERY_BACKOFF_MS: "1" }), {
+      fetchImpl: async (url) => {
+        calls += 1;
+        if (url.includes("openid-configuration")) {
+          const res = response({ error: "bad client" }, false);
+          res.status = 400;
+          return res;
+        }
+        return response(jwks);
+      },
+    }),
+    /Logto HTTP 400/,
+  );
+  assert.equal(calls, 1, "a 400 must not be retried");
+});
+
+test("a permanently unreachable discovery still fails, bounded", async () => {
+  let calls = 0;
+  await assert.rejects(
+    createLogtoAuth(config({ LOGTO_DISCOVERY_ATTEMPTS: "3", LOGTO_DISCOVERY_BACKOFF_MS: "1" }), {
+      fetchImpl: async (url) => {
+        if (url.includes("openid-configuration")) {
+          calls += 1;
+          // mirror what fetch actually throws (isRetryableFetchError reads
+          // TypeError "fetch failed" + cause.code), not a bare Error
+          throw new TypeError("fetch failed", { cause: { code: "ECONNREFUSED" } });
+        }
+        return response(jwks);
+      },
+    }),
+    /fetch failed/,
+  );
+  assert.equal(calls, 3, "exactly LOGTO_DISCOVERY_ATTEMPTS attempts");
+});

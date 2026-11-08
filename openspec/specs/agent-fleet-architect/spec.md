@@ -8,7 +8,7 @@
 
 ### Requirement: 架构师工具面以三段分离暴露舰队编排能力
 
-系统 SHALL 向对话 persona 暴露集群架构师工具面,含五工具:`fleet_list`(owner 舰队名册:标识、名称、状态、岗数、健康概要)、`fleet_spec_read`(单舰队完整 spec:组织树、岗位 targetRef、节奏、模型声明,只读)、`fleet_draft`(草稿 dry-run:校验 + 归一化 diff + 成本预估,不落库)、`fleet_apply`(执行草稿,写走既有舰队写路径)、`fleet_turns_read`(回合事件读:舰队级 status/source 过滤,数据源与 O1 读面同源)。工具桥 SHALL 仅接受 loopback 调用,身份 SHALL 由服务端解析为 cell owner;读写作用域 SHALL 与舰队 owner 门等价。草稿 SHALL 同时支持新建舰队与既有舰队的成员操作集(建/改/停/复/删岗与舰队改名)。
+系统 SHALL 向对话 persona 暴露集群架构师工具面,含五工具:`fleet_list`(owner 舰队名册:标识、名称、状态、岗数、健康概要)、`fleet_spec_read`(单舰队完整 spec:组织树、岗位 targetRef、节奏、模型声明,只读)、`fleet_draft`(草稿 dry-run:校验 + 归一化 diff + 成本预估,不落库)、`fleet_apply`(执行草稿,写走既有舰队写路径)、`fleet_turns_read`(回合事件读:舰队级 status/source 过滤,数据源与 O1 读面同源;返回 SHALL 分页并只含诊断字段——默认 20 条、上限 100,错误串截断,并回带本次页大小与是否截断,SHALL NOT 以美化缩进输出全字段全量)。工具桥 SHALL 仅接受 loopback 调用,身份 SHALL 由服务端解析为 cell owner;读写作用域 SHALL 与舰队 owner 门等价。草稿 SHALL 同时支持新建舰队与既有舰队的成员操作集(建/改/停/复/删岗与舰队改名)。
 
 草稿与执行两段 SHALL 另经 owner 鉴权的驾驶舱路由对浏览器会话开放(供驾驶舱设计模式使用):该路由与工具面 SHALL 共用同一校验、diff、成本预估与落地逻辑,语义(校验必经、阻断错误、成本预估触发条件、apply 重校验与漂移拒绝)逐项等价;该路由 SHALL 仅接受 owner 鉴权的会话、作用域限于该 owner 的舰队、不暴露任何凭据;工具桥的 loopback-only 与 cell owner 身份解析 SHALL 不变。
 
@@ -36,6 +36,11 @@
 
 - **WHEN** 未鉴权会话或非 owner 会话调用驾驶舱草稿/执行路由
 - **THEN** 与舰队管理面同一规则拒绝;工具桥对非 loopback 调用的拒绝不变
+
+#### Scenario: 回合读面分页且不自称全量
+
+- **WHEN** 某舰队有 150 条失败回合，架构师以默认参数调用 `fleet_turns_read`
+- **THEN** 返回至多 20 条诊断字段（id/岗位/source/status/errorKind/错误首段/时间/用量/链位），并回带页大小与 truncated=true
 
 ### Requirement: 草稿 dry-run 校验必经且产出 diff 与成本预估
 
@@ -70,6 +75,7 @@
 
 - **WHEN** 草稿通过后、apply 前,边引用的岗位被另一路径删除
 - **THEN** fleet_apply 以结构化错误拒绝并指名漂移的边
+
 ### Requirement: 批准纪律由架构师角色承载且 apply 有兜底
 
 架构师 persona(官方种子)的系统提示 SHALL 钉死编排纪律:任何写操作前 SHALL 在对话中完整呈现草稿 diff 与预估;SHALL 等待用户明确批准后才调用 fleet_apply;对用户描述的未知组织范式 SHALL 以现行结构(组织树 + 节奏 + 被动岗)逼近并呈现,SHALL NOT 以「不支持」直接拒绝或超出草稿自由发挥。本能力 SHALL NOT 引入独立的结构化批准工具(批准是对话级);fleet_apply 的重校验 SHALL 是状态兜底,而纪律的执行载体是角色提示与工具描述。

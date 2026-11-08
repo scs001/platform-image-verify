@@ -26,6 +26,8 @@
 
 ## 5. 上线
 
-- [ ] 5.1 fd-memory 出片 → relay → digest → GitOps → ArgoCD → 舱内实测
-- [ ] 5.2 paas 出片 → relay → digest → GitOps → ArgoCD → 舱内实测
-- [ ] 5.3 归档（`openspec validate --strict` 通过后）
+- [x] 5.1 fd-memory：快照 tag **sha-28db31e**（7 位；工具打印的是 8 位 28db31e7，按 8 位查会 manifest unknown——踩过）→
+      relay OK → digest sha256:c37d4009 → GitOps a6fb4f5 → ArgoCD → 滚完 → 舱内 `OVERVIEW_PARTITIONS=25/OVERVIEW_TITLES=3`
+- [x] 5.2 paas：快照 00b4640 → GHA image ✅ → relay OK 51s → digest sha256:b2b389fe → GitOps 8c582d8 →
+      ArgoCD → platform/facet 滚完 → **舱内 3/3 绿**
+- [x] 5.3 归档（`openspec validate --strict` 通过后）

@@ -2643,9 +2643,22 @@ export function createFleetRoutes(app, ctx = null) {
           }
         }
         if (task) {
-          const digest = renderDecisionSegment(deliverable);
-          const base = task.prompt?.includes("{{fleetContext}}") && digest
-            ? task.prompt.replace(/\{\{fleetContext\}\}/g, digest)
+          // Decision delivery must not cost the turn its context
+          // (fix-decision-delivery-context). The old splice REPLACED
+          // {{fleetContext}} with the decision digest, so the engine's own
+          // injection saw no placeholder and skipped rendering entirely — the
+          // highest-stakes turn of all (the owner forcing a ruling) ran with
+          // less context than an ordinary round.
+          //
+          // When a renderer is mounted, KEEP the placeholder: the seam expands
+          // it, and buildFleetContext's own decisionDigest provider already
+          // renders this post's undelivered rulings — so appending the digest
+          // here as well would print it twice. Without a renderer there is
+          // nothing to expand, so the digest must ride the appended prompt or
+          // the turn would run without the ruling at all.
+          const keepsPlaceholder = cron.keepFleetContextPlaceholder?.(task.prompt) === true;
+          const base = keepsPlaceholder
+            ? `${task.prompt}\n\n主人已在拍板队列作出裁定，请在本回合执行/知悉（裁定原文见上文注入段）。`
             : `${task.prompt ?? ""}\n\n${buildExecuteNowPrompt(deliverable)}`;
           engine.setPromptOverride(task.id, base);
           const r = await cron.runJobNow(task.id);
@@ -2661,7 +2674,11 @@ export function createFleetRoutes(app, ctx = null) {
         }
         if (member && member.targetKind === "persona") {
           const manual = engine.createManualTask({
-            prompt: buildExecuteNowPrompt(deliverable),
+            // add-fleet-edge-context's rule, applied to the delivery lane: a
+            // persona turn that carries a fleet tag gets the fleet view. The
+            // placeholder is only expanded when a renderer is mounted, and the
+            // instruction leads either way.
+            prompt: `${buildExecuteNowPrompt(deliverable)}\n\n{{fleetContext}}`,
             persona: rosterPresetId(member.targetId),
             sessionTitle: `拍板送达 · ${member.title}`,
             origin: { fleet: { fleetId: fleet.id, memberId: member.id } },

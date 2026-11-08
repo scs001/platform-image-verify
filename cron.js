@@ -304,6 +304,22 @@ function setFleetContextRenderer(fn) {
   renderFleetContextFn = typeof fn === "function" ? fn : null;
 }
 
+// Is a renderer mounted? Callers that compose a per-fire prompt by hand need to
+// know whether `{{fleetContext}}` will actually be expanded — if it will, they
+// must LEAVE the placeholder alone (and not pre-bake a segment of their own).
+function hasFleetContextRenderer() {
+  return typeof renderFleetContextFn === "function";
+}
+
+// The delivery lane's decision, in one place (fix-decision-delivery-context):
+// a hand-composed per-fire prompt that still carries `{{fleetContext}}` must
+// leave it ALONE when a renderer is mounted — the seam expands it, and the
+// decision digest arrives inside that segment. Without a renderer nothing will
+// expand it, so the caller must pre-bake whatever the turn needs.
+function keepFleetContextPlaceholder(prompt) {
+  return typeof prompt === "string" && prompt.includes("{{fleetContext}}") && hasFleetContextRenderer();
+}
+
 // 舰队巡逻上下文注入 —— 现在是**执行侧注入缝的实现**（fix-fleet-context-
 // injection-seam），不再是入队前的写手。
 //
@@ -893,6 +909,8 @@ export {
   isEngineInitialized,
   fireTask,
   setFleetContextRenderer,
+  hasFleetContextRenderer,
+  keepFleetContextPlaceholder,
   runJobNow,
   // Retry ladder hand-off (2026-11-08): the runner's readiness gate re-enqueues
   // the same round instead of losing it. Returns false when the record is gone.

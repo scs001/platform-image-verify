@@ -1179,6 +1179,12 @@ bots.initBots(ctx);
 // job that comes due immediately finds its runner attached.
 attachCronRunner(ctx);
 
+// Readiness retry ladder (2026-11-08): the runner re-enqueues a fleet round
+// whose runtime was not ready (cold child, or a credential restart in flight)
+// instead of recording `skipped` and losing the patrol. Wired here because it
+// is the one place holding both the runner's ctx and the cron engine.
+ctx.reenqueueFleetTurn = (id, delayMs) => cron.reenqueueJob(id, delayMs);
+
 // Fleet post identity (enable-wire-content-fleet D2): the runner asks which
 // post a persona is on duty for and prefixes its turn with the one-line
 // identity. Same attribution the report lane uses; a persona holding no post,

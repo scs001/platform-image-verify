@@ -31,7 +31,11 @@
       **注**：mcp 行的 Authorization 仍是组装期写入（与既有 `config.mcpToken` 同一姿态）
 - [ ] 3.3 端到端：真机部署一个声明绑定的包为常驻岗位，工具调用打通；撤销后下一轮失败
       ——**未做**：需要重建 agent-runner 镜像（现存 runner pod 跑 `yizuo/platform:sha-1c17030`，
-      未含本改动），且本机无 runner 端到端环境（session-resume 用例因 dsh bundle 解析失败全红）
+      未含本改动），且本机无 runner 端到端环境（session-resume 用例因 dsh bundle 解析失败全红）。
+      **注意滚 agent-runner 会重启所有岗位、掐断在飞回合**，属停机窗，须单独安排
+- [x] 3.4 边界记录：ACP harness 路径（`#spawnAcpChild` → `acpMcpServers`）只认 `descriptor.mcpServers`
+      且统一用平台 token，**吃不到部署绑定**；本改动只覆盖 dsh 路径（`materializeAgentHome`）。
+      ACP 若要支持，需把 `connector_bindings` 按同样规则映射成 ACP 的 http 行（另一个改动）
 
 ## 4. 明确不做
 

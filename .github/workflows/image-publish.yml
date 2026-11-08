@@ -150,6 +150,21 @@ jobs:
       - name: Smoke test (dsh contracts on /opt/dsh)
         run: docker exec platform-smoke node /app/scripts/dsh-contracts.mjs --tree /opt/dsh
 
+      # Browser lane gate (add-browser-use-lane): the lane's MCP launcher must
+      # complete an MCP handshake and answer tools/list inside the image —
+      # catches a broken launcher/missing BROWSER_MCP_CLI before rollout.
+      - name: Smoke test (browser lane — MCP handshake)
+        run: docker exec platform-smoke node /app/scripts/browser-lane-smoke.mjs
+
+      # Shared browser lane gate (slim-browser-lane-footprint 3.3): the pod-level
+      # service must spawn the pinned CLI, accept a cell session over
+      # streamable-http, ACTUALLY navigate, and route the screenshot into the
+      # calling cell's workspace. Skips when the image declares no lane.
+      # This is the PROD channel's copy — the two pipelines were separate files
+      # and only image.yml (demo namespace) had the gate.
+      - name: Smoke test (shared browser lane — real navigation)
+        run: docker exec platform-smoke node /app/scripts/smoke-browser-lane-shared.mjs
+
       # Module-identity gate: the child resolves its plugins through the
       # PROFILE dir, not /opt/dsh directly — if anything shadows the runtime's
       # packages with the app tree's copies, the child loads two instances of

@@ -129,7 +129,12 @@ test("install materializes skills, reports MCP refs, and snapshots the pack", as
   assert.equal(report.mcpServers[0].status, "awaiting-local-binding");
   assert.match(report.mcpServers[0].reason, /install or connect one/);
   assert.equal(report.mcpServers[1].status, "unavailable");
-  assert.match(report.mcpServers[1].reason, /not a registry server/);
+  // The refusal names the MARKET, not the (older, narrower) "registry server":
+  // pack-store's message grew into "not a market server (an installer-shipped
+  // starter; packs may only reference market entries or bind a local server of
+  // the same name)" — the vocabulary follows the catalogue's own rename, so pin
+  // the word that survived both.
+  assert.match(report.mcpServers[1].reason, /not a \w+ server/);
 
   // Agent installed; snapshot recorded with the version's manifest.
   assert.equal(report.agents[0].status, "installed");

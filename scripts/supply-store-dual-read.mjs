@@ -216,6 +216,13 @@ function normalizeSpineSkill(row) {
     // Compare leaf-to-leaf — the storage key difference is the read-face
     // contract (SkillCard mandates the prefix), not a registration edit.
     name: skillEntryName({ path: row?.name ?? row?.path ?? row?._id }) || null,
+    // The metadata field must go through the SAME fold as the registry side.
+    // Rows written before the flattening kept the nested `{extra: …}` wrapper,
+    // so the raw spine value compared as `{"extra":true}` against the registry's
+    // flattened `{}` and reported a phantom DRIFT on every pre-migration row —
+    // a storage-shape difference, not a registration edit. Folding both sides
+    // through one function is what makes the compare leaf-to-leaf.
+    metadata: unfoldSkillMetadata(row?.metadata),
   };
 }
 

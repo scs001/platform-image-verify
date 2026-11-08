@@ -76,6 +76,21 @@ function mcpNames(binding) {
   return (binding.mcp || []).find((m) => m.name === "memory");
 }
 
+// The model this deployment can actually persist, or null when it can persist
+// none. GET reports the global fallback as `{ ...ctx.defaultModel, source }`,
+// and defaultModel is null until a provider is configured — the hermetic e2e
+// server deliberately runs e2e/dead-llm.js (401 on every request) and seeds no
+// provider, so there is nothing to bind. PUT validates the pair against
+// ctx.dshModels and answers 400 otherwise, which is why round-tripping the
+// reported default only works on a machine with providers (it passed on dev and
+// failed on CI, run 42460822790). Probing here keeps each test self-contained
+// instead of inheriting whichever sibling ran before it.
+async function selectableModel(headers) {
+  const snapshot = await api("/api/users/me/bindings", { headers });
+  const model = snapshot.json?.model ?? null;
+  return model && model.id && model.provider ? model : null;
+}
+
 test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
   // beforeAll boots a second server.js — give the whole group headroom.
   test.describe.configure({ timeout: 180_000 });
@@ -291,8 +306,9 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
         .status,
     ).toBe(400);
 
-    const snapshot = await api("/api/users/me/bindings", { headers: ALICE });
-    const { id, provider } = snapshot.json.model;
+    const model = await selectableModel(ALICE);
+    test.skip(!model, "this deployment configures no LLM provider, so no model binding can be persisted");
+    const { id, provider } = model;
 
     // Case normalization: write under Alice@Corp.COM, read back under the
     // lowercase form and get the same row.
@@ -313,6 +329,19 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
   });
 
   test("personal snapshots are private; runtime broadcasts stay identity-free", async () => {
+    // Establish the personal binding HERE instead of relying on the previous
+    // test's side effect: that dependency is exactly what made this test fail
+    // as a cascade (source read as "global") once the write could not land.
+    const model = await selectableModel(ALICE);
+    test.skip(!model, "this deployment configures no LLM provider, so there is no personal model to protect");
+    expect(
+      (await api("/api/users/me/model", {
+        method: "PUT",
+        headers: ALICE,
+        body: { providerId: model.provider, modelId: model.id },
+      })).status,
+    ).toBe(200);
+
     // An anonymous socket must never receive a bindings snapshot.
     const anon = await openSocket();
     // ...and a broadcast about the shared runtime reaches it without any email.

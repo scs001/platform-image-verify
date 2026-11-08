@@ -329,3 +329,50 @@ test("cap 0: humanPriority is inert (the pool never registers)", async () => {
     process.env.TASK_WORKER_MAX = "2";
   }
 });
+
+// ── 回合抛错：槽位要还、collector 要结算（2026-11-08 补）─────────────────
+//
+// 两件事一起钉，因为它们同源：
+//   1. 失败回合必须归还槽位，否则后续排队永久卡住（cap>0 时唯一的死锁来源）；
+//   2. prompt 抛错时 collectTurn 的 promise 必须被结算——它挂着 turnTimeout 定时器，
+//      原先只 delete 表项不结算，十分钟后会以未处理拒绝炸出来（实证见提交信息）。
+test("a turn that rejects releases its slot and settles its collector", async () => {
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+
+  // 只有第一条 prompt 抛错；worker 会被复用，第二次必须放行。
+  let promptCalls = 0;
+  class FlakyBridge extends FakeBridge {
+    async prompt(sessionId, blocks) {
+      promptCalls += 1;
+      if (promptCalls === 1) throw new Error("boom");
+      return super.prompt(sessionId, blocks);
+    }
+  }
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FlakyBridge(p) });
+
+  const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+  await settle();
+  await settle();
+  assert.equal(engine.getTask(a.id).state, "failed", "the first turn must fail on its own error");
+
+  // 槽位归还：第二个任务必须离开队列（不再是 queued）
+  const b = engine.createManualTask({ prompt: "B", persona: "code", initiator: "s1" });
+  await settle();
+  await settle();
+  assert.notEqual(engine.getTask(b.id).state, "queued",
+    "a failed turn must hand its slot back, otherwise the queue deadlocks");
+  assert.ok(promptCalls >= 2, `second task must reach the bridge, got ${promptCalls} calls`);
+
+  // collector 结算：activeTurns/collectors 里不该残留这个会话
+  const leftovers = [...(ctx.sessionCollectors?.keys?.() ?? [])];
+  assert.equal(leftovers.length, 0, `a settled turn must not leave collectors behind: ${leftovers}`);
+
+  for (let i = 0; i < 10; i += 1) {
+    releaseAll();
+    await settle();
+    if (!["running", "queued"].includes(engine.getTask(b.id).state)) break;
+  }
+  engine.setSlotDispatcher(null);
+});

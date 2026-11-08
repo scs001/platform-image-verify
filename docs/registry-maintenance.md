@@ -7677,6 +7677,24 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
   该 cell 仍 `state=suspended / destroy_reason=null` → **可唤醒、未被锁**。
 - **基线**：除本次人为注入，历史崩溃数为 **0**（`crash_count>0` 仅此 1 个 cell）。真实崩溃率
   需在台帐跑满日常负载后回看——那才是「要不要动崩溃域」的判据。
+- **⚠️ 本篇初稿的一处口径已订正（2026-11-08 晚）**：初稿写「每 cell 约 425–466Mi」，那是**只算
+  有归属的进程**。按 `/proc` 全量核对后真实构成是：
+  - 每 cell = cell-server（~160–205Mi）+ **1 个 dsh runtime（~145–215Mi）** + **该 dsh 拉的 13–14
+    个 MCP 卫星**（actions/fleet/library/cron/delegation/bench-proposal/fleet-architect/
+    blueprint-author/pack-author/persona-evolution/skill-evolution/websearch，各 65–77Mi）
+  → 一个 dsh 连同卫星约 **930Mi 标称 / 约 450Mi 实扣**（RSS→cgroup 比实测 ≈0.48）。
+  → 单对话 cell ≈ **0.9–1.1Gi**；开到 2 个 worker 槽的 cell ≈ **2.2–2.6Gi**。
+  - 卫星进程 cwd 是 `/app`、cmdline 无 cell 线索，所以全落 `(no-cell)` 桶——**内存面 per-cell
+    数字系统性偏低**，看总量要按上面口径手算。
+- **另一个曾被误判的现象**：某 cell 出现**两个** dsh 时先别当泄漏——线上 `TASK_WORKER_MAX=2`
+  （GitOps 清单 `value: "2"`，而本仓设计清单 `k8s/deployment.yaml` 写的是 `"0"` 并注明
+  「4GB 节点塞不下并行 child」）。日志实证：`[worker-pool] spawned worker-1 for persona
+  mo-inventory` / `worker-2 for persona ops-wx-chief` —— 是 worker 槽按需拉起，**0 孤儿**
+  （52 个卫星 = 13×4，ppid 分布 87/531/1230/1467，ppid=1 为 0）。
+- **拒醒的真因**（也是上面这条的推论）：4Gi 上限 − 15% 保底 = 可用 3.48Gi；实测 platform 容器
+  **2845Mi** 且其中 1 个 cell 开着 2 个 worker 槽 → 第 4 个 cell 一唤醒必然超顶。**闸没判错**，
+  是「3 cell + 2 worker」这台 4Gi pod 装不下。要么抬 limit（cheap-7 有余量），要么把
+  `TASK_WORKER_MAX` 调回 0/1 —— 这条归 worker-pool 线裁决，未动。
 - **同时暴露但未处理**：`platform-test` 的 `lastGateRefusal` 显示
   `headroomPct=-0.00295`、`projectedBytes 4307641056 > limit 4294967296` —— **唤醒被内存闸拒过**
   （投影超限），拒醒次数目前只留最后一次。另：公开快照 CI 的 biome 红在别人三笔文件

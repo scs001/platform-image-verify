@@ -301,10 +301,60 @@ running 的三个：2b043ce0 idle=0m / 1da519d4 idle=0m / 3fdc7b8e(platform-test
 
 **结论：R4 不是待决策项，它已是最优形态。** 想再省只能动「常驻那几个的单体大小」→ 回到
 R2（每 cell −220–280Mi，但要重做 8 个隔离维度 + 崩溃域退化）或 R1（换并发不换密度）。
-也就是说：**当前并不存在「便宜的下一刀」**，要不要动取决于你是否接受 R2 的代价，而不是取决于阈值。
+也就是说：**靠调度省不出更多了**，要不要动取决于你是否接受 R2 的代价，而不是取决于阈值。
+
+> **2026-11-08 晚补**：上述结论只对「调度类」（R4）成立。真按进程逐个算下来，比 R2 更靠前的一刀是
+> **R6：MCP 卫星按 dsh 复制**（每实例 ≈450Mi 实扣，见本节末 R6）——它不动进程模型、不牺牲崩溃域，
+> 收益还比 R2 大。R2 那句「每 cell 425–466Mi」也应按 R6 的口径重算（单 cell 含卫星 ≈0.9–1.1Gi）。
+
+### R6 候选：MCP 卫星按 dsh 复制（≈450Mi 实扣/实例）—— 比浏览器车道大 2.6 倍
+
+浏览器车道瘦完之后，下一块**按实例复制的**东西是 MCP 卫星。实测（fd-prod，2026-11-08）：
+
+```
+一个 dsh runtime 的子进程 = 14 个（13 个 MCP + 1 个 index.js）
+  actions-mcp 75Mi ×2 / fleet-mcp 77Mi / delegation-mcp 77Mi / cron-mcp 74Mi
+  library-mcp 70Mi / fleet-architect 68Mi / blueprint-author 68Mi / pack-author 68Mi
+  persona-evolution 66Mi / skill-evolution 65Mi / bench-proposal 65Mi / websearch 66Mi
+全 pod：52 个卫星 = 13×4（3 个主 bridge + 1 个 worker 槽），ppid=1 的孤儿 = 0
+```
+
+- **每个 dsh 连同它的卫星 ≈ 930Mi 标称 / 约 450Mi 实扣**（RSS→cgroup 比 ≈0.48）。
+- 对照：浏览器车道当年省下的是 **~170Mi/cell** → 卫星是它的 **2.6 倍**，且**每个 dsh 一份**
+  （开 worker 槽就翻倍），所以 `TASK_WORKER_MAX` 实际是「每个槽 ≈ +450Mi」的开关。
+
+**耦合面（决定可不可共享）**——grep 结论，设计期需复核：
+
+| 维度 | 现状 | 含义 |
+|---|---|---|
+| 数据根 / DB 句柄 | 13 个卫星里**只有 `library-mcp` 出现 2 处** per-cell 路径引用，其余 0 | 多数卫星**不直接持有** per-cell SQLite/凭据 |
+| 真正的耦合 | 全部通过 **env + 回打本 cell 的 HTTP**：`ACTIONS_MCP_URL` / `FLEET_MCP_URL` / `CRON_MCP_URL` / `DELEGATION_MCP_URL`，缺省 `http://${HOST}:${PORT}`；另有 `DSH_SESSION_ID`、`LIBRARY_PROJECT_ID`、`LIBRARY_COLLECTIONS` | 共享进程需要**按调用方解析出"我是哪个 cell"**，而不是各持一套库 |
+| 隔离面 | 与浏览器车道不同：卫星会把**代表该 cell 的写操作**回传给 cell server（含凭据/DB 写） | 共享后一旦判错 cell，就是**跨租户写**，比浏览器串 cookie 严重 |
+
+**三条候选路线**
+
+| 路线 | 做法 | 收益 | 风险 |
+|---|---|---|---|
+| S1 只共享无状态者 | 把 actions/fleet/cron/delegation/bench-proposal/blueprint/pack/persona/skill 这类"纯转发"卫星做成 pod 级一份，按调用方注入 `*_MCP_URL` | 每 dsh −9×(65–77)Mi ≈ −630Mi 标称 / **−300Mi 实扣** | 需一套"调用方→cell"的可信解析（浏览器车道已有同款：socket→pid→cwd）；判错=跨租户写 |
+| S2 池化 + 按会话绑定 | 池内 N 个共享卫星，会话首次调用时绑定 cell，未绑定即拒 | 同上，上限更硬 | 生命周期/回收复杂；绑定错误仍致命 |
+| S3 维持现状 | 不动 | 0 | 每 dsh 约 450Mi 实扣；开 worker 槽即翻倍 |
+
+**判据（调研时按这三条量）**
+1. 真实收益要用**实扣**口径算（标称会高估一倍）：单 dsh ≈450Mi，4 个 dsh 就是 ≈1.8Gi —— 正好是
+   今天这台 4Gi pod 被顶穿、导致唤醒被拒的那部分。
+2. 与 R1/R2 的关系：R1（多 dsh 换并发）**会放大**这块成本（每槽 +450Mi），所以「要并发」必须先
+   答「卫星怎么共享」，否则并发一开就撞内存闸。
+3. 与浏览器的差别是**写面**：浏览器串的是 cookie，卫星串的是**写动作**。S1/S2 都必须先有
+   "可信调用方→cell"的绑定，浏览器车道那套（peer → cwd → 16-hex）可直接复用。
+
+**状态：待调研，未决策。** 这一条比 R2 更靠前：R2 是「省 220–280Mi 但牺牲崩溃域」，R6 是
+「省 300Mi/实例且不动进程模型」——先做 R6 的风险-收益比更好，但它需要一次独立的设计。
 
 ## 附：本文引用的实证坐标
 
+- R6 口径（§八）：一个 dsh 的 14 个子进程与 65–77Mi 逐个实测；全 pod 52 卫星 / ppid {87,531,1230,1467} /
+  orphan 0；耦合 grep = `server/{actions,fleet,cron,delegation,library}-mcp.js` 的 `*_MCP_URL`+`HOST:PORT`
+  回退、`DSH_SESSION_ID`、`LIBRARY_PROJECT_ID/COLLECTIONS`；`TASK_WORKER_MAX=2`（GitOps）vs `"0"`（本仓设计清单）。
 - R4 口径（§八）：`gateway/spawner.js:688-720`（reapIdle）、`:703-712`（on_demand 不再豁免排期）、
   `:85/:264/:526/:711`（policy 三值）、`:458-500`（memoryAdmissionVerdict + 归档足迹）、
   `:520-560`（evictUntilAdmissible）、`:382` + `:46-64`（waitForPort，200ms 轮询）；

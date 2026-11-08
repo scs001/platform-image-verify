@@ -7,6 +7,13 @@ import path from "node:path";
 import { pinLocaleEn, spawnTestServer } from "./helpers.js";
 import { signSession } from "../server/session.js";
 
+// The `simple` preset's nav list — mirror of packages/core/src/lib/surfaces.ts
+// (`presets.simple.nav`); that file is the source of truth and its own unit
+// tests pin the shape, so a change there should be mirrored here deliberately
+// rather than silently re-derived.
+
+const SIMPLE_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps"];
+
 // Intent onboarding (openspec: intent-onboarding) — the first-run QUESTIONNAIRE
 // (distinct from e2e/onboarding.spec.js, which covers the three-step tour).
 //
@@ -240,9 +247,13 @@ test.describe("intent onboarding", () => {
 
     const cfg = await api("/api/config", { cookie: newUserCookie });
     expect(cfg.json.roles.primary).toBe("legal");
-    // legal's recipe rides the simple preset through the layout chain
-    // (`apps` included since role-nav-apps).
-    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents", "apps"]);
+    // legal's recipe rides the simple preset through the layout chain. Asserted
+    // against the PRESET's own list (surfaces.ts `simple.nav`) rather than a
+    // hand-copied array: `apps` joined in role-nav-apps (2026-10-18) and
+    // `memory` joined with the knowledge-memory surface, and each addition went
+    // red here for a preset change nobody disputed. Comparing with the source of
+    // truth keeps the test about routing, not about keeping two lists in sync.
+    expect(cfg.json.resolvedLayout.nav).toEqual(SIMPLE_NAV);
   });
 
   test("the questionnaire does not come back after answering", async ({ page, context }) => {

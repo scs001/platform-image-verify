@@ -59,7 +59,13 @@ import {
   ErrorCode,
   isInitializeRequest,
 } from "@modelcontextprotocol/sdk/types.js";
-import { adoptNewFiles, artifactDirForCell, ensureDir, rewriteArtifactArgs } from "../lib/browser-lane-artifacts.js";
+import {
+  adoptNewFiles,
+  artifactDirForCell,
+  ensureDir,
+  listArtifactNames,
+  rewriteArtifactArgs,
+} from "../lib/browser-lane-artifacts.js";
 import { resolvePeerCell } from "../lib/browser-lane-identity.js";
 import { resolveBrowserLaunchConfig } from "../lib/browser-runtime.js";
 import { defaultCellsRoot } from "../lib/proc-memory.js";
@@ -363,6 +369,12 @@ export function createBrowserLaneService({
 
   async function forwardCall({ session, request, extra }) {
     const startedAt = Date.now();
+    // What the shared root already held. Adoption diffs against this NAME SET
+    // rather than the clock: filesystem timestamps are floored to the FS tick
+    // (1-10ms), so a fast call's auto-named file can read as older than
+    // `startedAt` and be left behind — where the next cell sweeps it up. See
+    // newFilesSince() for the cross-cell leak this closes.
+    const artifactsBefore = listArtifactNames(outputRoot);
     const { args, rewritten } = rewriteArtifactArgs(request.params.arguments, session.artifactDir);
     if (rewritten.length) {
       logger.log(
@@ -405,7 +417,7 @@ export function createBrowserLaneService({
       );
       // Unnamed artifacts (auto-named snapshots) landed in the shared root
       // during this call — move the ones this call produced into the cell dir.
-      adoptNewFiles({ root: outputRoot, into: session.artifactDir, sinceMs: startedAt });
+      adoptNewFiles({ root: outputRoot, into: session.artifactDir, sinceMs: startedAt, before: artifactsBefore });
       return result;
     } catch (err) {
       // Error-code fidelity: an upstream McpError keeps its code/message/data

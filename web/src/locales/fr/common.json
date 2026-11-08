@@ -3187,6 +3187,18 @@
       "noTrace": "sans trace",
       "filterMember": "Filtrer par poste",
       "allMembers": "Tous les postes",
+      "stopRun": "Arrêter cette exécution",
+      "stopTitle": "Arrêter cette exécution ?",
+      "stopBody": "Les tours en cours sont interrompus et enregistrés comme interrompus ; les tours terminés et leurs rapports sont conservés. Aucun autre relais ni déploiement ne sera déclenché depuis cette exécution.",
+      "stopConfirm": "Arrêter l'exécution",
+      "stopCancel": "La laisser continuer",
+      "stopping": "Arrêt…",
+      "stopDone": "Arrêtée : {{turns}} tour(s) en cours interrompu(s).",
+      "stopAlready": "Cette exécution était déjà arrêtée.",
+      "stopFailed": "Échec de l'arrêt : {{error}}",
+      "stopped": "Arrêtée",
+      "stoppedWithReason": "Arrêtée ({{reason}})",
+      "stopReasonDefault": "Arrêtée par le propriétaire depuis le cockpit",
       "noMatch": "Aucune exécution de ce poste sur cette page"
     },
     "inspector": {

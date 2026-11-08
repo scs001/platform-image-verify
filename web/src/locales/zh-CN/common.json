@@ -3187,6 +3187,18 @@
       "noTrace": "无 trace",
       "filterMember": "按岗位过滤",
       "allMembers": "全部岗位",
+      "stopRun": "停止这一轮",
+      "stopTitle": "停止这一轮执行？",
+      "stopBody": "正在运行的回合会被中断并记为「已中断」；已完成的回合与它们的报数保留。停止后这一轮不再点火新的接棒或扇出。",
+      "stopConfirm": "停止执行",
+      "stopCancel": "继续让它跑",
+      "stopping": "停止中…",
+      "stopDone": "已停止：本轮中断 {{turns}} 个在飞回合。",
+      "stopAlready": "这一轮此前已停止。",
+      "stopFailed": "停止失败：{{error}}",
+      "stopped": "已停止",
+      "stoppedWithReason": "已停止（{{reason}}）",
+      "stopReasonDefault": "主人从驾驶舱停止",
       "noMatch": "本页无该岗位的 run"
     },
     "inspector": {

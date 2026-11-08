@@ -3187,6 +3187,18 @@
       "noTrace": "no trace",
       "filterMember": "Filter by post",
       "allMembers": "All posts",
+      "stopRun": "Stop this run",
+      "stopTitle": "Stop this run?",
+      "stopBody": "Turns that are running are interrupted and recorded as interrupted; finished turns and their reports stay. No further handoff or fanout will ignite from this run.",
+      "stopConfirm": "Stop the run",
+      "stopCancel": "Let it keep running",
+      "stopping": "Stopping…",
+      "stopDone": "Stopped: interrupted {{turns}} in-flight turn(s).",
+      "stopAlready": "This run had already been stopped.",
+      "stopFailed": "Stop failed: {{error}}",
+      "stopped": "Stopped",
+      "stoppedWithReason": "Stopped ({{reason}})",
+      "stopReasonDefault": "Stopped by the owner from the cockpit",
       "noMatch": "No runs match this post on this page"
     },
     "inspector": {

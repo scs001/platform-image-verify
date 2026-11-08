@@ -3187,6 +3187,18 @@
       "noTrace": "sin trace",
       "filterMember": "Filtrar por puesto",
       "allMembers": "Todos los puestos",
+      "stopRun": "Detener esta ejecución",
+      "stopTitle": "¿Detener esta ejecución?",
+      "stopBody": "Los turnos en curso se interrumpen y quedan registrados como interrumpidos; los turnos finalizados y sus informes se conservan. No se encadenarán más traspasos ni despliegues desde esta ejecución.",
+      "stopConfirm": "Detener la ejecución",
+      "stopCancel": "Dejarla seguir",
+      "stopping": "Deteniendo…",
+      "stopDone": "Detenida: se interrumpieron {{turns}} turno(s) en curso.",
+      "stopAlready": "Esta ejecución ya estaba detenida.",
+      "stopFailed": "No se pudo detener: {{error}}",
+      "stopped": "Detenida",
+      "stoppedWithReason": "Detenida ({{reason}})",
+      "stopReasonDefault": "Detenida por el propietario desde el panel",
       "noMatch": "Ninguna ejecución de este puesto en esta página"
     },
     "inspector": {

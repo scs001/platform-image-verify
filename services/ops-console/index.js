@@ -58,6 +58,17 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, "ops-console.db");
 const NAMESPACE = process.env.WATCH_NAMESPACE || "fd-prod";
 const WATCHED_DEPLOYS = (process.env.WATCHED_DEPLOYS || "platform,platform-demo,search-relay")
   .split(",").map((s) => s.trim()).filter(Boolean);
+// Scheduled-job freshness ("name:maxAgeHours"). Event-type failures — a CronJob
+// that quietly stops succeeding — show up in NO other source: the deployment is
+// fine and every probe is green; the only trace is a Failed Job in a TTL'd
+// history nobody reads. Age is measured from `status.lastSuccessfulTime`, i.e.
+// "when did this last actually work", not "when did it last run".
+const WATCH_CRONJOBS = (process.env.WATCH_CRONJOBS || "erp-event-archive-backup:26,registry-credential-renewal:26")
+  .split(",").map((s) => s.trim()).filter(Boolean)
+  .map((s) => {
+    const [name, hours] = s.split(":");
+    return { name, maxAgeHours: Number(hours) || 26 };
+  });
 const JENKINS_URL = process.env.JENKINS_URL?.replace(/\/$/, "");
 const JENKINS_JOB = process.env.JENKINS_JOB || "platform";
 const HARBOR_URL = process.env.HARBOR_URL?.replace(/\/$/, "");
@@ -178,11 +189,15 @@ async function kube(pathname) {
 
 const ARGO_APP = process.env.ARGO_APP || "all-services-prod";
 async function pollK8s() {
-  const [deps, nodes, events, app] = await Promise.all([
+  const [deps, nodes, events, app, cjs] = await Promise.all([
     kube(`/apis/apps/v1/namespaces/${NAMESPACE}/deployments`),
     kube("/api/v1/nodes"),
     kube(`/api/v1/namespaces/${NAMESPACE}/events`),
     kube(`/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/${ARGO_APP}`).catch(() => null),
+    // Tolerated on purpose: an SA without batch read must not take the whole
+    // k8s source down (that would blank the deployment cards too). `null` here
+    // means "unreadable" and renders explicitly as n/a, never as "no cronjobs".
+    kube(`/apis/batch/v1/namespaces/${NAMESPACE}/cronjobs`).catch(() => null),
   ]);
   // metrics.k8s.io is best-effort: absent → per-node memory "n/a" (design open question)
   let nodeMetrics = null;
@@ -216,6 +231,13 @@ async function pollK8s() {
       health: app.status?.health?.status || "Unknown",
       resources: (app.status?.resources || []).map((r) => ({ kind: r.kind, name: r.name, status: r.status || "" })),
     } : null,
+    // null = the list call failed (RBAC or API error) — distinct from "no cronjobs"
+    cronjobs: cjs ? (cjs.items || []).map((c) => ({
+      name: c.metadata.name,
+      schedule: c.spec?.schedule || null,
+      suspend: !!c.spec?.suspend,
+      lastSuccess: c.status?.lastSuccessfulTime || null,
+    })) : null,
   };
 }
 
@@ -421,9 +443,33 @@ function boardModel() {
   });
 
   const oomEvictions = (k8s?.warningEvents || []).filter((e) => /^(Evict|SystemOOM|OOM)/i.test(e.reason));
+
+  // Scheduled jobs: only the watched ones become rows, but a watched name that
+  // is absent from the cluster is itself a finding (the backup policy quietly
+  // disappeared), so it renders as missing rather than silently vanishing.
+  const cronjobs = !k8s || k8s.cronjobs === null
+    ? null
+    : WATCH_CRONJOBS.map(({ name, maxAgeHours }) => {
+        const c = (k8s.cronjobs || []).find((x) => x.name === name) || null;
+        const ageHours = c?.lastSuccess ? (Date.now() - Date.parse(c.lastSuccess)) / 3_600_000 : null;
+        return {
+          name,
+          maxAgeHours,
+          schedule: c?.schedule ?? null,
+          missing: !c,
+          suspend: !!c?.suspend,
+          lastSuccess: c?.lastSuccess ?? null,
+          ageHours,
+          // Suspended counts as stale on purpose: a daily backup that was
+          // switched off is an active data-loss exposure, not a neutral state.
+          stale: !c || !!c.suspend || ageHours === null || ageHours > maxAgeHours,
+        };
+      });
+
   return {
     ts: Date.now(),
     cards,
+    cronjobs,
     banner: {
       nodes: k8s?.nodes || [],
       oomEvictions: oomEvictions.reduce((a, e) => a + e.count, 0),
@@ -453,6 +499,10 @@ function overallStatus(m) {
     if (c.drift && !["in-agreement", "unknown", "n/a"].includes(c.drift.status)) warn += 1;
   }
   if (m.harbor && m.harbor.reachable === false) bad += 1;
+  // A watched job that stopped succeeding is red, not amber: nobody else will
+  // notice, and the damage (unbacked event archive, lapsed registry token) is
+  // invisible until it is expensive.
+  for (const cj of m.cronjobs || []) if (cj.stale) bad += 1;
   if (m.banner.jenkinsQueue > 0) warn += 1;
   if (m.banner.oomEvictions > 0) warn += 1;
   if (m.stale.k8s || m.stale.jenkins) warn += 1;
@@ -473,7 +523,7 @@ function renderBoard() {
   const nodes = [...m.banner.nodes].sort((a, b) => (b.memUsageBytes || 0) - (a.memUsageBytes || 0));
   const nodeChips = nodes.map((n) => {
     const pct = n.memUsageBytes && n.memAllocatable
-      ? Math.round((parseInt(n.memUsageBytes, 10) / parseInt(n.memAllocatable, 10)) * 100) : null;
+      ? Math.round((parseInt(n.memUsageBytes) / parseInt(n.memAllocatable)) * 100) : null;
     const cls = !n.ready ? "bad" : n.pressure || (pct !== null && pct >= 85) ? "warn" : "";
     return `<div class="vchip ${cls}" title="${esc(n.name)}${pct !== null ? ` — memory ${pct}% of allocatable` : ""}${n.pressure ? " — pressure" : ""}">
       <span class="vname">${esc(n.name)}</span>
@@ -557,8 +607,8 @@ function renderBoard() {
       <div class="chain">
         ${chain("quota", `${used}/${cap}`, pct >= 90 ? "warn" : "ok", (m.relay.tokens || []).map((t) => `${t.prefix} ${t.count}`).join(", "))}
         ${chain("cache hit", hit === null || hit === undefined ? "n/a" : `${Math.round(hit * 100)}%`, "ok", `${m.relay.cache?.hits ?? 0} hits / ${m.relay.cache?.misses ?? 0} misses`)}
-        ${chain("5xx", String(m.relay.errors?.upstream ?? 0), (m.relay.errors?.upstream ?? 0) > 0 ? "warn" : "ok", `${m.relay.upstream?.laneFailures ?? 0} lane failures`)}
-        ${chain("lane", m.relay.upstream?.reachable === false ? "down" : "up", m.relay.upstream?.reachable === false ? "warn" : "ok", `${m.relay.upstream?.laneCalls ?? 0} calls`)}
+        ${chain("5xx", String((m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0)), (m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0) > 0 ? "warn" : "ok", `${m.relay.errors?.poolDry ?? 0} pool-dry`)}
+        ${chain("key fails", String((m.relay.keys || []).reduce((a, k) => a + k.failures, 0)), "")}
       </div></article>`;
   })() : `<article class="card is-down"><header class="chead"><h2>search-relay</h2><span class="drift bad"><span class="dot"></span>stats unavailable${m.stale.relay ? " · stale" : ""}</span></header></article>`;
 
@@ -635,12 +685,48 @@ function renderBoard() {
     </div>
   </header>
   ${vitals}
+  ${renderCronjobs(m)}
   ${renderFleetOverview()}
   ${renderFleet()}
   ${renderPackUsage()}
   <div class="grid">${cards}${jenkinsCard}${harborCard}${relayBody}</div>
 </div>
 </body></html>`;
+}
+
+// ── scheduled jobs (harden-erp-operations 3.2) ─────────────────────────────
+// Event-type failures: nothing else on this board moves when a CronJob stops
+// succeeding. Same degradation discipline as every other section — unreadable,
+// missing, suspended and never-succeeded all render explicitly; the section
+// never disappears (an empty section would read as "all clear").
+function renderCronjobs(m) {
+  if (!WATCH_CRONJOBS.length) return "";
+  const span = (hours) => (hours >= 48 ? `${Math.floor(hours / 24)}d` : `${Math.floor(hours)}h`);
+  if (m.cronjobs === null) {
+    return `<section class="vitals" aria-label="scheduled jobs">
+    <div class="vchip warn" title="WATCH_CRONJOBS is configured but batch/v1 cronjobs could not be listed — check the console SA's RBAC">
+      <span class="vname">scheduled jobs</span>
+      <span class="vbig warn">unreadable</span>
+      <span class="vpct">cannot list batch/v1 cronjobs</span>
+    </div>
+  </section>`;
+  }
+  const chips = m.cronjobs.map((c) => {
+    const cls = c.stale ? "bad" : "ok";
+    const detail = c.missing
+      ? "not found in namespace"
+      : c.suspend
+        ? "suspended"
+        : c.ageHours === null
+          ? "no successful run yet"
+          : `last success ${span(c.ageHours)} ago`;
+    return `<div class="vchip ${cls}" title="${esc(`${c.name} · schedule ${c.schedule || "?"} · allowed age ${c.maxAgeHours}h${c.lastSuccess ? ` · last success ${c.lastSuccess}` : ""}`)}">
+      <span class="vname">${esc(c.name)}</span>
+      <span class="vbig ${cls === "bad" ? "warn" : "ok"}">${c.missing ? "n/a" : c.ageHours === null ? "—" : span(c.ageHours)}</span>
+      <span class="vpct">${esc(detail)}</span>
+    </div>`;
+  }).join("");
+  return `<section class="vitals" aria-label="scheduled jobs">${chips}</section>`;
 }
 
 // ── fleet overview (add-fleet-board, program slice ④) ───────────────────────

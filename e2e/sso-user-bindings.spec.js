@@ -260,7 +260,14 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
       body: { enabled: false },
     });
     expect(off.status).toBe(200);
-    expect(off.json.ok).toBe(true);
+    // Recorded, not necessarily APPLIED yet: `ok` is the runtime apply result,
+    // and on a shared runtime with a turn in flight the apply is legitimately
+    // deferred (`pending: true`) — the route says so explicitly. Asserting
+    // ok === true coupled this test to runtime availability and made it flaky
+    // in CI (run 42479789722: one ✘ then ✓ on retry). The durable fact this
+    // test is about is the persisted row, asserted on the next line.
+    expect(off.json.ok === true || off.json.pending === true).toBe(true);
+    expect(off.json.binding).toMatchObject({ name: "memory", enabled: false });
 
     // Alice sees it off; Bob's snapshot is untouched (separate rows).
     const alice = await api("/api/users/me/bindings", { headers: ALICE });

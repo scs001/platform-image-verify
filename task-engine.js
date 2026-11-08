@@ -871,6 +871,27 @@ function runTaskNow(id) {
   return r;
 }
 
+// Re-enqueue a round after a delay (2026-11-08): the readiness gate's retry
+// ladder. Deliberately NOT a fresh run-now — the same task record re-enters
+// the serialized queue, so the retry continues the round that was blocked
+// (same prompt, same cadence slot) rather than minting a second round.
+// Returns false when the task is gone or already queued/running: the caller
+// must then treat the round as skipped, never as delivered.
+function scheduleReenqueue(id, delayMs) {
+  const t = tasks.get(id);
+  if (!t) return false;
+  if (t.state === "queued" || t.state === "running") return true;
+  const ms = Number.isFinite(delayMs) && delayMs > 0 ? Math.floor(delayMs) : 0;
+  const timer = setTimeout(() => {
+    const live = tasks.get(id);
+    if (!live) return;
+    if (live.state === "queued" || live.state === "running") return;
+    enqueueExecution(id);
+  }, ms);
+  timer.unref?.();
+  return true;
+}
+
 // Await the serialized queue (tests, graceful drain).
 function idle() {
   return executionQueue.then(() => {});
@@ -991,6 +1012,7 @@ export {
   getTaskRecord,
   enqueueExecution,
   runTaskNow,
+  scheduleReenqueue,
   setPromptOverride,
   recordFailedFire,
   idle,

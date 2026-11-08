@@ -332,6 +332,73 @@ test("non-fleet cron keeps the byte-identical immediate refusal", async () => {
   assert.equal(ticked, 0, "the refusal short-circuits before any poll");
 });
 
+test("a restarting child does not burn the wait budget (credential-change window)", async () => {
+  // 2026-11-08 live: a credential change restarted the dsh child; the queued
+  // fleet round polled isReady() for the full 120s against a restarting
+  // runtime, timed out, and the round was recorded `skipped` — lost.
+  // The contract: a restart adds (up to) one more budget window, so a child
+  // that comes up shortly after the restart finishes still gets its round.
+  let ready = false;
+  let restarting = true;
+  setTimeout(() => { restarting = false; }, 40);
+  setTimeout(() => { ready = true; }, 130);
+  const out = await awaitRuntimeReadyForJob(
+    { dshBridge: { isReady: () => ready, isRestarting: () => restarting } },
+    { sourceTag: { fleetId: "f1", memberId: "m1" } },
+    { waitMs: 100, pollMs: 10 },
+  );
+  assert.equal(out.ok, true, "the wait must cover the restart, not race it");
+});
+
+test("a readiness timeout is reported as retryable so the round can come back", async () => {
+  const out = await awaitRuntimeReadyForJob(
+    { dshBridge: { isReady: () => false, isRestarting: () => false } },
+    { sourceTag: { fleetId: "f1", memberId: "m1" } },
+    { waitMs: 40, pollMs: 10 },
+  );
+  assert.equal(out.ok, false);
+  assert.equal(out.retryable, true, "a fleet round blocked by readiness is retryable, not doomed");
+});
+
+test("exhausted readiness ladder still records the honest skip (no silent loss)", async () => {
+  // The ladder must not turn a permanently-dead runtime into an infinite retry
+  // loop: once the delays are spent, the outcome is today's `skipped`.
+  // FLEET_TURN_READY_WAIT_MS keeps the four passes cheap — the real budget is
+  // 120s per attempt and this test would otherwise run for eight minutes.
+  const prevWait = process.env.FLEET_TURN_READY_WAIT_MS;
+  process.env.FLEET_TURN_READY_WAIT_MS = "20";
+  try {
+    const calls = [];
+    const boom = {
+      dshBridge: { isReady: () => false, isRestarting: () => false },
+      reenqueueFleetTurn: (id, delayMs) => { calls.push([id, delayMs]); return true; },
+      taskTurnRegistry: new Map(),
+    };
+    attachCronRunner(boom, {
+      runPersona: async () => ({ ok: true }),
+      runA2a: async () => ({ ok: true }),
+      listAgents: () => [],
+    });
+    const job = { id: "job_ladder_dead", prompt: "p", targetType: "persona", preset: "x", sourceTag: { fleetId: "f1", memberId: "m1" } };
+    // Drive the pre-gate four times: three crawl the ladder, the fourth skips.
+    for (let i = 0; i < 4; i++) {
+      const out = await boom.runCronJobTurn(job, { turnTimeoutMs: 1 });
+      if (i < 3) {
+        assert.equal(out.retried, true, `attempt ${i + 1} must be retried, not lost`);
+        assert.equal(out.skipped, true, "a retried round still leaves no ledger/handoffs behind");
+      } else {
+        assert.equal(out.retried, undefined, "the exhausted ladder must not retry again");
+        assert.equal(out.skipped, true);
+      }
+    }
+    assert.equal(calls.length, 3, "exactly the ladder length of re-enqueues");
+    assert.deepEqual(calls.map((c) => c[1]), [30_000, 90_000, 180_000], "escalating backoff");
+  } finally {
+    if (prevWait === undefined) delete process.env.FLEET_TURN_READY_WAIT_MS;
+    else process.env.FLEET_TURN_READY_WAIT_MS = prevWait;
+  }
+});
+
 // ── 5. routes + cockpit face ────────────────────────────────────────────────
 
 test("memberView/cockpit: lastTurn + consecutiveFailures ride along; presence untouched", async () => {

@@ -538,6 +538,15 @@ export class DshBridge {
     return this.#ready;
   }
 
+  // A restart (credential delivery, preset switch, crash respawn) tears the
+  // child down and re-initializes it, so isReady() is false for that whole
+  // window even though the runtime is about to come back. A readiness gate that
+  // only polls isReady() cannot tell "down and coming back" from "never
+  // booted": it burns its budget and the round is lost (2026-11-08 live).
+  isRestarting() {
+    return this.#restarting === true;
+  }
+
   // Terminate: best-effort protocol `shutdown` then the close ladder.
   async shutdown() {
     this.#shuttingDown = true;

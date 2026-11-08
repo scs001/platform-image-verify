@@ -779,7 +779,8 @@ export function createFleetRoutes(app, ctx = null) {
       // for the tool waterfall — without it every non-live span lookup fell
       // through (live-found in production walkthrough 2026-10-27).
       traceTurnId: event.traceTurnId ?? null,
-      // null when the turn was never priced — never a $0 the platform cannot prove.
+      // Estimated USD for this turn (add-fleet-cost-read-face): null when the
+      // turn was never priced — the timeline must not draw a $0 it cannot prove.
       cost: event.cost ?? null,
     };
   }
@@ -864,8 +865,9 @@ export function createFleetRoutes(app, ctx = null) {
       // says so — `status` stays the derived outcome, these two carry the WHY.
       stoppedAt: run.stoppedAt ?? null,
       stopReason: run.stopReason ?? null,
-      // Estimated USD summed from this run's own turn rows at each turn's price;
-      // `pricedTurns` is the sample size, `usd` null when nothing was priced.
+      // add-fleet-cost-read-face: estimated USD, summed from this run's own turn
+      // rows at the price each turn ran under. `pricedTurns` is the sample size;
+      // `usd` is null when nothing in the run was priced (never a fake 0).
       cost: costEntry,
     };
   }
@@ -873,6 +875,7 @@ export function createFleetRoutes(app, ctx = null) {
   function runTurnEntry(event) {
     return {
       ...turnTimelineEntry(event),
+      // Per-turn estimate as it was computed at turn time (add-fleet-cost-read-face).
       cost: event.cost ?? null,
       turnId: event.turnId,
       runId: event.runId,
@@ -1470,6 +1473,8 @@ export function createFleetRoutes(app, ctx = null) {
         if (p.allTime?.usageOutput != null) {
           agg.usageOutput = (agg.usageOutput ?? 0) + p.allTime.usageOutput;
         }
+        // Money (add-fleet-cost-read-face): only priced turns contribute, and the
+        // total stays null until at least one fleet has a priced turn.
         if (p.allTime?.costUsd != null) agg.costUsd = (agg.costUsd ?? 0) + p.allTime.costUsd;
         agg.pricedTurns += p.allTime?.pricedTurns ?? 0;
       }

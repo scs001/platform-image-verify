@@ -154,6 +154,16 @@ function readyWaitMs() {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : RUNTIME_READY_WAIT_MS;
 }
 const RUNTIME_READY_POLL_MS = 1_000;
+// Bounded retry ladder for a fleet round whose runtime was not ready
+// (2026-11-08): the round is transient-blocked, not doomed, so it comes back
+// instead of being lost. Escalating delays cover a cold boot (~seconds) and a
+// credential-driven restart (~1-2min) without hammering the bridge.
+// Exhausted ladder ⇒ the honest `skipped`, exactly as before.
+export const RUNTIME_READY_RETRY_LADDER_MS = [30_000, 90_000, 180_000];
+// The attempt counter cannot ride `job`: runCronJobTurn rebinds job to a copy
+// (roundSeq) before the gate, so a write on it is lost with the copy. Keyed by
+// the engine's task id instead — same round, across enqueues.
+const readyRetryByJob = new Map();
 
 // Resolve when the live web turn finishes (ctx.isStreaming drops). The engine
 // queued this job; "skip because busy" is not an option, so busy means wait.
@@ -642,12 +652,31 @@ export async function awaitRuntimeReadyForJob(ctx, job, {
   if (!job.sourceTag?.fleetId) {
     return { ok: false, error: "the agent runtime is not ready" };
   }
+  // A restarting child is "not ready yet, but coming back" — the wait must
+  // cover the restart instead of timing out against it. Credential delivery and
+  // preset switches both restart the child, i.e. this is exactly the window
+  // that follows a "connect the market / reconnect the line" action; the old
+  // bare-isReady() poll spent the whole budget there and the round was skipped
+  // (2026-11-08 live: 120s elapsed, turn recorded `skipped`, patrol lost).
+  // The grace is bounded: at most one extra waitMs.
   const deadline = now() + waitMs;
-  while (!ctx.dshBridge?.isReady() && now() < deadline) {
+  // Sticky grace: the first time a restart is observed the budget is extended
+  // by one more waitMs and stays extended — a restart that finishes still
+  // needs time for the child to come up, so retracting the grace on the last
+  // poll would time out exactly where it mattered.
+  let bound = deadline;
+  while (!ctx.dshBridge?.isReady()) {
+    if (ctx.dshBridge?.isRestarting?.() === true) bound = Math.max(bound, now() + waitMs);
+    if (now() >= bound || pollMs <= 0) break;
     await new Promise((r) => setTimeout(r, pollMs));
   }
   if (!ctx.dshBridge?.isReady()) {
-    return { ok: false, error: "the agent runtime is not ready (waited for fleet round)" };
+    return {
+      ok: false,
+      // Retryable: the caller re-enqueues the round instead of losing it.
+      retryable: true,
+      error: "the agent runtime is not ready (waited for fleet round)",
+    };
   }
   return { ok: true };
 }
@@ -1335,6 +1364,41 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
         ready = { ok: false, error: `readiness pre-gate failed: ${e?.message || e}` };
       }
       if (!ready.ok) {
+        // Retry ladder (2026-11-08): `skipped` is not a neutral outcome for a
+        // PATROL — the round simply never happened and nothing brings it back
+        // (the note on the 2026-10-25 incident says exactly that: "that day's
+        // patrol was simply lost"). A cold child or a restart in flight is
+        // transient, so re-enqueue with backoff instead of losing the round,
+        // and fall through to the honest `skipped` only when the ladder is
+        // exhausted. The counter rides the engine's live record so the retry
+        // continues the SAME round (same prompt/cadence).
+        const attempts = readyRetryByJob.get(job.id) ?? 0;
+        const delayMs = RUNTIME_READY_RETRY_LADDER_MS[attempts];
+        if (ready.retryable === true && delayMs !== undefined && typeof ctx.reenqueueFleetTurn === "function") {
+          readyRetryByJob.set(job.id, attempts + 1);
+          let scheduled = false;
+          try {
+            scheduled = ctx.reenqueueFleetTurn(job.id, delayMs) !== false;
+          } catch (e) {
+            console.warn(`[fleets] re-enqueue after runtime-not-ready failed for ${job.id}: ${e?.message || e}`);
+          }
+          if (scheduled) {
+            const retriedOut = {
+              ok: false,
+              skipped: true,
+              retried: true,
+              error: `${ready.error}; re-enqueued in ${Math.round(delayMs / 1000)}s (attempt ${attempts + 1}/${RUNTIME_READY_RETRY_LADDER_MS.length})`,
+            };
+            try {
+              ctx.recordFleetTurnEvent?.(job, retriedOut, { startedAt, endedAt: Date.now(), model: null, ledgerTurn: null });
+            } catch (e) {
+              console.warn(`[fleets] retried turn record failed for ${job.id}: ${e?.message || e}`);
+            }
+            console.log(`[fleets] ${job.id}: runtime not ready — re-enqueued in ${Math.round(delayMs / 1000)}s (attempt ${attempts + 1}/${RUNTIME_READY_RETRY_LADDER_MS.length})`);
+            return retriedOut;
+          }
+        }
+        readyRetryByJob.delete(job.id); // ladder spent — the next fire starts fresh
         const skippedOut = { ok: false, skipped: true, error: ready.error };
         try {
           ctx.recordFleetTurnEvent?.(job, skippedOut, { startedAt, endedAt: Date.now(), model: null, ledgerTurn: null });
@@ -1343,6 +1407,9 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
         }
         return skippedOut;
       }
+      // The round really started: the ladder is spent and must not leak into
+      // the next fire.
+      readyRetryByJob.delete(job.id);
     }
 
     // Run ledger (agent-fleet-runs D2): the turn's id — and for a root turn

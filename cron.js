@@ -827,6 +827,13 @@ async function runJobNow(id) {
   return engine.runTaskNow(id);
 }
 
+// Readiness retry ladder (2026-11-08): re-enqueue the SAME round after a delay
+// instead of losing it. Thin passthrough — the engine owns the record and the
+// serialized queue; this module owns the scheduling surface.
+function reenqueueJob(id, delayMs) {
+  return engine.scheduleReenqueue(id, delayMs);
+}
+
 function listJobs() {
   return engine.listTasks();
 }
@@ -869,6 +876,9 @@ export {
   fireTask,
   setFleetContextRenderer,
   runJobNow,
+  // Retry ladder hand-off (2026-11-08): the runner's readiness gate re-enqueues
+  // the same round instead of losing it. Returns false when the record is gone.
+  reenqueueJob,
   getDashboardState,
   validateCron,
   // Downtime catch-up decision (P2, 2026-10-26) — exported so the window and

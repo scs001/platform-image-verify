@@ -66,8 +66,6 @@ function projectManifestForDetail(manifest) {
   };
 }
 
-
-
 export function createPackRegistry({ file }) {
   mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);

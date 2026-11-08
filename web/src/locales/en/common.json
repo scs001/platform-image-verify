@@ -3992,7 +3992,6 @@
     },
     "market": {
       "subtitle": "Creation and publishing moved to the supply domain; installs and runtime stay here",
-      "openMarket": "Open Agent Market",
       "openStudio": "Open Studio",
       "installed": "Installed packs on this machine"
     }

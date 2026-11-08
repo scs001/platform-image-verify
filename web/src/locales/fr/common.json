@@ -3992,7 +3992,6 @@
     },
     "market": {
       "subtitle": "La création et la publication ont déménagé vers le domaine d'approvisionnement ; l'installation et l'exécution restent ici",
-      "openMarket": "Ouvrir le marché d'agents",
       "openStudio": "Ouvrir Studio",
       "installed": "Packs installés sur cette machine"
     }

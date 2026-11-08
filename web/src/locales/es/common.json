@@ -3992,7 +3992,6 @@
     },
     "market": {
       "subtitle": "La creación y publicación se movieron al dominio de suministro; la instalación y ejecución quedan aquí",
-      "openMarket": "Abrir mercado de agentes",
       "openStudio": "Abrir Studio",
       "installed": "Packs instalados en esta máquina"
     }

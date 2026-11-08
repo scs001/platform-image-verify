@@ -253,6 +253,13 @@ function drainRepairQueue() {
       }
       continue;
     }
+    // Re-stamp the wait clock (fix-task-queue-deadlock, found in live
+    // observation): the persisted `queuedAt` predates the downtime, so a task
+    // queued the evening before a restart reports "waiting 12 hours" the
+    // morning after and the probe cries degraded on every boot. The wait that
+    // matters started now, not when the previous process died.
+    t.queuedAt = Date.now();
+    void saveTasks();
     chainExecution(id);
   }
 }

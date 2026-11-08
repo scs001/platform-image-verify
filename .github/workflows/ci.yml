@@ -144,11 +144,20 @@ jobs:
 
       - name: E2E (fast project, offline)
         if: steps.dsh.outputs.usable == 'true'
-        # Advisory for now: the fast suite carries ~4 deterministic spec
-        # failures that fail identically on dev machines (pre-existing debt in
-        # the streaming/composer lanes, tracked via this run's annotations).
-        # Enforced gates are lint/typecheck/unit/locales/build above; flip this
-        # off continue-on-error once those specs are cleared.
+        # Advisory for now, and MEASURED rather than estimated (run
+        # 42460822790, 2026-11-08 — the first CI run that actually executed
+        # this suite): 640 passed, 19.9m, 3 flaky, and these 5 red on all three
+        # attempts:
+        #   projects-automation.spec.js:158   batch export zip
+        #   registry-connect.spec.js:120      registry install with a live credential
+        #   sso-user-bindings.spec.js:288     personal model binding persists
+        #   sso-user-bindings.spec.js:315     personal snapshots stay private
+        #   starter-teams-sequence.spec.js:41 fresh help-center sequence
+        # They are the same five that are red in a full local run and green one
+        # by one: order-dependent persisted state (preferences / bindings /
+        # seeded fixtures), so retries cannot save them. Until each spec resets
+        # its own state, flipping this off continue-on-error just makes CI
+        # permanently red. Enforced gates are lint/typecheck/unit/locales/build.
         continue-on-error: true
         timeout-minutes: 45
         run: npm run test:e2e

@@ -180,3 +180,23 @@ test("the first-queue anchor is persisted, so a restart cannot refresh it", asyn
   release({ ok: true });
   await engine.idle();
 });
+
+// The staleness age may only drop a fire NOBODY asked for. `run now` on a
+// cadence task keeps trigger="schedule", so keying the policy on the trigger
+// alone dropped the operator's own ignition once it waited past the bound —
+// the very "run-now lost" symptom this change set out to kill (live
+// 2026-11-08: a fleet scout run-now was dropped as "waited 28min > 10min").
+test("a run-now on a cadence task is never aged out, however long it waits", async () => {
+  const started = [];
+  await boot((task) => { started.push(task.id); return Promise.resolve({ ok: true }); });
+  process.env.QUEUE_MAX_AGE_MS = "50";
+  try {
+    addScheduledTask("human-ignition");
+    engine.runTaskNow("human-ignition");
+    const rec = engine.getRecord("human-ignition");
+    assert.equal(rec.queuedBy, "human", "run-now must mark the residence as human");
+    rec.firstQueuedAt = Date.now() - 300_000;
+    const ran = await waitFor(() => started.includes("human-ignition"));
+    assert.equal(ran, true, "a human ignition must run regardless of queue age");
+  } finally { delete process.env.QUEUE_MAX_AGE_MS; }
+});

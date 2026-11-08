@@ -28,7 +28,7 @@ import express from "express";
 import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { collectPublishVerdict, CREATOR_GROUP_REQUIRED } from "./pack-publish-gates.js";
 import * as connectorBindingsModule from "../connector-bindings.js";
-import { mintDeploymentBindings } from "../deployment-bindings.js";
+import { mintDeploymentBindings, mintableBindings, pruneDeploymentBindings } from "../deployment-bindings.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
 import { safePackagePath } from "../lib/skill-files.js";
@@ -2377,6 +2377,32 @@ export function registerPackRoutes(app, {
     const secretRefs = {}; // agentId → { name: ref } (descriptor input)
     const secretMinted = []; // rows persisted once the registry push succeeded
     const secretDisplay = {}; // agentId → { name: design-D6 mask } (deploy surface)
+    // ── Stale deployment bindings (add-deployment-binding-grant 2.3) ────────
+    // A binding this deployment no longer carries must not leave a live token
+    // on the connector: the secret row is dropped AND the PAT behind it is
+    // revoked. Runs BEFORE the secret reconciliation below, so a pruned name
+    // never enters `existing` and therefore never rides the new descriptor.
+    let deploymentPrune = null;
+    {
+      const mintable = mintableBindings({ email: user.email, packId: id });
+      try {
+        deploymentPrune = await pruneDeploymentBindings({
+          email: user.email,
+          packId: id,
+          agentIds: [...servingIds],
+          keepKeys: mintable.map((b) => b.bindingKey),
+          secrets: registry.deploymentSecretsForPack(id),
+          remove: (agentId, name) => registry.deleteDeploymentSecret(id, agentId, name),
+        });
+        if (deploymentPrune.failed.length > 0 || deploymentPrune.code) {
+          console.warn(
+            `[packs] deployment binding prune for ${id}: ${deploymentPrune.code ?? ""} revoked=${deploymentPrune.revoked.length} failed=${deploymentPrune.failed.length}`,
+          );
+        }
+      } catch (e) {
+        console.warn(`[packs] deployment binding prune failed for ${id}: ${e?.message || e}`);
+      }
+    }
     {
       const existing = new Map(); // "agentId\u0000name" → row
       for (const r of registry.deploymentSecretsForPack(id)) existing.set(`${r.agentId}\u0000${r.name}`, r);
@@ -2591,12 +2617,15 @@ export function registerPackRoutes(app, {
       billing,
       effectiveWithinSecs: out.effectiveWithinSecs,
       // Which deployment bindings got a token, and which could not — names
-      // only; the token itself never leaves the platform side.
+      // only; the token itself never leaves the platform side. `revoked` is
+      // the other half of the ledger: bindings this deploy stopped carrying
+      // had their connector tokens revoked, not just their local rows dropped.
       ...(deploymentBindings
         ? {
             deploymentBindings: {
               granted: deploymentBindings.granted.map((g) => ({ agentId: g.agentId, bindingKey: g.bindingKey })),
               failed: deploymentBindings.failed.map((f) => ({ agentId: f.agentId, bindingKey: f.bindingKey, code: f.code })),
+              revoked: deploymentPrune?.revoked?.length ?? 0,
             },
           }
         : {}),

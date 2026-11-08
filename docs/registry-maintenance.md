@@ -7639,7 +7639,7 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - **验收**：`stock` 标识挂 `person` = **0**；`512660 / 510810 / 562550 / 512660.SS` 现在**解析不到任何人**（返回 none）；`astock` 家族实体 **仍 5,203**（该家族按六位码前缀解析，从未读过这些行）；`fund` 标识 503→1,064；标识总数 88,182→86,107；剩余不一致只剩**延后类**：organization 240 / country→city 36 / industry 32 / index 24 / exchange 3（每类需单独判断，已写进 spec 的 debt 场景）。
 - **挂账**：上游 `fund_manager_em` 摄取**仍在写** stock 型标识，下次跑会把同样污染写回来——正解是在该摄取里改为 `fund` 型（或干脆不写标识），属另一线（akshare 摄取代码）。
 
-### §15.138 续廿一：共享浏览器车道全量上线；**拓扑瘦身的下一步挂账待调研**（11-08）
+### §15.138 续廿一（渠）：共享浏览器车道全量上线；**拓扑瘦身的下一步挂账待调研**（11-08）
 
 - **已上产（change `slim-browser-lane-footprint`，已归档）**：浏览器车道从「每 cell 一套 `server/browser-mcp.js`(~46Mi) + `@playwright/mcp`(~110–130Mi)」改为「每 pod 一份服务 + 每会话一个浏览器上下文」。`server/browser-lane-service.js` 起一份钉版 CLI（`--port`/`--isolated`/`--allowed-hosts 127.0.0.1:<port>`/`--allow-unrestricted-file-access`），每个 cell 会话一条上游 SSE 会话；身份**只认连接方进程**（socket inode → pid → cwd/cmdline → 16-hex cell 目录，`shareProcessNamespace` 是前提），产物按 cell 落 `workspace/browser/`；`BROWSER_SHARED_MCP_URL` 是开关，`BROWSER_SHARED_CELLS` 是灰度名单（不设=全量），`BROWSER_LANE=off` 仍一票否决，端点挂了只降级不回落到每 cell 拉起。
 - **实测（fd-prod，全量后）**：在跑的 cell `browser=0`（子进程数），全 pod 只有 **1 个浏览器进程**；`kubectl top` pod **2294Mi**（browser-lane 120Mi + platform 2173Mi），提案基线同口径 3102Mi。**省下的是「每 cell 约 170Mi 的重复份」**，不是整块内存；灰度期因两份并存（共享 + 未翻转 cell）总占用反而略高，全量后才落账。回滚演练已跑：注释 `BROWSER_SHARED_MCP_URL` → cell 重新长出 `browser-mcp.js×3 + cli.js×3`、共享服务 `sessions=0`；恢复即回共享，**无需回滚镜像**。
@@ -7696,3 +7696,55 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 - **处置**：先快照（`/tmp/idfix-deferred-snapshot.tsv`，0600，267 行），再**删净零观测三类 267 行**；承重两类保留并写进允许清单。`check_identifier_integrity.py` 的 `DEFERRED` 从 6 组收窄到 **2 组**（`country/city`、`stock/industry`），被清掉的三类**此后一旦复现即判违规**。生产实跑：**2 组 / 68 行 / 0 违规 / exit 0**；单测硬断言 `DEFERRED == {("country","city"), ("stock","industry")}`。
 - **另一条被证伪的假设（重要）**：我原以为承重类可以"把观测与标识一起迁到正确实体"。实测 **121 个错位代码里 0 个能找到对应的 stock 实体**——根本没有目标可迁。所以承重类**不是"待迁"，是"无处可迁"**：要么先补建缺失的 stock 实体（真正的建模工作），要么就这么留着。这条已替代续二十三 里"迁到正确实体"的乐观说法。
 - **承接结论**：标识表的不一致从 2,971 行降到 **68 行**，且剩余 68 行有明确语义（城市身上的国家码、行业身上的港股码）和明确承载。要彻底清零，前置条件是**补建那 121 个代码对应的 stock 实体**——属建模任务，需单独立项，不在本轮。
+### §15.138 续廿二（渠）：cell 崩溃台账上产——崩溃第一次变成「有数的」
+
+- **问题**：非预期退出只 `console.error`（`cell.error` 在内存），台账 `destroy_reason` 全空，
+  当前 pod 日志 0 次——但那只覆盖 1.5h，当天滚了四次，历史全丢。于是「这个 cell 稳不稳」
+  答不出来，而这正是「要不要为省 220–280Mi 动崩溃域」的前提数据。
+- **落地（change `add-cell-crash-ledger`，镜像 `sha-caf4f0d` / digest `dbebc49e`）**：
+  台账 guarded-add 四列 `crash_count` / `last_crash_json` / `bind_failure_count` /
+  `last_bind_failure_json`（行 schema v1→v2 前向迁移，缺列读作 0/null）；崩溃与启动失败**分开计**；
+  退避可配 `CELL_CRASH_BACKOFF_BASE_MS`(1000) / `MAX_MS`(**15000**) / `WINDOW_MS`(10min) /
+  `REHAB_MS`(10min)，延迟落在 **spawn 之前**，**永不硬拒**（mp-demo tombstone 教训）；
+  内存面 cell 行带 `crashCount`/`lastCrash`/`bindFailureCount`/`lastGateRefusal`，
+  `/healthz` 增 `cellsInError` + `crashTotal`（不影响 200）。
+  上限取 15s 的理由：唤醒本身 8.6–12s，15s 把最坏体感压在「比冷启稍慢」而非「像坏了」。
+- **真机验收（对 /proc 里的测试 cell 发 SIGKILL）**：`crash_count 0→1`、
+  `last_crash_json={"code":null,"signal":"SIGKILL","at":…,"uptimeMs":122532}`、
+  `/healthz cellsInError=1 crashTotal=1`、内存面 `crashCount=1 lastCrashSignal=SIGKILL`；
+  该 cell 仍 `state=suspended / destroy_reason=null` → **可唤醒、未被锁**。
+- **基线**：除本次人为注入，历史崩溃数为 **0**（`crash_count>0` 仅此 1 个 cell）。真实崩溃率
+  需在台帐跑满日常负载后回看——那才是「要不要动崩溃域」的判据。
+- **⚠️ 本篇初稿的一处口径已订正（2026-11-08 晚）**：初稿写「每 cell 约 425–466Mi」，那是**只算
+  有归属的进程**。按 `/proc` 全量核对后真实构成是：
+  - 每 cell = cell-server（~160–205Mi）+ **1 个 dsh runtime（~145–215Mi）** + **该 dsh 拉的 13–14
+    个 MCP 卫星**（actions/fleet/library/cron/delegation/bench-proposal/fleet-architect/
+    blueprint-author/pack-author/persona-evolution/skill-evolution/websearch，各 65–77Mi）
+  → 一个 dsh 连同卫星约 **930Mi 标称 / 约 450Mi 实扣**（RSS→cgroup 比实测 ≈0.48）。
+  → 单对话 cell ≈ **0.9–1.1Gi**；开到 2 个 worker 槽的 cell ≈ **2.2–2.6Gi**。
+  - 卫星进程 cwd 是 `/app`、cmdline 无 cell 线索，所以全落 `(no-cell)` 桶——**内存面 per-cell
+    数字系统性偏低**，看总量要按上面口径手算。
+- **另一个曾被误判的现象**：某 cell 出现**两个** dsh 时先别当泄漏——线上 `TASK_WORKER_MAX=2`
+  （GitOps 清单 `value: "2"`，而本仓设计清单 `k8s/deployment.yaml` 写的是 `"0"` 并注明
+  「4GB 节点塞不下并行 child」）。日志实证：`[worker-pool] spawned worker-1 for persona
+  mo-inventory` / `worker-2 for persona ops-wx-chief` —— 是 worker 槽按需拉起，**0 孤儿**
+  （52 个卫星 = 13×4，ppid 分布 87/531/1230/1467，ppid=1 为 0）。
+- **拒醒的真因**（也是上面这条的推论）：4Gi 上限 − 15% 保底 = 可用 3.48Gi；实测 platform 容器
+  **2845Mi** 且其中 1 个 cell 开着 2 个 worker 槽 → 第 4 个 cell 一唤醒必然超顶。**闸没判错**，
+  是「3 cell + 2 worker」这台 4Gi pod 装不下。要么抬 limit（cheap-7 有余量），要么把
+  `TASK_WORKER_MAX` 调回 0/1 —— 这条归 worker-pool 线裁决，未动。
+- **同时暴露但未处理**：`platform-test` 的 `lastGateRefusal` 显示
+  `headroomPct=-0.00295`、`projectedBytes 4307641056 > limit 4294967296` —— **唤醒被内存闸拒过**
+  （投影超限），拒醒次数目前只留最后一次。另：公开快照 CI 的 biome 红在别人三笔文件
+  （`gateway/packs.js`、`test-fleet-descendant-reports.mjs`、`test-main-chain-priority.mjs`），不挡 image 流水线。
+
+### §15.138 续二十五：活着的写入 bug 定谳——code→entity 映射只信标识类型；「重归位」被证伪两次（11-08 续十四）
+
+- **仍在写**：那 8,500 条 `financials.*` 错位观测**最新到 2026-09-30**，说明有在跑的写入口。定位到 `scripts/bulk_ingest_financials_aggregate.py::load_code_map`：它从 `entity_source_identifiers WHERE entity_type='stock'` 直接建 `{code: entity_id}` 且**后写覆盖先写**。行业实体 2053（医药生物 801150）身上挂着 `00712`（标成 stock），于是 `000712` 解析到**行业**，锦龙股份的报表就写进了医药生物。
+- **修法（已上产，`3225f4d`）**：**五个** ingest 的 code→entity 映射全部改为 `JOIN entities e ON e.id=i.entity_id ... AND e.entity_type=:et`——**标识上的 `entity_type` 是声明、不是事实**；聚合那支遇到同码冲突改为**保留首个并计数告警**（原来静默覆盖）。生产校验：新口径保留 **9,544** 行、剔除 **16** 行错位；`000712` 现在解析到真正的 stock 实体 3125。另加守卫测试扫描这五个脚本：任何 `FROM entity_source_identifiers` 后 260 字符内没有 `JOIN entities` 即失败。
+- **「重归位」两次被我自己的复核推翻，均未执行**：
+  1. 第一次：我报"121 个错位码 0 个有目标实体" → 错在**没做 zfill**（`00712` vs `000712`）。
+  2. 第二次（更危险）：补上 zfill 后算出 16 个"有目标、零键冲突"的漂亮方案（`00712→3125 锦龙股份`、`02001→584 新和成`…），差一步就执行。**自查目标身份发现是假匹配**：这些代码是**港股 5 位码**（`00712`/`01377`/`01586`，各带 `.HK` 孪生），zfill 到 6 位恰好撞上**毫不相干**的 A 股公司。零键冲突恰恰因为冲突发生在**公司之间**、不在行之间。
+  3. 最终分类：行业实体上 32 条 `stock` 标识 = **26 条港股 5 位码 + 6 条 ETF 代码**（`159133/159291/159834`，`.SZ` 孪生，挂在国防军工/计算机/传媒上）——**没有一条是真 A 股代码**。所以既无可迁之处，也不该迁。
+- **用户可见的风险（要点，待裁）**：这些行业 entity_id 上还躺着 `price` 1,173 条、`financials` 7,327 条（按家族：financials 7,327 / pwr 3,599 / price 1,173 / expr 254 / film 58）——**按 entity_id 查「国防军工」的行情会返回某只 ETF 的价格**。数据是真的但归属错，对外读面会串。处置只有两条：**为这些港股/ETF 建实体后迁走**，或**删掉这批错位观测**（破坏性，需你点头）。标识本身安全留着（守卫把它列在允许清单，且已挡在写入口之外）。
+- **纪律三条**：①`entity_type` 存的是**声明**，凡按它做关联/映射的地方都要 JOIN 回实体核对类型；②**迁移前先核目标实体身份**（名称 vs 代码），零键冲突不代表映射正确；③跨市场同码是真实存在的地雷——港股 5 位码 zfill 成 6 位必然撞 A 股。

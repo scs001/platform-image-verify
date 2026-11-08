@@ -861,6 +861,29 @@ export function registerMiscRoutes(ctx) {
     res.json({ enabledCron, enabledBots });
   });
 
+  // ── Gateway-internal: queue health ────────────────────────────────────────
+  // The gateway aggregates this across resident cells for /readyz, because the
+  // queue lives in each cell's task engine and the public /api/ready is behind
+  // the gateway's own auth (measured 2026-11-08: 401 from inside the pod, so no
+  // k8s probe could ever read it). Only the summary leaves here — no job
+  // prompts, no ids, nothing user-identifying.
+  app.get("/api/gateway/queue", (_req, res) => {
+    try {
+      const queue = taskEngine.queueHealth({ budgetOf: taskEngine.resolveBudgetFor });
+      res.json({
+        queued: queue.queued ?? 0,
+        running: queue.running ?? 0,
+        oldestQueuedMs: queue.oldestQueuedMs ?? null,
+        oldestRunningMs: queue.oldestRunningMs ?? null,
+        overBudget: queue.overBudget ?? 0,
+        degraded: queue.degraded === true,
+      });
+    } catch (e) {
+      // A broken projection must not read as "healthy queue".
+      res.status(500).json({ error: `queue health unavailable: ${e?.message || e}` });
+    }
+  });
+
   // ── User preferences endpoints (single-user, key/value) ──────────────────
   // Stored in the SQLite project database. No authentication; no multi-tenancy.
 

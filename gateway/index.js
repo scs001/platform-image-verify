@@ -470,6 +470,57 @@ app.get("/healthz", async (_req, res) => {
   });
 });
 
+// ── /readyz: readiness that can actually see the queue ────────────────────
+//
+// Why a new endpoint instead of reusing /api/ready: /api/ready lives in the
+// CELL and the gateway gates every /api/* request (measured 2026-11-08 —
+// `curl 127.0.0.1:3100/api/ready` from inside the pod returned 401, even though
+// the cell's own auth exempts it). A k8s probe can only read what the gateway
+// answers, and /healthz reports cells/crashes but nothing about backlog.
+//
+// Semantics, deliberately conservative:
+//   - 200 unless some resident cell reports `degraded` (its own threshold logic)
+//   - a cell that cannot be asked is UNKNOWN, not failed: the probe must not
+//     take the platform out of rotation because one cell is slow to answer
+//   - short timeout, per-cell, in parallel; the whole probe is bounded
+//   - 503 body carries the aggregate so the reason is visible, not a bare code
+app.get("/readyz", async (_req, res) => {
+  const running = [...registry.cells.values()].filter((c) => c.state === "running" && c.port);
+  const summarized = await Promise.all(running.map(async (cell) => {
+    try {
+      const r = await fetch(`http://127.0.0.1:${cell.port}/api/gateway/queue`, {
+        headers: { "x-forwarded-email": cell.email, "x-cloud-gateway-secret": SECRET },
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!r.ok) return { cell: cell.userId, unknown: `http ${r.status}` };
+      const q = await r.json();
+      return {
+        cell: cell.userId,
+        queued: q.queued,
+        running: q.running,
+        oldestQueuedMs: q.oldestQueuedMs,
+        degraded: q.degraded === true,
+      };
+    } catch (e) {
+      return { cell: cell.userId, unknown: e?.name === "AbortError" ? "timeout" : String(e?.message || e) };
+    }
+  }));
+  const known = summarized.filter((c) => !c.unknown);
+  const queued = known.reduce((n, c) => n + (c.queued ?? 0), 0);
+  const oldestQueuedMs = known.reduce((m, c) => Math.max(m, c.oldestQueuedMs ?? 0), 0) || null;
+  const degradedCells = known.filter((c) => c.degraded).map((c) => c.cell);
+  const ready = degradedCells.length === 0;
+  res.status(ready ? 200 : 503).json({
+    ready,
+    cells: running.length,
+    answered: known.length,
+    unknown: summarized.filter((c) => c.unknown).map(({ cell, unknown }) => ({ cell, reason: unknown })),
+    queued,
+    oldestQueuedMs,
+    degradedCells,
+  });
+});
+
 // The admin group name(s) — see registerAuth's ADMIN_GROUPS for the rationale
 // (per-product Logto org-role names). The gateway runs its own process, so it
 // reads the same env directly.

@@ -42,9 +42,23 @@ function connectionPayload(email) {
 // appear (or disappear) at the next patch write, with no reinstall. Answer the
 // request first and let the hot-swap settle in the background — the same shape
 // the extensions routes use.
+// 2026-11-08 产上回归（35 源 → 30 源）：`dsh-profile.js` 的可见性门是
+//   `row.requiredGroups?.length && userGroups !== null && !userGroups.some(...)`
+// —— 传 **null** 表示「组未知，不过滤」，传 **[]** 表示「没有任何组」，会把
+// requiredGroups 里登记过的源整批删掉。凭证写入的会话常常拿不到组织的
+// `organizations` claim（Experience API 登录 / SSO 直通都可能缺），于是一次续期就把
+// fd-open-data-mcp / fd-daas-mcp / fd-cn-report / fd-find-data-business-mcp /
+// fd-text-core 这批按组可见的源静默摘掉，岗位侧表现为「取数面变少」，且日志里
+// 只有 omit 行、没有报错。
+// 口径：**凭证变更绝不允许让 profile 变窄**。空组集一律按「未知」处理，
+// 交给下一次带真实组的写入去收敛。
+export function profileGroupsForReapply(groups) {
+  return Array.isArray(groups) && groups.length ? groups : null;
+}
+
 function reapplyProfile(ctx, email, groups) {
   ctx
-    .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, groups, email)
+    .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, profileGroupsForReapply(groups), email)
     ?.catch((e) => console.warn(`[registry] profile update failed: ${e.message}`));
 }
 

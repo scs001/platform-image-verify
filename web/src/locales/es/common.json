@@ -3111,6 +3111,8 @@
       "missing": "Atrasado",
       "vacant": "Vacante",
       "passive": "En espera",
+      "budgetPressure": "Presupuesto de modelos agotado: {{failures}} turnos fallidos en {{members}} puesto(s) en {{hours}} h",
+      "budgetSince": "(desde {{time}})",
       "failing": "fallando"
     },
     "orch": {

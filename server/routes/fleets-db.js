@@ -1342,6 +1342,35 @@ export function createFleetDatabase({ file } = {}) {
     return { streak, since: streak > 0 ? since : null, lastErrorKind };
   }
 
+  // Fleet-level budget pressure (fix-fleet-failure-visibility D6): one post
+  // failing on `budget` can be that post's narrow model chain; SEVERAL posts
+  // failing on it at once is the deployment being out of quota — the failure
+  // mode that produced 441 failures in one day with no signal anywhere.
+  // Read-only, one query, bounded window; `since` is the oldest such failure
+  // still in the window so the cockpit can say how long it has been dark.
+  function budgetPressure(fleetId, { windowMs = 24 * 3600_000, now = Date.now() } = {}) {
+    const sinceMs = now - windowMs;
+    const rows = db
+      .prepare(
+        `SELECT member_id, error_kind, started_at FROM member_turn_events
+         WHERE fleet_id = ? AND started_at >= ? AND status = 'failed' AND error_kind = 'budget'`,
+      )
+      .all(fleetId, sinceMs);
+    if (!rows.length) return null;
+    const members = new Set();
+    let oldest = Infinity;
+    for (const r of rows) {
+      members.add(r.member_id);
+      if (Number.isFinite(r.started_at) && r.started_at < oldest) oldest = r.started_at;
+    }
+    return {
+      members: members.size,
+      failures: rows.length,
+      since: Number.isFinite(oldest) ? oldest : null,
+      windowHours: Math.round(windowMs / 3_600_000),
+    };
+  }
+
   // ── run ledger (agent-fleet-runs) ─────────────────────────────────────────
 
   // Header row for a root turn. INSERT OR IGNORE: a run that was already
@@ -1789,6 +1818,7 @@ export function createFleetDatabase({ file } = {}) {
     skippedCount,
     consecutiveFailures,
     failureStreak,
+    budgetPressure,
     insertRun,
     getRun,
     reopenRun,

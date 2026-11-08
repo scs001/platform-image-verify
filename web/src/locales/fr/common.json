@@ -3111,6 +3111,8 @@
       "missing": "En retard",
       "vacant": "Vacant",
       "passive": "En attente",
+      "budgetPressure": "Budget de modèles épuisé : {{failures}} tours en échec sur {{members}} poste(s) en {{hours}} h",
+      "budgetSince": "(depuis {{time}})",
       "failing": "en échec"
     },
     "orch": {

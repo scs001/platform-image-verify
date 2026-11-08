@@ -3111,6 +3111,8 @@
       "missing": "未報告",
       "vacant": "欠員",
       "passive": "待機",
+      "budgetPressure": "モデル予算が枯渇：{{hours}} 時間で {{members}} ポストの {{failures}} ターンが失敗",
+      "budgetSince": "（{{time}} 以降）",
       "failing": "失敗"
     },
     "orch": {

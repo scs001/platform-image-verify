@@ -151,7 +151,7 @@ interface FleetDetail {
   // Cockpit aggregate (agent-fleet-templates): the rest of the one-round-trip.
   decisions?: DecisionItem[];
   stream?: { memberId: string; title: string; status: MemberView["status"]; latestReport: LatestReport | null }[];
-  health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; failing?: number; total: number };
+  health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; failing?: number; total: number; budgetPressure?: { members: number; failures: number; since: number | null; windowHours: number } | null };
   // Orchestration read view (agent-fleet-orchestration): mode/constraints +
   // the read-time edge set (supervisor's implicit edges are marked).
   orchestration?: {
@@ -972,6 +972,30 @@ export function FleetsPage() {
                   {detail.health.failing ? (
                     <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive" data-testid="fleet-health-failing">
                       {t("fleets.health.failing")}: {detail.health.failing}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* Budget pressure (fix-fleet-failure-visibility D6): the one
+                  outage that used to be invisible — 441 turns failed in a day
+                  across several posts and nothing said so. Rendered only when
+                  the aggregate is present, and it names the count, the posts
+                  and how long it has been dark, so the owner's action (top up,
+                  or narrow the chains) is obvious from the card. */}
+              {detail.health?.budgetPressure ? (
+                <div
+                  className="mt-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                  data-testid="fleet-budget-pressure"
+                >
+                  {t("fleets.health.budgetPressure", {
+                    members: detail.health.budgetPressure.members,
+                    failures: detail.health.budgetPressure.failures,
+                    hours: detail.health.budgetPressure.windowHours,
+                  })}
+                  {detail.health.budgetPressure.since ? (
+                    <span className="ml-1 text-destructive/80">
+                      {t("fleets.health.budgetSince", { time: new Date(detail.health.budgetPressure.since).toLocaleString() })}
                     </span>
                   ) : null}
                 </div>

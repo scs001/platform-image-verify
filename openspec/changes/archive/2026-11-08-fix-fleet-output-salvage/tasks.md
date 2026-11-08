@@ -1,4 +1,4 @@
-# Tasks — fix-fleet-turn-budget
+# Tasks — fix-fleet-output-salvage
 
 ## 1. 归因（`server/cron-runner.js`）
 
@@ -32,5 +32,6 @@
 
 ## 5. 上线
 
-- [ ] 5.1 快照 → GHA → relay → skopeo digest → GitOps bump → ArgoCD → 舱内实测
-- [ ] 5.2 归档（`openspec validate --strict` 通过后）
+- [x] 5.1 快照 41b95d9 → GHA image ✅ → relay OK → skopeo digest `sha256:341b9280` → GitOps 9f9f6d1 →
+      ArgoCD 对齐 → platform/facet 滚完 → **舱内跑本套件 6/6 绿**；现网 f16306b 的唯一独有提交在本线逐文件哈希一致（不回退）
+- [x] 5.2 归档（`openspec validate --strict` 通过后）

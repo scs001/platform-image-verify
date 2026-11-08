@@ -7764,3 +7764,51 @@ idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP
 - **至此错配数据读写两端都封住**：写侧=五个 ingest 的 code→entity 映射 JOIN entities（`3225f4d`，生产 9,544 保留 / 16 剔除）；读侧=series 按概念类型约束（`11c4ada`）。错位行本身仍留在库里（归属真、位置错），但既进不了写路径、也读不出来。
 - **发布链**：0.5.50 → `sha-3d1ee01`（tcr-relay 17:27:04 OK，145s）→ 两 CronJob 滚动 + `clusters.image` id9 + 清单对齐（`9978077`）→ 新镜像 tick 实测 `schema gate passed` / `Database initialized: …REDACTED@…` / `launched: []`。specs 17/17。
 - **仍然待裁（不变）**：那 8,500 条错位观测 + 32 条错标标识（26 港股码 + 6 ETF 码，无一可迁）怎么处置——建实体迁走 or 删除。标识已挡在写入口外、数据已挡在读面外，所以**不处置也不会再污染**，只是它们本身是错的。
+
+### §15.139 续二十七：更正续二十六——读侧其实没封，现在才封（0.5.52 / `sha-16c49f8`）
+
+- **先认错**：续二十六写「至此错配数据读写两端都封住」是**错的**。0.5.50 钉的是
+  `semantic_observations.entity_type`——**行自己声明的类**——而错位行声明的恰好也是 `'stock'`。
+  所以拿行业 id 或基金经理 id 去查股票概念，照样取得到数据。判据必须是**实体自身的类**。
+- **全量清单（真库，`semantic_observations` 7,159,529 行）**，按「行声明类 ≠ 实体类」：
+
+  | 行声明 → 实体实际 | 行数 |
+  |---|---|
+  | stock → **person** | **333,975** |
+  | stock → industry | 8,500 |
+  | country → city | 6,302 |
+  | fund → stock | 2,027 |
+  | stock → fund | 936 |
+  | region → country | 96 |
+  | company → stock | 12 |
+
+  合计 351,740；另 11 条 `entity_id` 悬空。**新发现的最大一坨不在股票代码上，而在基金经理上**：
+  865 个 `person` 实体（`刘佃贵@国联安基金` 这类，标识是天天基金经理 id 1298/1428/1214…）
+  各约 443 行 `price.high/low/open/close/amount`，2026-06-09~09-18，源 akshare。
+- **为什么不能一刀切「实体类型 = 概念类型」**：星级季报同一概念按城市/省/国家三层存——
+  `region` 型概念的城市行 5,565 条挂在 `city` 实体（行也声明 `city`，**自洽**）、
+  `country` 型有 96 条挂 `country`。硬相等会把这 5,661 条真序列读没。0.5.50 恰好就是这么
+  误伤的：城市级星级数据在 0.5.50/0.5.51 上读数为 0。
+- **修法（两层）**：
+  1. **通用不变量**——行声明的类必须等于它所属实体的类（`EXISTS(entities e WHERE e.id=o.entity_id
+     AND e.entity_type=o.entity_type)`）。落在 `hotel_series` 与 `hotel_kpi` 的 KPI 分支。
+  2. **证券类再收紧**——`SECURITY_ENTITY_TYPES={'stock'}`：证券序列只能从证券实体读。
+     新增 `entities.resolver.check_entity_identity`，挂在三处缓存读入口
+     （`read_cache`/`read_cache_all`/`read_cache_range`），覆盖 `read`/`fetch`/`read_series`/gapfill；
+     错误文案明说「这是错挂数据，不是覆盖缺口」；悬空 id 不拦（属另一类缺陷）；
+     `session.info` 记忆化（dispatch 逐点调用）。`analysis.time_series` 加同样的 `exists()`。
+- **验证**：单测 20 绿（10 新增）；把 `SECURITY_ENTITY_TYPES` 清空后 **6 红**，证明测试不是自证；
+  真库活体——person 6588/6641、industry 4354 全部被拒，真 stock 4615 仍 21 点，
+  北京 BJS(id 17) 城市级星级恢复 5 点（2023-06-30~2024-09-30）；
+  **在产镜像内**（`sha-16c49f8`）复跑同样三条，结果一致，`version: 0.5.52`。
+- **顺手清掉五个既有红测试**（都与本次改动无关，是 0.5.44 的 0017 迁移与 0.5.48 的 argv 收口
+  留下的陈旧断言）：四个文件仍断言链头 `0016_policy_launcher`（实际/线上都是 `0017_census_bigint`），
+  `test_direct_manifest_shape` 仍要求命令行出现 `--db-url`。现改为断言 0017、
+  并断言 `--db-url` **永远不再回到 argv**。
+- **上产**：0.5.52（commit `65b65ae` + `335febb`，tag `v0.5.52`）→ PyPI 3 条 →
+  scraw floor `>=0.5.52`（`16c49f8`）→ GHA image → tcr-relay 18:57:33 OK →
+  两 CronJob + `clusters.image` id9 + 清单（`d637a0e`）→ 新镜像 tick 实测
+  `schema gate passed: '0017_census_bigint'` / `REDACTED` / `launched: []`。
+- **仍待裁（不变，但不紧迫）**：351,740 条错挂行怎么处置——删除或迁到正确实体。
+  现在它们既进不了写路径（`3225f4d`）、也读不出来（本轮），所以不处置也不会再污染，
+  只是它们本身是错的。**注意别再有人拿「读侧已封」当已清账的证据。**

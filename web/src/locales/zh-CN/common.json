@@ -3111,6 +3111,8 @@
       "missing": "超时未报",
       "vacant": "空缺",
       "passive": "待命",
+      "budgetPressure": "模型额度耗尽：{{hours}} 小时内 {{members}} 个岗位共 {{failures}} 个回合失败",
+      "budgetSince": "（最早 {{time}}）",
       "failing": "失败"
     },
     "orch": {

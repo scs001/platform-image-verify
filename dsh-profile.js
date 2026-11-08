@@ -676,6 +676,21 @@ function linkProfilePinnedModules() {
   }
 }
 
+// Gray-rollout switch for the shared browser lane (slim-browser-lane-footprint):
+// `BROWSER_SHARED_CELLS` is a comma/space list of owner emails, or "*" for all.
+// Unset/empty = everyone (the normal steady state after the rollout completes).
+export function sharedCellAllowed(ownerEmail, env = process.env) {
+  const raw = (env.BROWSER_SHARED_CELLS || "").trim();
+  if (!raw) return true;
+  const wanted = raw
+    .split(/[,\s]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (wanted.includes("*")) return true;
+  if (!ownerEmail) return false;
+  return wanted.includes(String(ownerEmail).trim().toLowerCase());
+}
+
 // Map one host MCP config ({command,args,env,cwd} stdio | {url,headers} http) to
 // a dsh-mcp-client cordis loader entry. Unknown shape → null (skipped, warned).
 // `scopedEnv` (optional name→value map) overrides process.env for envRefs
@@ -1011,9 +1026,49 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // same silent-normal omission family as requiresEnv above. A hand-added
   // DB/mcp.json row without the marker is a deliberate override and skips
   // this gate.
+  //
+  // Shared shape (slim-browser-lane-footprint, design D5): when the pod sets
+  // BROWSER_SHARED_MCP_URL, the lane is a POD-LEVEL service and this cell owns
+  // no browser process at all. The entry becomes the streamable-http form
+  // ({url}) and drops every stdio field plus the per-cell BROWSER_OUTPUT_DIR
+  // injection — the service routes artifacts into the owning cell's workspace
+  // instead (task 1.5). No local runtime is required in that shape, and an
+  // UNREACHABLE endpoint is NOT a reason to fall back: the entry stays as a url
+  // and dsh's ordinary MCP failure path greys the tools out (D6 — falling back
+  // would silently recreate the per-cell processes this change removes).
+  // BROWSER_LANE=off still wins over a shared endpoint: the operator's kill
+  // switch must never leave a lane entry behind.
   for (const [name, config] of Object.entries(servers)) {
     if (config?.laneGate !== "browser") continue;
     const off = (process.env.BROWSER_LANE || "").trim().toLowerCase() === "off";
+    if (off) {
+      delete servers[name];
+      console.log(`[dsh-profile] omitting MCP server "${name}": browser lane disabled by BROWSER_LANE=off`);
+      continue;
+    }
+    const sharedUrl = (process.env.BROWSER_SHARED_MCP_URL || "").trim();
+    // Gray switch: BROWSER_SHARED_CELLS narrows the shared shape to a list of
+    // owner emails ("*" = everyone). The env is deployment-wide but a rollout
+    // must be able to start with ONE test cell — unlisted cells fall through to
+    // the per-cell shape below rather than losing the lane entirely. Values are
+    // author emails (what an operator actually knows), never cell ids.
+    if (sharedUrl && sharedCellAllowed(ownerEmail)) {
+      servers[name] = {
+        url: sharedUrl,
+        ...(config.headers && typeof config.headers === "object" ? { headers: config.headers } : {}),
+      };
+      console.log(
+        `[dsh-profile] browser lane "${name}": shared endpoint ${sharedUrl} — ` +
+          "no per-cell browser process, no BROWSER_OUTPUT_DIR (artifacts follow the cell at the service)",
+      );
+      continue;
+    }
+    if (sharedUrl) {
+      console.log(
+        `[dsh-profile] browser lane "${name}": shared endpoint configured but cell "${ownerEmail ?? "(machine)"}" ` +
+          "is not in BROWSER_SHARED_CELLS — keeping the per-cell shape for this cell",
+      );
+    }
     const runtimePath = (process.env.BROWSER_RUNTIME_PATH || "").trim();
     const chromiumPath = (process.env.BROWSER_CHROMIUM_PATH || "").trim();
     const cliPath = (process.env.BROWSER_MCP_CLI || "").trim();
@@ -1027,12 +1082,10 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
       (runtimePath !== "" && existsSync(runtimePath)) ||
       (chromiumPath !== "" && existsSync(chromiumPath)) ||
       (cliPath !== "" && existsSync(cliPath));
-    if (off || (!hasRuntime && !endpoint)) {
+    if (!hasRuntime && !endpoint) {
       delete servers[name];
       console.log(
-        `[dsh-profile] omitting MCP server "${name}": browser lane ${
-          off ? "disabled by BROWSER_LANE=off" : "unsupplied (no BROWSER_RUNTIME_PATH, no BROWSER_CDP_ENDPOINT)"
-        }`,
+        `[dsh-profile] omitting MCP server "${name}": browser lane unsupplied (no BROWSER_RUNTIME_PATH, no BROWSER_CDP_ENDPOINT, no BROWSER_SHARED_MCP_URL)`,
       );
       continue;
     }

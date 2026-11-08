@@ -3277,6 +3277,8 @@
       "memoryLow": "余量低于阈值（{{pct}}% < {{thresholdPct}}%）",
       "memoryUnavailable": "内存计量不可用",
       "memoryUngrouped": "未归组 {{mb}} MB",
+      "memoryBrowserLane": "浏览器共享服务 {{mb}} MB",
+      "memoryBrowserLaneDown": "服务不可达",
       "failingBadge": "故障 {{count}}",
       "onDutyLine": "在岗 {{on}}/{{total}}",
       "turnsLine": "{{turns}} 回合·{{runs}} 实例",

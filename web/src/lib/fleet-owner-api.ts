@@ -107,6 +107,17 @@ export interface MemoryFace {
   cells?: MemoryFaceCell[];
   gateway?: { totalBytes: number; processes?: MemoryFaceProcess[] };
   ungrouped?: { totalBytes: number };
+  // Pod-level shared browser lane (slim-browser-lane-footprint 3.2): footprint
+  // plus the service's own reachability, so the card can grey the row instead
+  // of hiding it when the service is down.
+  browserLane?: {
+    totalBytes: number;
+    processes?: MemoryFaceProcess[];
+    configured?: boolean;
+    reachable?: boolean;
+    sessions?: number;
+    url?: string;
+  };
   buckets?: Record<string, number>;
 }
 

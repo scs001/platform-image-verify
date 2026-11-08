@@ -19,6 +19,12 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 
+// This suite pins the ADMISSION/MANDATE layer, which is defined on the
+// one-message-one-wake contract — coalescing is a separate layer with its own
+// suite (test-event-wake-coalesce.mjs). The off switch keeps these assertions
+// meaningful instead of timing-dependent.
+process.env.EVENT_WAKE_COALESCE_MS = "0";
+
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "turn-mandate-"));
 process.env.CRON_STORAGE_PATH = tmpRoot;
 process.env.DB_PATH = path.join(tmpRoot, "app.db");

@@ -42,9 +42,9 @@ function makeHome() {
 
 // Each case imports dsh-profile.js fresh with its own env domain: the module
 // resolves MCP_PATCH_PATH and MCP_CONFIG_PATH at import time.
-async function patchEntries(home) {
+async function patchEntries(home, { workspace = null, ownerEmail = null } = {}) {
   const mod = await import(`${pathToFileURL(join(REPO_ROOT, "dsh-profile.js")).href}?case=${Date.now()}-${Math.random()}`);
-  await mod.writeMcpPatch({});
+  await mod.writeMcpPatch({ workspace, ownerEmail });
   const patchPath = join(home, "profiles", "platform", "mcp.patch.yml");
   // Zero composed servers → the writer emits no patch file at all; "no entry"
   // and "no file" are the same omission from the lane's point of view.
@@ -60,7 +60,7 @@ async function patchEntries(home) {
 
 async function withEnv(home, env, fn) {
   const saved = {};
-  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT", "BROWSER_MCP_CLI", "BROWSER_CHROMIUM_PATH"]) {
+  for (const key of ["DSH_HOME", "MCP_CONFIG_PATH", "DB_PATH", "BROWSER_LANE", "BROWSER_SHARED_MCP_URL", "BROWSER_SHARED_CELLS", "BROWSER_OUTPUT_DIR", "AGENT_WORKSPACE", "BROWSER_RUNTIME_PATH", "BROWSER_CDP_ENDPOINT", "BROWSER_MCP_CLI", "BROWSER_CHROMIUM_PATH"]) {
     saved[key] = process.env[key];
     delete process.env[key];
   }
@@ -127,4 +127,102 @@ test("off: BROWSER_LANE=off vetoes both supply forms", async () => {
     () => patchEntries(home),
   );
   assert.equal(rows.some((r) => r.id === "mcp-playwright"), false, "explicit off must win over supply");
+});
+// ── Shared-endpoint shape (slim-browser-lane-footprint 2.1 / 2.3 / 2.4) ─────
+
+test("shared: BROWSER_SHARED_MCP_URL alone composes a streamable-http entry", async () => {
+  const home = makeHome();
+  const url = "http://127.0.0.1:9310/mcp";
+  // No runtime, no endpoint, no CLI: a pod-level service needs none of them.
+  const rows = await withEnv(home, { BROWSER_SHARED_MCP_URL: url }, () => patchEntries(home));
+  const row = rows.find((r) => r.id === "mcp-playwright");
+  assert.ok(row, "the shared endpoint alone must supply the lane");
+  assert.equal(row.config.transport, "streamable-http");
+  assert.equal(row.config.url, url);
+  assert.equal(row.config.command, undefined, "no stdio command in the shared shape");
+  assert.equal(row.config.args, undefined, "no per-cell launcher args in the shared shape");
+  assert.equal(row.config.cwd, undefined, "no spawn cwd to pin");
+  assert.equal(row.config.env, undefined, "no BROWSER_OUTPUT_DIR injection — the service routes artifacts");
+});
+
+test("shared: BROWSER_LANE=off still vetoes the entry", async () => {
+  const home = makeHome();
+  const rows = await withEnv(
+    home,
+    { BROWSER_SHARED_MCP_URL: "http://127.0.0.1:9310/mcp", BROWSER_LANE: "off" },
+    () => patchEntries(home),
+  );
+  assert.equal(rows.some((r) => r.id === "mcp-playwright"), false, "the kill switch must win over a shared endpoint");
+});
+
+test("shared: an UNREACHABLE endpoint still writes the url and never a stdio fallback", async () => {
+  const home = makeHome();
+  // Nothing listens on this port: the shared lane degrades (tools grey out) but
+  // the patch must not grow a per-cell playwright (design D6).
+  const rows = await withEnv(home, { BROWSER_SHARED_MCP_URL: "http://127.0.0.1:1/mcp" }, () =>
+    patchEntries(home),
+  );
+  const row = rows.find((r) => r.id === "mcp-playwright");
+  assert.ok(row, "an unreachable shared endpoint keeps the (degraded) entry");
+  assert.equal(row.config.transport, "streamable-http");
+  assert.equal(row.config.command, undefined, "no local playwright fallback");
+});
+
+test("no shared endpoint: the stdio lane is byte-identical to the pre-change shape", async () => {
+  const home = makeHome();
+  const workspace = join(home, "workspace");
+  mkdirSync(workspace, { recursive: true });
+  const rows = await withEnv(home, { BROWSER_RUNTIME_PATH: home }, () =>
+    patchEntries(home, { workspace }),
+  );
+  const row = rows.find((r) => r.id === "mcp-playwright");
+  assert.deepEqual(row.config, {
+    serverName: "playwright",
+    failOnStartupError: false,
+    transport: "stdio",
+    command: "node",
+    args: ["server/browser-mcp.js"],
+    env: { BROWSER_OUTPUT_DIR: workspace },
+    cwd: REPO_ROOT,
+  });
+});
+
+// ── Gray rollout switch (BROWSER_SHARED_CELLS) ──────────────────────────────
+
+test("gray: a listed cell takes the shared shape, an unlisted one keeps the per-cell shape", async () => {
+  const home = makeHome();
+  const url = "http://127.0.0.1:9310/mcp";
+  const workspace = join(home, "workspace");
+  mkdirSync(workspace, { recursive: true });
+  const env = {
+    BROWSER_SHARED_MCP_URL: url,
+    BROWSER_SHARED_CELLS: "tester@example.com",
+    BROWSER_RUNTIME_PATH: home, // the unlisted cell still has a local supply
+  };
+
+  const listed = await withEnv(home, env, () =>
+    patchEntries(home, { workspace, ownerEmail: "tester@example.com" }),
+  );
+  const listedRow = listed.find((r) => r.id === "mcp-playwright");
+  assert.equal(listedRow.config.transport, "streamable-http", "the gray cell rides the shared service");
+  assert.equal(listedRow.config.command, undefined);
+
+  const other = await withEnv(home, env, () =>
+    patchEntries(home, { workspace, ownerEmail: "someone-else@example.com" }),
+  );
+  const otherRow = other.find((r) => r.id === "mcp-playwright");
+  assert.equal(otherRow.config.transport, "stdio", "an unlisted cell keeps its own browser process");
+  assert.equal(otherRow.config.command, "node", "no cell loses the lane during a gray rollout");
+});
+
+test("gray: '*' (and unset) means every cell shares", async () => {
+  const home = makeHome();
+  const url = "http://127.0.0.1:9310/mcp";
+  for (const value of ["*", ""]) {
+    const rows = await withEnv(home, { BROWSER_SHARED_MCP_URL: url, BROWSER_SHARED_CELLS: value }, () =>
+      patchEntries(home, { ownerEmail: "anyone@example.com" }),
+    );
+    const row = rows.find((r) => r.id === "mcp-playwright");
+    assert.equal(row.config.transport, "streamable-http", `BROWSER_SHARED_CELLS="${value}" shares for all`);
+  }
 });

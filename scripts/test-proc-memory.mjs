@@ -131,6 +131,10 @@ test("ungrouped remainder stays visible, gateway bucket separate", () => {
       "cell-server": 1,
       "dsh-runtime": 1,
       "mcp-satellite": 1,
+      // The shared browser lane's own bucket (slim-browser-lane-footprint):
+      // empty here, and it must still be REPORTED — a bucket that disappears
+      // when empty would make the face's shape depend on traffic.
+      "browser-lane": 0,
       gateway: 1,
       ungrouped: 1,
     });

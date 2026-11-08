@@ -13,6 +13,7 @@ import { WEB_DIST } from "../context.js";
 import { applySpaHeaders, SHELL_CACHE_CONTROL } from "../../lib/spa-static-headers.js";
 import { storeDir } from "../../paths.js";
 import { listProjects, upsertProjectByName, renameProject } from "../../db.js";
+import * as taskEngine from "../../task-engine.js";
 import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
 import * as registryCredentials from "../../registry-credentials.js";
 import * as connectorCredentials from "../../connector-credentials.js";
@@ -326,13 +327,22 @@ export function registerMiscRoutes(ctx) {
   // the (listen-first) server is still booting background services. Deeper
   // than a TCP check — used by the e2e webServer and suitable for deploy
   // probes that must not route traffic to a half-booted instance.
+  //
+  // Queue liveness (fix-task-queue-deadlock D3): "agent ready" says nothing
+  // about the execution queue draining. 2026-11-08 live: one task stuck
+  // `running` for minutes with 22 `queued` behind it, while this probe kept
+  // answering {"ready":true} — that false green turned one stall into hours of
+  // misdiagnosis. A degraded queue now answers 503 and carries the numbers.
   app.get("/api/ready", (_req, res) => {
-    res.status(ctx.ready.dsh ? 200 : 503).json({
-      ready: ctx.ready.dsh,
+    const queue = taskEngine.queueHealth({ budgetOf: taskEngine.resolveBudgetFor });
+    const ready = ctx.ready.dsh && !queue.degraded;
+    res.status(ready ? 200 : 503).json({
+      ready,
       // Set when agent init failed but the server degraded instead of dying
       // (win-install-smoke 2026-10-08) — lets probes distinguish "booting"
       // from "agent runtime unavailable".
       dshInitError: ctx.dshInitError ?? null,
+      queue,
     });
   });
 

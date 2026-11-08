@@ -486,7 +486,9 @@ export type ClientMessage =
   | { type: "list_presets" }
   | { type: "set_preset"; id: string }
   | { type: "list_permissions" }
-  | { type: "set_permission"; name: string }
+  // `acknowledge` is required by the server for `danger-full-access` (the
+  // client's risk dialog produces it); every other preset ignores it.
+  | { type: "set_permission"; name: string; acknowledge?: boolean }
   | { type: "list_plugins" }
   | { type: "set_plugin_enabled"; id: string; enabled: boolean }
   | { type: "list_skills" }

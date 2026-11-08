@@ -95,6 +95,16 @@ spec:
             # node's 4GB budget does not fit parallel dsh children yet.
             - name: TASK_WORKER_MAX
               value: "0"
+            # Shared browser lane (slim-browser-lane-footprint): point every
+            # cell at the pod's single browser service instead of letting each
+            # cell spawn a stdio shim + @playwright/mcp pair. Unset = the old
+            # per-cell shape (the rollback face).
+            - name: BROWSER_SHARED_MCP_URL
+              value: http://127.0.0.1:9310/mcp
+            # The service's shared --output-dir; its per-cell routing moves each
+            # call's artifacts into the calling cell's workspace.
+            - name: BROWSER_SHARED_OUTPUT_ROOT
+              value: /data/browser-lane
             # sub2api gateway through the reverse tunnel loopback.
             - name: LLM_BASE_URL
               value: http://127.0.0.1:32080
@@ -157,6 +167,62 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 100
+        # ── Pod-level shared browser service (slim-browser-lane-footprint) ──
+        # ONE @playwright/mcp + one chromium for the whole pod. Before this, each
+        # cell carried server/browser-mcp.js (~50MB) + @playwright/mcp (~120MB)
+        # while zero chromium ran — ~640MB of a 4Gi pod on four idle cells.
+        #
+        # Same image, different entry: the service needs the app tree (it imports
+        # the MCP SDK, the lane libs and dsh) but not the platform's data dirs
+        # beyond the shared artifact root and the cell roots it attributes
+        # connections against.
+        #
+        # Isolation: one upstream SSE session per cell session, --isolated (no
+        # on-disk profile), and --shared-browser-context is NEVER passed — the
+        # per-session browser context IS the cell boundary (tests 1.1/4.1).
+        #
+        # Failure posture: if this container is down, every cell's browser tools
+        # grey out through dsh's ordinary MCP failure path. Nothing falls back to
+        # a per-cell playwright (that would silently restore the old footprint).
+        - name: browser-lane
+          image: ccr.ccs.tencentyun.com/yizuo/platform:sha-0000000
+          imagePullPolicy: IfNotPresent
+          command: ["node", "server/browser-lane-service.js"]
+          env:
+            - name: NODE_ENV
+              value: production
+            # Loopback only: cells reach it over the pod's network namespace.
+            - name: BROWSER_SHARED_HOST
+              value: "127.0.0.1"
+            - name: BROWSER_SHARED_PORT
+              value: "9310"
+            - name: BROWSER_SHARED_UPSTREAM_PORT
+              value: "9311"
+            - name: BROWSER_SHARED_OUTPUT_ROOT
+              value: /data/browser-lane
+            # Cell attribution root: the same tree the gateway spawns cells
+            # under. Artifacts land in <root>/<cellId>/workspace/browser.
+            - name: CELL_DATA_ROOT
+              value: /data/cells
+            - name: BROWSER_MCP_CLI
+              value: /opt/browser-mcp/node_modules/@playwright/mcp/cli.js
+            - name: PLAYWRIGHT_BROWSERS_PATH
+              value: /opt/browser-mcp/ms-playwright
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9310
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: 200Mi
+            limits:
+              memory: 1Gi
       volumes:
         - name: data
           hostPath:

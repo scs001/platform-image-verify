@@ -225,6 +225,31 @@ export function OwnerBoardStrip({ onSelect }: { onSelect: (fleetId: string) => v
               <span>{t("fleets.board.memoryCellLine", { mb: Math.round(c.totalBytes / 1048576), count: c.processes.length })}</span>
             </div>
           ))}
+          {memory.browserLane && (
+            <div
+              className={`mt-1 flex items-center gap-2 text-xs ${
+                memory.browserLane.reachable === false ? "text-muted-foreground/40" : "text-muted-foreground"
+              }`}
+              data-testid="fleet-board-memory-browser-lane"
+              title={memory.browserLane.url ?? undefined}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  memory.browserLane.reachable === false ? "bg-muted-foreground/30" : "bg-muted-foreground"
+                }`}
+              />
+              <span>
+                {t("fleets.board.memoryBrowserLane", {
+                  mb: Math.round((memory.browserLane.totalBytes ?? 0) / 1048576),
+                })}
+              </span>
+              {memory.browserLane.reachable === false && (
+                <span className="rounded-full bg-muted/40 px-1.5 py-px text-[10px]" data-testid="fleet-board-memory-browser-lane-down">
+                  {t("fleets.board.memoryBrowserLaneDown")}
+                </span>
+              )}
+            </div>
+          )}
           {memory.available && (memory.ungrouped?.totalBytes ?? 0) > 0 && (
             <p className="mt-1 text-[10px] text-muted-foreground" data-testid="fleet-board-memory-ungrouped">
               {t("fleets.board.memoryUngrouped", { mb: Math.round((memory.ungrouped?.totalBytes ?? 0) / 1048576) })}

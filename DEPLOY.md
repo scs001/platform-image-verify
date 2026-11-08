@@ -559,6 +559,97 @@ dsh layer bundle (pair with `port-dsh-0.2.1`, replacing this A1 MCP lane with
 the same tool semantics); the browser viewer panel (needs the app's own shell
 UI — dsh-web-app ships one but is out of scope); computer use.
 
+#### Shared browser lane (pod-level service) — slim-browser-lane-footprint
+
+On a pod that hosts several cells, the per-cell shape above is the wrong billing
+unit: every cell carried a stdio shim (~50MB) plus a `@playwright/mcp` child
+(~120MB) while **zero chromium ran** — measured 3102Mi/4Gi on fd-prod with four
+idle cells, ~640MB of it this lane. The shared shape spends that once per pod.
+
+**Two shapes, one gate.** `writeMcpPatch` picks the shape at patch-write time:
+
+| env | shape | patch entry |
+|---|---|---|
+| `BROWSER_SHARED_MCP_URL` set | shared (pod service) | `{transport: "streamable-http", url}` — no stdio command, no `BROWSER_OUTPUT_DIR` |
+| otherwise | per-cell (shim) | `command: node server/browser-mcp.js` + `BROWSER_OUTPUT_DIR` (unchanged) |
+| `BROWSER_LANE=off` | absent | entry omitted, in **either** shape |
+
+> Measured fact (2026-11-08, local run against the pinned 0.0.80 tree): its
+> `--port` mode answers on **both** `/mcp` (streamable-http) and `/sse` (legacy
+> SSE) — design D2's "SSE only" premise does not hold for this pin. The
+> frontend is still required (cell identity, artifact routing, supervision are
+> ours, not the CLI's), and it speaks SSE as designed; switching its upstream
+> leg to `/mcp` later would be a simplification, not a behaviour change.
+>
+> Two CLI flags are load-bearing and must not be dropped:
+> `--host 127.0.0.1` **plus** `--allowed-hosts 127.0.0.1:<port>` (the CLI's
+> Host-header guard 403s without the port-bearing entry even when bound to
+> loopback) and `--allow-unrestricted-file-access` (the CLI sandboxes writes to
+> its cwd, and this service writes into per-cell workspaces). Both were found
+> by the local smoke, not by the unit lane.
+
+**The service** (`server/browser-lane-service.js`, one per pod, loopback only):
+spawns and supervises ONE `@playwright/mcp --port` (SSE), accepts
+streamable-http sessions from cells, and bridges each cell session onto its own
+upstream SSE session. Env: `BROWSER_SHARED_PORT` (9310), `BROWSER_SHARED_HOST`
+(127.0.0.1), `BROWSER_SHARED_UPSTREAM_PORT` (9311), `BROWSER_SHARED_OUTPUT_ROOT`
+(shared `--output-dir`), `BROWSER_SHARED_CALL_TIMEOUT_MS` (600000), plus the
+same `BROWSER_MCP_CLI` / `PLAYWRIGHT_BROWSERS_PATH` / `BROWSER_CDP_ENDPOINT` /
+`BROWSER_HEADLESS` / `BROWSER_SANDBOX` the shim honors and `CELL_DATA_ROOT` for
+attribution. `BROWSER_SHARED_UPSTREAM_URL` attaches to an existing SSE endpoint
+instead of spawning (tests, or an operator-run CLI).
+
+**Isolation is per SESSION, not per process.** Playwright MCP's `--port` mode
+gives every HTTP session its own browser context, and the service never passes
+`--shared-browser-context`; `--isolated` keeps the profile in memory so a
+pod-level browser leaves no cookie jar on disk. One chromium, many contexts:
+cookies, login state, tabs and downloads never cross cells.
+> Decided (2026-11-08): isolation is per SESSION. Login state persists for the
+> duration of one agent session and a later session of the same cell starts
+> clean — the deliberate cost of never writing a shared profile to disk, which
+> would otherwise be cross-cell readable state. The `browser-use` delta's
+> "login persists across sessions in one cell" scenario was rewritten to match.
+
+**Artifacts follow the calling cell.** The service resolves the caller from the
+CONNECTION (its peer process: socket inode → pid → cwd/cmdline → the 16-hex cell
+dir under `CELL_DATA_ROOT`), never from a header or query the client writes. It
+then rewrites `filename`/`saveAs` to an absolute path under
+`<CELL_DATA_ROOT>/<cellId>/workspace/browser/` and sweeps auto-named files a call
+produced into the same dir — inside the workspace `/api/files` serves, so the
+owning cell sees them and no other cell can.
+
+**Degrade, never fall back.** If the service or its upstream is down, cells get
+the ordinary MCP failure path (tools grey out, reason logged, other tools
+unaffected) and NO per-cell playwright is spawned — falling back would silently
+restore the footprint this change removes. The service supervises its CLI with
+exponential backoff, so recovery needs no cell restart.
+
+**Gray rollout.** `BROWSER_SHARED_CELLS` narrows the shared shape to a comma list
+of owner emails (`*`/unset = all). An unlisted cell keeps its per-cell browser
+process, so a rollout can start with one real cell and no cell ever loses the
+lane; deleting an address moves that cell back. Remove the env (or set `*`) when
+the rollout completes.
+
+**Deployment.** `k8s/deployment.yaml` (this repo, design of record) carries a
+`browser-lane` container and the two platform envs. The LIVE `fd-prod` manifest
+lives in the `fd-infra-deploy` GitOps repo — add the same container there and
+`BROWSER_SHARED_MCP_URL=http://127.0.0.1:9310/mcp` +
+`BROWSER_SHARED_OUTPUT_ROOT=/data/browser-lane` to `platform-config`, then bike
+one test cell first (tool surface / artifacts / degrade walkthrough), then all.
+
+**Rollback = delete the env.** Removing `BROWSER_SHARED_MCP_URL` from
+`platform-config` makes the next patch write go back to the per-cell stdio shape;
+no image rollback needed. Stop (or scale to 0) the `browser-lane` container too
+so the pod stops paying for an unused service.
+
+**Observability.** `/healthz` on the gateway reports
+`browserLane: {reachable, url}` when the env is set; the memory face
+(`/api/monitoring/memory`) carries a `browserLane` footprint row (the service
+plus its CLI) whose `reachable` flag greys the row in the ops cockpit when the
+lane is down. Tests: `scripts/test-browser-lane-{service,supervisor,manifest}.mjs`
+(unit lane) and `scripts/smoke-browser-lane-shared.mjs` (image lane: real
+navigation + artifact routing + two-session isolation).
+
 ### Web search relay (operator-side service)
 
 The agent's web search ships **inside the app** — `platform.bundle.json` mounts

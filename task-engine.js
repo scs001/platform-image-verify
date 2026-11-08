@@ -556,7 +556,18 @@ function enqueueExecution(id, opts = {}) {
     return { ok: false, error: `task is ${t.paused ? "paused" : t.status}` };
   }
   if (t.state === "queued" || t.state === "running") {
-    return { ok: true, already: true, state: t.state };
+    // fix-task-queue-deadlock D4: this used to answer a bare {ok:true,
+    // already:true}, which read exactly like a successful enqueue. On
+    // 2026-11-08 that is what hid a wedged queue — every manual `run` looked
+    // fine while the task had been parked for hours. Carry the state AND how
+    // long it has waited so the caller can tell "just queued" from "been
+    // sitting there since 00:34".
+    return {
+      ok: true,
+      already: true,
+      state: t.state,
+      queuedForMs: typeof t.queuedAt === "number" ? Math.max(0, Date.now() - t.queuedAt) : null,
+    };
   }
   // Mandate revalidation (add-turn-mandate-lane): a mandate-carrying task
   // re-executing revalidates FIRST — a failed check refuses the resume
@@ -633,8 +644,66 @@ function dispatch(id) {
 
 // Chain one execution onto the serialized queue (no guards — callers either
 // passed them or want the run-time re-check to decide).
+//
+// Queue watchdog (fix-cell-turn-throughput 2.1): the chain is strictly serial,
+// so a turn that never settles stops EVERY queued execution behind it. Live
+// 2026-11-08: a turn sat in `running` for 3.5 minutes with 24 tasks queued and
+// nothing moved; `finishExecution` can only be called by the turn itself, so a
+// turn wedged inside an `await` never reaches it.
+//
+// The deadline is therefore OUTSIDE the turn, where it cannot be defeated by a
+// turn that fails to return. On expiry the task is settled through the same
+// `finishExecution` path (so history/state semantics stay in one place) and the
+// chained promise resolves, letting the queue advance.
+const QUEUE_WATCHDOG_GRACE_MS = 5 * 60_000;
+
+function queueWatchdogMs(task) {
+  const raw = process.env.QUEUE_WATCHDOG_MS;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+    const n = Number(raw);
+    // 0 (or a negative) disables the watchdog outright — an operator escape
+    // hatch, and the only way to reproduce the pre-fix behaviour in tests.
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n;
+  }
+  let budget = null;
+  try {
+    budget = resolveBudgetFor(task);
+  } catch { /* a broken resolver must not disable the watchdog */ }
+  const base = Number.isFinite(budget) && budget > 0 ? budget : 10 * 60_000;
+  return base + QUEUE_WATCHDOG_GRACE_MS;
+}
+
 function chainExecution(id) {
-  executionQueue = executionQueue.then(() => runQueuedExecution(id));
+  executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(id));
+}
+
+async function runQueuedExecutionWithWatchdog(id) {
+  const limit = queueWatchdogMs(tasks.get(id));
+  if (!limit) return runQueuedExecution(id);
+
+  const startedAt = new Date().toISOString();
+  let timer = null;
+  const watchdog = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      const t = tasks.get(id);
+      // The turn may have settled in the same tick the timer fired.
+      if (t && t.state === "running") {
+        finishExecution(t, startedAt, {
+          ok: false,
+          error: `queue watchdog: turn exceeded ${limit < 1000 ? `${limit}ms` : `${Math.round(limit / 1000)}s`} without settling — the serial queue was holding every other task behind it`,
+        });
+      }
+      resolve("watchdog");
+    }, limit);
+    if (typeof timer?.unref === "function") timer.unref();
+  });
+
+  try {
+    await Promise.race([runQueuedExecution(id), watchdog]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // Hand an execution back to the primary slot's serial chain (the worker
@@ -983,6 +1052,62 @@ function stats({ now = Date.now(), windowMs = 3_600_000 } = {}) {
   };
 }
 
+// ── Queue liveness (fix-task-queue-deadlock D3) ─────────────────────────────
+//
+// 2026-11-08 实盘：owner cell 的 776 个任务里 1 个 running（已 6.5 分钟未结算）
+// + 22 个 queued（最早 00:34 就在排），而 /api/ready 仍报 {"ready":true}。
+// 串行队列停摆时探针必须看得见，否则「假绿」会把一次停摆拖成数小时误诊。
+//
+// 纯函数：不带 IO、不缓存、不被队列状态反向影响——探针不能变成第二个
+// 不透明点。`budgetOf(task)` 由调用方注入（引擎内部的预算解析器），缺席时
+// 退化为只看排队的积压阈值。
+export const QUEUE_MAX_OLDEST_QUEUED_MS = 10 * 60_000;
+
+function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {}) {
+  let queued = 0;
+  let running = 0;
+  let oldestQueuedMs = null;
+  let oldestRunningMs = null;
+  let overBudget = 0;
+
+  for (const t of tasks.values()) {
+    if (t.state === "queued") {
+      queued += 1;
+      if (typeof t.queuedAt === "number") {
+        const waited = Math.max(0, now - t.queuedAt);
+        if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
+      }
+    } else if (t.state === "running") {
+      running += 1;
+      const startedAt = t.lastRun ? Date.parse(t.lastRun) : NaN;
+      if (Number.isFinite(startedAt)) {
+        const elapsed = Math.max(0, now - startedAt);
+        if (oldestRunningMs === null || elapsed > oldestRunningMs) oldestRunningMs = elapsed;
+        if (typeof budgetOf === "function") {
+          let budget = null;
+          try {
+            budget = budgetOf(t);
+          } catch { /* a broken resolver must not fail the snapshot */ }
+          if (Number.isFinite(budget) && budget > 0) {
+            const grace = Number.isFinite(graceMs) ? graceMs : budget;
+            if (elapsed > budget + grace) overBudget += 1;
+          }
+        }
+      }
+    }
+  }
+
+  const queuedTooLong = oldestQueuedMs !== null && oldestQueuedMs > QUEUE_MAX_OLDEST_QUEUED_MS;
+  return {
+    queued,
+    running,
+    oldestQueuedMs,
+    oldestRunningMs,
+    overBudget,
+    degraded: queuedTooLong || overBudget > 0,
+  };
+}
+
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 
 // Timer cancellation is the scheduling front-end's (cron.js owns the
@@ -1026,6 +1151,12 @@ export {
   broadcastEvent,
   getDashboardState,
   stats,
+  queueHealth,
+  // Budget resolver passthrough (fix-task-queue-deadlock D3): the readiness
+  // probe asks the engine for each running task's own budget so "running past
+  // budget+grace" is judged by the same number the turn was given — one
+  // authority, no second copy of the policy in the probe.
+  resolveBudgetFor,
   // Retry policy resolver (harden-cell-execution-reliability) — exported so
   // the env contract (default off, fail-closed, per-kind override) is pinned
   // by a test rather than only exercised on a failed execution.

@@ -18,12 +18,13 @@ export function defaultAdmissionThreshold(env = process.env) {
 // Non-admin scoping: cells filtered to the caller's own rows (registry join by
 // ownerEmail); gateway/ungrouped reduce to totals so another user's process
 // list never leaks, while the shared container truth (usage/limit) still reads.
-export function memoryFace({ sample, registryDb = null, ownerEmail = null, isAdmin = false, threshold = defaultAdmissionThreshold() }) {
+export function memoryFace({ sample, registryDb = null, ownerEmail = null, isAdmin = false, threshold = defaultAdmissionThreshold(), browserLane = null }) {
   if (!sample?.available) {
     return {
       available: false,
       reason: sample?.reason ?? "metrics_unavailable",
       sampledAt: sample?.sampledAt ?? Date.now(),
+      ...(browserLane ? { browserLane } : {}),
     };
   }
   const ownerByCellId = new Map(
@@ -57,12 +58,24 @@ export function memoryFace({ sample, registryDb = null, ownerEmail = null, isAdm
     sampledAt: sample.sampledAt,
     container,
     ...scoped,
+    // The pod-level shared browser lane (slim-browser-lane-footprint 3.2): its
+    // footprint plus whether the service answers. Pod-level by nature, so an
+    // owner sees totals and the state (never another user's process details) —
+    // the same discipline the gateway/ungrouped buckets already follow.
+    ...(sample.browserLane
+      ? {
+          browserLane: {
+            ...(isAdmin ? sample.browserLane : totalsOnly(sample.browserLane)),
+            ...(browserLane ?? {}),
+          },
+        }
+      : {}),
     buckets: sample.buckets,
   };
 }
 
-export function registerMemoryFaceRoute(app, { sampler, registryDb = null, resolveUser, rejectUnauthenticated, isAdminUser, threshold = defaultAdmissionThreshold() }) {
-  app.get("/api/monitoring/memory", (req, res) => {
+export function registerMemoryFaceRoute(app, { sampler, registryDb = null, resolveUser, rejectUnauthenticated, isAdminUser, threshold = defaultAdmissionThreshold(), browserLaneProbe = null }) {
+  app.get("/api/monitoring/memory", async (req, res) => {
     const user = resolveUser(req);
     if (!user) return rejectUnauthenticated(req, res);
     try {
@@ -72,6 +85,9 @@ export function registerMemoryFaceRoute(app, { sampler, registryDb = null, resol
         ownerEmail: user.email,
         isAdmin: isAdminUser(user),
         threshold,
+        // Reachability is the lane's health signal now that no cell owns a
+        // browser process: false greys the row out instead of hiding it.
+        browserLane: browserLaneProbe ? await browserLaneProbe.probe() : null,
       });
       res.json(face);
     } catch (err) {

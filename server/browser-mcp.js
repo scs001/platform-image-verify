@@ -13,6 +13,13 @@
 //           on stdio-adjacent stderr so the MCP client's degrade path shows the
 //           reason instead of a silent dead tool surface.
 //
+// Shape note (slim-browser-lane-footprint): this shim is the PER-CELL shape. On
+// a pod that sets BROWSER_SHARED_MCP_URL, dsh-profile.js writes a
+// streamable-http entry instead and this file is never spawned — the shared
+// service (server/browser-lane-service.js) holds one CLI for the whole pod. The
+// shim stays as the desktop/single-process shape and as the rollback face (drop
+// the env, next patch write goes back to per-cell processes).
+//
 // Env contract (see .env.example):
 //   BROWSER_MCP_CLI        absolute path to @playwright/mcp's cli.js (image
 //                          bakes /opt/browser-mcp/...; desktop opt-in sets it)
@@ -23,102 +30,10 @@
 // stdout belongs to the MCP protocol: every diagnostic goes to stderr.
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-
-function resolveCli() {
-  const configured = (process.env.BROWSER_MCP_CLI || "").trim();
-  if (configured) return existsSync(configured) ? configured : null;
-  // Fallback: a tree that declares @playwright/mcp (the packaged app tree can,
-  // once a deployment chooses to bake it there).
-  try {
-    const require = createRequire(import.meta.url);
-    return require.resolve("@playwright/mcp/cli.js");
-  } catch {
-    return null;
-  }
-}
-
-// @playwright/mcp's `--browser` takes CHANNELS (chrome/firefox/webkit/msedge)
-// and its default `chrome` resolves to a system Google Chrome the deployment
-// does not have — the bundled chromium we bake is invisible to it. Point it at
-// our binary explicitly (2026-10-28: the image smoke caught exactly this,
-// "Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome").
-// Resolution order: BROWSER_CHROMIUM_PATH, else a scan of the browsers dir for
-// the chromium build playwright installs (linux and macOS layouts, full
-// chromium first, then the headless shell).
-const BROWSER_BINARY_CANDIDATES = [
-  [/(^|-)chromium-\d+$/, ["chrome-linux64/chrome", "chrome-linux/chrome", "chrome-mac/Chromium.app/Contents/MacOS/Chromium", "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium"]],
-  [/^chromium_headless_shell-\d+$/, ["chrome-headless-shell-linux64/chrome-headless-shell", "chrome-headless-shell-linux/chrome-headless-shell", "chrome-headless-shell-mac-arm64/chrome-headless-shell", "chrome-headless-shell-mac-x64/chrome-headless-shell"]],
-];
-
-function resolveChromium() {
-  const explicit = (process.env.BROWSER_CHROMIUM_PATH || "").trim();
-  if (explicit) return existsSync(explicit) ? explicit : null;
-  const root = (process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/browser-mcp/ms-playwright").trim();
-  if (!root || !existsSync(root)) return null;
-  let entries = [];
-  try {
-    entries = readdirSync(root).sort().reverse(); // newest build first
-  } catch {
-    return null;
-  }
-  for (const [pattern, suffixes] of BROWSER_BINARY_CANDIDATES) {
-    for (const dir of entries.filter((e) => pattern.test(e))) {
-      for (const suffix of suffixes) {
-        const candidate = join(root, dir, suffix);
-        if (existsSync(candidate)) return candidate;
-      }
-    }
-  }
-  return null;
-}
-
-const cli = resolveCli();
-if (!cli) {
-  console.error(
-    "[browser-mcp] @playwright/mcp is not installed in this deployment " +
-      "(set BROWSER_MCP_CLI, or BROWSER_LANE=off to omit the lane deliberately)",
-  );
-  process.exit(1);
-}
-
-// Launch configuration goes through the CLI's --config file, not flags: the
-// chromium ARGS we need (see the sandbox note) have no CLI passthrough, and
-// browser.launchOptions is the supported surface (config.d.ts).
-// Container reality: the runtime image runs as the non-root `node` user and
-// Chromium's sandbox needs root or a configured user-namespace profile — the
-// headless launch died with "Chromium sandboxing failed!" (2026-10-28 image
-// smoke). Default to the standard containerized-headless posture
-// (--no-sandbox + --disable-dev-shm-usage, the latter for the small /dev/shm
-// containers normally have); BROWSER_SANDBOX=1 keeps the sandbox on for
-// deployments that configure userns/seccomp and a sized /dev/shm. The browser
-// browses untrusted pages, so this is a real trade-off — taken deliberately
-// and visible here rather than buried in a run script.
-const endpoint = (process.env.BROWSER_CDP_ENDPOINT || "").trim();
-const headless = process.env.BROWSER_HEADLESS !== "0";
-const browserConfig = { browser: {} };
-if (endpoint) {
-  // Attach mode: an existing browser at the endpoint; no local binary needed.
-  browserConfig.browser.cdpEndpoint = endpoint;
-} else {
-  const chromium = resolveChromium();
-  if (!chromium) {
-    console.error(
-      "[browser-mcp] no chromium found for the browser lane " +
-        "(set BROWSER_CHROMIUM_PATH, or PLAYWRIGHT_BROWSERS_PATH to the browsers dir; " +
-        "the image bakes both at /opt/browser-mcp)",
-    );
-    process.exit(1);
-  }
-  browserConfig.browser.launchOptions = {
-    executablePath: chromium,
-    headless,
-    ...(process.env.BROWSER_SANDBOX === "1" ? {} : { args: ["--no-sandbox", "--disable-dev-shm-usage"] }),
-  };
-}
+import { resolveBrowserLaunchConfig } from "../lib/browser-runtime.js";
 
 // Output dir (resource-library walkthrough defect, 2026-10-28): by default
 // @playwright/mcp writes screenshots/downloads under os.tmpdir()/.playwright-mcp,
@@ -143,7 +58,15 @@ if (endpoint) {
 //                              cwd=/app is read-only)
 const laneOutputDir =
   (process.env.BROWSER_OUTPUT_DIR || "").trim() || (process.env.AGENT_WORKSPACE || "").trim();
-if (laneOutputDir) browserConfig.outputDir = laneOutputDir;
+
+const { cli, config: browserConfig, error } = resolveBrowserLaunchConfig({
+  env: process.env,
+  outputDir: laneOutputDir,
+});
+if (error) {
+  console.error(`[browser-mcp] ${error}`);
+  process.exit(1);
+}
 
 const configDir = mkdtempSync(join(tmpdir(), "browser-mcp-"));
 const configPath = join(configDir, "config.json");

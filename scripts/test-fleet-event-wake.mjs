@@ -60,6 +60,11 @@ beforeEach(() => {
   setFleetDatabase(fleetDb);
 });
 
+// This suite pins the WAKE SHAPE (origin segments, the hourly-cap refusal row)
+// on the one-message-one-wake contract; the coalescing window is a separate
+// layer with its own suite. Opt out explicitly rather than depend on timing.
+process.env.EVENT_WAKE_COALESCE_MS = "0";
+
 const deps = { engine, roster: (id) => `roster:${id}` };
 
 test("wake: declared edge creates the post's turn with both origin segments", () => {

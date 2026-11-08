@@ -352,7 +352,14 @@ gateway.stdout.on("data", (b) => (gatewayLog += b));
 gateway.stderr.on("data", (b) => (gatewayLog += b));
 
 async function waitFor(port, probe) {
-  for (let i = 0; i < 150; i++) {
+  // 30s, not 15s. What this guards is "the spawned server becomes healthy",
+  // not "within 15 seconds": a cold node boot on a contended 2-core runner
+  // legitimately takes longer, and the same bound is read as a hard failure
+  // when it does (CI run 42477779338: "server on 3659 never became healthy",
+  // with only the gateway lines in the log, while the file passed 15/15 on the
+  // same commit locally). The e2e webServer allows 180s for exactly this
+  // reason; a genuine boot regression still exhausts the window and fails.
+  for (let i = 0; i < 300; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${port}${probe}`);
       if (r.ok) return;

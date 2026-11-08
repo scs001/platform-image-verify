@@ -196,8 +196,47 @@ C4 磁盘会话（cold，在产）  无（有回合才起）    ~0              
 - **U4** `current_preset` 事件流的 UI 口径（「运行时默认」→「下个新会话默认」）迁移期兼容。
 - **U5** 词元 dashboard 聚合粒度是否够日对账（per-key per-day）——接入时实证，不够再提词元接口单。
 
+## 八、2026-11-08 复测：浏览器车道瘦完之后，剩下的重复份是 cell-server + dsh child
+
+`change slim-browser-lane-footprint`（已归档）把「不承载回合」的浏览器车道从按 cell 复制改成
+按 pod 共享，于是 §一 ④ 里的「每 active child 另带 55-60MB MCP sidecar」这条成本项对浏览器
+不再成立（现在 pod 级一份，空闲 101–139Mi）。实测口径：
+
+```
+kubectl -n fd-prod top pod --containers        # 按容器拆（cgroup 实扣）
+  browser-lane   101–139Mi        （sidecar：service + 上游 CLI；chromium 只在有会话时）
+  platform       1629–2206Mi      （gateway + N 个 cell 的 cell-server + dsh child）
+
+pod 内 /proc 扫描（RSS，含共享页重复计）
+  在跑 cell 每个：procs=2、425–466Mi、browser=0     ← cell-server + dsh child
+  全 pod 浏览器进程：1
+```
+
+**所以「B 线拓扑瘦身」的剩余标的很具体**：每 cell 的 `cell-server`（约 220–280Mi）+ `dsh child`
+（约 140–200Mi），`procs=2`。浏览器那 50+120Mi 已经不在账上。
+
+### 候选路线（**待调研，未决策**；用户 2026-11-08：先记录，等调研后再判）
+
+| 路线 | 要改什么 | 先要解掉的约束 | 收益 | 风险/代价 |
+|---|---|---|---|---|
+| R0 维持现状 | — | — | 0 | 基线；常驻 cell 数 × ~430Mi |
+| R1 cell 内多 dsh child（C1/B 路线） | `TASK_WORKER_MAX≥2`、patch 目录 per-worker、pod 内存抬到 ~2.5Gi | ① 的物理串行**不解**，只是「多进程换并发」 | ≤3 真并发/ cell | 每槽 +190–250Mi；drift 放大；与 §三 定案「B 最后甚至不做」冲突 |
+| R2 把 cell-server 职责并入 gateway，只留 dsh child | gateway 承担会话/路由/文件面；cell 目录只留 workspace | 需要「一个 gateway 进程服务多租户」的隔离面（现在是进程边界承担） | 每 cell −220–280Mi，**最大单项** | 隔离面从进程退到逻辑边界，安全面要重做；改动面大 |
+| R3 共宿 dsh（C3） | 已有：agent-runner pod 共宿 | ① 回合收尾串行 = 共宿只给「派发重叠」 | 摊销到 1 进程 | 单 cell 交互延迟；不解决 cell 侧 |
+| R4 靠休眠摊密度（C4，已部分在产） | `CELL_IDLE_REAP_SECS=3600`、29/32 suspended | 唤醒 8.6–12s 已实测 | 常驻数×430Mi 直接影响 | 冷启延迟；热用户命中率 |
+| R5 「回合级隔离」换执行单元 | 未知 | ① 本身（要 dsh 侧或换 runtime 才能解） | 理论上同时拿并发与密度 | 调研性最大，收益最不确定 |
+
+**判据（调研时按这两条量，别先写代码）**
+1. 每 cell 边际 MiB × 常驻 cell 数 —— 用上面两条命令复测，别用 RSS 口径（共享页会重复计）。
+2. 它换来什么：R1 换并发、R2 换密度、R4 换密度且不换并发。**先答「要并发还是要密度」**，
+   再选路线——这也是 §三 定案里 B 路线被排到最后的原因。
+3. 任何路线都要先过 ①：一个 dsh 进程同一时刻只能跑一个回合（`scripts/probe-concurrent-turn-close.mjs`
+   双版本实证），所以「减进程」和「加并发」在 R1/R3 上是对立的。
+
 ## 附：本文引用的实证坐标
 
+- 2026-11-08 复测（§八）：`kubectl -n fd-prod top pod --containers`（browser-lane 101–139Mi /
+  platform 1629–2206Mi）+ pod 内 /proc 扫描（在跑 cell 每个 procs=2、425–466Mi、browser=0；全 pod 1 个浏览器进程）。
 - 串行四层：scripts/probe-concurrent-turn-close.mjs；archive/2026-10-14-add-dsh-pod-adapter/design.md:9；
   dsh-bridge.js:418；server/agent-session.js:889；server/cron-runner.js:601；task-engine.js:440；
   server/worker-slots.js:40；k8s/deployment.yaml:96；docs/facet-wanxing-roadmap.md:194-200；docs/vertical-packs.md:224。

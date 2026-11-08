@@ -456,6 +456,11 @@ registerCustomPresetRoutes(ctx);
 let packRegistry = null;
 if (process.env.PACK_MARKETPLACE === "1") {
   packRegistry = createPackRegistry({ file: path.join(storeDir("data"), "packs.db") });
+  // Late-binding seam for the cell routes registered above (they only capture
+  // `ctx`): the uninstall route needs the deployment registry to know whether
+  // this cell still holds a deployment of the pack before it revokes the
+  // deployment's connector tokens (add-deployment-binding-grant 2.3).
+  ctx.getPackRegistry = () => packRegistry;
   registerMarketPackRoutes(app, {
     registry: packRegistry,
     resolveUser: (req) =>

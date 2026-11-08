@@ -15,11 +15,21 @@
 - [x] 2.2 部署路径接线 `gateway/packs.js` 的 deployHandler：部署成功后对每个已部署 agent 铸绑定，
       经 `registry.recordDeploymentSecret` 落库（`name = connector_binding_<key>`，`deployer = 部署者`）；
       响应只回 `deploymentBindings.{granted,failed}` 的**名字与键**，令牌值永不进响应
-- [ ] 2.3 撤销/卸载：删除对应部署密钥，并吊销连接器侧令牌（`revokeOnConnector`）——**未做**
-- [x] 2.4 单测 `scripts/test-deployment-bindings.mjs` 5/5：四态判定表（satisfied+非optional 唯一可铸）、
+- [x] 2.3 撤销/卸载：重新部署时删掉不再需要的部署密钥并**吊销**连接器令牌（`pruneDeploymentBindings`：
+      在 `deploy:<pack>:<agent>:<binding>` 命名空间内列表比对保留下限，只吊销本命名空间令牌，人手授权的
+      `pack:` 令牌不可达）；卸载只在「本单元已无该包部署」时全量收口（`revokeDeploymentBindingsForPack`），
+      否则保留——卸载不等于下线，撤销在跑的凭证是静默停服
+- [x] 2.4 单测 `scripts/test-deployment-bindings.mjs` 9/9：四态判定表（satisfied+非optional 唯一可铸）、
       密钥名合法性（含冒号/超长/空键）、一次铸一枚并存值/记部署者、铸造失败只登记不上抛且不落库、
-      无父凭证时**连连接器都不调用**（`no_account` 反证）
-- [ ] 2.5 全量 `npm run test:unit`，增量不新增红——**未跑**
+      无父凭证时**连连接器都不调用**（`no_account` 反证）；另加：两 agent 不共用 PAT 名（同名重铸会吊销
+      前一枚）、prune 只吊销本命名空间且不删非绑定密钥、无账号时仍删行并报 `no_account`、卸载全量收口不越界
+- [x] 2.5 全量单测：逐文件跑（454 文件、6 并发、90s 上限）——当前 `tests=3983 fail=6 cancelled=11`，
+      同协议在基线 `351e74186` 上 `tests=3979 fail=7 cancelled=11`。差异只有三处并行抖动
+      （`test-cell-containment`/`test-queue-health` 基线红当前绿、`test-fleet-orchestration` 当前红），
+      三者单独重跑均全绿。**无新增红**；新增 4 条用例。
+      注意：`node --test` 串行整跑会被第一个挂死文件卡住不动（`test-deploy-*`/`test-agent-serving`/
+      `test-opening-gates`/`test-platform-billing`/`test-deployment-secrets` 6 个文件在基线上同样挂，
+      属既有问题），必须加 `--test-force-exit` 并按文件跑才拿得到全量结论
 
 ## 3. runner 侧接线（待批，单独验收）
 

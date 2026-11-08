@@ -131,6 +131,10 @@ test("a failed mint degrades to a reported failure, never a failed deploy", asyn
   assert.equal(result.granted.length, 0);
   assert.equal(result.failed.length, 1);
   assert.equal(recorded.length, 0, "nothing is stored when the mint fails");
+  // The failure must not look like "the pack dropped this binding": the key
+  // stays in the deployment's intent, so the prune step will not revoke a
+  // token that still works because the connector hiccuped once.
+  assert.deepEqual(result.keys, ["ok"]);
 });
 
 test("no account means no mint — the parent must be a real identity", async () => {
@@ -163,6 +167,138 @@ test("no account means no mint — the parent must be a real identity", async ()
   assert.equal(result.failed.length, 1);
   assert.equal(result.failed[0].code, "no_account");
   assert.equal(connectorCalls, 0);
+});
+
+// ── Redeploy / uninstall cleanup (2.3) ──────────────────────────────────────
+//
+// A binding token that outlives its deployment is a live credential nobody
+// consumes — the leak this closes. Two entry points: the redeploy prunes what
+// the pack stopped declaring (or an agent left behind), and uninstall revokes
+// everything once the cell holds no deployment of the pack at all.
+
+const PACK2 = "prune-pack";
+
+function seedFor(packId, key, status, optional = false) {
+  db.upsertConnectorBindingLedgerRow({
+    email: OWNER,
+    packId,
+    packVersion: "1",
+    bindingKey: key,
+    provider: "alpha_vantage",
+    operations: ["read"],
+    status,
+    optional,
+  });
+}
+
+// Connector stub that answers the list (GET) and records revokes (DELETE).
+function connectorLedger(pats) {
+  const state = { revoked: [] };
+  state.fetchImpl = fakeConnector(async (url, _body, init) => {
+    if ((init?.method ?? "GET") === "GET") {
+      return new Response(JSON.stringify({ pats }), { status: 200 });
+    }
+    state.revoked.push(url.split("/").pop());
+    return new Response(JSON.stringify({ id: "x", revoked: true }), { status: 200 });
+  });
+  return state;
+}
+
+test("two agents of one pack never share a PAT name", async () => {
+  seedFor(PACK2, "market", "satisfied");
+  const names = [];
+  const result = await deploymentBindings.mintDeploymentBindings({
+    email: OWNER,
+    packId: PACK2,
+    agentIds: ["writer", "reader"],
+    record: () => {},
+    fetchImpl: fakeConnector(async (_url, body) => {
+      names.push(body.name);
+      return new Response(JSON.stringify({ token: "oct_x", id: "pat-x" }), { status: 200 });
+    }),
+  });
+
+  assert.equal(result.granted.length, 2, JSON.stringify(result.failed));
+  // The connector revokes a replaced same-name token, so a shared name would
+  // make the second agent's mint silently kill the first agent's credential.
+  assert.deepEqual(names.sort(), [`deploy:${PACK2}:reader:market`, `deploy:${PACK2}:writer:market`]);
+});
+
+test("prune revokes what the deployment dropped, and only in its own namespace", async () => {
+  const removed = [];
+  const connector = connectorLedger([
+    { id: "p-keep", name: `deploy:${PACK2}:writer:market` },
+    { id: "p-agent", name: `deploy:${PACK2}:reader:market` },
+    { id: "p-key", name: `deploy:${PACK2}:writer:wms` },
+    // A token a PERSON granted through the interactive path: same pack, other
+    // namespace — pruning must never reach it.
+    { id: "p-hand", name: `pack:${PACK2}:market` },
+    { id: "p-other", name: "deploy:another-pack:writer:market" },
+  ]);
+
+  const result = await deploymentBindings.pruneDeploymentBindings({
+    email: OWNER,
+    packId: PACK2,
+    agentIds: ["writer"],
+    keepKeys: ["market"],
+    secrets: [
+      { agentId: "writer", name: "connector_binding_market" },
+      { agentId: "reader", name: "connector_binding_market" },
+      { agentId: "writer", name: "connector_binding_wms" },
+      // Not a binding secret: the operator's own value, never ours to delete.
+      { agentId: "writer", name: "content_repo_token" },
+    ],
+    remove: (agentId, name) => removed.push(`${agentId}/${name}`),
+    fetchImpl: connector.fetchImpl,
+  });
+
+  assert.deepEqual(removed.sort(), ["reader/connector_binding_market", "writer/connector_binding_wms"]);
+  assert.deepEqual([...connector.revoked].sort(), ["p-agent", "p-key"]);
+  assert.equal(result.revoked.length, 2);
+  assert.deepEqual(result.failed, []);
+});
+
+test("prune without a parent credential still drops the rows and says why", async () => {
+  const STRANGER = "pruner@example.test";
+  const removed = [];
+  const result = await deploymentBindings.pruneDeploymentBindings({
+    email: STRANGER,
+    packId: PACK2,
+    agentIds: [],
+    keepKeys: [],
+    secrets: [{ agentId: "writer", name: "connector_binding_market" }],
+    remove: (agentId, name) => removed.push(`${agentId}/${name}`),
+    fetchImpl: async () => assert.fail("no account must not reach the connector"),
+  });
+
+  assert.deepEqual(removed, ["writer/connector_binding_market"]);
+  assert.equal(result.code, "no_account");
+  assert.deepEqual(result.revoked, []);
+});
+
+test("uninstall revokes every token the deployment minted, and nothing else", async () => {
+  const removed = [];
+  const connector = connectorLedger([
+    { id: "p-1", name: `deploy:${PACK2}:writer:market` },
+    { id: "p-2", name: `deploy:${PACK2}:reader:market` },
+    { id: "p-hand", name: `pack:${PACK2}:market` },
+  ]);
+
+  const result = await deploymentBindings.revokeDeploymentBindingsForPack({
+    email: OWNER,
+    packId: PACK2,
+    secrets: [
+      { agentId: "writer", name: "connector_binding_market" },
+      { agentId: "reader", name: "connector_binding_market" },
+      { agentId: "writer", name: "content_repo_token" },
+    ],
+    remove: (agentId, name) => removed.push(`${agentId}/${name}`),
+    fetchImpl: connector.fetchImpl,
+  });
+
+  assert.equal(result.removedSecrets, 2);
+  assert.deepEqual(removed.sort(), ["reader/connector_binding_market", "writer/connector_binding_market"]);
+  assert.deepEqual([...connector.revoked].sort(), ["p-1", "p-2"]);
 });
 
 test.after(() => {

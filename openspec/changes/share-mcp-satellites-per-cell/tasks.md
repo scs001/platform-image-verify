@@ -46,7 +46,12 @@
 
 ## 4. 观测与验证
 
-- [ ] 4.1 内存面 cell 行暴露卫星进程数与总量；验证 = 单测 + 真机：单 dsh cell 与多 worker cell 可直接对比
+- [x] 4.1 内存面 cell 行暴露卫星进程数与总量；验证 = 单测 + 真机：单 dsh cell 与多 worker cell 可直接对比
+      - 单测：`groupScan` 的 cell 行新增 `satellites: { count, totalBytes }`（没有卫星就报 0，
+        不是缺字段——形状不能随流量变）；face 层 admin 与 owner 两档都断言不被 scoping 剥掉
+      - 真机（2026-11-08，`platform-5f47f47dbf` / 镜像 `sha-6f121f5`，仍是**旧镜像**）：3 个 cell
+        各 1 个 dsh，卫星 **14 / 13 / 13** 颗、997–1120Mi/cell，全 pod 40 颗。这就是新字段的数据源；
+        字段本身随下次出片生效（cap=0 / cap=1 的对照仍归 4.2）
 - [ ] 4.2 真机收益对照：同一 cell 在 cap=0 / cap=1 两种形态下的 pod 实扣与卫星数；验证 = `kubectl top`
       + /proc 扫描，数字进台账
       - **阻塞（2026-11-08）**：线上 `TASK_WORKER_MAX=0`（被并发会话从 2 改回 0），池关 → 每 cell

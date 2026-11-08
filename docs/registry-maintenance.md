@@ -7974,3 +7974,37 @@ semantic_observations: 7,159,529 -> 6,807,789
   要么先用 `SELECT` 断言再走分支；破坏性收尾前先打印"准备恢复什么/删除什么"。这次是我自己
   的脚本，不是产品代码，所以 `quarantine_misattached_observations.py` 的 `--restore` 路径本身
   是对的（已实证）。以后再验证可逆性，用**造出来的假行**（新 id），不要动真数据。
+
+### §15.144 续三十二（渠）：MCP 卫星共享——上产但**未生效**（cap=0）+ 4.1 读面落成（真机 14/13/13）
+
+change `share-mcp-satellites-per-cell`（镜像 `sha-5d79069` / digest `sha256:5c174f7e`，源 gitee `004cbdb2c`）：
+每 cell 一份 MCP 卫星宿主，9 个「只读 cell env」卫星（fleet/cron/delegation/bench-proposal/
+fleet-architect/blueprint-author/pack-author/skill-evolution/persona-evolution）改为
+streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（library/websearch/fd-memory）
+与会话级 `actions` 按设计保持 per-runtime；灰度 `MCP_SATELLITE_HOST_CELLS`，失败 fail-open 回落 stdio。
+
+- **实测：正确地没生效。** 三个 cell 都打 `[satellite-host] not sharing satellite processes
+  (worker pool off)`，灰度 cell 的 patch 里 `fleet … transport: stdio`。根因不是代码：
+  **容器 env `TASK_WORKER_MAX=0`**，池关 → 每 cell 只有一个 dsh → **没有重复卫星可省**。
+  本变更全部收益（每多一个 worker 槽 ≈560Mi 标称 / ≈270Mi 实扣）挂在 `TASK_WORKER_MAX>0` 上；
+  该开关属 worker-pool 线，改前必须与其对齐窗口（见 memory `worker-pool` 相关条目）。
+- **4.1 读面已落**：`lib/proc-memory.js` 的 `groupScan` 给每个 cell 行加
+  `satellites: { count, totalBytes }`（只数 `role=mcp-satellite`；无卫星报 0 而非缺字段——
+  形状不随流量变），同时是泄漏探测器：某 dsh 若又自己起一套，count 翻倍而 cell 数不变。
+- **真机取证**（2026-11-08，`fd-prod/platform-5f47f47dbf-42chj`，镜像 `sha-6f121f5`，
+  即尚未含该字段的旧镜像；pod 内直跑 `createProcMemorySampler().sample()`）：
+
+  | cell | total | 卫星数 | 卫星内存 |
+  |---|---|---|---|
+  | `1da519d4…` | 1660Mi | 14 | 1120Mi |
+  | `3fdc7b8e…` | 1586Mi | 13 | 1038Mi |
+  | `2b043ce0…` | 1438Mi | 13 | 997Mi |
+
+  全 pod `mcp-satellite: 40`、`cell-server: 3`、`dsh-runtime: 3`、`browser-lane: 2`、
+  `gateway: 1`、`ungrouped: 4`。每 cell 卫星吃掉 997–1120Mi ≈ cell 总量 65–69%。
+
+- **验证方式（待批准，约 10 分钟）**：`TASK_WORKER_MAX=1` + 灰度只留 `aloatree@gmail.com` → 滚 →
+  看三项（该 cell 卫星 `2×13 → 1×13`、pod RSS 降 ≈270Mi、24 个工具与一轮对话正常）→ 立刻改回 `0`。
+- **顺带观察（不属本线）**：取证时撞上 `fd-prod/platform` 因 `compute-quota`（`limits.memory 38Gi`
+  满）一度 `FailedCreate` 建不出 pod，随后被调内存上限的那条线恢复（stamp
+  `2026-11-08T18:40Z-memlimit-7gi`）。灰度 env 也因此已在现网部署上消失。

@@ -20,6 +20,7 @@ function fakeSample() {
       {
         cellId: "aaaaaaaaaaaaaaaa",
         totalBytes: 220 * 1024 * 1024,
+        satellites: { count: 1, totalBytes: 20 * 1024 * 1024 },
         processes: [
           { pid: 11, name: "server.js", rssBytes: 200 * 1024 * 1024, role: "cell-server", cellId: "aaaaaaaaaaaaaaaa" },
           { pid: 12, name: "delegation-mcp.js", rssBytes: 20 * 1024 * 1024, role: "mcp-satellite", cellId: "aaaaaaaaaaaaaaaa" },
@@ -28,6 +29,7 @@ function fakeSample() {
       {
         cellId: "bbbbbbbbbbbbbbbb",
         totalBytes: 130 * 1024 * 1024,
+        satellites: { count: 0, totalBytes: 0 },
         processes: [{ pid: 21, name: "server.js", rssBytes: 130 * 1024 * 1024, role: "cell-server", cellId: "bbbbbbbbbbbbbbbb" }],
       },
     ],
@@ -58,6 +60,9 @@ test("three layers in one response: container headroom → cells → processes",
   assert.ok(face.cells[0].totalBytes >= face.cells[1].totalBytes);
   assert.equal(face.cells[0].cellId, "aaaaaaaaaaaaaaaa");
   assert.deepEqual(face.cells[0].processes.map((p) => p.role), ["cell-server", "mcp-satellite"]);
+  // The satellite summary rides the cell row (share-mcp-satellites 4.1): the
+  // payoff of "one satellite set per cell" has to be readable here.
+  assert.deepEqual(face.cells[0].satellites, { count: 1, totalBytes: 20 * 1024 * 1024 });
   // gateway + ungrouped remainder + buckets + sampledAt
   assert.equal(face.gateway.processes.length, 1);
   assert.equal(face.ungrouped.totalBytes, 5 * 1024 * 1024);
@@ -71,6 +76,9 @@ test("owner scoping: non-admin sees own cells only, others' rows reduced to tota
   assert.equal(face.cells[0].cellId, "aaaaaaaaaaaaaaaa");
   assert.equal(face.cells[0].ownerEmail, "me@test");
   assert.equal(face.cells[0].processes.length, 2, "my processes stay readable");
+  // Scoping must not strip the satellite summary: an owner asking "why is my
+  // cell heavy" gets the same answer an admin does.
+  assert.deepEqual(face.cells[0].satellites, { count: 1, totalBytes: 20 * 1024 * 1024 });
   // gateway/ungrouped: totals only — another user's process list never leaks
   assert.deepEqual(Object.keys(face.gateway), ["totalBytes"]);
   assert.deepEqual(Object.keys(face.ungrouped), ["totalBytes"]);

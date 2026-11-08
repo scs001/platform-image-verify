@@ -337,6 +337,11 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 
 第 3 层 要设计
   ⑨ add-fleet-ruling-ledger    裁决回合纳入编导（O1 行 + run header + chain）→ 多轮辩论才成立
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-ruling-ledger/`
+                               （镜像 sha-cc3b5d2；点火侧 hop 记 `byMemberId`，注入前用合成 job 开回合节点
+                               （join 本波 run、parentTurnId=该波发起回合、edgeKind=fanout），结束后写 O1 行
+                               （collector 带真实 usage、live 如实留空）再收口；归属不可判则不造节点；
+                               账本不可用只告警；镜像内 7/7 绿）**
   ⑩ add-fleet-artifact-handoff 产物句柄进 payload（workspace 路径或 library doc id）
   ⑪ add-fleet-cost-read-face   member_turn_daily 的 USD 列接 API，按 岗/run/边 三切面
                                **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-cost-read-face/`

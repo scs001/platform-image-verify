@@ -36,7 +36,12 @@
 
 ## 5. 上线
 
-- [ ] 5.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 5.1 出片滚版 → 已在产（快照取自远端线 a874caa75 → GHA `sha-18d0c79`，digest `sha256:2d1210d4`，
+      relay OK 11:15；fd-infra-deploy `e9c2134` 双 bump → ArgoCD 75s → 两 rollout 完成；
+      镜像内确认 `derived: true` 与 `parentId: m.parentRef` 均在）
+      ⚠️ 镜像内 `test-fleet-templates` 的种子断言跑不了——`docs/fleet-templates/` **不打进镜像**
+      （`ls /app/docs/fleet-templates/` → No such file，`find` 无输出），那两条是读盘用例，
+      在镜像里必然红；克隆内同一套件 20/20 绿，故不是回归，是环境缺口（见挂账 6.3）
 - [ ] 5.2 观察项：滚版后打开任一舰队的编导面，确认报数边出现且与组织树一致
 
 ## 6. 挂账（不在本变更）
@@ -44,3 +49,5 @@
 - 6.1 无 orchestration 段的舰队目前读面不渲染任何边（两个路由都按 `orchestration ?` 门控），
   故其派生报数边也看不到；要不要让"没有编导声明"的舰队也画树，另裁
 - 6.2 其他 cell 若存在"说谎"的 report 声明，保存时会被拒绝（错误已给修法），需一次巡检
+- 6.3 官方种子（`docs/fleet-templates/*.seed.json`）不进镜像，导致读盘式种子校验只能在仓内跑；
+  若要在产线做同类校验，需把种子打进镜像或改成从 pack 源读

@@ -1959,7 +1959,16 @@
       "outcomes": "Qué obtienes",
       "coverage": "Esta entrada cubre {{covered}}/{{total}} campos de superficie en {{locale}}",
       "coverageFull": "Superficie completamente cubierta en {{locale}}",
-      "coverageMissing": "Campos faltantes"
+      "coverageMissing": "Campos faltantes",
+      "bindingsReady": "{{count}} enlace(s) de conector listos ({{keys}})",
+      "bindingsFailed": "{{count}} enlace(s) de conector sin preparar ({{keys}}): conecta el sistema y vuelve a desplegar para emitirlos",
+      "bindingsRevoked": "Se revocaron {{count}} token(s) de enlace que ya no hacían falta",
+      "bindingReason": {
+        "no_account": "No hay ninguna cuenta de conector conectada, así que no hay identidad de la que atenuar",
+        "empty_scope": "El enlace no declara ninguna superficie de lectura/escritura autorizable",
+        "connector_not_configured": "Este despliegue no tiene conector configurado",
+        "other": "Fallo inesperado ({{code}})"
+      }
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

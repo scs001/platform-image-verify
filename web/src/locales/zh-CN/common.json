@@ -1959,7 +1959,16 @@
       "outcomes": "你会得到",
       "coverage": "本条目 {{locale}} 覆盖 {{covered}}/{{total}} 组织面",
       "coverageFull": "本条目 {{locale}} 组织面已全覆盖",
-      "coverageMissing": "缺项"
+      "coverageMissing": "缺项",
+      "bindingsReady": "{{count}} 个连接器绑定已就绪（{{keys}}）",
+      "bindingsFailed": "{{count}} 个连接器绑定未就绪（{{keys}}）——连上对应系统后重新部署即可补发",
+      "bindingsRevoked": "已撤销 {{count}} 个不再需要的绑定令牌",
+      "bindingReason": {
+        "no_account": "尚未连接连接器账号，平台没有可衰减的身份",
+        "empty_scope": "该绑定没有声明任何可授权的读/写范围",
+        "connector_not_configured": "本部署未接入连接器",
+        "other": "未预料的失败（{{code}}）"
+      }
     },
     "report": {
       "title": "「{{name}}」安装结果",

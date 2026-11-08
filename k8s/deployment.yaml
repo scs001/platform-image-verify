@@ -222,6 +222,12 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
+              # Must name loopback explicitly: this pod is hostNetwork and the
+              # service deliberately binds 127.0.0.1 only, while kubelet probes
+              # the pod IP (= the node IP) by default. Without `host` the pod
+              # sits at 1/2 ready forever and the Service has no endpoints —
+              # found live on fd-prod 2026-11-08, not by the unit lane.
+              host: 127.0.0.1
               port: 9310
             periodSeconds: 10
             timeoutSeconds: 2

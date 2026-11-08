@@ -56,6 +56,15 @@ test("3.1 the pod carries the shared browser service as its own container", { sk
   // The container must mount the same data volume: identity + artifacts live
   // under the cell tree.
   assert.ok((lane.volumeMounts ?? []).some((m) => m.name === "data" && m.mountPath === "/data"));
+  // The readiness probe must name loopback. The pod is hostNetwork and the
+  // service binds 127.0.0.1 only, so kubelet's default (probe the pod IP = the
+  // node IP) never connects: the pod parks at 1/2 ready and the Service loses
+  // its endpoints. Found live on fd-prod 2026-11-08, not by this suite.
+  assert.equal(
+    lane.readinessProbe?.httpGet?.host,
+    "127.0.0.1",
+    "hostNetwork + loopback-only service: the probe must target 127.0.0.1 explicitly",
+  );
 });
 
 test("3.1 the platform container receives the shared endpoint and artifact root", { skip: NO_MANIFEST }, () => {

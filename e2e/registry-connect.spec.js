@@ -118,13 +118,12 @@ test.describe("MCP market credential", () => {
   });
 
   test("registry install: no credential field with a live credential, header injected into the profile", async ({ page, request }) => {
-    // Start from "not installed": the suite shares one server and CI retries
-    // re-run this test, so a leftover row from an earlier attempt/landing makes
-    // the install fail and the dialog stay open (the assertion at the end then
-    // reads "dialog still visible" — run 42460822790). Deleting first makes the
-    // test about installing, not about who ran before it.
-    await request.delete(`${baseURL}/api/extensions/mcp/${REGISTRY_MCP}`);
-
+    // NOTE: deliberately NO delete-first here. DELETE rewrites the WHOLE dsh
+    // profile patch fire-and-forget (`ctx.dshUpdateMcp?.(...).catch(...)` in
+    // routes/extensions.js), and that background rewrite landed while later
+    // specs were asserting on the patch file — websearch's "serverName:
+    // websearch" check then read a half-written patch and went red three times
+    // (CI run 42489009784). This spec must not trigger a global profile write.
     // Connect first through the API (the popup flow has its own test above).
     const connect = await request.post(`${baseURL}/api/registry/credential`, {
       data: { token: "opaque-e2e-token", source: "paste" },

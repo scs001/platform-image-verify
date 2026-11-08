@@ -30,6 +30,10 @@ import { collectPublishVerdict, CREATOR_GROUP_REQUIRED } from "./pack-publish-ga
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
 import { safePackagePath } from "../lib/skill-files.js";
+import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
+import { sellabilityGate } from "./pack-sellability-gate.js";
+import { registryServerIndex } from "../registry-bridge.js";
+import { resolveBundleSafe } from "../bundle-manifest.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { describeProvenance, PROVENANCE_SOURCE } from "../lib/pack-provenance.js";
 import { localeCoverage } from "../lib/pack-locale-coverage.js";
@@ -66,6 +70,36 @@ function projectManifestForDetail(manifest) {
   };
 }
 
+// The gate's data plumbing: the registry server index (one cached fetch) as
+// serverInfo, the minimal streamable-http probe as the staleness fallback, and
+// the shipped bundle's own server list as the builtin-capability answer
+// (declare-builtin-capability-surface D1/D2). A reference that is neither a
+// market entry nor a bundled capability can never bind at install time, so the
+// publish face must be able to say so instead of waving it through.
+const BUILTIN_REF_MODES = new Set(["off", "warn", "enforce"]);
+const builtinRefMode = () => {
+  const raw = String(process.env.PACK_BUILTIN_REF_GATE || "").trim().toLowerCase();
+  return BUILTIN_REF_MODES.has(raw) ? raw : "warn";
+};
+
+let builtinServerNames = null;
+function builtinServers() {
+  if (builtinServerNames) return builtinServerNames;
+  const bundle = resolveBundleSafe({ log: () => {} });
+  builtinServerNames = new Set(Object.keys(bundle?.mcpServers ?? {}));
+  return builtinServerNames;
+}
+
+async function runPublishToolGate(manifest) {
+  const index = await registryServerIndex();
+  const builtin = builtinServers();
+  return toolGateErrors(manifest, (name) => index.get(name) ?? null, {
+    probe: (endpoint) => probeMcpToolNames(endpoint),
+    logger: console,
+    isBuiltinServer: (name) => builtin.has(name),
+    builtinRefMode: builtinRefMode(),
+  });
+}
 
 
 export function createPackRegistry({ file }) {

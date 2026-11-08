@@ -609,6 +609,31 @@ export function uninstallPack({ packId, force = false, hooks = {} }) {
   }
   const hadAgents = (manifest.agents ?? []).length > 0;
   db.deleteInstalledPack(packId);
+  // The pack is gone, so its declared bindings are history, not requirements —
+  // mark them `deprecated` rather than leaving whatever state they last held.
+  // Left at `missing`, the settings card kept reporting "1 pack · 1 binding ·
+  // 1 to resolve" for a pack that no longer exists and offered a connect action
+  // for it (measured on the bootstrap tenant, 2026-11-08). `deprecated` rows are
+  // excluded from the projection, from injection and from `unresolved`.
+  // Tokens are left alone, exactly as the dropped-key path does: silently
+  // dropping a credential the user granted is worse than an unused one.
+  for (const owner of db.listConnectorBindingLedgerEmails(packId)) {
+    for (const row of db.listConnectorBindingLedger(owner, packId)) {
+      if (row.status === "deprecated") continue;
+      db.upsertConnectorBindingLedgerRow({
+        email: owner,
+        packId,
+        packVersion: row.packVersion,
+        bindingKey: row.bindingKey,
+        provider: row.provider,
+        operations: row.operations,
+        connectionId: row.connectionId,
+        status: "deprecated",
+        optional: row.optional,
+        role: row.role ?? null,
+      });
+    }
+  }
   // The catalog's pack source drops the entries; syncing now prunes their
   // persona presets and resets a stale selection.
   if (hadAgents) hooks.onCatalogChanged?.();

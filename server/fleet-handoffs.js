@@ -201,7 +201,7 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
         prompt: JSON.stringify(e.args),
         tool: target.targetId,
         sessionTitle: `接棒 · ${target.title}`,
-        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk }, "handoff") },
+        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk, byMemberId: memberId }, "handoff") },
         executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
       });
       dispatched.push({ to: target.id, taskId: task.id });
@@ -223,7 +223,7 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
         (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
       ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
       sessionTitle: `接棒 · ${target.title}`,
-      origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk }, "handoff") },
+      origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, ignition: hk, byMemberId: memberId }, "handoff") },
       executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
     });
     dispatched.push({ to: target.id, taskId: task.id });
@@ -289,7 +289,7 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
           (target.targetKind === "persona" ? "\n\n{{fleetEdgeContext}}" : ""),
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `扇出 · ${target.title}`,
-        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1, ignition: hk }, "fanout") },
+        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1, ignition: hk, byMemberId: memberId }, "fanout") },
         initiatorGroup: groupKey,
         ...(judge
           ? { initiator: `fleet:${fleetId}:${judge.id}`, initiatorPreset: rosterPresetId(judge.targetId) }

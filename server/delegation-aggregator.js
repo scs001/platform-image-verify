@@ -129,6 +129,47 @@ export async function reanchorInitiatorPersona(ctx, initiator, wanted) {
   }
 }
 
+// ── Ruling turn identity (add-fleet-ruling-ledger) ──────────────────────────
+//
+// The summary/ruling turn is the one fleet turn that does NOT go through the
+// task engine: the aggregator prompts the initiating session directly. That
+// made it invisible — no O1 row, no run header, no chain — so a debate could
+// not hang the next wave off it, and its cost never counted.
+//
+// Identity comes from data that already exists:
+//   - a JUDGE wave encodes it in the initiator (`fleet:<fleetId>:<judgeId>`);
+//   - a no-judge summary runs in the upstream post's session, so the post that
+//     ignited the wave is the speaker — the hops carry it as
+//     `origin.fleet.byMemberId`.
+// Nothing is guessed: no identity → no ledger row (the previous behaviour).
+export function rulingTurnIdentity(group, initiator) {
+  const m = /^fleet:([^:]+):(.+)$/.exec(String(initiator ?? ""));
+  if (m) return { fleetId: m[1], memberId: m[2] };
+  const f = group?.[0]?.origin?.fleet ?? null;
+  if (f?.fleetId && f?.byMemberId) return { fleetId: f.fleetId, memberId: f.byMemberId };
+  return null;
+}
+
+// A job-shaped value the ledger can open a turn for. It joins the WAVE's run
+// (chain.runId) and sits under its parent turn, which is what makes the ruling
+// turn a real node — the precondition for multi-round debate.
+export function rulingTurnJob({ group, initiator }) {
+  const who = rulingTurnIdentity(group, initiator);
+  if (!who) return null;
+  const chain = group?.[0]?.origin?.fleet?.chain ?? null;
+  return {
+    id: `ruling_${Date.now().toString(36)}`,
+    trigger: "manual",
+    type: "manual",
+    targetType: "persona",
+    preset: group?.[0]?.initiatorPreset ?? null,
+    sessionId: initiator,
+    initiator,
+    sourceTag: { fleetId: who.fleetId, memberId: who.memberId },
+    origin: { fleet: { fleetId: who.fleetId, memberId: who.memberId, ...(chain ? { chain } : {}) } },
+  };
+}
+
 async function runInjection(key) {
   const ctx = ctxRef;
   if (!ctx?.dshBridge?.isReady()) return;
@@ -185,6 +226,30 @@ async function runInjection(key) {
   };
   const blocks = [marker, { kind: "text", text }];
 
+  // The ruling turn becomes a real node in the wave's run (add-fleet-ruling-
+  // ledger): opened BEFORE the prompt (a mid-turn dispatch from the ruling
+  // agent can then chain off it) and ended with the outcome (so its tokens and
+  // cost count), then the run settles with it included.
+  const startedAt = Date.now();
+  const rulingJob = rulingTurnJob({ group, initiator });
+  let rulingHandle = null;
+  if (rulingJob) {
+    try {
+      rulingHandle = ctx.fleetTurnLedger?.begin?.(rulingJob, { startedAt, sessionIds: [initiator] }) ?? null;
+    } catch (e) {
+      console.warn(`[fleets] ruling ledger begin failed: ${e?.message || e}`);
+    }
+  }
+  const closeRulingTurn = (outcome) => {
+    if (!rulingJob) return;
+    try {
+      ctx.fleetTurnLedger?.end?.(rulingJob, rulingHandle, outcome, { startedAt, endedAt: Date.now(), model: null });
+      if (rulingHandle?.runId) ctx.fleetTurnLedger?.settle?.(rulingHandle.runId, {});
+    } catch (e) {
+      console.warn(`[fleets] ruling ledger end failed: ${e?.message || e}`);
+    }
+  };
+
   const isLive = chatHistory.currentSessionId() === initiator;
   if (isLive) {
     // Mirror the web prompt path: streaming flag, turn attribution, viewer
@@ -200,8 +265,12 @@ async function runInjection(key) {
     chatHistory.recordMessage(initiator, "user", text, blocks);
     try {
       await ctx.session.prompt(text);
-    } catch {
+      // The live path's usage arrives through dsh-events, not here: record the
+      // turn honestly WITHOUT usage rather than inventing numbers.
+      closeRulingTurn({ ok: true });
+    } catch (e) {
       ctx.finishTurn(undefined, initiator);
+      closeRulingTurn({ ok: false, error: e?.message || String(e) });
     }
   } else {
     // The user switched away: collector path (the cron-runner contract) — the
@@ -210,7 +279,13 @@ async function runInjection(key) {
     const collected = collectTurn(ctx, initiator, TURN_TIMEOUT_MS, ctx.taskTurnRegistry ?? new Map());
     try {
       await ctx.dshBridge.prompt(initiator, [{ type: "text", text }]);
-      await collected;
+      const result = await collected;
+      closeRulingTurn({
+        ok: !result?.error,
+        error: result?.error ?? null,
+        usage: result?.usage ?? null,
+        text: result?.text ?? null,
+      });
     } catch {
       // aborted or failed — the marker is already persisted; the turn is
       // readable next time the session opens

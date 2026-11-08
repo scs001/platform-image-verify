@@ -187,10 +187,12 @@ export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = 
 // ── Turn pricing (add-turn-pricing) ──────────────────────────────────────────
 //
 // Synchronous estimate at the seam: the cached per-token rate (pricingFor)
-// times THIS turn's usage, at the price version live at turn time. The turn
-// row carries only the pricing_at stamp (never money — D4a); the DAILY row
-// accumulates the estimate. Unpriced model / cold cache → null (honest
-// absence; the daily columns just don't accumulate for that turn).
+// times THIS turn's usage, at the price version live at turn time. The same
+// estimate lands on the turn row AND accumulates into the DAILY row
+// (add-fleet-cost-read-face superseded add-turn-pricing D4a: the daily key has
+// no run/edge dimension, so the turn row is the only place a per-run / per-hop
+// attribution can come from). Unpriced model / cold cache → null (honest
+// absence; neither copy fabricates a zero).
 function pricingOf(shaped) {
   const model = shaped.model ?? null;
   if (!model) return null;

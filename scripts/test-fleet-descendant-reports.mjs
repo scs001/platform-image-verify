@@ -80,7 +80,7 @@ test("三条线：祖辈的巡视上下文看见孙辈的最新报数", async ()
   assert.match(out, /字数（字）: 4200/, "its declared slot value rides along");
   assert.match(out, /缺素材授权/, "its blockers too — this is the point (the relay could drop them)");
   assert.match(out, /### 实习（第 3 层/, "level 3 is included");
-  assert.match(out, /实习（第 3 层[^]*?（尚无报数）/, "a deeper post without a report says so");
+  assert.match(out, /实习（第 3 层[\s\S]*?（尚无报数）/, "a deeper post without a report says so");
 });
 
 test("两层舰队零变化：不出现任何更深层段", async () => {

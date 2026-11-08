@@ -46,11 +46,25 @@
 
 ## 4. 观测与验证
 
-- [ ] 4.1 内存面 cell 行暴露卫星进程数与总量；验证 = 单测 + 真机：单 dsh cell 与多 worker cell 可直接对比
+- [x] 4.1 内存面 cell 行暴露卫星进程数与总量；验证 = 单测 + 真机：单 dsh cell 与多 worker cell 可直接对比
+      - 单测：`groupScan` 的 cell 行新增 `satellites: { count, totalBytes }`（没有卫星就报 0，
+        不是缺字段——形状不能随流量变）；face 层 admin 与 owner 两档都断言不被 scoping 剥掉
+      - 真机（2026-11-08，`platform-5f47f47dbf` / 镜像 `sha-6f121f5`，仍是**旧镜像**）：3 个 cell
+        各 1 个 dsh，卫星 **14 / 13 / 13** 颗、997–1120Mi/cell，全 pod 40 颗。这就是新字段的数据源；
+        字段本身随下次出片生效（cap=0 / cap=1 的对照仍归 4.2）
 - [ ] 4.2 真机收益对照：同一 cell 在 cap=0 / cap=1 两种形态下的 pod 实扣与卫星数；验证 = `kubectl top`
       + /proc 扫描，数字进台账
       - **阻塞（2026-11-08）**：线上 `TASK_WORKER_MAX=0`（被并发会话从 2 改回 0），池关 → 每 cell
         只有一个 dsh → 无重复卫星可省 → 本变更正确地未生效（日志 `worker pool off`）。验证需
-        worker-pool 线同意把 cap 设 1 滚一次（方案与观察项已记入台账 §15.138 续廿三（渠））
+        worker-pool 线同意把 cap 设 1 滚一次（方案与观察项已记入台账 §15.144 续三十二（渠））
+      - 现状基线（cap=0，2026-11-08 真机）：3 cell / 每 cell 1 dsh / 卫星 14·13·13 颗 /
+        997–1120Mi per cell / 全 pod 40 颗 —— cap=1 时的对照就拿这一行比
 - [ ] 4.3 出片 + 灰度（先一个开 worker 的 cell）；验证 = `tools/verify-rollout.sh` + 该 cell 回合/工具面走查
+      - 镜像已出并灰度（`sha-5d79069`，灰度 `aloatree@gmail.com`），但池关 → **共享路径从未启用**，
+        故「该 cell 回合/工具面走查」不成立；且该灰度 env 已被并发的 `memlimit-7gi` 滚动覆盖，
+        现网部署上已无 `MCP_SATELLITE_HOST_CELLS`。**走查并入 4.2 的同一窗口重做**
 - [ ] 4.4 回滚面：`TASK_WORKER_MAX=0` 即回到单 dsh 原形态，无需回滚镜像；验证 = 演练一次
+      - 不能现在"演练"：共享路径在产从未处于开启态，没有可回滚的活态。两面已被别的证据钉住：
+        ①现网 cap=0 的形态就是原形态（三 cell 各 1 dsh、patch 全 stdio，实测）；
+        ②单测「without a host url the composition is byte-identical stdio」证明无残留。
+        **真演练必须与 4.2 同窗**：cap=1 开 → 看到 1×13 → 立刻回 0 → 确认回到 1 dsh/全 stdio

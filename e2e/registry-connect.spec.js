@@ -118,6 +118,13 @@ test.describe("MCP market credential", () => {
   });
 
   test("registry install: no credential field with a live credential, header injected into the profile", async ({ page, request }) => {
+    // Start from "not installed": the suite shares one server and CI retries
+    // re-run this test, so a leftover row from an earlier attempt/landing makes
+    // the install fail and the dialog stay open (the assertion at the end then
+    // reads "dialog still visible" — run 42460822790). Deleting first makes the
+    // test about installing, not about who ran before it.
+    await request.delete(`${baseURL}/api/extensions/mcp/${REGISTRY_MCP}`);
+
     // Connect first through the API (the popup flow has its own test above).
     const connect = await request.post(`${baseURL}/api/registry/credential`, {
       data: { token: "opaque-e2e-token", source: "paste" },

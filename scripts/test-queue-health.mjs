@@ -186,3 +186,49 @@ test("a record left queued on disk does not leak into a fresh engine", async () 
   assert.equal(h.running, 0);
   assert.equal(h.degraded, false);
 });
+
+// ── 等待时长必须从 firstQueuedAt 起算（2026-11-08）───────────────────────
+//
+// `queuedAt` 每次重新入队、每次启动 drain 都会重打（task-engine 自己的设计：
+// 它答的是"本次尝试等了多久"）。用它算 oldestQueuedMs，重启后整批积压会显示成
+// 刚刚入队 —— 而 `oldestQueuedMs` 正是 `/api/ready` 判 degraded 的依据。
+// 实测后果：积压 224 分钟时探针仍报 healthy，和 queue-liveness 那次假绿同型。
+test("oldestQueuedMs measures from firstQueuedAt, not the re-stamped queuedAt", async () => {
+  await freshEngine();
+  const now = Date.now();
+  insertTask({
+    id: "anchor-q-1",
+    name: "anchor-q-1",
+    prompt: "x",
+    trigger: "manual",
+    state: null,
+  });
+  const rec = getRecord("anchor-q-1");
+  rec.state = "queued";
+  rec.queuedAt = now - 30_000;          // 本次尝试只等了 30 秒
+  rec.firstQueuedAt = now - 900_000;    // 但第一次要槽位是 15 分钟前
+  const h = queueHealth({ now });
+  assert.equal(h.queued, 1);
+  assert.ok(
+    h.oldestQueuedMs >= 899_000,
+    `oldest wait must use firstQueuedAt (got ${h.oldestQueuedMs})`,
+  );
+});
+
+test("legacy queued record without firstQueuedAt still reports a wait", async () => {
+  await freshEngine();
+  const now = Date.now();
+  insertTask({
+    id: "anchor-q-2",
+    name: "anchor-q-2",
+    prompt: "x",
+    trigger: "manual",
+    state: null,
+  });
+  const rec = getRecord("anchor-q-2");
+  rec.state = "queued";
+  rec.queuedAt = now - 120_000;
+  delete rec.firstQueuedAt;
+  const h = queueHealth({ now });
+  assert.ok(h.oldestQueuedMs >= 119_000, `legacy fallback (got ${h.oldestQueuedMs})`);
+});

@@ -590,7 +590,10 @@ function enqueueExecution(id, opts = {}) {
       ok: true,
       already: true,
       state: t.state,
-      queuedForMs: typeof t.queuedAt === "number" ? Math.max(0, Date.now() - t.queuedAt) : null,
+      queuedForMs: (() => {
+        const anchor = queueAnchorMs(t);
+        return anchor === null ? null : Math.max(0, Date.now() - anchor);
+      })(),
     };
   }
   // Mandate revalidation (add-turn-mandate-lane): a mandate-carrying task
@@ -708,6 +711,17 @@ const QUEUE_WATCHDOG_GRACE_MS = 5 * 60_000;
 // without spending budget; the next cadence fire supersedes it. Env override
 // `QUEUE_MAX_AGE_MS`; 0 disables the policy (pre-2.2 behaviour).
 const QUEUE_MAX_AGE_MS_DEFAULT = 30 * 60_000;
+
+// 真实等待起点：`queuedAt` 每次重新入队与每次启动 drain 都会被重打（那是"本次尝试"
+// 的等待时钟），`firstQueuedAt` 才是"这发请求第一次要槽位"的时刻、且跨重启存活。
+// 任何对外暴露"等了多久"的地方都必须用它，否则重启后积压会显示成刚入队——
+// 而 `/api/ready` 的 degraded 判定与 fleet-cost-digest 的承载提议都吃这个数。
+function queueAnchorMs(t) {
+  if (!t) return null;
+  if (Number.isFinite(t.firstQueuedAt)) return t.firstQueuedAt;
+  if (Number.isFinite(t.queuedAt)) return t.queuedAt;
+  return null;
+}
 
 function queueMaxAgeMs() {
   const raw = process.env.QUEUE_MAX_AGE_MS;
@@ -1205,8 +1219,9 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   for (const t of tasks.values()) {
     if (t.state === "queued") {
       queued += 1;
-      if (typeof t.queuedAt === "number") {
-        const waited = Math.max(0, now - t.queuedAt);
+      const anchor = queueAnchorMs(t);
+      if (anchor !== null) {
+        const waited = Math.max(0, now - anchor);
         if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
       }
     } else if (t.state === "running") {

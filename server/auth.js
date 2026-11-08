@@ -150,7 +150,7 @@ const FLEET_BRIDGE_PATHS = new Set([
 //
 // `match` receives the request; `note` is the route-side attribution that keeps
 // a forged loopback caller from acting as anyone it names.
-const INTERNAL_BRIDGES = [
+export const INTERNAL_BRIDGES = [
   {
     // The cron MCP child (stdio, spawned by the dsh runtime inside this cell)
     // drives the engine over /api/cron.

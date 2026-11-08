@@ -128,6 +128,23 @@ The documentation SHALL state that forward-auth identity headers are trusted onl
 
 The server SHALL recognize loopback-only internal bridges: the credential of a bridge caller SHALL be BOTH a loopback source address AND the absence of proxied identity headers (`x-forwarded-email`). The address alone MUST NOT be the credential, because in hosted mode the gateway proxies every real user into their cell from loopback while injecting those headers (`gateway/index.js:1107`, `gateway/proxy.js:59`) — an address-only test cannot tell a cell's child from the cell's owner. Each bridge SHALL be enumerated in one table with the identity it stamps, its verb/path scope, and the route-side attribution that keeps a forged caller from acting as a name it supplies; adding or widening one SHALL be treated as widening the trust boundary. A real user's request forwarded through the loopback gateway SHALL keep its own identity, and SHALL never be stamped with a bridge identity.
 
+The table, as implemented (`INTERNAL_BRIDGES` in `server/auth.js` — every matcher composes the same `isInternalChild` guard, so a new bridge cannot arrive with a weaker caller test):
+
+**Internal bridges.**
+
+| Bridge identity | Verb / path scope | Route-side attribution |
+| --- | --- | --- |
+| `cron@internal` | any verb on `/api/cron` and `/api/cron/*` | routes act on this cell's own jobs |
+| `chart-bridge@internal` | any verb on `/api/resources/bind-declared` | acts on the current turn's chart only |
+| `delegation@internal` | any verb on `/api/delegation/*` | task engine's manual path, cell-scoped |
+| `fleet-architect@internal` | any verb on `/api/fleet-architect/*` | acting owner resolved server-side from the cell context |
+| `builder-author@internal` | any verb on `/api/blueprint-author/*` and `/api/pack-author/*` | draft landing only — no approve/publish/mint verb |
+| `skill-evolution@internal` | `POST /api/skill-evolution/propose` | propose verb only — evaluate/promote/reject need a real user |
+| `persona-evolution@internal` | `POST /api/persona-evolution/propose` | propose verb only, same rule as the skill lane |
+| `save-bridge@internal` | any verb on `/api/resources/save-declared` | session resolved server-side |
+| `actions-bridge@internal` | `POST /api/actions/propose` | one verb, pending proposals only; the proposer comes from the child's profile env |
+| `fleet-bridge@internal` | `POST` on `/api/fleets/report`, `/api/fleets/escalate`, `/api/fleets/dispatch`, `/api/fleets/deputy/queue`, `/api/fleets/deputy/resolve`, `/api/fleets/deputy/escalate-to-owner` | post attributed server-side; the deputy routes are additionally guarded by `deputyGuard` |
+
 The bridge table SHALL NOT be the only ledger. Every entry by which a request can acquire (or be denied) an identity SHALL be recorded in the same requirement, because a door that is not written down is a door nobody audits:
 
 **Auth-exempt prefixes.** A path prefix the gate skips wholesale SHALL be listed with its own credential mechanism and its failure posture. A prefix SHALL authenticate itself before the route reads or returns data; the only prefix that MAY carry no credential is one that serves no data at all (a public asset). A prefix that neither authenticates itself nor is data-free SHALL be gated instead of exempted. The list, as implemented (`AUTH_EXEMPT_PREFIXES` in `server/auth.js`):
@@ -200,6 +217,6 @@ A shared secret SHALL be compared through one constant-time implementation; a ro
 
 #### Scenario: the ledger and the code agree
 
-- **WHEN** a new auth-exempt prefix or identity door is added to the code
+- **WHEN** a new auth-exempt prefix, identity door, or internal bridge is added to the code
 - **THEN** the corresponding table in this requirement SHALL be updated in the same landing
-- **AND** a check SHALL fail when the implemented prefix set and the documented set diverge
+- **AND** a check SHALL fail when the implemented set and the documented set diverge

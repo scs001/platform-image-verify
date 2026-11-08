@@ -148,3 +148,53 @@ await s.connect(new StdioServerTransport());
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(countProcs(), 0, "stop() must not orphan the child");
 });
+
+// ── 2.4 failure domain: a dead satellite degrades ITS tools only ───────────
+// The spec promise is "该 cell 的 MCP 工具变灰、其它 cell 不受影响、恢复后自动可用".
+// At host level that means: one satellite dying must not take its neighbour
+// down, must fail fast (not hang), and must come back when restarted.
+test("one satellite dying leaves its neighbour serving (failure domain)", async () => {
+  const dir = tmp();
+  const host = createMcpSatelliteHost({
+    satellites: [writeSatellite(dir, "keep"), writeSatellite(dir, "dies")],
+    port: 0,
+    logger: { log() {}, warn() {}, error() {} },
+  });
+  try {
+    await host.start();
+    const keep = await connect(`http://127.0.0.1:${host.port}/keep/mcp`);
+    assert.equal((await keep.listTools()).tools[0].name, "keep_tool");
+
+    // Kill only the "dies" child.
+    const died = execFileSync("ps", ["-eo", "pid=,args="], { encoding: "utf8" })
+      .split("\n")
+      .find((l) => l.includes(join(dir, "dies.mjs")));
+    assert.ok(died, "the dies satellite is running");
+    process.kill(Number(died.trim().split(/\s+/)[0]), "SIGKILL");
+    await new Promise((r) => setTimeout(r, 400));
+
+    // The neighbour still serves.
+    assert.equal((await keep.listTools()).tools[0].name, "keep_tool", "a neighbour's death must not take this one down");
+    // The dead one fails fast with a clear reason, not a hang. streamable-http
+    // answers 200 with a JSON-RPC error inside an SSE frame (measured), so the
+    // body — not the status code — is what carries the failure.
+    const t0 = Date.now();
+    const deadRes = await fetch(`http://127.0.0.1:${host.port}/dies/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    });
+    const deadBody = await deadRes.text();
+    assert.ok(Date.now() - t0 < 5000, "a dead satellite must fail fast");
+    assert.match(deadBody, /"error"/, `the endpoint reports a failure (status ${deadRes.status}): ${deadBody.slice(0, 120)}`);
+    assert.match(deadBody, /not running|Not connected/i, "the reason must be legible, not generic silence");
+    // And the health face must stop claiming it is up.
+    const health = host.health();
+    assert.equal(health.satellites.find((x) => x.name === "dies").up, false, "a corpse must not read as up");
+    assert.equal(health.satellites.find((x) => x.name === "keep").up, true);
+    await keep.close();
+  } finally {
+    await host.stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

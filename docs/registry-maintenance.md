@@ -7917,3 +7917,36 @@ manifest 与 layer 都正常（316,650 字节），只有 config blob 是空壳�
 **四、仍未解决**：`fd-mcp-env`／`fd-db-secret`／`edu-catalog-env` 等都是**带外 secret**，
 口令再轮换还会漏。建议把「口令轮换后 9 个键全部更新」写进轮换清单，或让这些服务改为
 引用单一 `fd-db-secret`（secretKeyRef）而不是各自抄一份 DSN。
+
+### §15.143 续三十一：351,740 条错挂观测已迁隔离表，守卫改为零容忍（11-08）
+
+**决定**：迁到隔离表（业主授权「你觉得应该怎么做，我允许」）。理由：删了不可逆且那批数据是别人家的
+（基金单位净值、港股/ETF 行情），留着又等于让主表长期躺着一批假数据；隔离表两头都占。
+
+**执行**（`scripts/quarantine_misattached_observations.py`，单事务：先复制、再删除、断言三者相等）：
+
+```
+batch q20261108T141401Z: copied 351740, deleted 351740, held 351740
+semantic_observations: 7,159,529 -> 6,807,789
+```
+
+| 行声明 → 实体实际 | 行数 | 这批到底是什么 |
+|---|---|---|
+| stock → person | 333,975 | 基金单位净值（0.89~1.32 日频），经理 id 当成了代码 |
+| stock → industry | 8,500 | 9 个港股码 + 3 个 ETF 码的行情/财报，库里无任何实体以这些代码为身份 |
+| country → city | 6,302 | gdp/inflation/population 等国家指标 |
+| fund → stock | 2,027 | `return.6m/3m/1w/1y/3y/since_inception` 挂在**普通 A 股药企**（中关村/东北制药/重药控股…），不是「ETF 建成 stock」那种合法形态 |
+| stock → fund | 936 | QQQ 上的 stock 财报 |
+
+**可逆**：`--restore --batch q20261108T141401Z` 原样搬回（同一事务）。等哪天有了基金/港股映射，
+就地改归位再撤回即可。
+
+**守卫改为零容忍**：`check_observation_entity_class.py` 的 `BASELINE` 清空——任何「行声明类 ≠
+实体类」直接红。反向证伪已做：从隔离表借一行插回主表 → `exit 1` + `NEW stock on person 1 rows`；
+删掉后 `exit 0`。**这套机制的价值在于：以后哪个写入方绕过 entities join，会当场被抓住，
+而不是再攒出三十万行才被发现。**
+
+**顺带**：`test_observation_entity_class_guard_tolerates_nothing` 钉住「允许清单必须为空」，
+防止有人悄悄把某个类再加回容忍名单。
+
+**遗留（不变）**：11 条 `entity_id` 悬空行仍在主表，属另一类缺陷（实体行本身丢了），单列报告、不判死。

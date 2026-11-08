@@ -128,3 +128,103 @@ test("session-scoped `actions` is deliberately excluded", async () => {
     assert.equal(mod.SHARED_SATELLITE_SERVERS.includes(excluded), false, `${excluded} is member-scoped`);
   }
 });
+
+// ── Member views must not relax when satellites are shared (3.1/3.2) ────────
+// The whole safety argument rests on one thing: sharing moves only the
+// cell-scoped satellites, never the member-scoped ones. This drives the real
+// member-patch writer with a host url present and asserts the member-scoped
+// entries keep THEIR env (token / collections) while the shareable ones become
+// url entries.
+
+test("member patch keeps member-scoped env while shareable entries go url", async () => {
+  const home = makeHome();
+  const rows = await withEnv(
+    home,
+    {
+      MCP_SATELLITE_HOST_URL: "http://127.0.0.1:19900",
+      // member-scoped servers need to exist in the cell config for the writer
+      // to stamp them; add them for this case only.
+      MCP_CONFIG_PATH: (() => {
+        const p = join(home, "mcp-member.json");
+        writeFileSync(
+          p,
+          JSON.stringify({
+            mcpServers: {
+              ...ENTRIES,
+              "fd-memory": { command: "node", args: ["node_modules/fd-memory/dist/index.js"], env: {} },
+              library: { command: "node", args: ["server/library-mcp.js"], env: { LIBRARY_PROJECT_ID: "proj-cell" } },
+            },
+          }),
+        );
+        return p;
+      })(),
+    },
+    async () => {
+      const mod = await import(`${pathToFileURL(join(REPO_ROOT, "dsh-profile.js")).href}?member=${Date.now()}-${Math.random()}`);
+      const memberPatch = await mod.writeMemberMcpPatch({
+        personaPreset: "mo-inventory",
+        memoryToken: "mem-token-for-this-member",
+        libraryCollections: ["library:col-a", "library:col-b"],
+        ownerEmail: "owner@example.com",
+      });
+      assert.ok(memberPatch, "member patch was written");
+      const parsed = yaml.load(readFileSync(memberPatch, "utf8"));
+      return parsed.filter((r) => r?.insert).flatMap((r) => r.insert);
+    },
+  );
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r.config]));
+
+  // Shareable → url, no command.
+  for (const name of ["fleet", "cron"]) {
+    assert.equal(byId[`mcp-${name}`].transport, "streamable-http", `${name} rides the shared host`);
+    assert.equal(byId[`mcp-${name}`].command, undefined);
+  }
+  // Member-scoped → still stdio WITH the member's values.
+  const library = byId["mcp-library"];
+  assert.equal(library.transport, "stdio", "library must stay per-runtime");
+  assert.equal(library.command, "node");
+  assert.equal(library.env.LIBRARY_COLLECTIONS, "col-a,col-b", "the member's collections must survive sharing");
+
+  // fd-memory carries the member token as a bearer HEADER (it is an external
+  // streamable-http service), not in env — asserting the wrong carrier would
+  // have "proved" leakage protection that does not exist.
+  // fd-memory carries the member token as a bearer HEADER (external
+  // streamable-http service), not in env. `memoryUrl` decides whether a url is
+  // present; the token rides headers either way — that is the property to pin.
+  const memory = byId["mcp-fd-memory"];
+  assert.equal(
+    memory.headers?.Authorization,
+    "Bearer mem-token-for-this-member",
+    "the member's memory token must survive sharing, per member",
+  );
+
+  // 3.2: a SECOND member on the SAME shared host must get ITS OWN values. One
+  // member's patch proves nothing about cross-member leakage — the failure this
+  // guards is precisely "everyone inherits the first member's token".
+  const second = await withEnv(
+    home,
+    { MCP_SATELLITE_HOST_URL: "http://127.0.0.1:19900", MCP_CONFIG_PATH: join(home, "mcp-member.json") },
+    async () => {
+      const mod = await import(`${pathToFileURL(join(REPO_ROOT, "dsh-profile.js")).href}?member2=${Date.now()}-${Math.random()}`);
+      const patch = await mod.writeMemberMcpPatch({
+        personaPreset: "ops-wx-chief",
+        memoryToken: "mem-token-for-the-other-member",
+        libraryCollections: ["library:col-z"],
+        ownerEmail: "owner@example.com",
+      });
+      assert.ok(patch, "second member patch was written");
+      const parsed2 = yaml.load(readFileSync(patch, "utf8"));
+      return parsed2.filter((r) => r?.insert).flatMap((r) => r.insert);
+    },
+  );
+  const byId2 = Object.fromEntries(second.map((r) => [r.id, r.config]));
+  for (const name of ["fleet", "cron"]) {
+    assert.equal(byId2[`mcp-${name}`].transport, "streamable-http", `${name} rides the shared host for member 2 too`);
+  }
+  assert.equal(byId2["mcp-library"].env.LIBRARY_COLLECTIONS, "col-z", "member 2 sees only its own collections");
+  assert.equal(
+    byId2["mcp-fd-memory"].headers?.Authorization,
+    "Bearer mem-token-for-the-other-member",
+    "member 2 must not inherit member 1's memory token",
+  );
+});

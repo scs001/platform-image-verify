@@ -74,6 +74,17 @@ export function createMcpSatelliteHost({ satellites = [], host = "127.0.0.1", po
       stderr: "inherit",
     });
     const client = new Client({ name: `satellite-host:${spec.name}`, version: SERVICE_VERSION }, { capabilities: {} });
+    // A satellite that dies AFTER startup must leave the registry, or health
+    // keeps claiming `up:true` for a corpse and every call surfaces the SDK's
+    // generic "Not connected" instead of our own reason. (Found while writing
+    // the failure-domain test: the process was SIGKILLed and health still lied.)
+    const onGone = (why) => {
+      if (clients.get(spec.name) !== client) return;
+      clients.delete(spec.name);
+      logger.warn(`[satellite-host] ${spec.name} went away (${why}); its endpoint now reports not running`);
+    };
+    client.onclose = () => onGone("client closed");
+    transport.onclose = () => onGone("transport closed");
     await client.connect(transport);
     clients.set(spec.name, client);
     return client;
@@ -122,11 +133,27 @@ export function createMcpSatelliteHost({ satellites = [], host = "127.0.0.1", po
       return;
     }
     const m = url.pathname.match(/^\/([A-Za-z0-9._-]+)\/mcp$/);
-    if (!m || !clients.has(m[1])) {
+    // Route on the DECLARED set, not the live one: a satellite that died must
+    // answer "not running" (something the caller can act on), not "unknown
+    // endpoint" (which reads as a configuration mistake). Only a name we never
+    // declared is a 404.
+    if (!m || !specs.has(m[1])) {
       res.writeHead(404, { "content-type": "application/json" }).end(JSON.stringify({ error: "unknown satellite endpoint" }));
       return;
     }
     const name = m[1];
+    if (!clients.has(name)) {
+      const reason = `satellite "${name}" is not running`;
+      if (req.method === "POST") {
+        // Mirror the transport's own failure shape (200 + JSON-RPC error in an
+        // SSE frame) so callers see one consistent contract either way.
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        res.end(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32603, message: reason } })}\n\n`);
+        return;
+      }
+      res.writeHead(503, { "content-type": "application/json" }).end(JSON.stringify({ error: reason }));
+      return;
+    }
     let body;
     if (req.method === "POST") {
       try {

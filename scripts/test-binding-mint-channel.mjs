@@ -116,20 +116,18 @@ test("a market-plane process mints through the owner and records the value local
     fetchImpl: async (url, init = {}) => {
       const target = String(url);
       seen.push({ target, init });
-      assert.ok(target.startsWith(CHANNEL), `expected the channel, got ${target}`);
+      assert.ok(target.endsWith("/api/gateway/binding-mint-batch"), `expected the batch door, got ${target}`);
       assert.equal(init.headers["x-facet-token"], FACET_TOKEN, "the channel is authenticated");
       const body = JSON.parse(String(init.body));
-      assert.deepEqual(
-        { email: body.email, packId: body.packId, agentId: body.agentId, bindingKey: body.bindingKey },
-        { email: MARKET_OWNER, packId: PACK, agentId: AGENT, bindingKey: "market" },
-      );
+      assert.deepEqual({ email: body.email, packId: body.packId, agentIds: body.agentIds },
+        { email: MARKET_OWNER, packId: PACK, agentIds: [AGENT] });
       return new Response(
         JSON.stringify({
           ok: true,
-          name: "connector_binding_market",
-          secretRef: `sec_${PACK}_${AGENT}_connector_binding_market`,
-          secretValue: "oct_from_owner",
-          patId: "pat-owner",
+          keys: ["market"],
+          granted: [{ agentId: AGENT, bindingKey: "market", name: "connector_binding_market",
+            secretRef: `sec_${PACK}_${AGENT}_connector_binding_market`, secretValue: "oct_from_owner", patId: "pat-owner" }],
+          failed: [],
         }),
         { status: 200 },
       );
@@ -219,7 +217,7 @@ test("prune on the market plane revokes through the owner, inside the deploy nam
 
   assert.equal(seen.length, 1);
   assert.ok(seen[0].url.endsWith("/api/gateway/binding-revoke"));
-  assert.deepEqual(seen[0].body.keepKeys, ["market"]);
+  assert.deepEqual(seen[0].body.agentIds, [AGENT], "the owner computes the keep-set from its own ledger");
   assert.deepEqual(out.revoked, [`deploy:${PACK}:${AGENT}:gone`]);
 });
 

@@ -7645,3 +7645,15 @@ O0 修复上产后的真机复验（dryRun `summonable=[]`）追根出**第二�
 - **实测（fd-prod，全量后）**：在跑的 cell `browser=0`（子进程数），全 pod 只有 **1 个浏览器进程**；`kubectl top` pod **2294Mi**（browser-lane 120Mi + platform 2173Mi），提案基线同口径 3102Mi。**省下的是「每 cell 约 170Mi 的重复份」**，不是整块内存；灰度期因两份并存（共享 + 未翻转 cell）总占用反而略高，全量后才落账。回滚演练已跑：注释 `BROWSER_SHARED_MCP_URL` → cell 重新长出 `browser-mcp.js×3 + cli.js×3`、共享服务 `sessions=0`；恢复即回共享，**无需回滚镜像**。
 - **同期修掉的两个真缺陷**：① dsh 随包的 MCP 客户端**只定义** `terminateSession()`（发 DELETE）却从不调用 → 每次 cell 重启在共享服务里留一个会话+上下文；已加空闲退役（默认 30min/60s 扫，活跃会话不收）。② boot 期 OIDC discovery 单次 10s 超时即 `process.exit`，整台平台连所有 cell 反复重启；已改为 transient 类指数退避重试（4xx/文档不完整仍 fail fast），滚动后 platform 容器 **restarts=0**。
 - **挂账（待调研，**未决策**）**：车道瘦完之后，pod 里的重复份只剩 **每 cell 的 cell-server(~220–280Mi) + dsh child(~140–200Mi)**（`procs=2`、每 cell 约 425–466Mi），这是本变更刻意没碰的「回合收尾进程级串行」那条线。要动它得先解掉「一个 dsh 进程同一时刻只能跑一个回合」的约束，否则并发回合会互相排队——技术路线（进程池 / 回合级隔离 / 换执行单元）与收益都还没量化，**用户 2026-11-08 明确：先记录，等调研后再判**。相关既有口径：`CELL_MEMORY_ADMISSION_FLOOR` 的阈值再平衡也归 memory-gate 线，未随之调整。
+
+**同日把「省钱」这条线量掉了（记录在 `docs/agent-parallel-execution-explore.md` §八）**：跑
+`cell_registry` 真实分布 —— 32 个 cell 中 **29 挂起 / 3 常驻**，有流量记录 9 个、**从未有过流量 23 个**，
+idle p50=2688min（≈45h）、p90=16394min（≈11 天）。即 `CELL_IDLE_REAP_SECS=3600` 已在正常工作，
+**R4「降阈值摊密度」没有可收割的量**（唯一常驻却已冷的是 platform-test，373min，属走查号）。
+再省只能动常驻 cell 的单体大小：R2（cell-server 并入 gateway，每 cell −220–280Mi）代价是
+**重做 8 个隔离维度 + 崩溃域从 cell 放大到 pod + 内存面按 cwd/cmdline 的归组失效**；R1 只换并发
+不换密度。结论：**当前不存在便宜的下一刀**，是否动取决于「接不接受崩溃域退化」，不由调参决定。
+
+**OIDC 修复的爆炸半径已扫**：`test-auth-*` / `test-logto-*` / `test-session-*` / `test-login-hero` /
+`test-migrate-single-to-cell` 共 **89 条全绿**；产上 `/api/auth/me` 返回 `{"mode":"logto",...}`（200），
+登录面在 OIDC 重试改造后仍正常。

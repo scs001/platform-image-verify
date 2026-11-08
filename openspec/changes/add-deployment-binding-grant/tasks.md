@@ -9,13 +9,17 @@
 
 ## 2. 实施（待批）
 
-- [ ] 2.1 部署路径：若角色声明缺省开启绑定需求（`connectorBindings.roles` 或等价声明），部署时
-      按 §判定口径挑键，用**部署者**账号调 `mintBindingToken`
-- [ ] 2.2 落库：写入 `deployment_secrets`（`name = connector_binding:<bindingKey>`，`deployer = 部署者`），
-      同一次部署内重复键幂等
-- [ ] 2.3 撤销/卸载：删除对应部署密钥，并吊销连接器侧令牌（`revokeOnConnector`）
-- [ ] 2.4 单测：可铸/不可铸四态矩阵、重复部署幂等、部署者撤销后失效、旧新密钥不并存
-- [ ] 2.5 全量 `npm run test:unit`，增量不新增红
+- [x] 2.1 新模块 `deployment-bindings.js`：`mintableBindings`（只取 satisfied 且非 optional）、
+      `deploymentBindingSecretName`（折成 `[a-z0-9_]{1,32}`，前缀 `connector_binding_`）、
+      `mintDeploymentBinding` / `mintDeploymentBindings`（用**部署者**账号调 `mintBindingToken`；失败只登记不上抛）
+- [x] 2.2 部署路径接线 `gateway/packs.js` 的 deployHandler：部署成功后对每个已部署 agent 铸绑定，
+      经 `registry.recordDeploymentSecret` 落库（`name = connector_binding_<key>`，`deployer = 部署者`）；
+      响应只回 `deploymentBindings.{granted,failed}` 的**名字与键**，令牌值永不进响应
+- [ ] 2.3 撤销/卸载：删除对应部署密钥，并吊销连接器侧令牌（`revokeOnConnector`）——**未做**
+- [x] 2.4 单测 `scripts/test-deployment-bindings.mjs` 5/5：四态判定表（satisfied+非optional 唯一可铸）、
+      密钥名合法性（含冒号/超长/空键）、一次铸一枚并存值/记部署者、铸造失败只登记不上抛且不落库、
+      无父凭证时**连连接器都不调用**（`no_account` 反证）
+- [ ] 2.5 全量 `npm run test:unit`，增量不新增红——**未跑**
 
 ## 3. runner 侧接线（待批，单独验收）
 

@@ -1571,6 +1571,34 @@ await Promise.all([
     // the fire explicitly — never a silent empty-context patrol. The decision
     // digest (agent-fleet-decision-lane) rides the same segment slot: this
     // post's undelivered resolutions, their own block, absent when empty.
+    // Workspace hygiene fact (fix-fleet-workspace-hygiene): one readdir per
+    // call, cached for a minute — the patrol tail quotes it so a post can see
+    // what its round-file habit already cost. Read-only, bounded, never throws.
+    workspaceHygiene: (() => {
+      let cached = { at: 0, value: null };
+      return () => {
+        const now = Date.now();
+        if (now - cached.at < 60_000) return cached.value;
+        try {
+          const fsMod = require("node:fs");
+          const p = require("node:path");
+          const root = ctx.dshBridge?.getCwd?.() || process.cwd();
+          let files = 0;
+          let bytes = 0;
+          let ownFiles = 0;
+          for (const entry of fsMod.readdirSync(root, { withFileTypes: true })) {
+            if (!entry.isFile()) continue;
+            files += 1;
+            try { bytes += fsMod.statSync(p.join(root, entry.name)).size; } catch { /* raced */ }
+            if (/^(DUTYLOG|BOARD-ENTRY|TICKET-DISPATCH|CHECKPOINT|BRIEF)-/i.test(entry.name)) ownFiles += 1;
+          }
+          cached = { at: now, value: { files, bytes, ownFiles } };
+        } catch {
+          cached = { at: now, value: null }; // unreadable workspace → no line
+        }
+        return cached.value;
+      };
+    })(),
     renderFleetContext: (sourceTag, task, opts) =>
       buildFleetContext(sourceTag, task, {
         // add-fleet-edge-context D2: "patrol" (cadence template) vs "edge"
@@ -1594,6 +1622,8 @@ await Promise.all([
         // memory off/scope/budget and the collection binding in one lookup;
         // absent = platform defaults.
         knowledgeProfile: ctx.fleetKnowledgeProfile ?? null,
+        // Workspace hygiene fact for the patrol tail (fix-fleet-workspace-hygiene).
+        workspaceHygiene: () => ctx.workspaceHygiene?.() ?? null,
       }),
   }),
 ]);

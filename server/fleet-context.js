@@ -134,6 +134,22 @@ const DETAIL_KIND_LABELS = {
 // 每轮产出累积成下一轮的阅读材料。
 //
 // 这段只写「怎么用已经给你的」，不新增任何工具或数据面。
+// Workspace hygiene, as a FACT rather than another plea (fix-fleet-workspace-hygiene).
+// The discipline tail has told posts not to write round files since 2026-10-29,
+// and production still held 358 files / 26MB in one cell's shared workspace —
+// every one of them a `DUTYLOG-*` / `BOARD-ENTRY-*` / `TICKET-DISPATCH-*` written
+// by a post that wanted to "remember". The advice did not work because the post
+// had no way to know the cost. This states the measured state: how big the
+// shared directory already is and how many of those files are its own.
+export function renderWorkspaceHygiene(stat) {
+  if (!stat || !Number.isFinite(stat.files) || stat.files <= 0) return null;
+  const mb = stat.bytes >= 1024 * 1024
+    ? `${(stat.bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(stat.bytes / 1024))} KB`;
+  const own = Number.isFinite(stat.ownFiles) && stat.ownFiles > 0 ? `，其中你自己的往轮文件 ${stat.ownFiles} 个` : "";
+  return `- 工作区现状：已累积 ${stat.files} 个文件（${mb}）${own}。平台已保存你的往轮并在上文给了摘要；再写一份就是重复，读旧的只会拿到过期副本，而且这些字节会直接从本轮的上下文预算里扣。`;
+}
+
 const PATROL_DISCIPLINE = [
   "## 本轮怎么干（巡逻纪律）",
   "- 上面的报数**就是本轮的完整输入**——它由平台在开火时现算并注入。不要再去工作区、记忆或历史文件里找「更全的报数」；那些是往轮留下的副本，只会是旧的。",
@@ -583,6 +599,12 @@ export async function buildFleetContext(sourceTag, _task, deps) {
     return sections.join("\n\n");
   }
   sections.push("（以上为系统注入的巡视上下文，供你巡视与决策参考。）");
-  sections.push(PATROL_DISCIPLINE);
+  // The tail carries one measured line about the workspace when the provider
+  // supplies it (fix-fleet-workspace-hygiene). Absent provider / empty dir →
+  // the tail is byte-identical to before.
+  const hygiene = typeof deps.workspaceHygiene === "function"
+    ? renderWorkspaceHygiene(deps.workspaceHygiene())
+    : null;
+  sections.push(hygiene ? `${PATROL_DISCIPLINE}\n${hygiene}` : PATROL_DISCIPLINE);
   return sections.join("\n\n");
 }

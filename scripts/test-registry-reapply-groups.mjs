@@ -24,7 +24,7 @@ test("空组集归一成 null（组未知不过滤，绝不删源）", () => {
 });
 
 test("有真实组时原样传下去（让带组写入正常收敛）", () => {
-  const groups = ["sl63fy08ruh9", "analysts"];
+  const groups = ["org-demo-id", "analysts"];  // 不用真实组织 ID：公共快照禁扫规则会拦
   assert.deepEqual(profileGroupsForReapply(groups), groups);
   assert.deepEqual(profileGroupsForReapply(["platform"]), ["platform"]);
 });

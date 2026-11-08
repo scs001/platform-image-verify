@@ -701,7 +701,32 @@ async function initDshAgent() {
   for (const r of bootWorkspace.rejected) console.warn(`[workspace] ${r}; falling back`);
   console.log(`[workspace] boot workspace: ${bootWorkspace.path} (source=${bootWorkspace.source})`);
 
-  const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: bootWorkspace.path, enrichmentEnabled: db.getPreference("tool.description.enrichment") !== "false" });
+  let mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: bootWorkspace.path, enrichmentEnabled: db.getPreference("tool.description.enrichment") !== "false" });
+
+  // Shared MCP satellites (share-mcp-satellites-per-cell 2.1): with a worker
+  // pool this cell runs MORE than one dsh runtime, and every runtime used to
+  // spawn its own copy of the cell's satellites (13 children, ≈450Mi calibrated
+  // each). Start ONE host for the shareable servers, then re-write the patch so
+  // each dsh generation attaches by url. TASK_WORKER_MAX=0 skips this entirely —
+  // that is both the byte-identical path and the rollback face.
+  try {
+    const { startCellSatelliteHost } = await import("./server/mcp-satellite-wiring.js");
+    const started = await startCellSatelliteHost({
+      patchPath: mcpPatchPath,
+      poolSize: process.env.TASK_WORKER_MAX,
+      cellEmail: process.env.CELL_USER_EMAIL || ctx.runtimeOwnerEmail || null,
+    });
+    if (started.host && started.url) {
+      process.env.MCP_SATELLITE_HOST_URL = started.url;
+      ctx.mcpSatelliteHost = started.host;
+      mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: bootWorkspace.path, enrichmentEnabled: db.getPreference("tool.description.enrichment") !== "false" });
+    } else {
+      console.log(`[satellite-host] not sharing satellite processes (${started.reason})`);
+    }
+  } catch (err) {
+    // Fail-open: the patch keeps its stdio entries, exactly the pre-change shape.
+    console.error(`[satellite-host] wiring failed, keeping per-dsh satellites: ${err?.message || err}`);
+  }
 
   // Write the skill-filesystem config override (customSkillDirs). The dir
   // list is the resource scope (add-pack-agent-scoping): the writer derives
@@ -1863,3 +1888,5 @@ async function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+// The satellite host owns child processes; they must not outlive the cell.
+process.on("exit", () => { try { void ctx.mcpSatelliteHost?.stop?.(); } catch { /* best-effort */ } });

@@ -54,7 +54,22 @@ const neverTurn = () => new Promise(() => {});
 async function freshEngine() {
   const init = () => initTaskEngine({ broadcast: () => {}, runTurn: neverTurn, isBusy: () => false });
   await init();
-  fs.rmSync(process.env.CRON_STORAGE_PATH, { recursive: true, force: true });
+  // A save can still be landing here (`insertTask` fires `void saveTasks()`), and
+  // deleting a directory with a write in flight yields ENOTEMPTY / EINVAL on the
+  // temp file — which surfaces as "asynchronous activity after the test ended" in
+  // an unrelated, later test. Retry instead of racing: the await below already
+  // covers the write chain for the common case, this covers the boundary.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      fs.rmSync(process.env.CRON_STORAGE_PATH, {
+        recursive: true, force: true, maxRetries: 5, retryDelay: 20,
+      });
+      break;
+    } catch (e) {
+      if (attempt >= 5) throw e;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  }
   await init();
 }
 

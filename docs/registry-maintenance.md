@@ -8061,3 +8061,23 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   两者都可 `--restore` 撤回。
 - **口径**：两次测量之间主表从 6,807,789 变成 6,808,625（+836，爬虫 Job 正常写入）——
   说明这张表是活的，守卫判的是**当下状态**，不是冻结快照。以后看到数字漂移先别当异常。
+
+### §15.147 续三十五：specs 门禁从 19/23 提到 20/23，剩下 3 个是空壳（未擅动）（11-08）
+
+- `openspec validate --all --strict` 之前长期 19 passed / 4 failed。其中
+  `protocol-migration-generator` 是**格式问题**：8 月的提案用的是 1.4 之前的写法
+  （`## Overview` / `**REQUIREMENT:**` / `**Scenario:**` + 围栏 WHEN/THEN），解析器读不出来。
+  已**机械转换**：8 条需求、8 个场景、步骤文字全部保留，只改形状
+  （`## ADDED Requirements` / `### Requirement: <短标题>` / `#### Scenario:` / WHEN-THEN-AND 列表），
+  并把 5 条「规范句写进标题」的挪到正文（校验器只认正文里的 SHALL/MUST，措辞未改）。
+  现该 change `--strict` 绿。
+- **剩下 3 个没动**，因为它们没有内容可修，只有壳：
+  | change | 目录里只有 | 创建提交 |
+  |---|---|---|
+  | `add-shard-aware-coverage` | `.openspec.yaml` | `5f1e940` 8-30（该功能当时已发布） |
+  | `cross-project-manifest-updates` | `.openspec.yaml` | `aed2e54` 8-04（v0.4.0 发布提交） |
+  | `full-test-fd-open-data-mcp` | `e2e_test_report.json` | `31293bc` 8-02 |
+  三者都**没有 proposal、没有 tasks、没有 delta**，主题工作也已在历史提交里落地。
+  把它们标 `skip_specs: true` 等于替别人断言「本 change 不改 spec」——没有 proposal 可读，
+  这个断言我造不出来；直接删又是替别人销账。**留给出品方决定"删掉还是补全"**，
+  这条门禁继续红是**如实**的：它指向的是三个未完成/未清理的 change，不是解析错误。

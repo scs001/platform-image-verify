@@ -167,9 +167,38 @@ function RoleChooser({
     );
   }
   if (mapping.candidates.length === 0) {
+    // Two different facts hide behind "no candidates", and the fix differs:
+    //   rejected empty  → nothing connected at all (or nothing covers it)
+    //   rejected filled → they DO have systems, but those cannot serve this
+    //                     binding; say which ones and what is missing, otherwise
+    //                     the card reads as "connect something" when the real
+    //                     answer is "the system you already connected lacks a
+    //                     capability". The API computes this; the card owes the
+    //                     user the reason.
+    const rejected = mapping.rejected ?? [];
     return (
-      <span data-testid="connector-binding-choose-empty" className="text-[11px] text-muted-foreground">
-        {t("settings.connections.bindings.choose.empty")}
+      <span data-testid="connector-binding-choose-empty" className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+        {rejected.length === 0
+          ? t("settings.connections.bindings.choose.empty")
+          : t("settings.connections.bindings.choose.emptyButRejected")}
+        {rejected.map((entry) => (
+          <span
+            key={entry.provider}
+            data-testid="connector-binding-choose-rejected"
+            data-provider={entry.provider}
+            data-gaps={entry.gaps.join(",")}
+            className="rounded-sm border border-border px-1.5 py-0.5"
+          >
+            {entry.provider}
+            {entry.gaps.length > 0
+              ? ` · ${t("settings.connections.bindings.choose.gapsMissing", {
+                  gaps: entry.gaps
+                    .map((gap) => t(`settings.connections.bindings.operations.${gap}`, { defaultValue: gap }))
+                    .join("/"),
+                })}`
+              : ""}
+          </span>
+        ))}
       </span>
     );
   }

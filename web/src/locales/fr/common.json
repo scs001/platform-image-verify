@@ -1209,7 +1209,9 @@
           "placeholder": "Choisissez l'un de vos systèmes connectés…",
           "empty": "Aucun de vos systèmes connectés ne couvre ce dont ce pack a besoin — connectez-en un dans la console du connecteur.",
           "unavailable": "Impossible de lire vos systèmes connectés pour le moment.",
-          "currentNotUsable": "actuellement choisi, indisponible"
+          "currentNotUsable": "actuellement choisi, indisponible",
+          "emptyButRejected": "Vos systèmes connectés ne couvrent pas ce dont ce pack a besoin :",
+          "gapsMissing": "manque {{gaps}}"
         },
         "summaryUnmapped": "{{count}} en attente de votre choix",
         "browseCatalog": "Parcourir le répertoire des applications"

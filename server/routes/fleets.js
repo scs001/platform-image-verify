@@ -53,6 +53,7 @@ import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
 import { createConfigChangeProposal, runIterationCast, retryIterationCast } from "../fleet-iteration.js";
 import { provisionFleetFromTemplate } from "../fleet-provisioner.js";
+import { fleetBindingHealth } from "../../lib/fleet-binding-health.js";
 import * as dbModule from "../../db.js";
 import { facetRequest } from "../../gateway/facet-proxy.js";
 
@@ -1282,6 +1283,11 @@ export function createFleetRoutes(app, ctx = null) {
             name: clip(fleet.name, 60),
             state: fleet.state,
             counts: { ...counts, total: members.length },
+            // Binding health (D8 ③): a template pack whose MCP reference bound to
+            // nothing still installs and still reads green everywhere else —
+            // surface the dead reference here so the fleet face can say WHICH one
+            // is unbound instead of waiting for a post's turn to fail.
+            bindings: fleetBindingHealth(fleet, dbModule.getInstalledPack(fleet.sourceTemplate?.packId)),
             // Formation summary (add-teams-hub-formation-board 1.1): the compact
             // node/edge view the hub's formation grid renders — member nodes
             // (id/title/kind/status) plus the DECLARED orchestration edges with

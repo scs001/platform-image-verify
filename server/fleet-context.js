@@ -41,6 +41,23 @@ const HEALTH_MAX_CHARS = 900;
 // was cut instead of shipping three broken characters.
 const SELF_MIN_ROOM = 200;
 
+// ── Deeper descendants (fix-fleet-descendant-reports) ───────────────────────
+//
+// The hierarchy IS the report channel: a post's context carried its DIRECT
+// children only, so the layer below them reached it solely if every
+// intermediate post relayed it in its own report. Every shipped template is two
+// levels (root + children), so nothing changes for them; a user-built deeper
+// fleet had NO read path at all — not in the context, not through any tool. The
+// bottom layer now rides the same injection, in COMPACT blocks (no trend, no
+// own-round history), from a sub-pool of its own so direct children can never
+// lose budget to it.
+const DEEP_TOTAL_LIMIT = 6 * 1024;
+const DEEP_PER_POST_LIMIT = 1024;
+const DEEP_MAX_POSTS = 8;
+const DEEP_MIN_ROOM = 200;
+const DEEP_HEADER = "【更深层报数（直接下级的下级及以下）】";
+
+
 // Worst case for the two own-history blocks, for the 24KB pool accounting:
 //   self   ≤ SELF_ROUNDS_MAX_CHARS (3072, capped per block)
 //   health ≤ HEALTH_MAX_CHARS      (900)
@@ -313,6 +330,63 @@ function renderChildBlock({ member, latest, previous }) {
   return lines.join("\n");
 }
 
+// Descendants BELOW the direct children, breadth-first by depth (level 2 before
+// level 3 …), so the closest layer is the one that survives truncation. Cycle
+// safe: a malformed parentId chain must never hang a patrol.
+export function collectDeeperDescendants(members, rootId, startDepth = 2) {
+  const byParent = new Map();
+  for (const m of members) {
+    if (!m.parentId) continue;
+    const list = byParent.get(m.parentId);
+    if (list) list.push(m);
+    else byParent.set(m.parentId, [m]);
+  }
+  const seen = new Set([rootId]);
+  const out = [];
+  const root = members.find((m) => m.id === rootId) ?? { id: rootId };
+  let frontier = [{ member: root, depth: 0, path: [] }];
+  while (frontier.length) {
+    const next = [];
+    for (const item of frontier) {
+      for (const child of byParent.get(item.member.id) ?? []) {
+        if (seen.has(child.id)) continue; // cycle guard
+        seen.add(child.id);
+        const path = [...item.path, item.member.title ?? item.member.id].filter(Boolean);
+        const entry = { member: child, depth: item.depth + 1, path };
+        if (entry.depth >= startDepth) out.push(entry);
+        next.push(entry);
+      }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+// A deeper post's block: the same facts a direct child reports, minus the trend
+// arrow and self-round history — this layer is background, not the patrol's
+// main material, and one previousReport query per deep post would buy a number
+// the post can already see on that member's own card.
+function renderDeepBlock({ member, latest, depth, path }) {
+  const where = path.length ? `｜${path.join(" > ")}` : "";
+  const lines = [`### ${member.title}（第 ${depth} 层${where}）`];
+  if (!latest) {
+    lines.push("（尚无报数）");
+    return lines.join("\n");
+  }
+  const declared = member.kpiSlots ?? [];
+  for (const s of declared) {
+    const m = latest.metrics?.[s.key];
+    if (m === undefined) continue;
+    lines.push(`- ${s.label}${s.unit ? `（${s.unit}）` : ""}: ${m.value}`);
+  }
+  if (Array.isArray(latest.blockers) && latest.blockers.length) {
+    lines.push(`- 阻塞: ${latest.blockers.map((b) => String(b).slice(0, 120)).join("；")}`);
+  }
+  lines.push(`- 摘要: ${String(latest.summary ?? "").slice(0, SUMMARY_LINE_LIMIT)}`);
+  lines.push(`- 报数时间: ${new Date(latest.createdAt).toISOString()}`);
+  return lines.join("\n");
+}
+
 // deps: { db (fleets-db), deriveStatuses(fleetId) => Map<memberId, status>,
 //         decisionDigest(fleetId) => string|null,
 //         memoryDigest?(fleetId, memberTitle) => string|null, now?,
@@ -340,6 +414,10 @@ export async function buildFleetContext(sourceTag, _task, deps) {
 
   const members = db.listMembers(fleet.id);
   const children = members.filter((m) => m.parentId === me.id);
+  // Below the direct children (fix-fleet-descendant-reports). Empty for every
+  // two-level fleet, which is all the shipped templates — the new segment
+  // cannot appear there at all, so their context stays byte-identical.
+  const deeper = collectDeeperDescendants(members, me.id);
   const latestByMember = db.latestReports(fleet.id);
 
   const statuses = deriveStatuses(fleet.id);
@@ -368,6 +446,42 @@ export async function buildFleetContext(sourceTag, _task, deps) {
         break;
       }
       sections.push(block);
+    }
+  }
+
+  // Deeper descendants (fix-fleet-descendant-reports): compact, own sub-pool,
+  // AFTER the direct children. Placed before the own-round block because these
+  // are still subordinate reports (the spec orders reports ahead of the post's
+  // own view), but the sub-pool is capped so a wide deep tree can never eat the
+  // direct children's budget — that loop has already run.
+  if (deeper.length) {
+    const deepRoom = Math.max(0, Math.min(DEEP_TOTAL_LIMIT, totalLimit - used));
+    if (deepRoom < DEEP_MIN_ROOM) {
+      sections.push("…（更深层报数因总量上限截断）");
+    } else {
+      const blocks = [DEEP_HEADER];
+      let spent = blocks[0].length;
+      let skipped = 0;
+      for (const entry of deeper) {
+        if (blocks.length - 1 >= DEEP_MAX_POSTS) { skipped += 1; continue; }
+        const latest = latestByMember.get(entry.member.id) ?? null;
+        const block = truncateWithMark(
+          renderDeepBlock({ member: entry.member, latest, depth: entry.depth, path: entry.path }),
+          DEEP_PER_POST_LIMIT,
+        );
+        if (spent + block.length > deepRoom) { skipped += 1; continue; }
+        blocks.push(block);
+        spent += block.length;
+      }
+      // Honest truncation: say how many posts were left out, and why the list
+      // stopped (count cap vs pool). A silent partial list reads as "the fleet
+      // is smaller than it is".
+      if (skipped > 0) {
+        blocks.push(`…（另有 ${skipped} 个更深层岗位因条数或总量上限未注入）`);
+        spent += blocks[blocks.length - 1].length;
+      }
+      sections.push(blocks.join("\n"));
+      used += spent;
     }
   }
 

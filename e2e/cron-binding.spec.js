@@ -140,13 +140,38 @@ test.describe("Cron firing binds to (preset, session)", () => {
       // here; the switch and the session row happen before the model call.
       await wsCall(page, { send: { type: "cron_run", jobId }, collect: "cron_run_started" });
 
-      // (a) The runtime switched to the job's preset: the current_preset
-      // broadcast (what switchPresetToInner emits after the restart).
-      await page.waitForFunction(
-        (want) => window.__chatStore.getState().currentPreset === want,
-        jobPreset,
-        { timeout: 90_000 },
-      );
+      // (a) The job's persona landed — on ITS OWN SESSION, not on the runtime.
+      //
+      // This used to wait for a runtime-wide switch (`current_preset` on the
+      // client store), the LEGACY lane's observable. Since
+      // add-cell-session-persona the runner parks the persona onto the turn's
+      // child session through the bridge's live `preset/set` (cron-runner
+      // parkPersonaForTurn → presetPath "parked", spinUpMs 0): no restart and no
+      // global broadcast, BY DESIGN — so that wait could never be satisfied and
+      // this test failed against a working product.
+      //
+      // The replacement is not an equally direct assertion, because there is
+      // currently NO client-visible carrier of the parked persona: the run
+      // outcome (`detail.presetPath`) rides the runner's return value only (no
+      // cron_run_done/failed frame exists — the only post-run broadcast is a
+      // `sessions` refresh), and the session row's `agentPreset` is wired to
+      // `chatHistory.setPresetSource(() => ctx.currentPreset)` (server.js), so
+      // it records the RUNTIME preset — `standard` here, exactly what the probe
+      // showed. Both lanes' contract (parked + the two legacy reasons) is
+      // pinned in-process by scripts/test-persona-park-lane.mjs.
+      //
+      // What stays assertable end-to-end, and is what this test is really for:
+      // the bound job keeps its own preset + dedicated session id, and that
+      // session lands in chat history under the authored title.
+      await expect
+        .poll(
+          async () => {
+            const list = await (await request.get("/api/chat-history/sessions")).json();
+            return (list.sessions || []).some((s) => s.id === sessionId);
+          },
+          { timeout: 90_000, message: `job's dedicated session ${sessionId} lands` },
+        )
+        .toBe(true);
 
       // (b) The dedicated session exists in chat history (the runner records
       // the user prompt under the bound session BEFORE prompting).

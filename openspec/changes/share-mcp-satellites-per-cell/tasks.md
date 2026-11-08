@@ -59,6 +59,9 @@
         worker-pool 线同意把 cap 设 1 滚一次（方案与观察项已记入台账 §15.144 续三十二（渠））
       - 现状基线（cap=0，2026-11-08 真机）：3 cell / 每 cell 1 dsh / 卫星 14·13·13 颗 /
         997–1120Mi per cell / 全 pod 40 颗 —— cap=1 时的对照就拿这一行比
+      - **取数命令**：`node scripts/probe-satellite-sharing.mjs`（只读，进 pod 用镜像自带的
+        `lib/proc-memory.js` 采 `/proc`，打印每 cell 的 dsh 数 / 卫星数 / 卫星 MiB /
+        占比，末行 `satellites per dsh`；`--json` 出单行便于前后 diff）。窗口前后各跑一次
 - [ ] 4.3 出片 + 灰度（先一个开 worker 的 cell）；验证 = `tools/verify-rollout.sh` + 该 cell 回合/工具面走查
       - 镜像已出并灰度（`sha-5d79069`，灰度 `aloatree@gmail.com`），但池关 → **共享路径从未启用**，
         故「该 cell 回合/工具面走查」不成立；且该灰度 env 已被并发的 `memlimit-7gi` 滚动覆盖，

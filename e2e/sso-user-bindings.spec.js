@@ -390,6 +390,17 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(anon.types()).not.toContain("user_bindings");
 
+    // Restore Alice's switch. This test flips a PERSISTED row, and the suite
+    // shares one store: leaving it off made "personal MCP availability …
+    // leaves the global row alone" read enabled:false on any run that reused
+    // the store (observed locally, and as a flaky entry in CI run
+    // 42465181088). Same discipline the sibling test above already applies.
+    await api("/api/users/me/mcp/memory/enable", {
+      method: "PATCH",
+      headers: ALICE,
+      body: { enabled: true },
+    });
+
     for (const s of [anon, bob, alice]) s.ws.close();
   });
 

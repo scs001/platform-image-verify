@@ -337,6 +337,17 @@ export function createFleetDatabase({ file } = {}) {
     usage_output INTEGER
   )`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_runs_fleet ON fleet_runs(fleet_id, started_at)`);
+  // Run stop (add-fleet-run-budget): a run stops either because the owner
+  // cancelled it or because it hit its declared budget. Separate columns, NOT a
+  // status value — `finalizeRun` recomputes `status` from the turn rows and
+  // would overwrite a status-based flag on the next settle.
+  for (const col of ["stopped_at INTEGER", "stop_reason TEXT"]) {
+    try {
+      db.exec(`ALTER TABLE fleet_runs ADD COLUMN ${col}`);
+    } catch {
+      /* column already exists */
+    }
+  }
   for (const col of [
     "turn_id TEXT",
     "run_id TEXT",
@@ -1374,6 +1385,45 @@ export function createFleetDatabase({ file } = {}) {
     return getRun(runId);
   }
 
+  // Stop a run (add-fleet-run-budget D3): idempotent, first writer wins so a
+  // budget stop and an owner cancel cannot overwrite each other's reason.
+  function stopRun(runId, { reason = null, at = Date.now() } = {}) {
+    const row = getRun(runId);
+    if (!row) return null;
+    if (row.stoppedAt != null) return row;
+    db.prepare("UPDATE fleet_runs SET stopped_at = ?, stop_reason = ? WHERE run_id = ? AND stopped_at IS NULL").run(
+      at,
+      reason,
+      runId,
+    );
+    return getRun(runId);
+  }
+
+  // Live usage for the ignition gate: summed from the turn rows (the same
+  // source finalizeRun trusts) so a mid-run read never needs a counter that may
+  // drift. Timestamps ride along for the wall-clock ceiling.
+  function runUsage(runId) {
+    const row = getRun(runId);
+    if (!row) return null;
+    const agg = db
+      .prepare(`
+        SELECT COUNT(*) AS turns,
+               SUM(COALESCE(usage_input, 0)) AS usage_input,
+               SUM(COALESCE(usage_output, 0)) AS usage_output,
+               SUM(CASE WHEN usage_input IS NULL AND usage_output IS NULL THEN 1 ELSE 0 END) AS unmeasured
+        FROM member_turn_events WHERE run_id = ?
+      `)
+      .get(runId);
+    return {
+      turns: agg?.turns ?? 0,
+      tokens: (agg?.usage_input ?? 0) + (agg?.usage_output ?? 0),
+      unmeasuredTurns: agg?.unmeasured ?? 0,
+      startedAt: row.startedAt,
+      stoppedAt: row.stoppedAt ?? null,
+      stopReason: row.stopReason ?? null,
+    };
+  }
+
   // Paged list, newest first. `since`/`until` bound started_at; `source`
   // filters root_source; `status` filters the header status.
   function listRuns(fleetId, { status = null, source = null, since = null, until = null, limit = 50, offset = 0 } = {}) {
@@ -1659,6 +1709,8 @@ export function createFleetDatabase({ file } = {}) {
     getRun,
     reopenRun,
     finalizeRun,
+    stopRun,
+    runUsage,
     listRuns,
     listRunTurns,
     edgeTraffic,
@@ -1949,6 +2001,8 @@ function deserializeRun(row) {
     okCount: row.ok_count ?? 0,
     failedCount: row.failed_count ?? 0,
     usage: usageOf(row),
+    stoppedAt: row.stopped_at ?? null,
+    stopReason: row.stop_reason ?? null,
   };
 }
 

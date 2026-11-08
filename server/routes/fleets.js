@@ -857,6 +857,10 @@ export function createFleetRoutes(app, ctx = null) {
       okCount: run.okCount,
       failedCount: run.failedCount,
       usage: run.usage,
+      // add-fleet-run-budget: a stopped run (owner cancel or budget ceiling)
+      // says so — `status` stays the derived outcome, these two carry the WHY.
+      stoppedAt: run.stoppedAt ?? null,
+      stopReason: run.stopReason ?? null,
     };
   }
 
@@ -921,6 +925,50 @@ export function createFleetRoutes(app, ctx = null) {
       });
     } catch (err) {
       console.error("[fleets] run detail error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Cancel a run (add-fleet-run-budget D3): the owner's stop switch. Stamps the
+  // header, refuses all further ignition for this run (the ignition gate reads
+  // the same header) and aborts the run's in-flight turns through the existing
+  // abort registry, so they land as `interrupted` rather than running to
+  // completion on work nobody wants any more. Idempotent: a second call
+  // answers with the stored reason instead of rewinding the first one.
+  router.post("/:id/runs/:runId/cancel", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const run = db.getRun(req.params.runId);
+      if (!run || run.fleetId !== owned.fleet.id) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+      if (run.stoppedAt != null) {
+        return res.json({ cancelled: true, alreadyStopped: true, run: runListEntry(run, new Map()), abortedTurns: 0 });
+      }
+      const reason = typeof req.body?.reason === "string" && req.body.reason.trim()
+        ? req.body.reason.trim().slice(0, 200)
+        : "cancelled by owner";
+      const stopped = ctx?.fleetTurnLedger?.stopRun?.(run.runId, {
+        reason,
+        abortTurn: (sessionId, why) => {
+          const abort = ctx?.taskTurnRegistry?.get?.(sessionId);
+          if (typeof abort !== "function") return false;
+          abort(why);
+          return true;
+        },
+      }) ?? null;
+      // Degrade open: without a ledger mount the header stamp still lands.
+      const finalRun = stopped?.run ?? db.stopRun(run.runId, { reason });
+      res.json({
+        cancelled: true,
+        alreadyStopped: false,
+        run: runListEntry(finalRun ?? run, new Map()),
+        abortedTurns: stopped?.abortedTurns ?? 0,
+      });
+    } catch (err) {
+      console.error("[fleets] run cancel error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });

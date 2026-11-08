@@ -343,5 +343,31 @@ export function createFleetTurnLedger({
     return [...open.values()];
   }
 
-  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, observedModelFor, tap, openTurns, tapEnabled: traceTapEnabled };
+  // Stop a run (add-fleet-run-budget D3): stamp the header, then abort the
+  // sessions this run currently has in flight. The abort registry is the same
+  // one the bridge uses (ctx.taskTurnRegistry, keyed by the rotated child
+  // session id) — an aborted turn lands as `interrupted`, which is exactly the
+  // honest outcome for "the owner/budget stopped this run", not a failure.
+  // Returns { run, abortedTurns } or null when the run is unknown.
+  function stopRun(runId, { reason = "cancelled by owner", abortTurn = null, now = Date.now() } = {}) {
+    if (!runId || !db.getRun(runId)) return null;
+    const run = db.stopRun(runId, { reason, at: now });
+    let aborted = 0;
+    if (typeof abortTurn === "function") {
+      const sessions = new Set();
+      for (const h of open.values()) {
+        if (h.runId !== runId) continue;
+        for (const sid of h.sessionIds ?? []) if (sid) sessions.add(sid);
+      }
+      for (const sid of sessions) {
+        try {
+          aborted += abortTurn(sid, reason) === false ? 0 : 1;
+        } catch { /* a wedged abort must not fail the stop */ }
+      }
+    }
+    emit("fleet_run_updated", { run });
+    return { run, abortedTurns: aborted };
+  }
+
+  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, observedModelFor, tap, openTurns, stopRun, tapEnabled: traceTapEnabled };
 }

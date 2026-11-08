@@ -49,8 +49,10 @@ function readCap() {
 
 // attachWorkerPool(ctx, opts): inert unless cap > 0. ctx.workerSpawnParams
 // carries the primary bridge's construction inputs (stashed in server.js).
-// opts.spawnBridge/opts.idleReapMs exist for tests (fake bridges, fast reap).
-export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_REAP_MS } = {}) {
+// opts.spawnBridge/opts.idleReapMs/watchdogMs exist for tests (fake bridges, fast
+// reap, deterministic watchdog). watchdogMs is explicit rather than env-driven so a
+// suite cannot lose the setting to a sibling test's teardown.
+export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_REAP_MS, watchdogMs = null } = {}) {
   const cap = readCap();
   if (cap <= 0) {
     ctx.workerPool = null;
@@ -186,6 +188,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   // `engine.finishExecution` is the same path the turn itself uses, so history
   // and state semantics stay in one place.
   function poolWatchdogMs(task) {
+    // 测试/嵌入方可直接给一个值，不必经过 env：同一测试文件里多用例共享 process.env，
+    // 靠 env 传这个值会被别的用例的 teardown 抹掉（远端基上正是这么红的）。
+    if (Number.isFinite(watchdogMs) && watchdogMs >= 0) return watchdogMs;
     const raw = process.env.QUEUE_WATCHDOG_MS;
     if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
       const n = Number(raw);

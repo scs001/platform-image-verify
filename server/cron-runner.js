@@ -154,6 +154,16 @@ function readyWaitMs() {
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : RUNTIME_READY_WAIT_MS;
 }
 const RUNTIME_READY_POLL_MS = 1_000;
+// Context pressure (fix-fleet-turn-budget): two compactions inside one turn is
+// already a round that will not finish — the counted evidence is 15–49s gaps
+// per compaction and 22 of 28 timed-out rounds landing no report at all. The
+// threshold is a diagnosis boundary, not a kill switch: crossing it changes how
+// the outcome is NAMED (and lets the wrap-up lane help), never when the turn
+// stops.
+const CONTEXT_PRESSURE_COMPACTIONS = 2;
+// The wrap-up lane's own budget: a "report only, no tools" round needs seconds,
+// not minutes. Bounded hard so it can never become a second full turn.
+const WRAPUP_TIMEOUT_MS = 90_000;
 // Bounded retry ladder for a fleet round whose runtime was not ready
 // (2026-11-08): the round is transient-blocked, not doomed, so it comes back
 // instead of being lost. Escalating delays cover a cold boot (~seconds) and a
@@ -209,12 +219,20 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       fn(arg);
     };
     const startedAtMs = Date.now();
+    // Context-pressure counter (fix-fleet-turn-budget): the runtime compacts
+    // mid-turn when the working set outgrows the window, and each compaction
+    // costs tens of seconds. A storm of them is why a fleet round can burn the
+    // whole 600s budget and still land NOTHING (live 2026-11-08: 22 of 28
+    // timed-out rounds had no report at all; the trace of one shows 240 events
+    // over 535s, every large gap inside compaction/start|summary|end).
+    // Counting them here is passive: it changes no settlement.
+    let compactions = 0;
     // Turn metering (add-turn-metering): the first assistant event's absolute
     // timestamp — ttft_ms derives from it at the executor. Absent on a
     // zero-output turn (honest NULL, never a 0).
     let firstAssistantAt = null;
     const timer = setTimeout(
-      () => settle(reject, timeoutError(toolBlocks, startedAtMs)),
+      () => settle(reject, timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text) })),
       timeoutMs,
     );
     activeTurns.set(sessionId, (reason) => {
@@ -234,7 +252,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       ctx.fleetTurnLedger?.tap?.(notif, sessionId, mirrorSessionId);
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
-        return settle(resolve, { text, error, usage, firstAssistantAt });
+        return settle(resolve, { text, error, usage, firstAssistantAt, compactions });
       }
       // A user-questions ask in an unattended session (scheduled task or
       // worker slot — both use this collector) has no human to answer it:
@@ -260,6 +278,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       if (method !== "session.event") return;
       const ev = params.event;
       if (!ev) return;
+      if (ev.type === "compaction/start") compactions += 1;
       if (ev.type === "assistant/message") {
         // Turn metering: the FIRST assistant event is the time-to-first-token
         // anchor (subsequent steps update usage, not the anchor).
@@ -332,7 +351,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
 // `turn_budget_exceeded` (raise the budget or shorten the work). A turn with
 // no tool history at all summarizes honestly empty — the model may have been
 // thinking, and an invented tool name would misdirect triage.
-export function timeoutError(toolBlocks, startedAtMs, now = Date.now()) {
+export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compactions = 0, hasOutput = false } = {}) {
   const err = new Error("turn timed out");
   const pending = [...toolBlocks].reverse().find((b) => b.result === undefined);
   err.detail = pending
@@ -341,13 +360,64 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now()) {
         steps: toolBlocks.length,
         lastTool: pending.name ?? null,
         lastToolWaitedMs: Math.max(0, now - (pending.at ?? startedAtMs)),
+        ...(compactions ? { compactions } : {}),
       }
     : {
         kind: "turn_budget_exceeded",
         steps: toolBlocks.length,
         lastTool: toolBlocks.length ? toolBlocks[toolBlocks.length - 1].name ?? null : null,
+        ...(compactions ? { compactions } : {}),
       };
+  // Naming the cause (fix-fleet-turn-budget): a round that spent its budget
+  // compacting is not "a slow turn", it is a round whose working set never fit
+  // the window — the owner's fix is a shorter task, not a bigger budget.
+  // `hasOutput` travels with the failure so the caller can decide whether a
+  // wrap-up report is worth asking for (an empty round is the one that needs it).
+  err.detail.hasOutput = hasOutput === true;
+  if (compactions >= CONTEXT_PRESSURE_COMPACTIONS) {
+    err.detail.contextPressure = true;
+    err.message = `turn timed out — context pressure (${compactions} compactions)`;
+  }
   return err;
+}
+
+// Wrap-up lane (fix-fleet-turn-budget). A fleet round that spent its budget
+// compacting lands NOTHING: no summary, no report, and the next cadence fire
+// starts from the same wall. The counted evidence (2026-11-08): 22 of 28
+// timed-out rounds had no `member_reports` row in their window, and the trace
+// of one shows the budget going into repeated compaction.
+//
+// So after a pressure-flavoured timeout, ask the SAME child session for the one
+// thing the round was supposed to produce — its report — under a hard 90s
+// ceiling and with tools explicitly refused. Deliberately narrow:
+//   • only when the round produced no text at all (a round that already said
+//     something is not empty, and a second prompt could overwrite its meaning);
+//   • only on a pressure/timeout failure, never on an upstream abort;
+//   • any failure here is swallowed — the original failure stays the outcome.
+// The salvage DECISION, apart from its effects (fix-fleet-turn-budget): one
+// predicate, so the four conditions that must all hold are testable without
+// driving a whole fleet turn. Exported for exactly that reason.
+export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {
+  return detail?.contextPressure === true
+    && detail.hasOutput !== true
+    && interrupted !== true
+    && isFleet === true;
+}
+
+export async function runWrapUpReport(ctx, { childSessionId, mirrorSessionId, timeoutMs = WRAPUP_TIMEOUT_MS } = {}) {
+  if (!childSessionId || !ctx?.dshBridge?.prompt) return null;
+  const prompt =
+    "上下文压力已使本轮超时。现在只做一件事：调用 report_status 交本轮已有结论" +
+    "（槽位值、阻塞项、一句摘要），不要调用任何其他工具，不要继续分析，交完即结束。" +
+    "如果本轮确实没有任何新数据，就报「本轮无新数据」。";
+  try {
+    const collected = collectTurn(ctx, childSessionId, timeoutMs, new Map(), ctx.sessionCollectors, mirrorSessionId ?? childSessionId);
+    await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
+    const out = await collected;
+    return out ?? null;
+  } catch {
+    return null; // the wrap-up never becomes the round's outcome
+  }
 }
 
 async function switchPresetForJob(ctx, preset, timeoutMs) {
@@ -866,7 +936,19 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       ctx.sessionCollectors.delete(childSessionId);
       activeTurns.delete(childSessionId);
       ctx.onRuntimeIdle?.();
-      return { ok: false, error: e.message, interrupted: e.interrupted === true, detail: e.detail ?? null, metering };
+      let detail = e.detail ?? null;
+      // Salvage lane (fix-fleet-turn-budget): a round killed by context
+      // pressure lands nothing — no summary, no report — and the next cadence
+      // fire pays the same wall again. Ask the same session for just its
+      // report, bounded and tool-free; the round STAYS failed (it did not
+      // finish) but the fleet gets the data it was going to get anyway.
+      // Never on an interruption (a restart is not the round's fault) and never
+      // when the round already said something (that text IS the round's answer).
+      if (shouldSalvageReport(detail, { interrupted: e.interrupted === true, isFleet: Boolean(job.sourceTag?.fleetId) })) {
+        const salvage = await runWrapUpReport(ctx, { childSessionId, mirrorSessionId: sessionId });
+        detail = { ...detail, wrapUp: { ok: Boolean(salvage?.text), chars: (salvage?.text ?? "").length } };
+      }
+      return { ok: false, error: e.message, interrupted: e.interrupted === true, detail, metering };
     }
   };
 

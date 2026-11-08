@@ -19,7 +19,6 @@ import { lazy } from "react";
 import {
   Activity,
   Blocks,
-  Bot,
   Cable,
   LayoutPanelLeft,
   MonitorSmartphone,
@@ -27,11 +26,9 @@ import {
   Paintbrush,
   Plug,
   SlidersHorizontal,
-  Smartphone,
   Sparkles,
   UserRound,
   Users,
-  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,11 +41,11 @@ const DelegationSection = lazy(() =>
 const AccountSection = lazy(() =>
   import("@/components/settings/AccountSection").then((m) => ({ default: m.AccountSection })),
 );
-const WeChatAppSection = lazy(() =>
-  import("@/components/settings/WeChatAppSection").then((m) => ({ default: m.WeChatAppSection })),
+const PairingSection = lazy(() =>
+  import("@/components/settings/PairingSection").then((m) => ({ default: m.PairingSection })),
 );
-const DevicesSection = lazy(() =>
-  import("@/components/settings/DevicesSection").then((m) => ({ default: m.DevicesSection })),
+const StatusSection = lazy(() =>
+  import("@/components/settings/StatusSection").then((m) => ({ default: m.StatusSection })),
 );
 const BrandingSection = lazy(() =>
   import("@/components/settings/BrandingSection").then((m) => ({ default: m.BrandingSection })),
@@ -63,11 +60,6 @@ const ExtensionsPage = lazy(() =>
 const PluginsSection = lazy(() =>
   import("@/components/settings/PluginsSection").then((m) => ({ default: m.PluginsSection })),
 );
-const DashboardPage = lazy(() =>
-  import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
-);
-const BotsPage = lazy(() => import("@/pages/BotsPage").then((m) => ({ default: m.BotsPage })));
-const TracePage = lazy(() => import("@/pages/TracePage").then((m) => ({ default: m.TracePage })));
 const RolesSection = lazy(() =>
   import("@/components/settings/RolesSection").then((m) => ({ default: m.RolesSection })),
 );
@@ -116,14 +108,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     Component: GeneralSection as SettingsSectionComponent,
   },
   {
-    slug: "delegation",
-    group: "management",
-    labelKey: "settings.sections.delegation",
-    testId: "settings-section-delegation",
-    icon: Scale,
-    Component: DelegationSection as SettingsSectionComponent,
-  },
-  {
     slug: "account",
     group: "basics",
     labelKey: "settings.sections.account",
@@ -132,22 +116,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     Component: AccountSection as SettingsSectionComponent,
   },
   {
-    slug: "wechat-app",
+    // 配对与绑定 (restructure-yizuo-ia): `devices` + `wechat-app` merged — both
+    // mint from the SAME single-use 5-minute code pool, so one section with
+    // three tabs (小程序 / 桌面应用 / 机器) is one concept. The two old slugs stay
+    // addressable and preselect their tab, because the QR codes already scanned
+    // on users' phones encode those paths.
+    slug: "pairing",
+    aliases: ["devices", "wechat-app"],
+    aliasProps: { devices: { tab: "app" }, "wechat-app": { tab: "wechat" } },
     group: "basics",
-    labelKey: "settings.sections.wechat-app",
-    testId: "settings-section-wechat-app",
-    icon: Smartphone,
-    Component: WeChatAppSection as SettingsSectionComponent,
-  },
-  {
-    // Paired app devices (add-device-pairing-auth): pairing mint (digits +
-    // QR carrying the instance origin) and the revocable device list.
-    slug: "devices",
-    group: "basics",
-    labelKey: "settings.sections.devices",
-    testId: "settings-section-devices",
+    labelKey: "settings.sections.pairing",
+    testId: "settings-section-pairing",
     icon: MonitorSmartphone,
-    Component: DevicesSection as SettingsSectionComponent,
+    Component: PairingSection as SettingsSectionComponent,
+    props: { tab: "wechat" },
   },
   // ── Capabilities（能力）──────────────────────────────────────────────────
   {
@@ -221,32 +203,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     adminOnly: true,
   },
   {
-    // Bot channels (企业微信/飞书/Telegram/微信公众号) — the former /bots
-    // page, demoted from the sidebar nav. Ungated like its REST routes.
-    slug: "channels",
+    // 委托策略 (add-deputy-decision-delegate): cell-level default for category
+    // routing, severity ceiling and daily budget. It sat in this array from the
+    // start but was MISSING from the surface registry, and the modal renders
+    // only registry-resolved slugs — so it never rendered. Both lists now agree
+    // (scripts/test-layout-registry-agreement.mjs pins it).
+    slug: "delegation",
     group: "management",
-    labelKey: "settings.sections.channels",
-    testId: "settings-section-channels",
-    icon: Bot,
-    Component: BotsPage as SettingsSectionComponent,
-  },
-  {
-    // Per-turn trace list — the former /trace page. The /trace/:turnId
-    // detail stays a top-level route (chat deep links land on it directly).
-    slug: "diagnostics",
-    group: "management",
-    labelKey: "settings.sections.diagnostics",
-    testId: "settings-section-diagnostics",
-    icon: Waypoints,
-    Component: TracePage as SettingsSectionComponent,
-  },
-  {
-    slug: "status",
-    group: "management",
-    labelKey: "settings.sections.status",
-    testId: "settings-section-status",
-    icon: Activity,
-    Component: DashboardPage as SettingsSectionComponent,
+    labelKey: "settings.sections.delegation",
+    testId: "settings-section-delegation",
+    icon: Scale,
+    Component: DelegationSection as SettingsSectionComponent,
   },
   {
     slug: "branding",
@@ -256,6 +223,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Paintbrush,
     Component: BrandingSection as SettingsSectionComponent,
     adminOnly: true,
+  },
+  {
+    // 运行状态 (restructure-yizuo-ia): system health and the per-turn trace are
+    // one question ("what is happening right now"), so `diagnostics` folded in
+    // as a tab. `/trace` and `/settings/diagnostics` both open that tab.
+    slug: "status",
+    aliases: ["diagnostics"],
+    aliasProps: { diagnostics: { tab: "trace" } },
+    group: "management",
+    labelKey: "settings.sections.status",
+    testId: "settings-section-status",
+    icon: Activity,
+    Component: StatusSection as SettingsSectionComponent,
+    props: { tab: "health" },
   },
 ];
 

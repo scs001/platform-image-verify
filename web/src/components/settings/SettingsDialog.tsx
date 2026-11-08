@@ -10,11 +10,11 @@
 // history.back(), so a deep-linked open (no background) lands on /chat instead
 // of leaving the app.
 
-import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import { DEFAULT_SECTION, SETTINGS_SECTIONS, propsForSlug, sectionMatchesSlug, settingsPath } from "./sections";
+import { DEFAULT_SECTION, SETTINGS_SECTIONS, propsForSlug, sectionMatchesSlug, settingsPath, type SettingsGroup } from "./sections";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuthStore } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -57,6 +57,27 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
       .map((slug) => bySlug.get(slug))
       .filter((s): s is (typeof SETTINGS_SECTIONS)[number] => Boolean(s));
   }, [appConfig.resolvedLayout, authOn, isAdmin]);
+  // Filter the RESOLVED list only — search must never widen what the layout
+  // decided (a hidden section cannot be found by typing its name). Labels are
+  // matched in the active locale, which is what the user is reading.
+  const [query, setQuery] = useState("");
+  const visibleSections = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sections;
+    return sections.filter((s) => t(s.labelKey).toLowerCase().includes(q));
+  }, [sections, query, t]);
+  // Group membership is the source of the headings: render each group
+  // contiguously, heading once. (Deriving headings from "group changed since
+  // the previous array entry" broke the moment two groups interleaved.)
+  const groupedSections = useMemo(() => {
+    const out: { group: SettingsGroup; items: typeof sections }[] = [];
+    for (const section of visibleSections) {
+      const last = out[out.length - 1];
+      if (last && last.group === section.group) last.items.push(section);
+      else out.push({ group: section.group, items: [section] });
+    }
+    return out;
+  }, [visibleSections]);
   // The registry always contains at least the General section, so the chain
   // resolves; the bang keeps TS from narrowing through two runtime fallbacks.
   // Alias slugs (the merged Tools & Skills section) match their section too.
@@ -171,41 +192,57 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
             <div className="px-2 pb-2 pt-1 text-sm font-semibold text-foreground">
               {t("settings.title")}
             </div>
-            {sections.map((s, i) => {
-              const Icon = s.icon;
-              const isActive = sectionMatchesSlug(s, slug);
-              // A heading marks each group change; the registry order packs
-              // the three groups contiguously, so a diff from the previous
-              // entry is the whole rule.
-              const showGroupHeading = i === 0 || sections[i - 1]!.group !== s.group;
-              return (
-                <div key={s.slug} className="flex flex-col gap-0.5">
-                  {showGroupHeading && (
-                    <div
-                      className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:pt-1"
-                      data-testid={`settings-group-${s.group}`}
-                    >
-                      {t(`settings.groups.${s.group}`)}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    data-testid={s.testId}
-                    data-active={isActive ? "true" : "false"}
-                    onClick={() => navigate(settingsPath(s.slug), { state: location.state })}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted-foreground",
-                      "hover:bg-muted hover:text-foreground",
-                      isActive &&
-                        "bg-primary-deep text-primary-foreground hover:bg-primary-deep hover:text-primary-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {t(s.labelKey)}
-                  </button>
+            {/* 节内搜索 (restructure-yizuo-ia): two hard rules — it filters the
+                already-resolved list (never re-reveals a hidden section), and an
+                empty result states so instead of rendering a blank rail. */}
+            <div className="px-1 pb-1">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("settings.searchPlaceholder")}
+                aria-label={t("settings.searchPlaceholder")}
+                data-testid="settings-search"
+                className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
+              />
+            </div>
+            {visibleSections.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground" data-testid="settings-search-empty">
+                {t("settings.searchEmpty")}
+              </p>
+            ) : null}
+            {groupedSections.map((group) => (
+              <div key={`group-${group.group}`} className="flex flex-col gap-0.5">
+                <div
+                  className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:pt-1"
+                  data-testid={`settings-group-${group.group}`}
+                >
+                  {t(`settings.groups.${group.group}`)}
                 </div>
-              );
-            })}
+                {group.items.map((s) => {
+                  const Icon = s.icon;
+                  const isActive = sectionMatchesSlug(s, slug);
+                  return (
+                    <button
+                      key={s.slug}
+                      type="button"
+                      data-testid={s.testId}
+                      data-active={isActive ? "true" : "false"}
+                      onClick={() => navigate(settingsPath(s.slug), { state: location.state })}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted-foreground",
+                        "hover:bg-muted hover:text-foreground",
+                        isActive &&
+                          "bg-primary-deep text-primary-foreground hover:bg-primary-deep hover:text-primary-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {t(s.labelKey)}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
 
           <div className="flex min-w-0 flex-1 flex-col">

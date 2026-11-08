@@ -40,12 +40,10 @@ const DocumentsPage = lazy(() =>
 // lazy import goes with it (the page module stays single-sourced for the facet
 // host, web/ tree alias `@`).
 const AgentMarketPage = lazy(() => import("@/pages/AgentMarketPage").then((m) => ({ default: m.AgentMarketPage })));
-// Pack install face (add-supply-studio-migration 5.2 fix): /packs answers the
-// facet studio deployTeam deep link (?deployCastPack=<id>) — the market tab
-// opens its detail dialog straight on the cast pack and the from-template
-// flow installs on THIS machine. The market browsing half stays on the facet
-// domain (/agents links there); this route is the install+承接 half.
-const PacksPage = lazy(() => import("@/pages/PacksPage").then((m) => ({ default: m.PacksPage })));
+// 渠道 (restructure-yizuo-ia): the social-bot management surface left the
+// Settings modal for primary navigation — answering on Telegram/飞书/企微/
+// 公众号 is an outbound-communication work surface, not configuration.
+const BotsPage = lazy(() => import("@/pages/BotsPage").then((m) => ({ default: m.BotsPage })));
 const TuningPage = lazy(() => import("@/pages/TuningPage").then((m) => ({ default: m.TuningPage })));
 // 智能体工作室 (add-agent-studio): the visual agent builder — one surface,
 // four emit targets (D8 additive: entry from the agents page, v1).
@@ -85,6 +83,19 @@ function StudioRouteRedirect({ params = {} }: { params?: Record<string, string> 
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
+
+// /packs → the merged 智能体市场 surface (restructure-yizuo-ia). The old page's
+// two tabs map 1:1 onto the market surface's tabs, and every other query
+// parameter rides along — the facet Studio's `deployCastPack=` handoff lands on
+// the market tab's detail dialog exactly as before.
+function PacksRedirect() {
+  const [sp] = useSearchParams();
+  const merged = new URLSearchParams(sp);
+  const tab = merged.get("tab");
+  if (tab !== "market" && tab !== "mine") merged.delete("tab");
+  const q = merged.toString();
+  return <Navigate to={`/agents${q ? `?${q}` : "?tab=market"}`} replace />;
+}
 const MemoryPage = lazy(() => import("@/pages/MemoryPage").then((m) => ({ default: m.MemoryPage })));
 const ExternalServicePage = lazy(() =>
   import("@/pages/EmbeddedServicePages").then((m) => ({ default: m.ExternalServicePage })),
@@ -278,7 +289,10 @@ export default function App() {
     // handoff dead-ended on the chat home (live 2026-11-08).
     const params = new URLSearchParams(location.search);
     if (params.get("deployCastPack")) {
-      return <Navigate to={`/packs?${params.toString()}`} replace />;
+      // Lands on the merged 智能体市场 surface directly (restructure-yizuo-ia):
+      // /packs redirects there anyway, so going through it only adds a hop. The
+      // handoff query rides verbatim — the surface defaults to its market tab.
+      return <Navigate to={`/agents?${params.toString()}`} replace />;
     }
     return <Navigate to="/chat" replace />;
   }
@@ -359,15 +373,19 @@ export default function App() {
             <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/memory" element={<MemoryPage />} />
             <Route path="/agents" element={<AgentMarketPage />} />
-            {/* deployTeam 深链靶 (add-supply-studio-migration 5.2 fix): facet
-                studio 的 deploy handoff 落这里打开装包+从模板流。 */}
-            <Route path="/packs" element={<PacksPage />} />
+            {/* 装包深链靶 (restructure-yizuo-ia): the pack surface merged INTO
+                /agents, so /packs redirects into the matching tab and keeps
+                every other query param (`deployCastPack=` handoff included). */}
+            <Route path="/packs" element={<PacksRedirect />} />
+            {/* 渠道 (restructure-yizuo-ia): nav work surface; the old Settings
+                address and /bots redirect here (settings-surface). */}
+            <Route path="/channels" element={<BotsPage />} />
             {/* 原生调优面 (add-supply-studio-migration 4.4): tuning leaves the
                 dissolved four-zone facade — same candidate-review behavior,
                 its own doorway (skill-self-evolution contract untouched). */}
             <Route path="/tuning" element={<TuningPage />} />
             <Route path="/apps" element={<AppCenterPage />} />
-            <Route path="/bots" element={<Navigate to={settingsPath("channels")} replace />} />
+            <Route path="/bots" element={<Navigate to="/channels" replace />} />
             <Route path="/trace" element={<Navigate to={settingsPath("diagnostics")} replace />} />
             <Route path="/trace/:turnId" element={<TraceDetailPage />} />
             <Route path="/tasks" element={<TasksPage send={send} />} />
@@ -471,6 +489,9 @@ export default function App() {
             path="/settings/websearch"
             element={<Navigate to="/settings/connections?panel=search" replace state={location.state} />}
           />
+          {/* restructure-yizuo-ia: `channels` left the Settings container for
+              primary navigation — the old address must not open the modal. */}
+          <Route path="/settings/channels" element={<Navigate to="/channels" replace />} />
           <Route
             path="/settings/:section"
             element={<SettingsDialog backgroundPath={backgroundPath} />}

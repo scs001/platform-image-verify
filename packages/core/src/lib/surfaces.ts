@@ -45,8 +45,11 @@ export const NAV_SURFACES: RegistryEntry[] = [
   // 与资源/成果同族；萬星 console 的部署者视角经同一读取面（rootKey lane）。
   { container: "nav", slug: "memory", i18nKey: "nav.memory", testId: "nav-memory" },
   { container: "nav", slug: "agents", i18nKey: "nav.agents", testId: "nav-agents" },
-  { container: "nav", slug: "apps", i18nKey: "nav.apps", testId: "nav-apps" },
-  { container: "nav", slug: "tasks", i18nKey: "nav.tasks", testId: "nav-tasks" },
+  // 调优 (restructure-yizuo-ia): the skill-candidate review + persona-amendment
+  // surface used to be URL-only (/tuning existed with NO link anywhere). It
+  // graduates out of the agentsTabs container into primary navigation, pairing
+  // with the market in the 构建 family.
+  { container: "nav", slug: "tuning", i18nKey: "nav.tuning", testId: "nav-tuning" },
   // Agent fleets (agent-fleet-core): the organization layer over personas,
   // clusters and a2a services. Plain web surface — no predicate (unlike the
   // desktop-only runner console `fleet`).
@@ -55,12 +58,23 @@ export const NAV_SURFACES: RegistryEntry[] = [
   // with derived health + desired-state editing. Plain web surface — the
   // roster is account-scoped; admins see every machine the store knows.
   { container: "nav", slug: "machines", i18nKey: "nav.machines", testId: "nav-machines" },
+  // Desktop runner console (add-desktop-fleet-console). Label is 本机运行时:
+  // it is the LOCAL runtime, one layer below fleets (organization) and
+  // machines (paired devices) — the slug/testid stay `fleet`.
+  { container: "nav", slug: "fleet", i18nKey: "nav.fleet", testId: "nav-fleet", predicates: { desktopOnly: true } },
+  { container: "nav", slug: "tasks", i18nKey: "nav.tasks", testId: "nav-tasks" },
+  { container: "nav", slug: "apps", i18nKey: "nav.apps", testId: "nav-apps" },
+  // 渠道 (restructure-yizuo-ia): the social-bot management surface LEAVES the
+  // Settings container. Talking to users on Telegram/飞书/企微/公众号 is an
+  // outbound-communication work surface, not configuration.
+  { container: "nav", slug: "channels", i18nKey: "nav.channels", testId: "nav-channels" },
   // 萬星·智语 (add-zhiyu-room): multi-human × multi-agent rooms. Web surface.
   { container: "nav", slug: "zhiyu", i18nKey: "nav.zhiyu", testId: "nav-zhiyu" },
   // 蓝图构造间 (add-blueprint-studio): the vertical-package authoring surface —
   // 蓝图→集群模板→上架（治包不治舰，design D1）. Plain web surface like fleets.
+  // Its nav entry is retired into the workspace redirect: the slug stays for
+  // stored presets and deep links, and no factory preset lists it.
   { container: "nav", slug: "blueprints", i18nKey: "nav.blueprints", testId: "nav-blueprints" },
-  { container: "nav", slug: "fleet", i18nKey: "nav.fleet", testId: "nav-fleet", predicates: { desktopOnly: true } },
 ];
 
 // Settings section slugs in canonical order, mirroring sections.ts. The
@@ -70,8 +84,11 @@ export const NAV_SURFACES: RegistryEntry[] = [
 export const SETTINGS_SURFACES: RegistryEntry[] = [
   { container: "settings", slug: "general", i18nKey: "settings.sections.general", testId: "settings-section-general" },
   { container: "settings", slug: "account", i18nKey: "settings.sections.account", testId: "settings-section-account" },
-  { container: "settings", slug: "wechat-app", i18nKey: "settings.sections.wechat-app", testId: "settings-section-wechat-app" },
-  { container: "settings", slug: "devices", i18nKey: "settings.sections.devices", testId: "settings-section-devices" },
+  // 配对与绑定 (restructure-yizuo-ia): `devices` + `wechat-app` merged. Both mint
+  // from the SAME single-use 5-minute code pool, so one section with three tabs
+  // (小程序 / 桌面应用 / 机器) is one concept; the two old slugs stay addressable
+  // through SURFACE_SLUG_ALIASES and preselect their tab.
+  { container: "settings", slug: "pairing", i18nKey: "settings.sections.pairing", testId: "settings-section-pairing" },
   { container: "settings", slug: "connections", i18nKey: "settings.sections.connections", testId: "settings-section-connections" },
   { container: "settings", slug: "mcp", i18nKey: "settings.sections.mcp", testId: "settings-section-mcp" },
   // dsh plugin supply (add-dsh-plugin-supply): the whitelisted bundle roster.
@@ -81,26 +98,26 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
   { container: "settings", slug: "models", i18nKey: "settings.sections.models", testId: "settings-section-models" },
   { container: "settings", slug: "roles", i18nKey: "settings.sections.roles", testId: "settings-section-roles", predicates: { adminOnly: true } },
   { container: "settings", slug: "layout", i18nKey: "settings.sections.layout", testId: "settings-section-layout", predicates: { adminOnly: true } },
-  { container: "settings", slug: "channels", i18nKey: "settings.sections.channels", testId: "settings-section-channels" },
-  { container: "settings", slug: "diagnostics", i18nKey: "settings.sections.diagnostics", testId: "settings-section-diagnostics" },
-  { container: "settings", slug: "status", i18nKey: "settings.sections.status", testId: "settings-section-status" },
+  // 委托策略 (add-deputy-decision-delegate): present in sections.ts but MISSING
+  // here — and the modal renders only registry slugs, so it was permanently
+  // unreachable. The registry↔definitions agreement is now a unit-tested
+  // invariant (packages/core test).
+  { container: "settings", slug: "delegation", i18nKey: "settings.sections.delegation", testId: "settings-section-delegation" },
   { container: "settings", slug: "branding", i18nKey: "settings.sections.branding", testId: "settings-section-branding", predicates: { adminOnly: true } },
+  // 运行状态 (restructure-yizuo-ia): `diagnostics` folded in as a tab — the
+  // per-turn trace is part of "what is happening right now", not a sibling
+  // concept with its own door.
+  { container: "settings", slug: "status", i18nKey: "settings.sections.status", testId: "settings-section-status" },
 ];
 
 export const AGENTS_TAB_SURFACES: RegistryEntry[] = [
-  // 构建器总门面四区 (add-agent-builder-hub D2): the /agents page reorganized
-  // into build / supply / creations / tuning. The `agents`/`market` slugs
-  // remain resolvable through SURFACE_SLUG_ALIASES so stored presets and
-  // legacy deep links (?tab=agents|market) keep landing on their content.
-  { container: "agentsTabs", slug: "build", i18nKey: "agents.tab.build", testId: "agents-tab-build" },
-  { container: "agentsTabs", slug: "supply", i18nKey: "agents.tab.supply", testId: "agents-tab-supply" },
-  { container: "agentsTabs", slug: "creations", i18nKey: "agents.tab.creations", testId: "agents-tab-creations" },
-  { container: "agentsTabs", slug: "tuning", i18nKey: "agents.tab.tuning", testId: "agents-tab-tuning" },
-  // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
-  // factory preset — its entries live in the app center (openspec:
-  // app-center). The `apps` slug STAYS in the registry so stored presets
-  // and deep links keep validating; resolution just never selects it.
-  { container: "agentsTabs", slug: "apps", i18nKey: "agents.tab.apps", testId: "agents-tab-apps" },
+  // restructure-yizuo-ia: `/agents` is the 智能体市场 surface and the product's
+  // ONLY in-product pack doorway. The retired four-zone hub slugs
+  // (build/supply/creations/tuning/apps) render no tab; they stay resolvable
+  // through SURFACE_SLUG_ALIASES so stored presets and legacy ?tab= deep links
+  // keep landing on their content. `tuning` graduated to a nav surface.
+  { container: "agentsTabs", slug: "market", i18nKey: "agents.tab.market", testId: "agents-tab-market", predicates: { packMarketplace: true } },
+  { container: "agentsTabs", slug: "mine", i18nKey: "agents.tab.mine", testId: "agents-tab-mine" },
 ];
 
 export const SURFACE_REGISTRY: Record<SurfaceContainer, RegistryEntry[]> = {
@@ -126,12 +143,19 @@ export interface NavFamily {
 
 export const NAV_FAMILIES: NavFamily[] = [
   { id: "knowledge", slugs: ["knowledge", "resources", "memory"] },
-  // add-agent-builder-workspace 3.1: the family is the author→run pair now —
-  // the builder (agents) and the teams (fleets). The blueprint studio's nav
-  // entry is retired (its route stays a redirect into the workspace); the
-  // `blueprints` slug REMAINS in the registry so stored presets and deep
-  // links keep resolving (layout-configuration).
-  { id: "build", slugs: ["agents", "fleets"] },
+  // restructure-yizuo-ia: build pairs ACQUIRE with ITERATE (market + tuning) —
+  // `fleets` left for run, because composing a team is not the same act as
+  // getting capability. The blueprint studio's nav entry stays retired (its
+  // route is a redirect); the `blueprints` slug remains in the registry so
+  // stored presets and deep links keep resolving.
+  { id: "build", slugs: ["agents", "tuning"] },
+  // The three layers of one concept: organization (fleets) → paired devices
+  // (machines) → local runtime (fleet, desktop-only). They were three
+  // near-synonym top-level entries before.
+  { id: "run", slugs: ["fleets", "machines", "fleet"] },
+  // Outbound / discovery: the product directory, the chat channels we answer
+  // on, and the multi-human rooms.
+  { id: "access", slugs: ["apps", "channels", "zhiyu"] },
 ];
 
 export function registryFor(container: SurfaceContainer): RegistryEntry[] {
@@ -140,12 +164,30 @@ export function registryFor(container: SurfaceContainer): RegistryEntry[] {
 
 // Aliases: retired/legacy slugs that still resolve to a registry slug. Kept
 // next to the registry so a slug cannot be added in one place only.
-// add-agent-builder-hub D5: the hub's central legacy map — `agents` (专家 tab)
-// resolves to `creations`, `market` resolves to `supply`; both deep links and
-// stored presets canonicalize through here, in one place.
+// restructure-yizuo-ia: the dissolved builder hub's slugs plus the merged /
+// relocated Settings slugs all canonicalize here, so stored presets and
+// bookmarks keep landing on their content instead of erroring.
 export const SURFACE_SLUG_ALIASES: Partial<Record<SurfaceContainer, Record<string, string>>> = {
-  settings: { skills: "mcp" },
-  agentsTabs: { agents: "creations", market: "supply" },
+  settings: {
+    skills: "mcp",
+    // devices + wechat-app merged into one pairing section (same code pool,
+    // three tabs); diagnostics folded into the status section as a tab.
+    devices: "pairing",
+    "wechat-app": "pairing",
+    diagnostics: "status",
+    // channels LEFT settings for the nav container. Nothing to alias to inside
+    // this container; the route layer redirects /settings/channels → /channels.
+  },
+  agentsTabs: {
+    // The hub's四个分区 retired: 专家(agents)/创作(creations) → 我的,
+    // 供给/市场(supply/market) → 市场, 应用(apps) → 市场 (its entries live in
+    // the app center), build → 市场 (the external studio entry rides the market).
+    agents: "mine",
+    creations: "mine",
+    supply: "market",
+    apps: "market",
+    build: "market",
+  },
 };
 
 export function canonicalSlug(container: SurfaceContainer, slug: string): string {
@@ -198,9 +240,9 @@ export interface PresetCatalog {
   [slug: string]: LayoutPreset;
 }
 
-// The default preset is a verbatim snapshot of the pre-change hardcoded
-// surfaces (every registry slug, canonical order). A deployment with no
-// layout data anywhere resolves to exactly today's UI.
+// The default preset names every registry slug (minus the retired nav entries)
+// in canonical order, so a deployment with no layout data anywhere resolves to
+// the full surface set.
 export const FACTORY_PRESET_SLUG = "standard-snapshot";
 
 // The non-technical skeleton: the four work surfaces, and Settings reduced to
@@ -208,14 +250,15 @@ export const FACTORY_PRESET_SLUG = "standard-snapshot";
 export const FACTORY_PRESETS: PresetCatalog = {
   [FACTORY_PRESET_SLUG]: {
     version: 1,
-    // add-agent-builder-workspace 3.1: `blueprints` is the one surface the
-    // factory nav drops (nav entry retired into the workspace redirect);
-    // every other registry slug stays, item for item, in registry order.
+    // `blueprints` is the one surface the factory nav drops (nav entry retired
+    // into the workspace redirect); every other registry slug stays, item for
+    // item, in registry order — which is now the six-top-level / four-family
+    // set (chat, knowledge×3, build×2, run×3, tasks, access×3).
     nav: NAV_SURFACES.map((s) => s.slug).filter((slug) => slug !== "blueprints"),
     settings: SETTINGS_SURFACES.map((s) => s.slug),
-    // add-agent-builder-hub: the builder hub's four areas replace the retired
-    // agents/market pair (both stay resolvable via SURFACE_SLUG_ALIASES).
-    agentsTabs: ["build", "supply", "creations", "tuning"],
+    // restructure-yizuo-ia: `/agents` is the single pack doorway with exactly
+    // two tabs (the retired hub's four slugs stay resolvable via aliases).
+    agentsTabs: ["market", "mine"],
   },
   simple: {
     version: 1,
@@ -230,8 +273,8 @@ export const FACTORY_PRESETS: PresetCatalog = {
     // (legal/stock/economic) all resolve to this preset. Leaving it out made
     // the section invisible — and every connect deep link fell back to
     // General — for exactly the users those recipes provision (2026-10-18).
-    settings: ["general", "account", "wechat-app", "devices", "connections"],
-    agentsTabs: ["build", "supply", "creations", "tuning"],
+    settings: ["general", "account", "pairing", "connections"],
+    agentsTabs: ["market", "mine"],
   },
 };
 

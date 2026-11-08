@@ -55,12 +55,21 @@ let userCookie;
 // add-agent-builder-workspace 3.1: `blueprints` retires from the FACTORY nav
 // (the workspace owns the route; /blueprints redirects) — so it is absent from
 // the baseline snapshot below while every other registry slug stays.
-const ALL_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu", "fleet"];
-const BROWSER_NAV = ["chat", "knowledge", "resources", "memory", "agents", "apps", "tasks", "fleets", "machines", "zhiyu"];
+// restructure-yizuo-ia: registry order (six top-level entries / four families —
+// chat · 知识 · 构建 · 运行 · 自动化 · 接入). `tuning` and `channels` gained
+// doors; `channels` left Settings for the nav container.
+const ALL_NAV = [
+  "chat", "knowledge", "resources", "memory", "agents", "tuning",
+  "fleets", "machines", "fleet", "tasks", "apps", "channels", "zhiyu",
+];
+const BROWSER_NAV = ALL_NAV.filter((slug) => slug !== "fleet");
+// 12 settings sections; branding/roles/layout are admin-only → filtered for a
+// non-admin resolver, and `pairing` replaced devices + wechat-app while
+// `diagnostics` folded into `status`.
 const ALL_SETTINGS = [
-  "general", "account", "wechat-app", "devices", "connections", "mcp", "plugins",
-  "models", "channels", "diagnostics", "status",
-]; // branding/roles/layout are admin-only → filtered; plugins rides (dsh supply)
+  "general", "account", "pairing", "connections", "mcp", "plugins",
+  "models", "delegation", "status",
+];
 
 async function api(pathname, { method = "GET", cookie, body } = {}) {
   const headers = {};
@@ -173,10 +182,12 @@ test.describe("workbench layout (logto mode)", () => {
     expect(cfg.status).toBe(200);
     expect(cfg.json.resolvedLayout.nav).toEqual(ALL_NAV);
     expect(cfg.json.resolvedLayout.settings).toEqual(ALL_SETTINGS);
-    // add-agent-builder-hub: the hub's four areas; the market gate moved to
-    // the supply cabinet client-side, so a market-less deployment keeps the
-    // full set. Apps stays retired from every factory preset.
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["build", "supply", "creations", "tuning"]);
+    // restructure-yizuo-ia: `/agents` is the single pack doorway with market +
+    // mine; the retired hub slugs stay alias-only. The marketplace predicate
+    // gates the 市场 TAB (not the page), and this harness runs without
+    // PACK_MARKETPLACE, so 我的 survives alone — installed packs and creator
+    // drafts are local state.
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["mine"]);
   });
 
   test("the sidebar renders exactly the resolved tab set (baseline)", async ({ page, context }) => {
@@ -218,11 +229,10 @@ test.describe("workbench layout (logto mode)", () => {
     expect(cfg.json.resolvedLayout.settings).toEqual([
       "general",
       "account",
-      "wechat-app",
-      "devices",
+      "pairing",
       "connections",
     ]);
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["build", "supply", "creations", "tuning"]);
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["mine"]);
   });
 
   test("the sidebar reflects the narrowed layout on the next load", async ({ page, context }) => {

@@ -187,7 +187,11 @@ test.describe("settings → Paired devices", () => {
     await page.goto(`${BASE}/settings/devices`);
     await page.addScriptTag({ path: JSQR });
 
-    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "devices");
+    // restructure-yizuo-ia: `devices` is an alias opening the merged pairing
+    // section's desktop-app tab. The URL keeps the alias slug because the QR
+    // code (and the app's scanner) already encodes this exact path.
+    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "pairing");
+    await expect(page.getByTestId("pairing-tab-app")).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("settings-devices")).toBeVisible();
 
     const code = await shownCode(page);

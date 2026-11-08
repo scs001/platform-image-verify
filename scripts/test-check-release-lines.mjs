@@ -13,7 +13,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -21,6 +21,15 @@ import { test } from "node:test";
 const GUARD = new URL("./check-release-lines.mjs", import.meta.url).pathname;
 const BRANCH = "release/cell-session-persona";
 const WORK = mkdtempSync(join(tmpdir(), "check-release-lines-"));
+
+// The exporter deletes ITSELF (and its runbook) from the tree it produces, so
+// this script is absent in the public snapshot — which is exactly where CI runs.
+// The wiring assertion below reads that file, so it can only run where it
+// exists; the guard's own behaviour is tested against bare remotes and runs
+// everywhere. Skipping is honest: there is no wiring to inspect in this tree.
+const NO_SNAPSHOT_SCRIPT = existsSync(new URL("./make-public-snapshot.mjs", import.meta.url))
+  ? false
+  : "the snapshot exporter is not in this tree (it deletes itself from its own output)";
 
 function run(cwd, ...argv) {
   const env = { ...process.env };
@@ -155,7 +164,7 @@ test("--strict turns a one-way mirror lag into exit 1", () => {
   assert.equal(guard(repo, "--strict").code, 1, "--strict refuses any divergence");
 });
 
-test("the snapshot script gates on the guard before exporting", async () => {
+test("the snapshot script gates on the guard before exporting", { skip: NO_SNAPSHOT_SCRIPT }, async () => {
   // Prove the wiring, not just the guard: make-public-snapshot must call
   // check-release-lines and abort on a non-zero result before any export.
   const { readFileSync } = await import("node:fs");

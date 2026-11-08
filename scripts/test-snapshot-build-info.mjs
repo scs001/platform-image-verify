@@ -28,7 +28,16 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_REL = "dist-opensource/build-info-test";
 const OUT = join(REPO_ROOT, OUT_REL);
 
-test("the exported tree carries BUILD-INFO.json with the base commit", () => {
+// This test drives the real exporter, and the exporter deletes itself from the
+// tree it produces — so in the public snapshot (where CI runs) there is nothing
+// to drive and the run dies on MODULE_NOT_FOUND, red for a reason that has
+// nothing to do with provenance. The contract is pinned where the exporter
+// lives; elsewhere the skip states why.
+const NO_SNAPSHOT_SCRIPT = existsSync(join(REPO_ROOT, "scripts", "make-public-snapshot.mjs"))
+  ? false
+  : "the snapshot exporter is not in this tree (it deletes itself from its own output)";
+
+test("the exported tree carries BUILD-INFO.json with the base commit", { skip: NO_SNAPSHOT_SCRIPT }, () => {
   rmSync(OUT, { recursive: true, force: true });
   const run = spawnSync(
     process.execPath,

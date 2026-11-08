@@ -38,8 +38,24 @@ const {
 
 const neverTurn = () => new Promise(() => {});
 
+// Every test needs a CLEAN store, and a plain re-init does not give one: the
+// whole file shares one temp dir, `state` is part of the persisted record, and
+// loadTasks keeps `queued` (re-queueing it for repair). So a record an earlier
+// test left queued is RELOADED here — and since several tests assert a global
+// count (`queued === 0`), that residue decides the result. This is exactly how
+// the file failed in CI (1 !== 0 at the last test) while passing locally: the
+// enqueue path saves with `void saveTasks()`, so which state is on disk when
+// the next test starts depends on how fast the chained write lands.
+//
+// Order matters: init FIRST (any write still in flight then recomputes its
+// snapshot from the fresh, empty map and settles before init returns — the
+// await covers the write chain), then wipe the store, then init again so the
+// load sees nothing.
 async function freshEngine() {
-  await initTaskEngine({ broadcast: () => {}, runTurn: neverTurn, isBusy: () => false });
+  const init = () => initTaskEngine({ broadcast: () => {}, runTurn: neverTurn, isBusy: () => false });
+  await init();
+  fs.rmSync(process.env.CRON_STORAGE_PATH, { recursive: true, force: true });
+  await init();
 }
 
 function addTask(id) {
@@ -126,6 +142,32 @@ test("paused and idle tasks are not counted as backlog", async () => {
   addTask("idle");
   const h = queueHealth();
   assert.equal(h.queued, 0);
+  assert.equal(h.running, 0);
+  assert.equal(h.degraded, false);
+});
+
+test("a record left queued on disk does not leak into a fresh engine", async () => {
+  // Pins the isolation contract freshEngine() now owns. Without the wipe, this
+  // is the CI failure reproduced locally: loadTasks keeps the persisted
+  // `queued` state and the projection counts it.
+  fs.writeFileSync(
+    path.join(process.env.CRON_STORAGE_PATH, "jobs.json"),
+    JSON.stringify([
+      {
+        id: "stale",
+        name: "stale",
+        trigger: "manual",
+        prompt: "p",
+        targetType: "persona",
+        state: "queued",
+        queuedAt: Date.now() - 1000,
+        history: [],
+      },
+    ]),
+  );
+  await freshEngine();
+  const h = queueHealth();
+  assert.equal(h.queued, 0, "a stale queued record must not survive a fresh engine");
   assert.equal(h.running, 0);
   assert.equal(h.degraded, false);
 });

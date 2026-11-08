@@ -644,8 +644,66 @@ function dispatch(id) {
 
 // Chain one execution onto the serialized queue (no guards — callers either
 // passed them or want the run-time re-check to decide).
+//
+// Queue watchdog (fix-cell-turn-throughput 2.1): the chain is strictly serial,
+// so a turn that never settles stops EVERY queued execution behind it. Live
+// 2026-11-08: a turn sat in `running` for 3.5 minutes with 24 tasks queued and
+// nothing moved; `finishExecution` can only be called by the turn itself, so a
+// turn wedged inside an `await` never reaches it.
+//
+// The deadline is therefore OUTSIDE the turn, where it cannot be defeated by a
+// turn that fails to return. On expiry the task is settled through the same
+// `finishExecution` path (so history/state semantics stay in one place) and the
+// chained promise resolves, letting the queue advance.
+const QUEUE_WATCHDOG_GRACE_MS = 5 * 60_000;
+
+function queueWatchdogMs(task) {
+  const raw = process.env.QUEUE_WATCHDOG_MS;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+    const n = Number(raw);
+    // 0 (or a negative) disables the watchdog outright — an operator escape
+    // hatch, and the only way to reproduce the pre-fix behaviour in tests.
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return n;
+  }
+  let budget = null;
+  try {
+    budget = resolveBudgetFor(task);
+  } catch { /* a broken resolver must not disable the watchdog */ }
+  const base = Number.isFinite(budget) && budget > 0 ? budget : 10 * 60_000;
+  return base + QUEUE_WATCHDOG_GRACE_MS;
+}
+
 function chainExecution(id) {
-  executionQueue = executionQueue.then(() => runQueuedExecution(id));
+  executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(id));
+}
+
+async function runQueuedExecutionWithWatchdog(id) {
+  const limit = queueWatchdogMs(tasks.get(id));
+  if (!limit) return runQueuedExecution(id);
+
+  const startedAt = new Date().toISOString();
+  let timer = null;
+  const watchdog = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      const t = tasks.get(id);
+      // The turn may have settled in the same tick the timer fired.
+      if (t && t.state === "running") {
+        finishExecution(t, startedAt, {
+          ok: false,
+          error: `queue watchdog: turn exceeded ${limit < 1000 ? `${limit}ms` : `${Math.round(limit / 1000)}s`} without settling — the serial queue was holding every other task behind it`,
+        });
+      }
+      resolve("watchdog");
+    }, limit);
+    if (typeof timer?.unref === "function") timer.unref();
+  });
+
+  try {
+    await Promise.race([runQueuedExecution(id), watchdog]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // Hand an execution back to the primary slot's serial chain (the worker

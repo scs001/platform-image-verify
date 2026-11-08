@@ -17,9 +17,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Isolate task storage: TASK_STORAGE_DIR is frozen at module load from
+// CRON_STORAGE_PATH, so the env must be set AFTER the static imports above
+// but BEFORE the dynamic engine import below — otherwise the suite reads
+// (and rewrites!) the developer machine's real cron store.
+process.env.CRON_STORAGE_PATH = fs.mkdtempSync(path.join(os.tmpdir(), "queue-test-"));
 const {
   initTaskEngine,
   insertTask,

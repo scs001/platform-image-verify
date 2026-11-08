@@ -339,6 +339,12 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
   ⑨ add-fleet-ruling-ledger    裁决回合纳入编导（O1 行 + run header + chain）→ 多轮辩论才成立
   ⑩ add-fleet-artifact-handoff 产物句柄进 payload（workspace 路径或 library doc id）
   ⑪ add-fleet-cost-read-face   member_turn_daily 的 USD 列接 API，按 岗/run/边 三切面
+                               **→ 已归档并上产：`openspec/changes/archive/2026-11-08-add-fleet-cost-read-face/`
+                               （镜像 sha-873377b；四分量 USD 同缝也落到**回合行**（可空，未定价=null 不冒充 0），
+                               因为日汇总的键没有 run/边维度、现价重算会改写历史；run 列表一次分组查询无 N+1、
+                               详情与逐回合带 cost、`edgeTraffic` 带 hop 金额（取下游回合）、spend 各窗口带
+                               costUsd+pricedTurns、owner board 累加；有意推翻 add-turn-pricing D4a，
+                               并用「回合行与日汇总必须一致」交叉校验钉住；镜像内 12/12 绿）**
   ⑫ fix-report-edge            实现 report 边或从枚举删除（消除死语法）
   ⑬ add-event-wake-coalesce    event 边按 (botId, chatKey) 窗口去抖合并
 ```

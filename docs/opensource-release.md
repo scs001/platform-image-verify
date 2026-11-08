@@ -26,10 +26,24 @@ gitleaks 于 2026-10-01 在私仓历史中确认过 3 处真实密钥（当前�
 
 ## 2. 生成快照
 
+**先过第 0 步：确认你要打快照的那条线是完整的。** 出片用的是**当前检出**的 `HEAD`
+（`--ref` 默认 `HEAD`），而不是某个远端引用，所以两个坑都真实发生过：从一条落后于另一端的
+检出打快照，镜像里就少了对方在途的功能；从一条次新检出打快照，会把对方已删的死代码带回来
+（2026-11-08 两次坏片）。
+
+```bash
+# 两条 release 线是否真的分叉（用 patch-id 判，不会把镜像提交误报成分叉）
+node scripts/check-release-lines.mjs --strict     # exit 0 才继续；2 = 双向分叉，先合并
+```
+
 ```bash
 # 默认取 HEAD；工作区未提交的改动中，只有 README*/LICENSE/.gitleaks.toml 会被覆盖进快照
 node scripts/make-public-snapshot.mjs --init
 ```
+
+- 想从指定线出片而不动别人的检出：`--ref gitee/release/cell-session-persona`（脚本接受任意
+  ref，`git archive` 导出的是已提交树，未提交改动不会进快照）。
+- 出片 sha 是**快照仓的 commit**，注释里同时写私仓真 sha。
 
 - 想把在途代码（如 cells 迁移）带进快照：先在私仓提交，再重跑脚本。
 - 脚本失败 = 验证不通过（清洗表失效/新泄漏/结构缺失），按输出修表或修文件后重跑；失败时输出目录会被删除。

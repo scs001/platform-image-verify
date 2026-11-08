@@ -21,6 +21,15 @@
 //      Any finding ⇒ the output is removed and the run exits non-zero.
 //
 // The output has no git history BY DESIGN: publish it as a NEW public repo.
+//
+// Before exporting, the guard below refuses an incomplete base: images are cut
+// from the operator's HEAD, and twice (2026-11-08) an image shipped missing work
+// that only existed on the other remote — once because the checkout was behind
+// the other line, once because a merge brought back code the other line had
+// deleted. `check-release-lines.mjs` compares the two release lines by patch-id,
+// so mirrored commits (same patch, different SHA) never read as a fork.
+// Opt out with SNAPSHOT_SKIP_LINE_CHECK=1 when deliberately cutting from a
+// non-release ref.
 // Full manual runbook (key rotation, repo creation, facade trio):
 // docs/opensource-release.md.
 
@@ -53,11 +62,33 @@ function argValue(name, fallback) {
 const REF = argValue("--ref", "HEAD");
 const OUT = resolve(REPO_ROOT, argValue("--out", "dist-opensource/platform"));
 const SKIP_GITLEAKS = args.includes("--skip-gitleaks");
+// The exact commit the tree is cut from, resolved once — every later message
+// (commit body, BUILD-INFO.json) quotes this same sha.
+// Keep the remote prefix: `gitee/release/x` is a remote-tracking ref, and
+// stripping it to `release/x` resolves to nothing on a machine that has no such
+// local branch.
+const REF_SHA = execFileSync("git", ["rev-parse", `${REF}^{commit}`], { cwd: REPO_ROOT, encoding: "utf8" }).trim();
 const DO_INIT = args.includes("--init");
 
 if (!/^[A-Za-z0-9._/-]+$/.test(REF)) {
   console.error(`invalid --ref: ${REF}`);
   process.exit(2);
+}
+
+// ─── Base completeness (release lines) ───────────────────────────────────────
+// Skipped when the caller exports an arbitrary ref (a docs snapshot from an old
+// tag has no business failing on today's line state).
+if (!process.env.SNAPSHOT_SKIP_LINE_CHECK && REF === "HEAD") {
+  const guard = spawnSync(process.execPath, [join(REPO_ROOT, "scripts", "check-release-lines.mjs")], {
+    stdio: "inherit",
+  });
+  if (guard.status !== 0) {
+    console.error(
+      "\nBase is not whole: fix the release lines first (see docs/opensource-release.md §2 step 0)," +
+        " or export a specific ref with --ref and accept that base.",
+    );
+    process.exit(guard.status ?? 1);
+  }
 }
 const outRel = relative(REPO_ROOT, OUT);
 if (outRel.startsWith("..") || !outRel.startsWith("dist-opensource")) {
@@ -544,7 +575,25 @@ try {
   rmSync(OUT, { recursive: true, force: true });
   cpSync(tmp, OUT, { recursive: true });
   rmSync(tmp, { recursive: true, force: true });
-  console.log(`placed   ${relative(REPO_ROOT, OUT)}/`);
+  // Build provenance, inside the image: the tag alone cannot say WHICH base a
+  // published image was cut from (2026-11-08: an image claimed paas 53be7fbbe in
+  // the manifest comment while its tree carried neither the v100 migration guard
+  // nor the uninstall ledger deprecation). This file is the only in-image answer,
+  // so a rollout can be verified against the claim instead of trusted.
+  writeFileSync(
+    join(OUT, "BUILD-INFO.json"),
+    `${JSON.stringify(
+      {
+        baseRef: REF,
+        baseCommit: REF_SHA,
+        snapshotCommit: "filled in by the publish repo's own commit",
+        builtAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  console.log(`placed   ${relative(REPO_ROOT, OUT)}/  (BUILD-INFO.json: ${REF} ${REF_SHA.slice(0, 9)})`);
 
   const structural = [
     [existsSync(join(OUT, "README.md")), "README.md present"],

@@ -1,11 +1,12 @@
 // Fleet orchestration algebra, wave 1 (agent-fleet-orchestration).
 //
 // The declarative edge grammar: a fleet MAY carry an `orchestration` section
-// { mode?, edges?, constraints? }. Edges are DATA — trigger/report edges are
-// the graph shape of mechanisms that already exist (cadence materialization,
-// the report lane) and change NOTHING at runtime; only dispatch (the
-// dispatch_post tool's permission) and handoff (the completion hook at the
-// turn seam) carry new behavior. Validation is a pure function over
+// { mode?, edges?, constraints? }. Edges are DATA — trigger edges are the graph
+// shape of the cadence materialization that already exists and change NOTHING
+// at runtime; report edges are DERIVED from the org tree (see expandedEdges);
+// only dispatch (the dispatch_post tool's permission), handoff (the completion
+// hook at the turn seam), fanout (the parallel wave) and event (the bot wake)
+// carry behavior. Validation is a pure function over
 // {members, orchestration} — no IO, injectable everywhere, the single
 // authority both the write face and the runtime helpers read.
 //
@@ -65,10 +66,28 @@ export function constraintsOf(orchestration) {
 // Mode expansion is READ-TIME (design D2): supervisor adds an all→all
 // dispatch permission; schedule/pipeline add nothing implicit (pipeline
 // chains must be declared — grill Q3). Never stored expanded.
+//
+// Report edges are DERIVED from the org tree (fix-report-edge): the reporting
+// topology the platform actually runs on is `member.parentId`, and a second,
+// independently declared copy of that fact can only drift from it. So the graph
+// always shows one report edge per parent→child pair, read-time only — and
+// validateOrchestration refuses a DECLARED report edge that contradicts the
+// tree (a truthful one is accepted and not duplicated).
 export function expandedEdges({ members = [], orchestration = {} } = {}) {
-  const declared = Array.isArray(orchestration.edges) ? orchestration.edges : [];
+  // A fleet without an orchestration section still has an org tree, so the
+  // derivation below must work for null too (the two route callers happen to
+  // gate on it, but the function should not depend on that).
+  const orch = orchestration ?? {};
+  const declared = Array.isArray(orch.edges) ? orch.edges : [];
   const edges = declared.map((e) => ({ ...e }));
-  if (orchestration.mode === "supervisor") {
+  for (const m of members) {
+    if (!m?.parentId || !m?.id) continue;
+    // `from` reports upward to `to` (the UI renders "from ↑ 报数上行"), so the
+    // child is the reporter and the parent is the receiver.
+    const already = edges.some((e) => e.kind === "report" && e.from === m.id && e.to === m.parentId);
+    if (!already) edges.push({ kind: "report", from: m.id, to: m.parentId, derived: true });
+  }
+  if (orch.mode === "supervisor") {
     const refs = members.map((m) => m.id);
     for (const from of refs) {
       for (const to of refs) {
@@ -152,6 +171,22 @@ export function validateOrchestration({ members = [], orchestration = null } = {
       if (ref === "to" && e.kind === "fanout") continue; // fanout addresses `targets`, not `to`
       if (typeof e[ref] !== "string" || !known.has(e[ref])) {
         errors.push({ error: `${at}.${ref} '${e[ref]}' does not match a member of this fleet`, entry: at });
+      }
+    }
+    if (e.kind === "report") {
+      // Report edges are DERIVED from parentId (fix-report-edge): `from` is the
+      // reporting post, `to` the post it reports to, and the tree says the same
+      // thing through `from.parentId`. Declaring one is allowed only when it
+      // states that truth, so a fleet that spelled the tree out keeps working
+      // while a declaration that CONTRADICTS the tree is refused — a graph edge
+      // that lies is worse than no edge. expandedEdges dedupes, so a truthful
+      // declaration is not shown twice.
+      const reporter = members.find((m) => m.id === e.from);
+      if (reporter && reporter.parentId !== e.to) {
+        errors.push({
+          error: `${at}: a report edge must follow the org tree — '${e.from}' reports to '${reporter.parentId ?? "(nobody)"}', not '${e.to}' (report edges are derived from parentId; drop the declaration or move the post)`,
+          entry: at,
+        });
       }
     }
     if (e.kind === "event") {

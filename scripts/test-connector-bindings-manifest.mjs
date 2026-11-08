@@ -164,6 +164,59 @@ test("the real pack's after-state keeps the human fields untouched", () => {
   }
 });
 
+// ── role vocabulary (2026-11-08) ────────────────────────────────────────────
+//
+// A role name is the lookup key in connector_role_mappings(email, role): two
+// packs declaring the same need must spell it identically or the customer
+// answers twice. The shape rule therefore lives HERE (where every pack is
+// validated), not only in the template repo that happens to publish today.
+
+test("a role name must be kebab-case", () => {
+  // "pos system" also trips the older no-spaces rule, so the assertion is that
+  // the kebab-case error is among the reported ones — not that it is the only one.
+  for (const bad of ["PosSystem", "pos_system", "pos system", "POS"]) {
+    const errors = errorsFor([{ key: "p", provider: bad, providerRole: true, allowOperations: ["read"] }]);
+    const shape = errors.filter((e) => /kebab-case role name/.test(e.error));
+    assert.equal(shape.length, 1, `${bad} must be rejected by the shape rule`);
+    assert.equal(shape[0].entry, "connector_bindings[0].provider");
+  }
+  for (const good of ["pos", "cn-commerce", "supplier-portal2"]) {
+    assert.deepEqual(
+      errorsFor([{ key: "p", provider: good, providerRole: true, allowOperations: ["read"] }]),
+      [],
+      `${good} must be accepted`,
+    );
+  }
+});
+
+test("a role binding may not carry alternativeProviders", () => {
+  const errors = errorsFor([
+    {
+      key: "p",
+      provider: "pos",
+      providerRole: true,
+      allowOperations: ["read"],
+      alternativeProviders: ["wangdian"],
+    },
+  ]);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].entry, "connector_bindings[0].alternativeProviders");
+  assert.match(errors[0].error, /must not accompany providerRole/);
+});
+
+test("the shape rule does not touch plain provider ids", () => {
+  // CamelCase / snake_case are fine for real service ids — only the ROLE form is
+  // constrained, so this rule can never reject a pack that talks to a vendor.
+  assert.deepEqual(
+    errorsFor([
+      { key: "a", provider: "kingdee", allowOperations: ["read"] },
+      { key: "b", provider: "sf_express", allowOperations: ["read"] },
+      { key: "c", provider: "wechatpay", allowOperations: ["read"], alternativeProviders: ["alipay"] },
+    ]),
+    [],
+  );
+});
+
 // ── providerRole (add-connector-role-mapping 1.1) ───────────────────────────
 
 test("a role binding validates clean and keeps provider as the role name", () => {

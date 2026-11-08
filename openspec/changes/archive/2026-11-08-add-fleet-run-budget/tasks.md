@@ -55,7 +55,10 @@
 
 ## 7. 上线
 
-- [ ] 7.1 出片滚版（`fd-build-channel pick platform`）
+- [x] 7.1 出片滚版 → 已在产（快照取自远端线 620fdd951 → GHA `sha-571b018`，digest `sha256:cfa6bcb2`，
+      relay OK 08:20；fd-infra-deploy `b136199` 双 bump → ArgoCD 75s 内两边到位 → 两 rollout 完成；
+      镜像内 `test-fleet-run-budget`+`test-fleet-runs` = 35/35 绿；实弹探针：runBudget 归一化正确、
+      `fleet_runs` 迁移后 14 列含 stopped_at/stop_reason）
 - [ ] 7.2 观察项：滚版后在真实舰队声明一个 `runBudget`，确认超限时不再生长且事实行可读；
       对一条在飞 run 点一次取消，确认落 interrupted
 

@@ -118,3 +118,27 @@ pod `platform-84c885bc6c-4f6dj`：**2/2 Running**，容器 `platform + browser-l
 **探针坑（已在 GitOps 修复，cf45601）**：`hostNetwork` 下 `httpGet` 探针按 pod IP
 （节点 IP）连，实测 `Get "http://100.64.0.14:9310/healthz": connection refused`，Pod 卡
 1/2、Service 无端点；必须 `httpGet.host: 127.0.0.1`（或 exec 探针）。
+
+### 6.1 线上端到端（真 chromium、真身份归因，不经登录）
+
+在 platform 容器里以**灰度 cell 的 runtime 目录为 cwd** 起一个 MCP 客户端连
+`http://127.0.0.1:9310/mcp`（这正是服务用来判定归属的证据源：连接方进程的 cwd）：
+
+```
+tools=24
+nav.isError=false
+shot.isError=false
+```
+
+sidecar 侧证据：
+
+```
+[browser-lane] session 328fe5b6 bound to cell a61f1beddc5297e5 (via cwd);
+               artifacts → /data/cells/a61f1beddc5297e5/workspace/browser
+[browser-lane] cell a61f1beddc5297e5 browser_take_screenshot:
+               filename→/data/cells/a61f1beddc5297e5/workspace/browser/s51-walkthrough.png
+```
+
+落点核对：该 cell 的 `workspace/browser/` 出现 `s51-walkthrough.png`（4254B）**以及**
+自动命名的 `page-2026-11-08T04-49-26-455Z.yml`（未命名产物被清扫归位）；另一个 cell
+（3fdc7b8e）同名文件计数 **0**。走查后已删除这两份产物，只留台账。

@@ -117,6 +117,9 @@ function saveTasks() {
       // new and the age policy could never fire (live 2026-11-08: 18 queued
       // executions, all stamped within a second of boot).
       firstQueuedAt: t.firstQueuedAt ?? null,
+      // Requestor of the current queue residence (see enqueueExecution): the
+      // age policy must survive a restart knowing a human asked for the round.
+      queuedBy: t.queuedBy ?? null,
       // Cluster binding (agent-cluster-platform): persisted alongside the ref
       // in `preset` — without these a cell restart reloaded cluster tasks with
       // their policy/subset/label gone (prod 2026-10-21: list showed null,
@@ -628,7 +631,16 @@ function enqueueExecution(id, opts = {}) {
   // `firstQueuedAt` is stamped ONCE per queue residence and cleared when the
   // execution leaves the queue, so age means "since this fire first asked for a
   // slot".
-  if (!Number.isFinite(t.firstQueuedAt)) t.firstQueuedAt = t.queuedAt;
+  if (!Number.isFinite(t.firstQueuedAt)) {
+    t.firstQueuedAt = t.queuedAt;
+    // Who asked for this queue residence. `trigger` cannot answer it: `run now`
+    // on a cadence task keeps trigger="schedule", so an operator's own ignition
+    // was being aged out as a stale cadence fire once it waited past the bound
+    // behind the cell's single slot — the exact "run-now lost" symptom this
+    // change set out to kill. The age policy may only drop a fire nobody asked
+    // for.
+    t.queuedBy = opts.by === "human" ? "human" : "cadence";
+  }
   // The execution carrier default: structural routing knowledge, not an
   // inference — a2a targets run on the primary's remote executor, everything
   // else starts as the primary-chain cell slot. A worker claim (worker-slots
@@ -828,11 +840,15 @@ async function runQueuedExecution(id) {
   // as `skipped` (honest, no budget spent, no ledger instance) and let the next
   // cadence fire supersede it. Manual/event fires are never aged out — a human
   // asked for THAT round.
+  // Manual/event fires are never aged out — a human asked for THAT round — and
+  // neither is a `run now` on a cadence task (`queuedBy === "human"`). The
+  // trigger reads "schedule" for both, so the REQUESTOR decides, not the shape.
   const maxAgeMs = queueMaxAgeMs();
   const firstQueuedAt = Number.isFinite(t.firstQueuedAt) ? t.firstQueuedAt : t.queuedAt;
   if (
     maxAgeMs > 0
     && t.trigger === "schedule"
+    && t.queuedBy !== "human"
     && Number.isFinite(firstQueuedAt)
     && Date.now() - firstQueuedAt > maxAgeMs
   ) {
@@ -844,6 +860,7 @@ async function runQueuedExecution(id) {
       error: `queue staleness: a scheduled fire waited ${waitedMin}min behind the cell's serial slot (>${boundMin}min) — dropped without running; the next cadence fire supersedes it`,
     });
     t.firstQueuedAt = null;
+    t.queuedBy = null;
     console.log(`[task-engine] ${t.id}: dropped stale queued fire (waited ${waitedMin}min > ${boundMin}min)`);
     return;
   }
@@ -856,6 +873,7 @@ async function runQueuedExecution(id) {
 async function runExecutionTurn(t, turnFn) {
   // Leaving the queue for a real run: the staleness anchor is spent.
   t.firstQueuedAt = null;
+  t.queuedBy = null;
   const startTime = new Date().toISOString();
   t.lastRun = startTime;
   t.state = "running";
@@ -1039,8 +1057,9 @@ function recordFailedFire(id, message) {
 // the WS ack (cron_run_started) must not wait out the whole turn; completion
 // arrives as the cron_completed broadcast.
 function runTaskNow(id) {
-  const r = enqueueExecution(id);
-  return r;
+  // `by: "human"` rides the enqueue so the staleness policy can tell an
+  // operator's ignition from a cadence fire on the same task record.
+  return enqueueExecution(id, { by: "human" });
 }
 
 // Re-enqueue a round after a delay (2026-11-08): the readiness gate's retry

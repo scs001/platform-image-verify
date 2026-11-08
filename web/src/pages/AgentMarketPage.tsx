@@ -29,7 +29,7 @@ import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
-import { STUDIO_ORIGIN, studioHref } from "@/lib/studio-origin";
+import { studioHref } from "@/lib/studio-origin";
 import { cn } from "@/lib/utils";
 
 type Tab = "market" | "mine";
@@ -140,21 +140,13 @@ export function AgentMarketPage() {
       <div className="flex-1 overflow-auto p-6">
         {active === "market" && (
           <div data-testid="agent-market-panel-market">
-            {/* The only doors that leave the product for the marketplace and
-                the Studio — explicit outbound links, never a second in-product
-                market face. */}
+            {/* The marketplace is INTERNAL (drop-external-market-door): its
+                catalogue is this deployment's own market plane, so a button
+                leaving the product for "the market" would present the same
+                catalogue as another product with another identity. The one
+                outbound door left is authoring — the supply-domain Studio —
+                and it is labelled as authoring, never as the market. */}
             <div className="mb-6 flex flex-wrap items-center gap-3">
-              <a
-                href={`${STUDIO_ORIGIN}/#/packs`}
-                target="_blank"
-                rel="noopener"
-                data-testid="agent-market-open"
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                <Blocks className="h-4 w-4" />
-                {t("agents.market.openMarket")}
-                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
-              </a>
               <a
                 href={studioHref()}
                 target="_blank"
@@ -162,7 +154,9 @@ export function AgentMarketPage() {
                 data-testid="agent-market-studio"
                 className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
               >
+                <Blocks className="h-4 w-4" />
                 {t("agents.market.openStudio")}
+                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
               </a>
             </div>
             <PackMarketView

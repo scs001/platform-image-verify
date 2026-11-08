@@ -3992,7 +3992,6 @@
     },
     "market": {
       "subtitle": "作成と公開はサプライドメインへ；インストールと実行はこちら",
-      "openMarket": "エージェントマーケットを開く",
       "openStudio": "Studio を開く",
       "installed": "このマシンのインストール済みパック"
     }

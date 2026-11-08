@@ -28,6 +28,7 @@ import * as credentialRefs from "./credential-refs.js";
 import { isMarketInstallableEntry } from "./registry-bridge.js";
 import * as bots from "./server/bots.js";
 import { validatePackManifest, skillScriptFiles } from "./lib/pack-manifest.js";
+import { mcpBudgetCheck } from "./lib/cell-mcp-budget.js";
 import {
   PACK_BOT_CREDENTIAL_KEY,
   packBotMeta,
@@ -342,6 +343,30 @@ export async function installPack({ packId, version, manifest, user, confirm = f
   const errors = validatePackManifest(manifest);
   if (errors.length > 0) {
     throw Object.assign(new Error("Invalid manifest"), { status: 400, details: errors });
+  }
+  // Cell MCP budget (D8 ④ 容量面): dsh initialises MCP servers serially inside a
+  // hard 60s budget, and nothing used to cap how many a cell accumulated. Past
+  // the ceiling the whole cell stops starting and EVERY fleet's rounds are
+  // skipped, reporting only "initialize timed out" — 2026-11-08 live: 41 packs
+  // → 32 servers → hours of misdiagnosis. Soft limit warns, hard limit refuses
+  // with a message that names the real cause. Re-installing an already-present
+  // pack adds nothing to the union, so upgrades of an existing pack stay open
+  // even on a cell already past the limit (otherwise it could never be fixed
+  // from inside).
+  const budget = mcpBudgetCheck({
+    existingManifests: db.listInstalledPacks().map((p) => p.manifest),
+    incomingManifest: manifest,
+    env: process.env,
+  });
+  if (budget.level === "hard") {
+    throw Object.assign(new Error(budget.message), {
+      status: 409,
+      code: "cell-mcp-budget-exceeded",
+      details: { count: budget.count, added: budget.added, softLimit: budget.softLimit, hardLimit: budget.hardLimit },
+    });
+  }
+  if (budget.level === "soft") {
+    console.warn(`[packs] ${budget.message}`);
   }
   // Script confirm gate: name the offending skills and their scripts so the
   // client can render the acknowledgment without a second round-trip.

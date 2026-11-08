@@ -151,7 +151,12 @@ test("additive migration: v1-shaped db gains fleet_runs + turn columns; legacy r
   const db = createFleetDatabase({ file });
   const cols = db.db.prepare("PRAGMA table_info(member_turn_events)").all().map((c) => c.name);
   for (const c of ["turn_id", "run_id", "parent_turn_id", "edge_kind", "usage_input", "usage_output", "trace_turn_id"]) assert.ok(cols.includes(c), c);
-  assert.equal(db.db.prepare("PRAGMA table_info(fleet_runs)").all().length, 12);
+  // 12 base columns + stopped_at/stop_reason (add-fleet-run-budget): the stop
+  // facts ride the header, they are not a status value finalizeRun could
+  // overwrite.
+  const runCols = db.db.prepare("PRAGMA table_info(fleet_runs)").all().map((c) => c.name);
+  assert.equal(runCols.length, 14);
+  for (const c of ["stopped_at", "stop_reason"]) assert.ok(runCols.includes(c), c);
   const [legacy] = db.listTurnEvents("m1");
   assert.equal(legacy.runId, null);
   assert.equal(legacy.turnId, null);

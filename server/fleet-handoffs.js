@@ -52,6 +52,48 @@ function firedIgnitionKeys(engine) {
   return keys;
 }
 
+// ── Run-level admission (add-fleet-run-budget) ──────────────────────────────
+//
+// A per-edge timeout bounds one hop; nothing bounded the chain. Before any hop
+// is created, ask the run header: was this run stopped, and is it already over
+// its declared ceiling? "Stopped" covers both an owner cancel and a budget stop
+// (the first writer's reason wins), so this one check closes both doors.
+//
+// Counting: finished turns come from the turn rows (the same source finalizeRun
+// trusts); in-flight turns of the run are added because a wave starts several
+// hops at once and would otherwise each see the same pre-wave count.
+//
+// Returns null when clear, else a structured reason. PURE — no writes.
+export function runAdmissionBlocked(db, engine, runId, budget, { now = Date.now() } = {}) {
+  if (!runId) return null;
+  const usage = db.runUsage?.(runId) ?? null;
+  if (!usage) return null; // unknown run (legacy row) — never block on a missing header
+  if (usage.stoppedAt != null) {
+    return {
+      code: "run_stopped",
+      reason: usage.stopReason || "run stopped",
+    };
+  }
+  if (!budget) return null;
+  const inflight = (engine?.allRecords?.() ?? []).filter(
+    (t) => t?.origin?.fleet?.chain?.runId === runId && (t.state === "queued" || t.state === "running"),
+  ).length;
+  const turnsSoFar = usage.turns + inflight;
+  if (budget.maxTurns != null && turnsSoFar >= budget.maxTurns) {
+    return { code: "run_budget", reason: `run turn budget reached (${turnsSoFar}/${budget.maxTurns})` };
+  }
+  if (budget.maxTokens != null && usage.tokens >= budget.maxTokens) {
+    return { code: "run_budget", reason: `run token budget reached (${usage.tokens}/${budget.maxTokens})` };
+  }
+  if (budget.maxMinutes != null && Number.isFinite(usage.startedAt)) {
+    const minutes = (now - usage.startedAt) / 60_000;
+    if (minutes >= budget.maxMinutes) {
+      return { code: "run_budget", reason: `run time budget reached (${Math.floor(minutes)}/${budget.maxMinutes} min)` };
+    }
+  }
+  return null;
+}
+
 export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rosterPresetId = (id) => id, chainFor = () => null }) {
   const withChain = (fleet, edgeKind) => {
     const chain = chainFor(edgeKind);
@@ -81,6 +123,36 @@ export function igniteFleetEdges({ db, engine, job, out, ledgerTurn = null, rost
   const turnKey = ignitionTurnKey(job, ledgerTurn);
   const fired = firedIgnitionKeys(engine);
   const hopKey = (edgeKind, targetId) => `${turnKey}:${edgeKind}:${targetId}`;
+  // The run this ignition belongs to, and its admission verdict (see
+  // runAdmissionBlocked). A blocked run creates no hops at all — and a budget
+  // stop is recorded ONCE, by the first hop that finds it, not per target.
+  const runId = ledgerTurn?.runId ?? job?.origin?.fleet?.chain?.runId ?? null;
+  const blocked = runAdmissionBlocked(db, engine, runId, constraints.runBudget, { now });
+  if (blocked) {
+    if (blocked.code === "run_budget") {
+      // Persist the ceiling as the run's stop reason so the read face and the
+      // next ignition agree without re-deriving the numbers.
+      try {
+        db.stopRun?.(runId, { reason: `budget: ${blocked.reason}`, at: now });
+      } catch { /* a failed stamp must not make the block disappear */ }
+    }
+    // One honest row per would-be wave: the fleet sees WHY nothing was ignited.
+    db.appendTurnEvent({
+      fleetId,
+      memberId,
+      source: "manual",
+      status: "failed",
+      errorKind: "other",
+      error: `edge ignition refused: ${blocked.reason}`,
+      startedAt: now,
+      endedAt: now,
+      sessionId: null,
+      // The refusal belongs to the upstream post's lane — derive it from the
+      // real member row, not from a guess.
+      metering: { carrier: derivedLaneCarrier({ member: db.getMember(memberId), fleet, targetKind: "persona" }) },
+    });
+    return null;
+  }
   for (const e of edges) {
     const target = db.getMember(e.to);
     if (!target || target.fleetId !== fleetId) continue;

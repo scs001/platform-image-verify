@@ -20,6 +20,29 @@ export const DEFAULT_MAX_CHAIN_DEPTH = 8;
 export const DEFAULT_SPAN_MAX = 8;
 export const DEFAULT_BUDGET_PER_EDGE_MIN = 10;
 
+// Whole-run budget (add-fleet-run-budget D1). Per-edge timeouts bound ONE hop;
+// nothing bounded a chain. Absent/null = unlimited, so every fleet that never
+// declares it behaves exactly as before. Three independent ceilings, each
+// optional:
+//   maxTurns   — hops this run may start (finished turns + in-flight count)
+//   maxTokens  — reported input+output tokens summed over the run
+//   maxMinutes — wall clock from the run header's start
+const budgetCeiling = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : null);
+
+export function normalizeRunBudget(raw) {
+  if (raw == null) return { maxTurns: null, maxTokens: null, maxMinutes: null };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { maxTurns: null, maxTokens: null, maxMinutes: null };
+  return {
+    maxTurns: budgetCeiling(Number(raw.maxTurns)),
+    maxTokens: budgetCeiling(Number(raw.maxTokens)),
+    maxMinutes: budgetCeiling(Number(raw.maxMinutes)),
+  };
+}
+
+export function runBudgetDeclared(budget) {
+  return !!(budget && (budget.maxTurns != null || budget.maxTokens != null || budget.maxMinutes != null));
+}
+
 function num(v, fallback) {
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
@@ -32,6 +55,7 @@ export function constraintsOf(orchestration) {
     maxChainDepth: num(c.maxChainDepth, DEFAULT_MAX_CHAIN_DEPTH),
     spanMax: num(c.spanMax, DEFAULT_SPAN_MAX),
     budgetPerEdgeMin: num(c.budgetPerEdgeMin, DEFAULT_BUDGET_PER_EDGE_MIN),
+    runBudget: normalizeRunBudget(c.runBudget),
     // Turn carrier (add-fleet-carrier): the fleet-level default placement —
     // null = unset (resolution falls through to the deployment default/auto).
     carrier: CARRIERS.includes(c.carrier) ? c.carrier : null,
@@ -71,8 +95,32 @@ export function validateOrchestration({ members = [], orchestration = null } = {
     errors.push({ error: `mode must be one of ${MODES.join("|")}` });
   }
   for (const [key, value] of Object.entries(orchestration.constraints ?? {})) {
+    // Non-numeric constraints have their own shape gates below — the numeric
+    // rule must not swallow them (carrier is a string; runBudget an object).
+    if (key === "carrier" || key === "runBudget") continue;
     if (!Number.isFinite(value) || value <= 0) {
       errors.push({ error: `constraints.${key} must be a positive number` });
+    }
+  }
+  // Whole-run budget (add-fleet-run-budget D1): an object of optional positive
+  // integers. A declared-but-empty object is refused rather than silently
+  // meaning "no budget" — a fleet that typed runBudget expects a ceiling.
+  const rawBudget = orchestration.constraints?.runBudget;
+  if (rawBudget != null) {
+    if (typeof rawBudget !== "object" || Array.isArray(rawBudget)) {
+      errors.push({ error: "constraints.runBudget must be an object" });
+    } else {
+      const allowed = new Set(["maxTurns", "maxTokens", "maxMinutes"]);
+      for (const [k, v] of Object.entries(rawBudget)) {
+        if (!allowed.has(k)) {
+          errors.push({ error: `constraints.runBudget.${k} is not a run-budget dimension (${[...allowed].join("|")})` });
+        } else if (!Number.isFinite(Number(v)) || Number(v) <= 0) {
+          errors.push({ error: `constraints.runBudget.${k} must be a positive number` });
+        }
+      }
+      if (!runBudgetDeclared(normalizeRunBudget(rawBudget))) {
+        errors.push({ error: "constraints.runBudget declares no ceiling — omit it or set maxTurns/maxTokens/maxMinutes" });
+      }
     }
   }
   if (orchestration.constraints?.maxChainDepth > 32) {

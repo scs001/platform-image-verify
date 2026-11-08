@@ -912,6 +912,48 @@ test.describe("fleet run stop", () => {
   });
 });
 
+test.describe("fleet budget pressure banner", () => {
+  const cockpitWith = (budgetPressure) => ({
+    ...CANVAS_FLEET,
+    members: [memberFixture("ceo", { title: "CEO" })],
+    statusCounts: { on_duty: 1, failing: 1 },
+    health: { onDuty: 0, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 1, total: 1, budgetPressure },
+  });
+
+  const boot = async (page, cockpit) => {
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Canvas Fleet", state: "active", memberCount: 1, statusCounts: { on_duty: 1 } }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(cockpit) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs?**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
+  };
+
+  test("多岗额度耗尽时说出人数、次数与起点", async ({ page }) => {
+    await boot(page, cockpitWith({ members: 3, failures: 41, since: 1794000000000, windowHours: 24 }));
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const banner = page.getByTestId("fleet-budget-pressure");
+    await expect(banner).toBeVisible({ timeout: 15000 });
+    await expect(banner).toContainText("41");
+    await expect(banner).toContainText("3 post(s)");
+    await expect(banner).toContainText("24h");
+  });
+
+  test("没有额度压力时不渲染横幅", async ({ page }) => {
+    await boot(page, cockpitWith(null));
+    await page.goto(`/fleets/${FLEET_ID}`);
+    await expect(page.getByTestId("fleet-health")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("fleet-budget-pressure")).toHaveCount(0);
+  });
+});
+
 test.describe("fleet runs timeline", () => {
   test.beforeEach(async ({ page }) => {
     await pinLocaleEn(page);

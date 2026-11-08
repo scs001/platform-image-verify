@@ -24,6 +24,13 @@ export const ERROR_KINDS = [
   "runtime_not_ready",
   "timeout",
   "tool_permission",
+  // Budget exhaustion is its own kind, ahead of the upstream bucket: every
+  // candidate model being over its daily/monthly budget used to classify as
+  // `model_upstream` (the text contains "model"), which is why 441 fleet turns
+  // failed in one day with no owner-visible signal — the read face could not
+  // tell "the provider wobbled" from "we are out of budget until tomorrow".
+  // The remedy differs completely: wait/top up vs fix a provider.
+  "budget",
   "model_upstream",
   "business_refused",
   // A turn that ran fine but exceeded its post's declared context budget
@@ -43,6 +50,11 @@ const ERROR_KIND_PATTERNS = [
   // lane; a genuine tool refusal carries permission words with or without
   // the status digit.
   ["tool_permission", /permission|denied|forbidden|not authorized|unauthorized|工具|权限/i],
+  // Must precede model_upstream: the budget message names a model, and the
+  // upstream rule would otherwise swallow it (the live 2026-11-08 corpus is
+  // literally `budget_exhausted: all candidate models over daily/monthly
+  // budget (model '…' skipped: budget_exhausted (daily))`).
+  ["budget", /budget_exhausted|over (the )?(daily|monthly) budget|额度(已)?(用尽|打满|耗尽)|预算(已)?(用尽|超限)/i],
   ["model_upstream", /no runnable model|model switch|invalid model|\b\d{3}\s*status code|429|quota|rate.?limit|provider|upstream|api.?key|api_error|service temporarily unavailable|5\d{2}\s*:|上游|模型/i],
   ["business_refused", /refused|rejected by policy|业务拒绝|拒绝执行/i],
 ];

@@ -1740,6 +1740,11 @@ export function createFleetRoutes(app, ctx = null) {
           passive: statusCounts.passive ?? 0,
           failing,
           total: members.length,
+          // Budget pressure (fix-fleet-failure-visibility D6): several posts
+          // failing on `budget` in the last day is the deployment being out of
+          // quota, not a bad post. Null when nothing failed on it — the read
+          // face shows a banner only for a real condition, never a zero state.
+          budgetPressure: db.budgetPressure(owned.fleet.id),
         },
         template: templateNotice(owned.fleet),
         // 7.2 回链: the page's detail pane fetches THIS route (cockpit), so the

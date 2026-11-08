@@ -3111,6 +3111,8 @@
       "missing": "Overdue",
       "vacant": "Vacant",
       "passive": "On call",
+      "budgetPressure": "Model budget exhausted: {{failures}} rounds failed across {{members}} post(s) in {{hours}}h",
+      "budgetSince": "(since {{time}})",
       "failing": "failing"
     },
     "orch": {

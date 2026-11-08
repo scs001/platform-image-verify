@@ -773,7 +773,10 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
         onOpenChange={setConfirmingFullAccess}
         onConfirm={() => {
           setConfirmingFullAccess(false);
-          send({ type: "set_permission", name: "danger-full-access" });
+          // The server refuses full access without this flag: the dialog is a
+          // UI convention, so the acknowledgement has to ride the message or
+          // anything bypassing the UI could escalate the shared runtime.
+          send({ type: "set_permission", name: "danger-full-access", acknowledge: true });
         }}
       />
       <ConfirmDialog

@@ -879,9 +879,14 @@ ctx.wss.on("connection", (ws, req) => {
           break;
         }
         // Live in-session switch — no restart, no pending window. A failure
-        // (streaming guard, unknown name, bridge error) is an orphan error →
-        // renders as a toast; the previous preset stays reported as current.
-        const r = await ctx.switchPermissionTo(data.name);
+        // (streaming guard, unknown name, missing acknowledgement for full
+        // access, bridge error) is an orphan error → renders as a toast; the
+        // previous preset stays reported as current.
+        //
+        // `acknowledge` comes from the client's risk dialog and is required by
+        // the session layer for `danger-full-access` — the dialog is a UI
+        // convention, so the flag has to ride the message itself.
+        const r = await ctx.switchPermissionTo(data.name, { acknowledge: data.acknowledge === true });
         if (!r.ok && r.error) ws.send(JSON.stringify({ type: "error", message: r.error }));
         break;
       }

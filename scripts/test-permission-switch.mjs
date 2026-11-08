@@ -121,10 +121,67 @@ test("empty roster (no composed service) is rejected", async () => {
 
 test("a bridge failure surfaces as an error and keeps the previous preset", async () => {
   ctx.dshBridge = makeBridge({ failSet: "child died" });
-  const r = await ctx.switchPermissionTo("danger-full-access");
+  // The acknowledgement is supplied so this case reaches the bridge: it is
+  // about a bridge failure, not about the full-access gate.
+  const r = await ctx.switchPermissionTo("danger-full-access", { acknowledge: true });
   assert.equal(r.ok, false);
   assert.match(r.error, /child died/);
   assert.equal(ctx.currentPermission, "workspace-write");
+});
+
+// ── Full access: the acknowledgement is a server precondition ────────────────
+//
+// The client's risk dialog is the only place a human sees what full access
+// means, and anything that speaks the protocol directly (a script, a second
+// client) has no dialog. The flag therefore has to travel WITH the request;
+// these pin the server side of that contract.
+
+test("full access without the acknowledgement is refused before the bridge", async () => {
+  const bridge = makeBridge();
+  ctx.dshBridge = bridge;
+  const r = await ctx.switchPermissionTo("danger-full-access");
+  assert.equal(r.ok, false);
+  assert.match(r.error, /acknowledg/i);
+  assert.equal(bridge.sets.length, 0, "a refused escalation must not reach the runtime");
+  assert.equal(ctx.currentPermission, "workspace-write");
+});
+
+test("acknowledge:false is not an acknowledgement", async () => {
+  const bridge = makeBridge();
+  ctx.dshBridge = bridge;
+  const r = await ctx.switchPermissionTo("danger-full-access", { acknowledge: false });
+  assert.equal(r.ok, false);
+  assert.equal(bridge.sets.length, 0);
+});
+
+test("full access with the acknowledgement applies", async () => {
+  const bridge = makeBridge();
+  ctx.dshBridge = bridge;
+  const r = await ctx.switchPermissionTo("danger-full-access", { acknowledge: true });
+  assert.equal(r.ok, true);
+  assert.deepEqual(bridge.sets, [{ sessionId: ctx.dshSessionId, name: "danger-full-access" }]);
+  assert.equal(ctx.currentPermission, "danger-full-access");
+});
+
+test("an unknown name keeps its own error, flag or no flag", async () => {
+  const bridge = makeBridge();
+  ctx.dshBridge = bridge;
+  // Ordering matters: roster validation runs FIRST, so a name outside the
+  // roster is never misreported as an acknowledgement problem.
+  for (const opts of [undefined, { acknowledge: true }]) {
+    const r = await ctx.switchPermissionTo("yolo", opts);
+    assert.equal(r.ok, false);
+    assert.match(r.error, /Unknown permission mode: yolo/);
+  }
+  assert.equal(bridge.sets.length, 0);
+});
+
+test("already on full access is a no-op that needs no flag", async () => {
+  ctx.dshBridge = makeBridge();
+  ctx.currentPermission = "danger-full-access";
+  const r = await ctx.switchPermissionTo("danger-full-access");
+  assert.equal(r.ok, true);
+  assert.equal(ctx.dshBridge.sets.length, 0, "a no-op escalates nothing");
 });
 
 test("bridge not ready → empty roster, switch rejected before the call", async () => {

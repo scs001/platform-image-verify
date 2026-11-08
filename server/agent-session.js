@@ -974,6 +974,11 @@ async function switchPresetTo(id) {
 
 // ── Permission preset (sandbox + approval mode) ──────────────────────────────
 
+// The one preset that disables the sandbox and the approval prompts. Named
+// once here because the switch gate below keys on it — and it is the same
+// name the client's risk dialog sends, so a rename has to reach both sides.
+const FULL_ACCESS_PERMISSION = "danger-full-access";
+
 // The composed permission preset table via the bridge's `permissions/list` —
 // roster options with client labels plus the session's effective preset (the
 // deployment default until a session pins one). NOT cached: the payload's
@@ -998,7 +1003,15 @@ async function getPermissionPresets() {
 // a durable permission/preset session event and rewrites its sandbox/approval
 // knobs in place. The streaming guard matches set_model (a loosening must
 // never interleave with a turn it was not visible to). Returns { ok, error? }.
-async function switchPermissionTo(name) {
+//
+// `acknowledge` is the full-access risk gate. The client warns before
+// requesting `danger-full-access`, but that dialog is only a UI convention —
+// anything speaking the protocol directly (a script, a second client) has no
+// dialog — so the acknowledgement must travel WITH the request or the gate is
+// bypassable. Not a role check: permission state is deployment-global by the
+// documented v1 ceiling (any authenticated user may manage it), which this
+// deliberately leaves alone.
+async function switchPermissionTo(name, { acknowledge = false } = {}) {
   if (ctx.isStreaming) {
     return { ok: false, error: "Cannot change the permission mode while the agent is responding" };
   }
@@ -1009,6 +1022,12 @@ async function switchPermissionTo(name) {
   }
   if (!options.some((o) => o.name === name)) {
     return { ok: false, error: `Unknown permission mode: ${name}` };
+  }
+  // Roster validation runs first on purpose: a name outside the roster is
+  // reported as unknown, and a deployment composing no full-access preset
+  // keeps saying that instead of reporting an acknowledgement problem.
+  if (name === FULL_ACCESS_PERMISSION && acknowledge !== true) {
+    return { ok: false, error: "Full access requires an explicit risk acknowledgement" };
   }
   try {
     const r = await ctx.dshBridge.setPermissionPreset(ctx.dshSessionId, name);

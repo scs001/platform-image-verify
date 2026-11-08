@@ -103,7 +103,11 @@ test.describe("Composer control row", () => {
     await expect(confirm).toBeEnabled();
     await confirm.click();
 
-    await expect.poll(() => sentPermissions(page)).toEqual([{ type: "set_permission", name: FULL_ACCESS }]);
+    // The flag is the server's precondition (require-full-access-ack): the
+    // dialog is a UI convention, so the acknowledgement rides the message.
+    await expect
+      .poll(() => sentPermissions(page))
+      .toEqual([{ type: "set_permission", name: FULL_ACCESS, acknowledge: true }]);
     await expect(dialog).toHaveCount(0);
   });
 

@@ -27,6 +27,7 @@ import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { collectPublishVerdict, CREATOR_GROUP_REQUIRED } from "./pack-publish-gates.js";
+import * as connectorBindingsModule from "../connector-bindings.js";
 import { mintDeploymentBindings } from "../deployment-bindings.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
@@ -2490,11 +2491,47 @@ export function registerPackRoutes(app, {
           }),
       );
       const defaultRunnerHost = fleetHostsByRunnerId.get(fleetRows[0]?.id) ?? null;
+      // Deployment-scoped connector bindings (add-deployment-binding-grant 3.x):
+      // the mint must run BEFORE the descriptors are composed — they carry the
+      // reference, not the token. Parent is the DEPLOYER's own account; the
+      // token lands in deployment_secrets (value platform-side). A failure never
+      // fails the deploy: an unresolved binding is reported, not fatal.
+      const connectorBindings = {};
+      let deploymentBindings = null;
+      try {
+        const mintTargets = [...servingIds];
+        deploymentBindings = await mintDeploymentBindings({
+          email: user.email,
+          packId: id,
+          agentIds: mintTargets,
+          record: (row) => registry.recordDeploymentSecret(row),
+        });
+        const origin = connectorBindingsModule.connectorOrigin();
+        if (origin) {
+          for (const granted of deploymentBindings.granted) {
+            if (!granted.name) continue;
+            // The VALUE travels the existing secret channel: the runner only
+            // fetches names listed in descriptor.secret_refs, so the binding
+            // secret has to be merged into that same map — otherwise the row
+            // would point at a name nobody fetches.
+            (secretRefs[granted.agentId] ??= {})[granted.name] = `sec_${id}_${granted.agentId}_${granted.name}`;
+            (connectorBindings[granted.agentId] ??= []).push({
+              serverName: `connector:${id}:${granted.bindingKey}`,
+              url: `${origin}/mcp`,
+              secretName: granted.name,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(`[packs] deployment binding mint failed for ${id}: ${e?.message || e}`);
+      }
+
       out = await deployToRegistry({
         packId: id,
         version: version.version,
         manifest: version.manifest,
         ...(agentsBody !== undefined ? { onlyAgents: [...deployIds] } : {}),
+        connectorBindings,
         rhythmOverrides: rhythms ?? {},
         budgetOverrides: budgets ?? {},
         modelOverrides: models ?? {},
@@ -2543,23 +2580,6 @@ export function registerPackRoutes(app, {
         deployer: user.email,
       });
     }
-    // Deployment-scoped connector bindings (add-deployment-binding-grant): a
-    // served agent has no session to mint from, so the mint happens here, with
-    // the DEPLOYER's own account as the parent, and lands in deployment_secrets
-    // (value platform-side, opaque reference on the descriptor). A failure never
-    // fails the deploy — an unresolved binding is reported, not fatal.
-    let deploymentBindings = null;
-    try {
-      deploymentBindings = await mintDeploymentBindings({
-        email: user.email,
-        packId: id,
-        agentIds: out.deployed.map((d) => d.agentId),
-        record: (row) => registry.recordDeploymentSecret(row),
-      });
-    } catch (e) {
-      console.warn(`[packs] deployment binding mint failed for ${id}: ${e?.message || e}`);
-    }
-
     res.json({
       deployed: out.deployed.map((d) => ({
         agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card,

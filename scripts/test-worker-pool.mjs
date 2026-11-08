@@ -376,3 +376,67 @@ test("a turn that rejects releases its slot and settles its collector", async ()
   }
   engine.setSlotDispatcher(null);
 });
+
+// ── 池级看门狗：不结算的回合不能永久占槽（2026-11-08 补）────────────────
+//
+// 为什么必须有：cap>0 时 dispatcher 把任务直接塞进 beginExecution，**不经过串行链**，
+// 所以串行链的 `runQueuedExecutionWithWatchdog` 根本看不到它们。没有池级看门狗，
+// 一个永不结算的回合会一直占着槽；cap=2 时等于静默腰斩吞吐。
+test("a worker turn that never settles is reaped by the pool watchdog", async () => {
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+
+  // 永不返回的 prompt：模拟"回合不结算"（真机上就是拿不到模型、上游不回包）。
+  // 收尾时由测试主动放掉——看门狗只结算**台账**，被卡的 prompt 本身仍挂着
+  // （这是串行链就有的已知残留，不是本用例的漏洞；不放掉会让文件级以
+  // "promise pending while event loop resolved" 失败）。
+  let releaseHung = null;
+  class HungBridge extends FakeBridge {
+    async prompt(sessionId) {
+      this.prompts.push({ sessionId, blocks: [] });
+      await new Promise((resolve) => {
+        releaseHung = () => {
+          this.emit({ method: "session.status", params: { status: "idle" } });
+          resolve();
+        };
+      });
+    }
+  }
+  process.env.QUEUE_WATCHDOG_MS = "120"; // 把这个测试压到毫秒级
+  attachWorkerPool(ctx, { spawnBridge: (p) => new HungBridge(p) });
+
+  try {
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    await settle();
+    assert.equal(engine.getTask(a.id).state, "running", "turn should be in flight first");
+
+    // 看门狗到点后必须把它结算掉，而不是让它永远 running
+    await new Promise((r) => setTimeout(r, 400));
+    const state = engine.getTask(a.id).state;
+    assert.notEqual(state, "running", `watchdog must settle a hung turn, still ${state}`);
+    assert.match(String(engine.getTask(a.id).error ?? ""), /watchdog/i,
+      "the settlement must say it was the watchdog, not a silent stop");
+
+    // 关键的一半：槽位真的被释放了。只结算台账而不 abort 回合时，`await exec`
+    // 永不返回、finally 不执行，槽位会被永久占住——而状态断言对此完全无感
+    // （第一版实现就漏了这步，此断言是对准它的）。
+    class FreshBridge extends FakeBridge {}
+    const b = engine.createManualTask({ prompt: "B", persona: "code", initiator: "s1" });
+    await settle();
+    await settle();
+    assert.notEqual(engine.getTask(b.id).state, "queued",
+      "the slot must be reusable after the watchdog fires, otherwise the pool deadlocks");
+    FakeBridge.byPersona.get("code")?.release?.();
+  } finally {
+    releaseHung?.();
+    delete process.env.QUEUE_WATCHDOG_MS;
+    engine.setSlotDispatcher(null);
+    // 让残留的写盘链与定时器落完再结束本用例：saveTasks 是 `void` 链式写，
+    // 用例结束即删临时目录会让它 ENOENT（同一竞态在 test-queue-health 里也踩过）。
+    for (let i = 0; i < 6; i += 1) {
+      releaseAll();
+      await settle();
+    }
+  }
+});

@@ -18,7 +18,7 @@
 import { DshBridge } from "../dsh-bridge.js";
 import * as engine from "../task-engine.js";
 import * as chatHistory from "../chat-history.js";
-import { collectTurn } from "./cron-runner.js";
+import { collectTurn, resolveTurnBudgetMs } from "./cron-runner.js";
 
 const REAP_SCAN_MS = 60_000;
 const IDLE_REAP_MS = 5 * 60_000;
@@ -172,6 +172,33 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     return { ok: true, usage: result.usage ?? null };
   }
 
+  // Slot watchdog — the pool's counterpart to the serial chain's
+  // `runQueuedExecutionWithWatchdog`. It is NOT optional decoration: with
+  // TASK_WORKER_MAX > 0 the pool dispatcher claims queued tasks straight into
+  // `beginExecution` and never enters the serial chain, so the chain's watchdog
+  // cannot see them. A worker turn that never settles therefore holds its slot
+  // forever and, at cap 2, silently halves throughput — exactly the failure the
+  // serial watchdog was added for, relocated into the pool (live 2026-11-08:
+  // the chain's guard exists, the pool had none).
+  //
+  // Releasing the slot is only half the job: the task must also be settled, or
+  // it sits `running` in the ledger while its slot belongs to somebody else.
+  // `engine.finishExecution` is the same path the turn itself uses, so history
+  // and state semantics stay in one place.
+  function poolWatchdogMs(task) {
+    const raw = process.env.QUEUE_WATCHDOG_MS;
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : 0; // 0 disables, same escape hatch
+    }
+    let budget = null;
+    try {
+      budget = resolveTurnBudgetMs(task);
+    } catch { /* a broken resolver must not disable the watchdog */ }
+    const base = Number.isFinite(budget) && budget > 0 ? budget : 10 * 60_000;
+    return base + 5 * 60_000; // same grace as the serial chain
+  }
+
   // Run one queued task id on a worker slot, then service the wait queue.
   async function runTaskOn(worker, id) {
     // Turn metering (add-turn-metering D3): the slot claimant is the only
@@ -179,9 +206,47 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     engine.markExecutionCarrier?.(id, "worker", worker.id);
     worker.busy = true;
     emitPoolState();
+    const limit = poolWatchdogMs(engine.getRecord?.(id) ?? null);
+    let timer = null;
+    const startedAt = new Date().toISOString();
+    const watchdog = limit > 0
+      ? new Promise((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[worker-pool] ${id} exceeded ${Math.round(limit / 1000)}s without settling — aborting so the slot can be reused`);
+          // 两步都必须做，少一步就是假的：
+          //   ① abort 该回合 → collectTurn 结算 → runOnWorker 返回 → finally 释放槽位。
+          //      只结算台账的话 `await exec` 永不返回，finally 不执行，**槽位永远不释放**
+          //      （第一版实现就漏了这步，测试只验状态没验槽位复用，所以没抓到）。
+          //   ② 若台账仍停在 running，用与回合自身相同的 finishExecution 收尾，
+          //      让 history/state 语义只有一处。
+          try {
+            const sid = worker.currentSession;
+            const abortTurn = sid ? worker.activeTurns?.get?.(sid) : null;
+            abortTurn?.("worker watchdog: turn exceeded its budget without settling");
+          } catch (e) {
+            console.warn(`[worker-pool] watchdog abort failed for ${id}: ${e?.message || e}`);
+          }
+          const rec = engine.getRecord?.(id);
+          if (rec && rec.state === "running") {
+            try {
+              engine.finishExecution?.(rec, startedAt, {
+                ok: false,
+                error: `worker watchdog: turn exceeded ${Math.round(limit / 1000)}s without settling — the pool slot was held for that whole time`,
+              });
+            } catch (e) {
+              console.warn(`[worker-pool] watchdog settle failed for ${id}: ${e?.message || e}`);
+            }
+          }
+          resolve("watchdog");
+        }, limit)
+        timer.unref?.();
+      })
+      : null;
     try {
-      await engine.beginExecution(id, (task, opts) => runOnWorker(worker, task, opts));
+      const exec = engine.beginExecution(id, (task, opts) => runOnWorker(worker, task, opts));
+      await (watchdog ? Promise.race([exec, watchdog]) : exec);
     } finally {
+      if (timer) clearTimeout(timer);
       worker.busy = false;
       worker.currentFleet = null;
       worker.lastUsedAt = Date.now();

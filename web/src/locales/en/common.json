@@ -1222,7 +1222,9 @@
           "placeholder": "Select one of your connected systems…",
           "empty": "None of your connected systems covers what this pack needs — connect one in the connector console first.",
           "unavailable": "Could not read your connected systems right now.",
-          "currentNotUsable": "currently chosen, unavailable"
+          "currentNotUsable": "currently chosen, unavailable",
+          "emptyButRejected": "Your connected systems cannot serve what this pack needs:",
+          "gapsMissing": "missing {{gaps}}"
         },
         "summaryUnmapped": "{{count}} waiting for your choice",
         "browseCatalog": "Browse the app directory"

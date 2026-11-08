@@ -1209,7 +1209,9 @@
           "placeholder": "接続済みのシステムから選択…",
           "empty": "接続済みのシステムはいずれもこのパックが必要とする操作を満たしていません。先にコネクタで接続してください。",
           "unavailable": "接続済みシステムを取得できませんでした。",
-          "currentNotUsable": "選択中（現在利用不可）"
+          "currentNotUsable": "選択中（現在利用不可）",
+          "emptyButRejected": "接続済みのシステムではこのパックの要件を満たせません：",
+          "gapsMissing": "{{gaps}} が不足"
         },
         "summaryUnmapped": "{{count}} 件が選択待ち",
         "browseCatalog": "アプリディレクトリを見る"

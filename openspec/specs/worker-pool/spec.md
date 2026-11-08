@@ -64,7 +64,7 @@ Worker runtimes SHALL share the cell's composed profile (home, patches, credenti
 - **THEN** its task records a failed or interrupted execution and the primary runtime and other workers are unaffected
 
 ### Requirement: 人的唤醒在人满时仍有通道
-池激活（上限 > 0）且全部槽位被占时，人的消息/状态查询触发的唤醒 SHALL 可使用并发上限之外的一个额外槽；槽位分配 SHALL 唤醒优先于新启动——新启动 SHALL NOT 占用人优先槽。上限为 0 时该规则 SHALL 休眠，行为与现状逐字节一致。
+池激活（上限 > 0）且全部槽位被占时，人的消息/状态查询触发的唤醒 SHALL 可使用并发上限之外的一个额外槽；槽位分配 SHALL 唤醒优先于新启动——新启动 SHALL NOT 占用人优先槽。上限为 0 时本规则 SHALL 休眠：池不注册、不提供额外槽。人的唤醒的**排队优先级**不属于本规则——它由主槽串行链按 `task-engine` 的执行槽排序自行保证（越过未开始的排队执行），与池是否启用无关。
 
 #### Scenario: 满载时人唤醒用额外槽
 - **WHEN** 池上限为 2 且 2 个槽位均在执行中，此时一条人的消息唤醒某 persona
@@ -76,4 +76,6 @@ Worker runtimes SHALL share the cell's composed profile (home, patches, credenti
 
 #### Scenario: cap 0 休眠逐字节一致
 - **WHEN** 上限为 0（生产现状）
-- **THEN** 池不注册、规则不生效，执行行为与现状逐字节一致
+- **THEN** 池 SHALL NOT 注册，额外槽规则 SHALL NOT 生效
+- **AND** 池侧的执行路径 SHALL 与未引入池时一致——本规则在 cap 0 下不改变任何一条执行的运行方式；
+      人的唤醒的排队次序由 `task-engine` 的串行链负责，不属于池的这条规则

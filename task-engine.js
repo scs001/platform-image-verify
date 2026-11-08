@@ -69,6 +69,13 @@ let resolveTurnBudgetFn = null;
 let executionQueue = Promise.resolve();
 const repairQueue = []; // ids persisted as queued at load → re-enqueue after init
 
+// Executions waiting for the primary slot's serial chain, oldest first. The
+// chain is a promise tail, so anything already chained can never be reordered
+// — hence the drain chains only the execution about to run and picks it from
+// this list at that moment (fix-main-chain-human-priority).
+const pendingExecutions = [];
+let executionDraining = false;
+
 // ── Persistence ─────────────────────────────────────────────────────────────
 
 // Serialized + atomic persistence: mutations rewrite the whole tasks file, so
@@ -717,8 +724,30 @@ function queueWatchdogMs(task) {
   return base + QUEUE_WATCHDOG_GRACE_MS;
 }
 
+// Main-chain fairness (fix-main-chain-human-priority). The primary slot is ONE
+// serial chain, so a cadence backlog makes the owner's `execute now` wait behind
+// every fire (live 2026-11-08: a run-now waited 180s behind 18 queued fires).
+// `humanPriority` existed but only the worker pool honoured it — and prod runs
+// `TASK_WORKER_MAX=0`, so the one turn a human asked for had no priority at all.
+// Queueing instead of chaining eagerly lets the drain pick a human wake ahead of
+// executions that have not started (never ahead of the running one: the chain is
+// already busy by then).
 function chainExecution(id) {
-  executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(id));
+  pendingExecutions.push({ id, human: tasks.get(id)?.humanPriority === true });
+  drainExecutions();
+}
+
+function drainExecutions() {
+  if (executionDraining || pendingExecutions.length === 0) return;
+  // First human wake in arrival order, else the oldest — FIFO among equals.
+  const at = pendingExecutions.findIndex((e) => e.human);
+  const next = pendingExecutions.splice(at === -1 ? 0 : at, 1)[0];
+  executionDraining = true;
+  const done = () => {
+    executionDraining = false;
+    drainExecutions();
+  };
+  executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(next.id)).then(done, done);
 }
 
 async function runQueuedExecutionWithWatchdog(id) {
@@ -1035,9 +1064,19 @@ function scheduleReenqueue(id, delayMs) {
   return true;
 }
 
-// Await the serialized queue (tests, graceful drain).
-function idle() {
-  return executionQueue.then(() => {});
+// Await the serialized queue (tests, graceful drain). Executions are drained
+// lazily (see chainExecution), so waiting on the promise tail alone would
+// return while later executions still sit in the pending list.
+async function idle() {
+  while (executionDraining || pendingExecutions.length > 0) {
+    const tail = executionQueue;
+    await tail;
+    // The drain chains the next execution from the tail's completion handler,
+    // i.e. one microtask after `tail` resolves; give it that turn before
+    // deciding the queue is empty.
+    if (executionDraining || pendingExecutions.length > 0) await new Promise((r) => setImmediate(r));
+  }
+  await executionQueue;
 }
 
 // Register an on-finished subscriber (the delegation aggregator mounts after

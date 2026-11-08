@@ -89,7 +89,10 @@ const P = (id) => ({ id, title: id, parentId: null, targetKind: "persona", targe
 // ── 1. graph validation ─────────────────────────────────────────────────────
 
 test("validateOrchestration: legal edges pass; null = ok/empty", () => {
-  const members = [P("a"), P("b"), P("c")];
+  // fix-report-edge: `b` really does report to `a` (parentId), so the declared
+  // report edge states the truth — a declaration that contradicts the tree is
+  // now refused (see scripts/test-report-edge-derived.mjs).
+  const members = [P("a"), { ...P("b"), parentId: "a" }, P("c")];
   const ok = validateOrchestration({
     members,
     orchestration: {
@@ -102,6 +105,8 @@ test("validateOrchestration: legal edges pass; null = ok/empty", () => {
     },
   });
   assert.equal(ok.ok, true);
+  // 4 declared + the derived report edge for `c`… there is none (c has no
+  // parent), and b→a is already declared, so the count stays 4.
   assert.equal(ok.edges.length, 4);
 
   const none = validateOrchestration({ members, orchestration: null });

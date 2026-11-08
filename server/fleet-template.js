@@ -421,7 +421,13 @@ export function parseFleetTemplate(manifest) {
   // treats null as "explicitly no edges"); ABSENT short-circuits entirely so
   // the section-less parse output stays byte-identical.
   if (section.orchestration !== undefined) {
-    const projected = pending.map((m) => ({ id: m.ref, targetKind: TARGET_KIND_TO_MEMBER_KIND[m.target.kind] }));
+    // `parentRef` IS the template's parent link (the provisioner maps it to the
+    // member's parentId), so project it — the report-edge rule reads parentId.
+    const projected = pending.map((m) => ({
+      id: m.ref,
+      parentId: m.parentRef ?? null,
+      targetKind: TARGET_KIND_TO_MEMBER_KIND[m.target.kind],
+    }));
     const check = validateOrchestration({ members: projected, orchestration: section.orchestration });
     if (!check.ok) {
       return {

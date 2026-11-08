@@ -612,7 +612,11 @@ cookies, login state, tabs and downloads never cross cells.
 
 **Artifacts follow the calling cell.** The service resolves the caller from the
 CONNECTION (its peer process: socket inode → pid → cwd/cmdline → the 16-hex cell
-dir under `CELL_DATA_ROOT`), never from a header or query the client writes. It
+dir under `CELL_DATA_ROOT`), never from a header or query the client writes.
+> Prerequisite in a two-container pod: `shareProcessNamespace: true`. Cells are
+> children of the platform process, so a sidecar with its own PID namespace sees
+> no cell process at all and every artifact would land in an `unowned-*` dir
+> (checked by the deployment unit test). It
 then rewrites `filename`/`saveAs` to an absolute path under
 `<CELL_DATA_ROOT>/<cellId>/workspace/browser/` and sweeps auto-named files a call
 produced into the same dir — inside the workspace `/api/files` serves, so the

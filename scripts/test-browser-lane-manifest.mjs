@@ -69,6 +69,15 @@ test("3.1 the platform container receives the shared endpoint and artifact root"
   assert.equal(env.BROWSER_RUNTIME_PATH, undefined);
 });
 
+test("3.1 the pod shares its PID namespace so the lane can attribute peers", { skip: NO_MANIFEST }, () => {
+  const spec = manifest().spec.template.spec;
+  assert.equal(
+    spec.shareProcessNamespace,
+    true,
+    "without a shared PID namespace the lane sees no cell processes and artifacts land in an unowned dir",
+  );
+});
+
 test("3.1 the manifest never asks for a shared browser context", { skip: NO_MANIFEST }, () => {
   const raw = readFileSync(MANIFEST, "utf8");
   // Comments may DISCUSS the flag (they explain why it is absent); only real

@@ -61,6 +61,14 @@ spec:
       hostNetwork: true
       # Let hostNetwork pods still resolve cluster-internal names.
       dnsPolicy: ClusterFirstWithHostNet
+      # The shared browser lane attributes each cell session from the CONNECTION's
+      # peer process (socket inode → pid → cwd/cmdline), so its container must be
+      # able to see the cell processes — which live in the platform container.
+      # Without a shared PID namespace /proc shows only the lane's own processes
+      # and every session would fall back to an unowned scratch dir (artifacts
+      # would then never appear in the cell's workspace). Both containers run as
+      # the same image user, so /proc/<pid>/cwd is readable.
+      shareProcessNamespace: true
       # TCR pulls ride node-level registries.yaml auth (org rollout
       # 2026-09-30) — no TCR imagePullSecret; harbor-finddata-pull below is
       # the Harbor fallback channel's credential (see DEPLOY.md → Image

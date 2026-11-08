@@ -19,7 +19,11 @@ jobs:
   gates:
     name: lint → typecheck → unit → locales → build → e2e (fast)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Sized for the chain that actually runs: lint/typecheck/unit/locales/build
+    # take ~15 min, and the fast e2e project is ~640 specs at workers: 1. The
+    # old 30 killed the job mid-unit the first time e2e was reachable
+    # (run 42455044835), so e2e could never be observed at all.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -100,14 +104,6 @@ jobs:
             '    - id: sdk-jsonrpc-server' \
             "      name: '@deepseek-ai/dsh-sdk-jsonrpc-server'" \
             > "$HOME/.dsh/profiles/platform/cordis.patch.yml"
-          # Materialize the BUNDLE level. `dsh plugin add` initializes the
-          # profile but never runs it, and only composing a profile heals
-          # `profiles/node_modules` (dsh-app-boot's healProfilesModuleFallback,
-          # reached through prepareProfile). Without this the probe below always
-          # says unusable and the e2e suite silently never runs on CI — which is
-          # how three baseline runs "passed" while e2e was a no-op. --dump-config
-          # composes without booting: no LLM, no network, no session.
-          dsh --profile platform --dump-config > /dev/null
 
       - name: Unit tests
         run: npm run test:unit
@@ -124,13 +120,19 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # The e2e server boots the real dsh runtime; that needs a COMPLETE
-      # shared install (see scripts/lib/dsh-available.mjs). The bootstrap
-      # above now heals the bundle level by composing the profile, so this
-      # probe is expected to be `true` — the gate below stays as the
-      # fresh-machine guard for any setup step that regresses.
+      # shared install (see scripts/lib/dsh-available.mjs). Compose the profile
+      # HERE and not in the bootstrap: only composing heals the bundle level,
+      # but a complete tree also makes the dsh-dependent UNIT suites spawn a
+      # child that waits for a turn no CI runner can answer — that hung the unit
+      # step past the job timeout (run 42455044835, 2026-11-08). e2e needs the
+      # complete tree; unit keeps its previous, dsh-skipped behaviour (a
+      # pre-existing CI gap, tracked separately). --dump-config composes without
+      # booting: no LLM, no network, no session.
       - name: Probe dsh runtime usability
         id: dsh
-        run: echo "usable=$(node --input-type=module -e "const { dshRuntimeAvailable } = await import('./scripts/lib/dsh-available.mjs'); process.stdout.write(String(dshRuntimeAvailable()))")" >> "$GITHUB_OUTPUT"
+        run: |
+          dsh --profile platform --dump-config > /dev/null
+          echo "usable=$(node --input-type=module -e "const { dshRuntimeAvailable } = await import('./scripts/lib/dsh-available.mjs'); process.stdout.write(String(dshRuntimeAvailable()))")" >> "$GITHUB_OUTPUT"
 
       - name: E2E (fast project, offline)
         if: steps.dsh.outputs.usable == 'true'
@@ -140,7 +142,7 @@ jobs:
         # Enforced gates are lint/typecheck/unit/locales/build above; flip this
         # off continue-on-error once those specs are cleared.
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 45
         run: npm run test:e2e
 
       - name: E2E skipped (no shared dsh runtime)

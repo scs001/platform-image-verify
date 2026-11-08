@@ -259,8 +259,56 @@ R2 的想法是「cell-server 职责并入 gateway，pod 内只留 dsh child」�
 **若目标是密度**，更便宜的顺序是 R4（休眠摊密度，已部分在产）→ 再看 R2；
 **若目标是并发**，R2 帮不上（不解决 ①），该走 R1 或 R3。
 
+### R4 可行性清单：靠休眠摊密度（**先走这条**）
+
+R4 不改架构，只动「谁常驻、谁休息、醒来多快」。代码层已经很完整，缺的是**口径**而不是机制。
+
+| 维度 | 现状（代码坐标） | R4 能做的 | 代价 |
+|---|---|---|---|
+| 回收窗口 | `CELL_IDLE_REAP_SECS=3600`（1h）；`reapIdle()` 到点 `stop()`（`spawner.js:688-720`） | 收窄到 10–20min：常驻数≈活跃数，密度立刻上一个档 | 冷启命中变多；唤醒 8.6–12s（已实测） |
+| 策略分层 | `policy ∈ {always, on_demand, ephemeral}`（`spawner.js:85/:264/:526/:711`） | 给「热用户」标 `always`，其余 `on_demand`——**已经有**，只差运维口径 | 无（纯配置） |
+| 定时工作不被饿死 | 有 registryDb 时 `on_demand` **不豁免**排期任务——由 duty-ring 负责叫醒（`spawner.js:703-712` + `duty-ring.js:37`） | 无需改：休眠不再是「错过排期」 | 无 |
+| 唤醒准入 | `memoryAdmissionVerdict` + 归档足迹（`spawner.js:458-500`），不够就**先驱逐最闲的**再放行（`evictUntilAdmissible`，`:520-560`） | 阈值 `CELL_MEMORY_ADMISSION_FLOOR` 可随 R4 下调后的水位重算 | 阈值偏高会「拒醒」；偏低会 OOM |
+| 唤醒延迟构成 | `evictUntilAdmissible` → `freePort` → `mkdir` → `spawn` → `waitForPort`（`spawner.js:382/:46-64`，200ms 轮询）+ cell 自身 boot（含 OIDC discovery，已加瞬态重试） | 想再快只有两条：**预热池**（现在**没有**：grep `prewarm|warmPool|spare` 零命中）或「停车保壳」 | 预热池=常驻成本回来了，与 R4 目标冲突；停车保壳需要新的生命周期动词（现在只有 stop/spawn） |
+| 观测 | 本轮刚做的 `browserLane` 行 + `cells[]`（`/api/monitoring/memory`）；`suspended` 计数可见 | 加「常驻/挂起/唤醒次数&耗时」三个计数即可判 R4 是否划算 | 小 |
+
+**判据**：R4 的收益是**线性**的（少 N 个常驻 ≈ 省 N×430Mi），成本是**每次唤醒 8.6–12s + 一次全量 boot**。
+所以唯一的决策变量是「**用户多久回来一次**」——`lastUserTrafficAt` 与 `lastDutyRunAt` 已经在
+`cell_registry` 里按 cell 落账，**跑一次分布就能定阈值**，不需要写新代码：
+
+```
+SELECT cell_id, owner_email, state, policy,
+       (strftime('%s','now')*1000 - last_user_traffic_at)/1000 AS idle_s
+FROM cell_registry ORDER BY idle_s DESC;
+```
+
+- 若多数 cell 的 `idle_s` 已 > 1h 且用户回访间隔远大于唤醒延迟 → **直接把阈值降到 600–1200s，R4 收工**
+- 若回访频繁（< 5min 间隔）→ 降阈值只会让用户反复吃 8.6–12s，**此时才需要预热池**，而预热池常驻成本又会吃掉 R4 的收益 → 转去问「要不要花 R2 的代价换密度」
+
+**2026-11-08 实测：R4 已经做完，没有可收割的量。**
+
+```
+cells: 32   { suspended: 29, running: 3 }
+有流量记录：9 个；从未有过流量：23 个
+idle 分钟：p50=2688（≈45h） p90=16394（≈11 天）
+running 的三个：2b043ce0 idle=0m / 1da519d4 idle=0m / 3fdc7b8e(platform-test) idle=373m
+```
+
+读法：
+- `CELL_IDLE_REAP_SECS=3600` 已在正常工作 —— 29/32 挂起就是它的产出，**再降阈值几乎没有可收的**；
+- 唯一「常驻但已冷」的是 `platform-test`（6h 无流量，约 430Mi），但它是走查用的测试号，收掉等于下次走查先吃 8.6–12s 冷启；
+- 23 个 cell 从未有过流量，本就不占内存（suspended ≈ 0）。
+
+**结论：R4 不是待决策项，它已是最优形态。** 想再省只能动「常驻那几个的单体大小」→ 回到
+R2（每 cell −220–280Mi，但要重做 8 个隔离维度 + 崩溃域退化）或 R1（换并发不换密度）。
+也就是说：**当前并不存在「便宜的下一刀」**，要不要动取决于你是否接受 R2 的代价，而不是取决于阈值。
+
 ## 附：本文引用的实证坐标
 
+- R4 口径（§八）：`gateway/spawner.js:688-720`（reapIdle）、`:703-712`（on_demand 不再豁免排期）、
+  `:85/:264/:526/:711`（policy 三值）、`:458-500`（memoryAdmissionVerdict + 归档足迹）、
+  `:520-560`（evictUntilAdmissible）、`:382` + `:46-64`（waitForPort，200ms 轮询）；
+  `gateway/duty-ring.js:37`（挂起 cell 由 duty-ring 叫醒）；预热池 grep 零命中（现在没有）。
 - R2 隔离面清单（§八）：34 个文件导入期捕获 env（`paths.js:17`、`db.js:20`）；模块顶层 `storeDir()` 常量
   5 处（`server/owner-groups.js:13`、`server/routes/files.js:19`、`task-engine.js:19`、`llm-providers.js:28/:29`、
   `skill-materialize.js:32`）；`better-sqlite3` 同步用户 37 个模块；13 处 `process.on("SIGTERM"/"exit")`；

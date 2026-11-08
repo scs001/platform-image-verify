@@ -46,7 +46,13 @@ export default function PreviewDrawer() {
         path: ref.rel,
         sessionId: useChatStore.getState().currentSessionId,
       });
-      showToast({ severity: "error", title: inserted ? t("resources.save.saved") : t("resources.save.exists") });
+      // Saved vs already-there are both FINE outcomes — they ride `success`
+      // and `info`, not `error`. Reporting them as errors painted a red edge on
+      // a save that worked (and told assistive tech the same lie).
+      showToast({
+        severity: inserted ? "success" : "info",
+        title: inserted ? t("resources.save.saved") : t("resources.save.exists"),
+      });
     } catch (err) {
       // A known refusal gets the LOCALIZED reason; an unknown one falls back to
       // the server's own text rather than swallowing it.

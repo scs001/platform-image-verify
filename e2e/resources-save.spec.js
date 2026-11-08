@@ -44,7 +44,13 @@ test.describe("save to resources", () => {
       const saveButton = page.getByTestId("preview-save-resource");
       await expect(saveButton).toBeVisible();
       await saveButton.click();
-      await expect(page.getByTestId("toast")).toHaveText("Saved to resources");
+      // Toast v2 (web-operate-states「异步成败反馈双通道」) replaced the legacy
+      // single-message Toast; the host is the surface, and a successful save
+      // must arrive as a success toast — not the error-severity one the drawer
+      // used to raise for BOTH outcomes.
+      const toast = page.getByTestId("toast-v2-host").getByText("Saved to resources");
+      await expect(toast).toBeVisible();
+      await expect(toast.locator("xpath=ancestor::div[contains(@class,'border-status-failed')]")).toHaveCount(0);
 
       // The library holds the copy — and it survives the source disappearing.
       await page.getByTestId("preview-close").click();
@@ -68,7 +74,8 @@ test.describe("save to resources", () => {
       await injectAssistantText(page, `I wrote the report to [${name}](${name}).`);
       await openDrawerFromLink(page, name);
       await page.getByTestId("preview-save-resource").click();
-      await expect(page.getByTestId("toast")).toHaveText("Already in resources");
+      // Dedupe is an INFO outcome, not a failure: same v2 host, honest wording.
+      await expect(page.getByTestId("toast-v2-host").getByText("Already in resources")).toBeVisible();
       await page.getByTestId("preview-close").click();
 
       // A save whose source has vanished answers with a clear, localized
@@ -78,7 +85,10 @@ test.describe("save to resources", () => {
       await injectAssistantText(page, `Missing file: [${ghost}](${ghost}).`);
       await openDrawerFromLink(page, ghost);
       await page.getByTestId("preview-save-resource").click();
-      await expect(page.getByTestId("toast")).toHaveText("The file no longer exists in the workspace.");
+      // A known refusal carries its localized reason on the same host.
+      await expect(
+        page.getByTestId("toast-v2-host").getByText("The file no longer exists in the workspace."),
+      ).toBeVisible();
     } finally {
       fs.rmSync(file, { force: true });
     }

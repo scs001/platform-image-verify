@@ -242,7 +242,12 @@ function ResourceCard({
           />
         </label>
       ) : null}
-      <div className="flex items-start gap-2">
+      {/* Wraps, and the title keeps a floor: a chart card carries several
+          shrink-0 chips (kind + tier + binding/refresh), and on a 320px grid
+          cell they used to consume the whole line — the `min-w-0 flex-1`
+          title then resolved to ZERO width, i.e. the card's name was invisible
+          (found by e2e/artifact-delivery, which could only report "hidden"). */}
+      <div className="flex flex-wrap items-start gap-2">
         {editing ? (
           <>
             <input
@@ -270,7 +275,7 @@ function ResourceCard({
           </>
         ) : (
           <>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium" data-testid="resource-title">
+            <span className="min-w-0 flex-1 basis-1/2 truncate text-sm font-medium" data-testid="resource-title">
               {resource.title}
             </span>
             <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">

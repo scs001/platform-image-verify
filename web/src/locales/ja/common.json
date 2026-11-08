@@ -1211,7 +1211,8 @@
           "unavailable": "接続済みシステムを取得できませんでした。",
           "currentNotUsable": "選択中（現在利用不可）"
         },
-        "summaryUnmapped": "{{count}} 件が選択待ち"
+        "summaryUnmapped": "{{count}} 件が選択待ち",
+        "browseCatalog": "アプリディレクトリを見る"
       }
     },
     "lines": {

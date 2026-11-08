@@ -1224,7 +1224,8 @@
           "unavailable": "Could not read your connected systems right now.",
           "currentNotUsable": "currently chosen, unavailable"
         },
-        "summaryUnmapped": "{{count}} waiting for your choice"
+        "summaryUnmapped": "{{count}} waiting for your choice",
+        "browseCatalog": "Browse the app directory"
       }
     },
     "lines": {

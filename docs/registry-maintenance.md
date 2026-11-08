@@ -7950,3 +7950,27 @@ semantic_observations: 7,159,529 -> 6,807,789
 防止有人悄悄把某个类再加回容忍名单。
 
 **遗留（不变）**：11 条 `entity_id` 悬空行仍在主表，属另一类缺陷（实体行本身丢了），单列报告、不判死。
+
+### §15.144 续三十二：隔离搬迁丢了一行——是我自己的测试脚本 bug（11-08）
+
+- **事实**：`semantic_observations_quarantine` 现在是 **351,739** 行，不是 351,740。
+  差的那一行 `id=155971319`（一条原本就错挂、已经读不出来的基金净值观测）**两边都没有了**：
+  主表 6,807,789 行、错挂 0（守卫 exit 0），隔离表 351,739。`semantic_observations_all`
+  查该 id 也是 0，**无法恢复**。
+- **怎么丢的**：为了证明 `--restore` 真的可逆，我把一条隔离行的 `batch_id` 临时改成
+  `zz-selftest` 再 restore——restore 本身完全正确（`re-inserted 1, removed 1 from
+  quarantine`，该行确实回到主表）。坏在**我那段一次性清理脚本**：
+  ```python
+  cur.execute("INSERT INTO ..._quarantine ... SELECT ... WHERE id=%s", (row_id,)) if still_q else None
+  cur.execute("DELETE FROM semantic_observations WHERE id=%s", (row_id,))
+  ```
+  restore 已把它从隔离表删掉 → `still_q == 0` → 回插那句被跳过 → 紧接着的 DELETE 把它从
+  主表也删了。一个三元表达式的条件被我写反了方向（应该是 `if back else None`，即"主表里有才
+  需要回插"，我写成了"隔离表里有才回插"）。
+- **影响评估**：1 行，占隔离总量 0.0003%；该行属于「本来就错挂、0.5.52 起读不出来」的那批，
+  不服务任何查询；主表行数与搬迁结果一致（搬迁后 6,807,789，现在仍 6,807,789），
+  所以没有影响任何答案。**但它是数据丢失，不能按"成功了"记。**
+- **教训（写进流程）**：一次性验证脚本里**不要用条件表达式做补偿动作**——补偿要么无条件执行、
+  要么先用 `SELECT` 断言再走分支；破坏性收尾前先打印"准备恢复什么/删除什么"。这次是我自己
+  的脚本，不是产品代码，所以 `quarantine_misattached_observations.py` 的 `--restore` 路径本身
+  是对的（已实证）。以后再验证可逆性，用**造出来的假行**（新 id），不要动真数据。

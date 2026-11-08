@@ -186,6 +186,15 @@ RUN mkdir -p /opt/browser-mcp \
 # not build and does not use.
 COPY . .
 
+# Build provenance. `scripts/make-public-snapshot.mjs` writes BUILD-INFO.json into
+# the snapshot tree (baseRef / baseCommit / builtAt); a build from anything else
+# (the private repo, a feature branch) has no such file, and the runtime stage's
+# COPY is an explicit allowlist that would then fail. So the builder guarantees
+# the file: real provenance when the snapshot provided it, an honest "unknown"
+# otherwise — never a fabricated sha.
+RUN [ -f BUILD-INFO.json ] || printf '%s\n' \
+      '{"baseRef":"unknown","baseCommit":"unknown","builtAt":null}' > BUILD-INFO.json
+
 # Build the React frontend. (No `npm run predist` — see the header note.)
 #
 # No `npm prune --omit=dev` here, deliberately — it was tried and it produced an
@@ -281,6 +290,11 @@ COPY --chown=node:node --from=builder /app/chart-replay-allowlist.json ./
 # boot — so this COPY is load-bearing for the gate, not documentation.
 COPY --chown=node:node --from=builder /app/dsh-matrix ./dsh-matrix
 COPY --chown=node:node --from=builder /app/*.js ./
+# Provenance beside the code it describes: `kubectl exec deploy/platform --
+# cat /app/BUILD-INFO.json` answers "which base is this image?" without trusting
+# the manifest comment (2026-11-08 shipped an image whose comment named a paas
+# commit the tree did not contain).
+COPY --chown=node:node --from=builder /app/BUILD-INFO.json ./
 COPY --chown=node:node --from=builder /app/server ./server
 # gateway/ is imported by server.js (the mini-program identity modules,
 # add-single-process-mp-auth); /app/*.js does not descend into dirs, and a

@@ -20,16 +20,16 @@
       收益按此重算 = ≈560Mi 标称 / **≈270Mi 实扣**（不是 proposal 初稿的 450Mi）
 - [ ] 2.1 cell server 起一份卫星宿主，仅承接该 cell 的 dsh 世代；`TASK_WORKER_MAX=0` 时**不启动**
       （单 dsh 走原路径，形态不变）；验证 = 单测：cap=0 不启动、cap>0 启动一次
-- [ ] 2.2 宿主以 streamable-http 暴露，dsh 侧以 `url` 条目接入（`toMcpClientEntry` 已支持）；
+- [x] 2.2 宿主以 streamable-http 暴露，dsh 侧以 `url` 条目接入（`toMcpClientEntry` 已支持）；
       验证 = 单测断言生成的 patch 里该条目 `transport: streamable-http` 且无 `command`
-- [ ] 2.3 宿主生命周期与 cell 同生共死（cell 退出即收），并对自身子进程做退出清理（不留孤儿）；
-      验证 = 单测：杀 cell 后无残留子进程
+- [x] 2.3 宿主生命周期与 cell 同生共死（cell 退出即收），并对自身子进程做退出清理（不留孤儿）；
+      验证 = 单测：`stop()` 后 ps 里无残留（已实证）；与 cell 同生共死待 2.1 接线后验证
 - [ ] 2.4 失败域：宿主挂 → 该 cell MCP 工具降级、其它 cell 不受影响、恢复后自动可用；
       验证 = 故障注入单测（停宿主 → 工具报错且原因明确；重启宿主 → 恢复）
 
 ## 3. 成员级覆盖保持原样
 
-- [ ] 3.0 **白名单校验**（D4 风险）：断言共享集里的每个卫星其启动 env 不含成员级键
+- [x] 3.0 **白名单校验**（D4 风险）：断言共享集里的每个卫星其启动 env 不含成员级键
       （TOKEN/SECRET/COLLECTIONS/PROJECT_ID/EMAIL），新增卫星若不遵守会在这里红；
       验证 = 单测遍历共享集合 + `server/*-mcp.js` 的 env 读取，出现成员级键即失败
 

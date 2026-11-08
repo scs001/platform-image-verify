@@ -403,8 +403,9 @@ test("a worker turn that never settles is reaped by the pool watchdog", async ()
       });
     }
   }
-  process.env.QUEUE_WATCHDOG_MS = "120"; // 把这个测试压到毫秒级
-  attachWorkerPool(ctx, { spawnBridge: (p) => new HungBridge(p) });
+  // 显式传 watchdogMs，不经过 env：同文件多用例共享 process.env，靠 env 会被
+  // 别的用例的 teardown 抹掉（远端基上实测就红在这）。
+  attachWorkerPool(ctx, { spawnBridge: (p) => new HungBridge(p), watchdogMs: 120 });
 
   try {
     const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
@@ -421,7 +422,6 @@ test("a worker turn that never settles is reaped by the pool watchdog", async ()
     // 关键的一半：槽位真的被释放了。只结算台账而不 abort 回合时，`await exec`
     // 永不返回、finally 不执行，槽位会被永久占住——而状态断言对此完全无感
     // （第一版实现就漏了这步，此断言是对准它的）。
-    class FreshBridge extends FakeBridge {}
     const b = engine.createManualTask({ prompt: "B", persona: "code", initiator: "s1" });
     await settle();
     await settle();
@@ -430,7 +430,6 @@ test("a worker turn that never settles is reaped by the pool watchdog", async ()
     FakeBridge.byPersona.get("code")?.release?.();
   } finally {
     releaseHung?.();
-    delete process.env.QUEUE_WATCHDOG_MS;
     engine.setSlotDispatcher(null);
     // 让残留的写盘链与定时器落完再结束本用例：saveTasks 是 `void` 链式写，
     // 用例结束即删临时目录会让它 ENOENT（同一竞态在 test-queue-health 里也踩过）。

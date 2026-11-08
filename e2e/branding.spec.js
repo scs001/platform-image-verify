@@ -159,7 +159,12 @@ test.describe("deployment branding (logto mode)", () => {
     await expect(page.getByTestId("login-page")).toBeVisible();
     await expect(page.getByTestId("login-brand-icon")).toHaveCount(0);
     await expect(page.getByTestId("login-footer")).toHaveCount(0);
-    expect(await page.evaluate(() => document.querySelector('link[rel="icon"]'))).toBeNull();
+    // The page ships a STATIC default favicon (web/index.html → /icon.svg, the
+    // 壹座 brand mark, 03a714bd5); main.tsx only OVERWRITES its href when the
+    // deployment configures `brandIconUrl`. So "unbranded" means "still the
+    // shipped default", not "no link at all" — asserting null went red the day
+    // the static icon landed.
+    expect(await page.evaluate(() => document.querySelector('link[rel="icon"]')?.getAttribute("href"))).toBe("/icon.svg");
     // Locale picker present + the login link carries rd and the locale hint.
     await expect(page.getByTestId("login-locale-select")).toBeVisible();
     const href = await page.getByTestId("sso-login").getAttribute("href");

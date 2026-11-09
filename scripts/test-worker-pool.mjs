@@ -485,6 +485,42 @@ test("a worker turn settles ctx.recordFleetTurnEvent (success path)", async () =
   }
 });
 
+test("a slot claimed while the runtime restarts settles interrupted, never ok", async () => {
+  // Ledger E28 (live 2026-11-09 23:36): `spawned worker-1 for persona
+  // hotel-watch-scout` then `credential change: runtime child restarted` six
+  // seconds later — the turn never ran and the row still said ok. The pool must
+  // check readiness before prompting, like the serial chain does.
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+  const recorded = [];
+  ctx.recordFleetTurnEvent = (_job, outcome) => {
+    recorded.push({ ok: outcome?.ok, interrupted: outcome?.interrupted, error: String(outcome?.error ?? "") });
+    return null;
+  };
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+  // The pool reads readiness off ctx.dshBridge (the shared runtime), exactly
+  // like the serial chain does.
+  ctx.dshBridge = {
+    isReady: () => false,
+    isRestarting: () => true,
+    prompt: async () => { throw new Error("must not prompt while restarting"); },
+  };
+
+  try {
+    engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    await settle(); await settle();
+    assert.equal(recorded.length, 1, "the claimed slot settles exactly once");
+    assert.equal(recorded[0].ok, false);
+    assert.equal(recorded[0].interrupted, true, "a restart is an interruption, not a success");
+    assert.match(recorded[0].error, /restarting/);
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    for (let i = 0; i < 6; i += 1) { releaseAll(); await settle(); }
+  }
+});
+
 test("a worker turn carries text/tool evidence, not just usage", async () => {
   // Ledger E28/E27: E21's first cut settled `{ok:true, usage}` only, dropping the
   // collector's text and tool blocks. The settlement seam judges "did this round

@@ -214,7 +214,7 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
             {groupedSections.map((group) => (
               <div key={`group-${group.group}`} className="flex flex-col gap-0.5">
                 <div
-                  className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:pt-1"
+                  className="micro-label px-2 pb-1 pt-2 font-semibold text-muted-foreground/70 first:pt-1"
                   data-testid={`settings-group-${group.group}`}
                 >
                   {t(`settings.groups.${group.group}`)}

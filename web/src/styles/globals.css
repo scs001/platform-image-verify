@@ -222,3 +222,41 @@
   --color-series-3: light-dark(oklch(0.48 0.08 250), oklch(0.64 0.08 250));
   --color-series-4: light-dark(oklch(0.48 0.05 250), oklch(0.64 0.05 250));
 }
+
+/*
+ * Micro-labels are script-aware (openspec: web-design-system).
+ *
+ * The shell has one class of tiny *label* text: nav family headers, Settings
+ * group headings, the project switcher's current-project label, and the
+ * build-family shortcut rows. They used to hardcode `text-[10px]` / `text-[11px]`
+ * plus `uppercase tracking-wide`, which is the Latin small-caps idiom: uppercase
+ * carries the signal and letter-spacing makes caps read as a label.
+ *
+ * Applied to Han characters the same properties go wrong in a specific way —
+ * 10-11px CJK strokes mush together and the added tracking pulls characters
+ * apart, so the Chinese rail reads as broken next to the English one (observed
+ * on the shipped build, 2026-11-09). So the role is expressed once, here, and
+ * the values branch on the document language, which the i18n layer already
+ * maintains on <html lang> (web/src/i18n/index.ts). Switching locale at runtime
+ * re-resolves it with no reload.
+ *
+ * Latin locales keep the exact previous rendering — the English UI is the
+ * reference and must not shift.
+ */
+@layer components {
+  .micro-label {
+    /* Latin default: the small-caps idiom, unchanged from before. */
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  :lang(zh) .micro-label,
+  :lang(ja) .micro-label {
+    /* CJK: bigger, tighter, and no case transform (a no-op on Han that only
+       ships visual noise where a Latin word is mixed in). */
+    font-size: 12px;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+}

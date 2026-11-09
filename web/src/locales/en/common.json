@@ -65,7 +65,7 @@
     },
     "knowledge": "Library",
     "resources": "Outputs",
-    "agents": "Agent Market",
+    "agents": "Materials",
     "bots": "Bots",
     "trace": "Trace",
     "openMenu": "Open navigation menu",
@@ -80,10 +80,11 @@
     "tuning": "Tuning",
     "channels": "Channels",
     "shortcuts": {
-      "tools": "Tools / MCP",
+      "tools": "Tools",
       "plugins": "Plugins",
       "models": "Models"
-    }
+    },
+    "familyActiveHint": "This group holds the current view"
   },
   "trace": {
     "title": "Trace",
@@ -3990,10 +3991,14 @@
       "tuning": "Tuning",
       "apps": "Apps",
       "market": "Market",
-      "mine": "Mine"
+      "mine": "Mine",
+      "agents": "Agents",
+      "tools": "Tools",
+      "skills": "Skills",
+      "plugins": "Plugins"
     },
     "market": {
-      "subtitle": "Creation and publishing moved to the supply domain; installs and runtime stay here",
+      "subtitle": "Acquire and manage capability: agents, tools, skills, plugins",
       "openStudio": "Open Studio",
       "installed": "Installed packs on this machine"
     }
@@ -4041,5 +4046,26 @@
     "tabBrowse": "By layer",
     "tabTimeline": "Timeline",
     "fromHarness": "from {{harness}}"
+  },
+  "market": {
+    "plugins": {
+      "state": {
+        "available": "Available",
+        "enabled": "Enabled",
+        "unsupplied": "Not supplied"
+      },
+      "request": "Request supply",
+      "requested": "Supply requested: {{name}}",
+      "requestPending": "Requested — waiting for the next supply",
+      "refresh": "Refresh catalogue",
+      "emptyTitle": "No plugins ship with this deployment",
+      "emptyBody": "The plugin catalogue is supplied with the deployment; this one carries none yet.",
+      "rosterUnavailable": "The plugin roster is unavailable right now",
+      "errorTitle": "Could not read the plugin catalogue"
+    },
+    "agents": {
+      "unavailableTitle": "This deployment has no agent marketplace",
+      "unavailableBody": "No market is wired up here. Packs you already installed are still under Mine, and they work as before."
+    }
   }
 }

@@ -788,7 +788,8 @@ function supersedeQueuedForPost(t) {
     other.firstQueuedAt = null;
     other.queuedAt = null;
     other.lastRun = other.lastRun ?? null;
-    (other.history ||= []).push({
+    other.history ||= [];
+    other.history.push({
       time: new Date().toISOString(),
       duration: 0,
       state: "skipped",

@@ -8211,3 +8211,25 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
 要么接受凭据入仓、要么上 sealed-secrets/ExternalSecrets、要么把这两键移出清单管理
 （注意 `prune: false` 不代表安全——Argo 用 client-side apply，从清单里删键会把线上键删掉）。
 三条路都要人拍板，工具会一直如实报它。
+
+### §15.151 续三十九：把「口令轮换会被 selfHeal 卷回」这件事从机制上堵掉（11-09）
+
+- **现象**：`fd-paper-trading-env` 的两条 DSN 一直是旧口令。我在 live secret 上改对过两次，
+  都在几分钟内变回旧值。原因不是我的手误，而是：这份 secret 由 Argo `all-services-prod` 管，
+  清单 `all-services/prod/fd-paper-trading-astock-dsn-secret.yaml` 把口令写在 `stringData` 里，
+  `selfHeal: true` 把清单值又 apply 回来。**所以 §15.142 里「7 处全修」实际只成了 5 处**，
+  直到 `tools/check-dsn-drift.sh` 才被抓出来——这也说明那个工具值得存在。
+- **只加 `ignoreDifferences` 不够**（实测）：它只影响**差异判定**，应用因任何别的原因 sync 时，
+  清单仍被全量 apply 覆盖回来——加完再轮换一次照样在 3 分钟内被卷回。
+- **正解（两步）**：
+  1. `spec.ignoreDifferences` 只针对那**四个**指针
+     （`/stringData` 与 `/data` 各两条 DSN），**不是整块 `/data`**——只增不删的教训还在
+     （这条线 11-06 被占位版覆盖丢过三个键），整块忽略会让以后新增的键也进不去；
+  2. `syncOptions: RespectIgnoreDifferences=true`，让 sync 也跳过这些字段。
+  改完 `kubectl apply -f argocd/app-all-services-prod.yaml`（这套 Application 是手工 apply，
+  没有 app-of-apps），重新轮换，**observe 3 分钟以上无回卷**。
+- **结果**：`tools/check-dsn-drift.sh` 现在 **7/7 全当前，exit 0**；
+  `fd-paper-trading` 仍 `ready=1`（改的是 secret，未重启服务）。
+- **口径**：清单里那份旧口令现在只是**历史残留**，真源是 live secret 与
+  `fd-master/fd-db-secret`；以后轮换照旧走「改 live secret + 跑 drift 检查」，
+  不需要也不允许把新口令写进仓。真要彻底解决，仍是 sealed-secrets / ExternalSecrets 的活。

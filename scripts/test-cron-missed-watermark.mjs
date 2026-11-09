@@ -22,7 +22,8 @@ process.env.CRON_STORAGE_PATH = tmp;
 process.env.DB_PATH = path.join(tmp, "app.db");
 process.env.PLATFORM_DATA_DIR = tmp;
 
-const engine = await import("../task-engine.js");
+// Imported for its module side effects (cron.js reads the engine at import).
+await import("../task-engine.js");
 const { countMissedOccurrences } = await import("../cron.js");
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

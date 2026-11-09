@@ -226,8 +226,11 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     let error = null;
     let usage = null;
     const toolBlocks = [];
+    // 早停的"到点复判"定时器（见 maybeEarlyStop）。
+    let earlyStopTimer = null;
     const settle = (fn, arg) => {
       clearTimeout(timer);
+      if (earlyStopTimer) clearTimeout(earlyStopTimer);
       collectors.delete(sessionId);
       activeTurns.delete(sessionId);
       // This lane's turn just closed — the shared child may be free now
@@ -259,6 +262,38 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       () => settle(reject, timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported })),
       timeoutMs,
     );
+    // 早停判定（唯一入口）。
+    //
+    // 原实现只在 `compaction/start` 事件里判，且要求「计数到阈值」与「已跑够
+    // 时间下限」在同一事件上同时成立。**开场压缩风暴**会把这条闸门整个绕过去：
+    // 前 60 秒内连压 4 次、之后不再压缩 —— 4 次判定时 elapsed 都 <60s，
+    // 之后再也没有 compaction 事件可供判定，回合于是跑到预算耗尽。
+    //
+    // 线上证据（2026-11-09，4 个 cell 的 4493 行 history）：
+    //   • 48 次「turn timed out — context pressure」，只有 3 次早停；
+    //   • 44 次压缩数已达阈值却没早停，其中 n=4 的 8 次全是这个形状；
+    //   • 同一条任务（job_1794128300056_hwmvbw）既早停过、也超时过 ——
+    //     差别不在任务本身，而在压缩是否恰好跨越了时间下限。
+    // 修法：撞到阈值时若还没到下限，挂一个一次性定时器在到点时复判。
+    const maybeEarlyStop = () => {
+      if (!earlyStop || !earlyStopEnabled()) return false;
+      if (compactions < EARLY_STOP_COMPACTIONS) return false;
+      const elapsed = Date.now() - startedAtMs;
+      if (elapsed < earlyStopAfterMs) {
+        if (!earlyStopTimer) {
+          earlyStopTimer = setTimeout(maybeEarlyStop, earlyStopAfterMs - elapsed + 5);
+          earlyStopTimer.unref?.();
+        }
+        return false;
+      }
+      try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
+      const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
+      err.message = `turn stopped early — context pressure (${compactions} compactions)`;
+      err.earlyStop = true;
+      settle(reject, err);
+      return true;
+    };
+
     activeTurns.set(sessionId, (reason) => {
       // A bridge abort (runtime restart mid-turn) is an interruption, not a
       // failure: the engine marks the execution `interrupted` instead of
@@ -308,18 +343,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         // finish, and the serial slot is the cell's only executor. Cancel it
         // natively and settle as pressure (the salvage lane then tries for the
         // report) instead of holding everyone else's queue for another N seconds.
-        if (
-          earlyStop
-          && earlyStopEnabled()
-          && compactions >= EARLY_STOP_COMPACTIONS
-          && Date.now() - startedAtMs >= earlyStopAfterMs
-        ) {
-          try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
-          const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
-          err.message = `turn stopped early — context pressure (${compactions} compactions)`;
-          err.earlyStop = true;
-          return settle(reject, err);
-        }
+        maybeEarlyStop();
       }
       if (ev.type === "assistant/message") {
         // Turn metering: the FIRST assistant event is the time-to-first-token

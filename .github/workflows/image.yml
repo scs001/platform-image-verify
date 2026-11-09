@@ -25,9 +25,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# QUEUED, not cancelling (openspec: queue-release-ci-runs). Killing an image
+# build mid-push leaves a half-written tag; waiting is strictly better.
 concurrency:
   group: image-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -60,6 +62,15 @@ jobs:
       - id: tag
         run: echo "tag=sha-$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
+      - id: prev
+        name: 读 main 当前 digest（内容基线）
+        run: |
+          img="${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}"
+          cur=$(docker buildx imagetools inspect "$img:main" \
+                --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+          echo "digest=$cur" >> "$GITHUB_OUTPUT"
+          echo "${{ env.IMAGE_NAME }} main 当前 digest: ${cur:-<不存在，本次为首次构建>}"
+
       # Build WITHOUT pushing: the smoke gate below decides whether this
       # image is allowed to exist in the registry.
       - name: Build image (load, no push)
@@ -70,6 +81,7 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
+          # 硬约束：开了 attestation，同内容两次构建 digest 必然不同，闸门永久失效。
           provenance: false
           tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }},${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:main
           cache-from: type=gha
@@ -190,18 +202,56 @@ jobs:
             console.log("module identity ok: all bridge packages resolve inside /opt/dsh");
           '
 
+      # 只推滚动 main：不可变 tag 由下面的内容闸门决定是否铸造。
       - name: Push image
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          docker push "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:$TAG"
           docker push "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:main"
+
+      # 内容闸门：digest 变了才铸 sha-<commit>，让「同内容多 tag」结构上不可能。
+      # 本文件没有 metadata-action，镜像由 docker push 落地；docker driver 下
+      # build-push 的 output digest 是 config digest 而非 manifest digest，与
+      # registry 基线不可比，所以 NEW 从 registry 的 :main 读回（与 OLD 同源）。
+      - name: 内容变了才铸不可变 tag
+        env:
+          OLD: ${{ steps.prev.outputs.digest }}
+        run: |
+          set -euo pipefail
+          img="${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}"
+          NEW=$(docker buildx imagetools inspect "$img:main" \
+                --format '{{.Manifest.Digest}}' 2>/dev/null || true)
+          [ -n "$NEW" ] || { echo "::error::构建未产出 digest"; exit 1; }
+          if [ "$NEW" = "$OLD" ]; then
+            echo "内容未变（$NEW）：不铸新 tag"
+            {
+              echo "### 内容未变，未产出新 tag"
+              echo ""
+              echo "本次构建与 \`main\` 当前指向完全一致。"
+              echo ""
+              echo "- 可直接 pin：\`$img@$NEW\`"
+              echo "- 滚动引用：\`$img:main\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          tag="sha-${GITHUB_SHA::7}"
+          docker buildx imagetools create -t "$img:$tag" "$img@$NEW"
+          echo "已铸 $tag → $NEW"
+          {
+            echo "### 内容有变化，已铸不可变 tag"
+            echo ""
+            echo "| 字段 | 值 |"
+            echo "|---|---|"
+            echo "| tag | \`$tag\` |"
+            echo "| digest | \`$NEW\` |"
+            echo "| 上一内容 digest | \`${OLD:-<无>}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           {
             echo "## image → hkccr"
-            echo "Pushed \`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${TAG}\` (+ :main)"
+            echo "Pushed \`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:main\`"
             echo ""
-            echo "Deploy: relay lands it on ccr within ≤5 min; then set \`${{ env.CCR_IMAGE }}:${TAG}\` in fd-infra-deploy/all-services/prod/platform.yaml (see DEPLOY.md → Image pipeline)."
+            echo "\`$TAG\` 只在内容变化时铸造（见「内容变了才铸不可变 tag」一节）。"
+            echo "Deploy: relay lands it on ccr within ≤5 min; then set \`${{ env.CCR_IMAGE }}:$TAG\` in fd-infra-deploy/all-services/prod/platform.yaml (see DEPLOY.md → Image pipeline)."
           } >> "$GITHUB_STEP_SUMMARY"

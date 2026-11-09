@@ -11,9 +11,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# QUEUED, not cancelling (openspec: queue-release-ci-runs).
+# The unit step really runs for ~26 minutes, and this workspace is worked by
+# several sessions in parallel, each cutting its own snapshot. With
+# `cancel-in-progress: true` the run that started first is almost always killed
+# mid-unit-test by the next push — measured four times on 2026-11-09 alone. That
+# does not save resources, it makes image builds unusable and burns a full CI
+# round each time. Runs on the same ref now queue; different refs still parallel.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   gates:

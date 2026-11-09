@@ -25,9 +25,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# QUEUED, not cancelling (openspec: queue-release-ci-runs). A cancelled image
+# build leaves a half-written tag; and this workflow is the mirror's ONLY build
+# path, so cancelling means "no image at all" rather than "a newer image later".
 concurrency:
   group: image-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

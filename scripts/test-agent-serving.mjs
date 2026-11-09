@@ -504,7 +504,13 @@ async function routeHarness({ user, deployConfig, manifest }) {
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
     creatorGroups: ["creators"],
     adminGroups: ["admin"],
-    deployConfig,
+    // Short reassurance delays for EVERY test in this file. The seam rides
+    // deployConfig → deployToRegistry (the route spreads `...cfg`), and without
+    // it a deploy schedules the production ladder 90s/210s/330s: the suite then
+    // spends 5.5 minutes in one test and fails on its own timing (mainline
+    // 978b05088: "3.2/3.3 author deploys a version … (335360ms)"). Production
+    // keeps DEPLOY_REASSURANCE_DELAYS_MS; this is the same seam line 797 uses.
+    deployConfig: { ...deployConfig, reassuranceDelays: [10, 20] },
   });
   const server = http.createServer(app);
   await new Promise((r) => server.listen(0, "127.0.0.1", r));

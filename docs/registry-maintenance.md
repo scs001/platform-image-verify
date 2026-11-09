@@ -8346,11 +8346,14 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 **收益口径**：每 dsh 少一个 ≈77Mi 进程（A/B 实测 79008KiB / 78992KiB）。cap=0 的三个 cell 合计
 ≈231Mi；开 worker 槽时同样受益——即「一个槽的净增量」从 ≈430Mi 降到 ≈350Mi。
 
-**残余：pack 侧的 `actions-mcp` 名字会悬空（已知、当前无害、待命名统一）**
+**残余：pack 侧的 `actions-mcp` 名字会悬空（已用代码+数据证实无害，命名统一另议）**
 市场目录里确有 pack 用 `mcpServers: [{registryName: "actions-mcp"}]`（site-plaza catalog、
 `docs/fleet-templates/staging/registry-allowtools.json` 都是这个名字），而保留下来的是 `actions`。
-实测影响：
-1. **不丢工具**——聚焦层（focus layer）始终保留「部署基线里的每个 mcp.json server」，`actions` 在；
+实测影响（本轮补的证据：全量扫在跑 cell 的 pack 表，共 819 行，命中 3 行——
+`1da519d4` 的「工厂集群 / 优化团队 / 行业分析团队」，均为
+`{registryName:"actions-mcp", allowTools:["propose_action"]}`）：
+1. **不丢工具**——`dsh-profile.js:1266` 的 `const keep = new Set(Object.keys(mcpJsonServers))`
+   保证 pack persona 一律保留部署基线的每个 server，`actions` 不会被聚焦层删掉；
 2. pack 那条 `allowTools: ["propose_action"]` 因名字对不上而不生效——但该 server 只暴露
    `propose_action` 一个工具，**这条 allowlist 本来就是 no-op**；
 3. 唯一实质后果是「pack 声明的 registryName 找不到同名 server」这种悬空引用，属整洁性问题。

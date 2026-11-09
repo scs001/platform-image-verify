@@ -210,6 +210,8 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**开 worker 池 cap=1（2026-11-09，产线实证）**：单串行槽是通过率的结构性瓶颈（`oldestQueuedMs` 92–103 分钟）。7Gi 上限本就是为开池抬的，那一步一直没走。准入算术：门槛 `7Gi×0.85=5.95Gi` > `used+足迹 4.07–4.16Gi` → 放行；对照 11-08 的 4Gi（门槛 3.4Gi < 4.07Gi → 拒醒、空转 608s）。**实证**：连发 3 条不同岗位任务后队列采样 6 次持续 `running=2`（主链 + worker 各一），`overBudget=0`；真实 spawn `worker-1 for persona hotel-watch-chief / xb-poster`；内存 1.76–2.14Gi / 7Gi（不升反降）。改的是 GitOps 真源（非 kubectl patch），故并发会话反复滚镜像后 `TASK_WORKER_MAX=1` 仍随 ArgoCD 对齐保住。
+
 **队列「忙」被当成「卡」（2026-11-09，已修并产线实证，镜像 sha-b4d3952）**：`/api/ready` 把「最老等待 > 10 分钟」判为 degraded→503，而舰队 cell 的最老等待常年 90–100 分钟，同期每 4–5 分钟就有回合成功收口——**繁忙被报成不可用**。现以 `lastSettledAt`（每次收口都写，失败也算推进）为证据：**积压 103 分钟但刚收口 → ready=true；积压 97 分钟且无收口 → ready=false**，同一镜像同一时刻同时观测到两态。真停滞仍降级，原「假绿」事故的可检测性不变。
 
 **重启成本已量化（2026-11-09，实测日志时间戳）**：pod 重建后 `gateway listening` 在 3 秒、三个 cell 的 HTTP 面在 9 秒，但 **dsh runtime ready 分别要 29 / 62 / 97 秒**（`[cell …] [dsh] runtime ready`）——这段是 dsh 初始化（35 个 MCP 源串行），`awaitRuntimeReadyForJob` 的 120s 轮询把它兜住了，所以**重启丢的不是回合，是约 90 秒的推迟**；风险在于推迟窗口里撞上上游 429/503 就会被记成失败。**并行化 MCP 初始化在 dsh 内部，平台侧无旋钮**（与工具输出上限同一结论），故此项不做代码改动，仅记录。

@@ -8478,3 +8478,28 @@ state, then drop this exclusion」**。
 **验证**：`law-bench` app 现跟踪 `Deployment/law-bench-mcp` + `Service/law-bench-mcp`（均 Synced）；
 pod **未重启**（startTime 2026-10-27T22:07:20Z，restartCount 5 未变），仍在 `liuliangdmh1xr0w9ryu`，
 镜像 `law-template:sha-e411d22`，8080 端口在听。
+
+### §15.157 续四十五：另外两个未纳管服务的结论——不是落后，是「没人管」（11-09）
+
+覆盖率审计剩下的两个产品缺口，逐个查完了：
+
+| 服务 | 清单位置 | 清单 vs 线上 | 结论 |
+|---|---|---|---|
+| `scraw/proxy-control` | `fd-proxy-service/k8s/proxy-control.yaml` | **空差异**（image `fd-proxy-service:sha-ad65424`、replicas 1 全同） | 不落后 |
+| `scraw/legal-auth-broker` | `fd-law-data/k8s/legal-auth-broker.yaml` | **空差异**（image `legal-auth-broker:sha-b726e1f`、replicas 1 全同） | 不落后 |
+
+也就是说：这两处**没有版本欠账**，风险纯粹是结构性的——清单改了不会自动生效，live 改了也不会被纠正
+（law-bench 的教训在于此，但它至少还有一条 selfHeal 在管其它 workload）。
+
+**接不进去的原因是可验证的**：两个仓都是私有的
+（`git ls-remote https://gitee.com/FindDataTechnology/{fd-proxy-service,fd-law-data}.git` 均被拒），
+而 cheap 上 Argo 只登记了 7 个 repo 凭据（`helm-law-craw-web`、`law-bench`、`fd-infra-deploy`、
+`fd-legal-search-mcp`、`fd-lex`、`fd-text-core`、`fd-wire`），**这两个不在其中**。
+
+**我没有硬接**，理由：给 Argo 加 repo 凭据意味着往集群里放一个能读别人仓的密钥。正解是每仓一把
+**只读 deploy key**（由仓所有者开通），而不是把我自己的 gitee SSH 私钥塞进 argocd 命名空间。
+所以这一步停在"结论已明确、凭据待开"，不是"忘了做"。
+
+**建议（给两条线）**：各开一把 read-only deploy key → 我加 `argocd.argoproj.io/secret-type=repository`
+secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后再开 selfHeal），
+与 `fd-mcp-prod` 完全同套路。在开通前，这两个服务请按**手工清单**对待：改清单要记得 apply。

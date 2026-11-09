@@ -8503,3 +8503,28 @@ pod **未重启**（startTime 2026-10-27T22:07:20Z，restartCount 5 未变），
 **建议（给两条线）**：各开一把 read-only deploy key → 我加 `argocd.argoproj.io/secret-type=repository`
 secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后再开 selfHeal），
 与 `fd-mcp-prod` 完全同套路。在开通前，这两个服务请按**手工清单**对待：改清单要记得 apply。
+
+### §15.158 续四十六（渠）：悬空 `registryName` 全量摸底——只有 1 个是真悬空
+
+把每个 cell 的 `mcp.patch.yml` 里**实际存在的 serverName** 与该 cell 已装 pack 声明的
+`mcpServers[].registryName` 做差集（生产 4 个活跃 cell）：
+
+| cell | packs | servers | 差集 |
+|---|---|---|---|
+| `1da519d4` | 36 | 30 | fd-paper-trading, wire-ops-mcp, wire-build-mcp, wanxing-ops, wire-ops, **actions-mcp** |
+| `3fdc7b8e` | 49 | 18 | 18 个（fd-* / eco-mcp-* / wire-* / law-bench …） |
+| `6db2b1b4` | 8 | 14 | 8 个 |
+| 其余 | 1–2 | 1–5 | 0–6 个 |
+
+**三分类（逐个对到清单的门上）**：
+1. **凭据门**（预期省略）：`wire-ops`（`credentialRef: wire-customer`）、
+   `wanxing-ops`（`credentialRef: wanxing-caller`）——连接器没连上就不该出现，属设计。
+2. **市场引用未安装**：`fd-*` / `eco-mcp-*` / `law-bench` / `wire-build*` 等**根本不在部署清单里**，
+   只能来自市场安装；pack 装了引用但该服务器未装进这个 cell。这是"pack 承诺了它拿不到的腿"，
+   安装报告里本来就该显示 unavailable / requires group —— 属可见的既有语义，不是新缺陷。
+3. **真悬空**：`actions-mcp` —— 清单里**无任何门**（stdio、无 envRefs/credentialRef），
+   它之所以不在，正是本次去重删掉的（§15.153）。全库只有这一个。
+
+**结论**：这类"同程序多份 / 悬空引用"的浪费到此摸完，除已修的 `actions` 外没有第二处可省。
+剩余的服务缺失全部有解释（凭据未连 / 市场未装），要收窄请看 `/api/monitoring` 与 pack 安装报告，
+不要去改组合逻辑。

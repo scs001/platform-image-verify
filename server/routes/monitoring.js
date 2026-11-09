@@ -12,6 +12,30 @@ import * as engine from "../../task-engine.js";
 const clusterDb = getClusterDatabase();
 
 export function createMonitoringRoutes(app) {
+  // GET /api/monitoring/report-rejections — posts whose reports were refused by
+  // the flood gate inside the rolling window (fix-fleet-report-delivery 3.1).
+  // Without this, a post can be silently muzzled for hours: the refusal only
+  // ever appeared as a 429 in a tool result the model saw, and the ledger kept
+  // an empty row that read like "the post stopped reporting". Honest surface:
+  // only posts that were actually refused appear — no zero-padded rows.
+  app.get("/api/monitoring/report-rejections", (req, res) => {
+    try {
+      const stats =
+        typeof req.app?.locals?.reportRejectionStats === "function"
+          ? req.app.locals.reportRejectionStats()
+          : { total: 0, byMember: {} };
+      res.json({
+        ...stats,
+        byMember: Object.entries(stats.byMember ?? {})
+          .map(([memberId, v]) => ({ memberId, count: v.count, lastAt: v.lastAt }))
+          .sort((a, b) => b.count - a.count),
+      });
+    } catch (err) {
+      console.error("[monitoring] report-rejections handler error:", err?.message || err);
+      if (!res.headersSent) res.status(500).json({ error: err?.message || "internal error" });
+    }
+  });
+
   // GET /api/monitoring/clusters - cluster metrics from clusters.db
   app.get("/api/monitoring/clusters", (_req, res) => {
     try {

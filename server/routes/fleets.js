@@ -695,6 +695,16 @@ export function createFleetRoutes(app, ctx = null) {
         oldestInWindowAt: inWindow.length ? inWindow[inWindow.length - 1].createdAt : null,
       });
       if (!flood.ok) {
+        // The refusal is a fact about this turn (fix-fleet-report-delivery 1.1):
+        // stash it so the turn row can say "the server refused the report"
+        // instead of leaving an unexplained empty round.
+        try {
+          ctx?.recordReportRejection?.(member.id, {
+            reason: "flood",
+            windowResetsAt: flood.windowResetsAt,
+            slots: Object.keys(payload.report.metrics ?? {}),
+          });
+        } catch { /* observation never fails the response */ }
         return res.status(429).json({ error: flood.error, windowResetsAt: flood.windowResetsAt });
       }
 

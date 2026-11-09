@@ -115,6 +115,7 @@ import { attachWebSocket } from "./server/ws.js";
 import { matrixGate } from "./lib/dsh-matrix-verify.js";
 import { registerActionsRoutes } from "./server/routes/actions.js";
 import { startActionExpiryJob } from "./lib/action-expiry.js";
+import { recordRejection, prune, summarizeRejections } from "./lib/report-rejection-log.js";
 import { registerBoardRoutes } from "./server/routes/boards.js";
 // ERP 纵向 REST 服务面同源代理（add-erp-supply-chain-gateway-proxy）：
 // 客户端 X-ERP-* 一律剥离、服务端按会话注入、无会话 401（fail-closed）。
@@ -403,6 +404,10 @@ createPersonaEvolutionRoutes(app, ctx);
 // market is pack cluster metadata (catalog.js), model binding is the deploy
 // form's modelOverrides (gateway/packs.js).
 createMonitoringRoutes(app);
+// The rejection counter lives on ctx (it is written by the report lane); the
+// monitoring route reads it through app.locals so the route module needs no
+// import cycle back into server.js.
+app.locals.reportRejectionStats = () => ctx.reportRejectionStats();
 // Admin dashboard (agent-cluster-platform Phase 8)
 createAdminRoutes(app);
 // 谦面市场设备凭据 (facet-market-credentials, C1.1-B) — same family again:
@@ -1338,6 +1343,42 @@ ctx.takeFleetAttribution = (memberId) => {
   return fact;
 };
 
+// Report-rejection bridge (fix-fleet-report-delivery 1.1): when the flood gate
+// refuses a report, all the caller ever saw was a 429 in a tool result — the
+// turn row said nothing, so the ledger read "this post produced no report"
+// while the truth was "the server refused it". Live 2026-11-09 that mixed-up
+// reading cost a full forensic detour (the post's honest three-slot payload was
+// rejected whole and the empty row looked like a model failure). Same one-shot
+// discipline as the attribution fact above: stash at refusal, land on the turn
+// row when it ends.
+const fleetReportRejections = new Map();
+// Rolling window for the operator face (3.1/3.2): the stash above is one-shot
+// per turn and vanishes when the turn row is written, so it cannot answer "is
+// this post being refused repeatedly?" — that needs a window.
+const fleetReportRejectionLog = [];
+ctx.recordReportRejection = (memberId, fact) => {
+  if (!memberId || !fact) return;
+  fleetReportRejections.set(memberId, fact);
+  try {
+    recordRejection(fleetReportRejectionLog, { memberId, at: Date.now() });
+  } catch { /* the count must never fail the refusal path */ }
+};
+ctx.takeReportRejection = (memberId) => {
+  const fact = fleetReportRejections.get(memberId) ?? null;
+  fleetReportRejections.delete(memberId);
+  return fact;
+};
+// Read-side: prune on read as well as on write, so a post that stopped being
+// refused ages out without a sweeper.
+ctx.reportRejectionStats = ({ windowMs, now = Date.now() } = {}) => {
+  try {
+    prune(fleetReportRejectionLog, windowMs ? { now, windowMs } : { now });
+    return summarizeRejections(fleetReportRejectionLog, windowMs ? { now, windowMs } : { now });
+  } catch {
+    return { total: 0, byMember: {} };
+  }
+};
+
 // Run ledger (agent-fleet-runs): the execution instance behind the cockpit's
 // live canvas and replay timeline. begin/end/settle are called from the
 // cron-runner seam; dispatch (routes/fleets.js) and the handoff trigger below
@@ -1477,12 +1518,20 @@ ctx.recordFleetTurnEvent = (job, outcome, meta) => {
     // a turn that filed no report leaves the detail byte-for-byte unchanged.
     const memberId = job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null;
     const attributionFact = memberId ? ctx.takeFleetAttribution?.(memberId) ?? null : null;
-    const shapedOutcome = attributionFact
+    // Report rejection rides the same row (fix-fleet-report-delivery 1.1): a
+    // refused report is a fact ABOUT this turn, and the ledger must carry it —
+    // otherwise "no report landed" and "the server dropped it" look identical.
+    const reportRejection = memberId ? ctx.takeReportRejection?.(memberId) ?? null : null;
+    const detailFacts = {
+      ...(attributionFact ? { attribution: attributionFact } : {}),
+      ...(reportRejection ? { reportRejected: reportRejection } : {}),
+    };
+    const shapedOutcome = Object.keys(detailFacts).length
       ? {
           ...outcome,
           detail: {
             ...(outcome?.detail && typeof outcome.detail === "object" ? outcome.detail : {}),
-            attribution: attributionFact,
+            ...detailFacts,
           },
         }
       : outcome;

@@ -29,6 +29,8 @@ import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
 import { effectiveMcpTools } from "./lib/pack-manifest.js";
 import { deriveFullModeToolScope, customPresetToolScope, capByOperatorFace } from "./lib/full-mode-tool-scope.js";
 import { OPERATOR_TOOL_FACES } from "./lib/operator-tool-face.js";
+import { describeInjectionSurface } from "./lib/injection-surface.js";
+import { trimServersToFace, serversFromFace, describeTrim } from "./lib/mcp-post-trim.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
 import { cellMemoryMount, cellMemoryConfig, MEMORY_DISCIPLINE } from "@finddatatechnology/yongyi-client";
@@ -1494,6 +1496,29 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   console.log(
     `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${patchPath}`,
   );
+  // Injection-surface accounting (trim-mcp-injection-per-post 1.1): the server
+  // count above IS every turn's schema bill, because one patch serves all
+  // personas. Log the two comparable facts so growth is visible before it
+  // costs a diagnosis — and read the skill roots from the patch actually on
+  // disk (never a re-derivation) so the number matches what dsh will load.
+  try {
+    let skillRoots = 0;
+    const skillsPatchPath = join(dirname(patchPath), "skills.patch.yml");
+    if (existsSync(skillsPatchPath)) {
+      const doc = yaml.load(readFileSync(skillsPatchPath, "utf8"));
+      const dirs = doc?.[0]?.config?.customSkillDirs;
+      skillRoots = Array.isArray(dirs) ? dirs.length : 0;
+    }
+    console.log(
+      `[dsh-profile] injection surface: ${describeInjectionSurface({
+        serverNames: entries.map((e) => e.config.serverName),
+        skillRoots,
+      })}`,
+    );
+  } catch (e) {
+    // Observation only — a missing/garbled skills patch must never fail the
+    // MCP patch write it was measuring.
+  }
   return patchPath;
 }
 
@@ -1513,6 +1538,15 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, libraryCollections = [], ...writeOpts } = {}) {
   const patchPath = await writeMcpPatch({ ...writeOpts });
   if (!patchPath) return null;
+  // Per-post trimming (trim-mcp-injection-per-post 2.1): a worker slot is
+  // pinned to ONE persona for its life, so its patch only needs the servers
+  // that persona's tool face references. The shared patch keeps serving the
+  // chat lane unchanged; this narrows the member's private composition.
+  // `faceFor` is injected so this module stays free of catalog knowledge.
+  let faceForPreset = null;
+  try {
+    faceForPreset = typeof writeOpts.faceForPreset === "function" ? writeOpts.faceForPreset : null;
+  } catch { faceForPreset = null; }
   const memberDir = join(dirname(MCP_PATCH_PATH), `member-${safeProfileSegment(personaPreset)}`);
   mkdirSync(memberDir, { recursive: true });
   let rows;
@@ -1524,7 +1558,25 @@ export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, l
   }
   const insert = Array.isArray(rows?.[0]?.insert) ? rows[0].insert : null;
   if (!insert) return null;
-  const out = applyMemberOverrides(insert, { memoryToken, libraryCollections, memoryUrl: writeOpts.mcpOverlay?.fd_memory_url ?? null });
+  // Trim to the persona's declared face BEFORE the member overrides run, so a
+  // post that never uses a server does not pay for its schema (and so the
+  // fd-memory append below still works on the trimmed list). `null` face
+  // (no declaration) means "no narrowing" — the safety valve.
+  let trimmed = insert;
+  try {
+    const face = faceForPreset ? faceForPreset(personaPreset) : null;
+    const allowed = serversFromFace(face);
+    if (allowed.size > 0) {
+      trimmed = trimServersToFace(insert, { allowed, keepMemory: true });
+      console.log(`[dsh-profile] member ${personaPreset}: ${describeTrim(insert, trimmed)}`);
+    }
+  } catch (e) {
+    // Fail-open: a broken face must never ship an empty patch (that would
+    // silently remove every tool from a working post).
+    console.warn(`[dsh-profile] member trim skipped (${e?.message || e}); keeping the full composition`);
+    trimmed = insert;
+  }
+  const out = applyMemberOverrides(trimmed, { memoryToken, libraryCollections, memoryUrl: writeOpts.mcpOverlay?.fd_memory_url ?? null });
   const memberPatch = join(memberDir, "mcp.patch.yml");
   atomicWriteTextSync(memberPatch, yaml.dump([{ insert: out }]));
   console.log(`[dsh-profile] member patch for ${personaPreset}: ${out.length} server(s) → ${memberPatch}`);

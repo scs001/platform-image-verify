@@ -978,7 +978,8 @@
       "connections": "Connections",
       "plugins": "Plugins",
       "delegation": "Decision delegation",
-      "pairing": "Pairing & binding"
+      "pairing": "Pairing & binding",
+      "mandate": "Mandate"
     },
     "groups": {
       "basics": "Basics",
@@ -1347,6 +1348,49 @@
         "health": "Health",
         "trace": "Turn trace"
       }
+    },
+    "mandate": {
+      "title": "Mandate",
+      "hint": "Decide, per domain, how far the agent may act on its own: advise / draft / act-then-report / autonomous. Unconfigured domains only advise and get no execution quota.",
+      "domain": {
+        "ops": "Team operations",
+        "external-comms": "External comms",
+        "advancement": "Advancing work",
+        "research": "Research output"
+      },
+      "mode": "Decision mode",
+      "modeAdvise": "Advise only",
+      "modeDraft": "Draft, wait for me",
+      "modeNotify": "Act, then report",
+      "modeSilent": "Autonomous, digest only",
+      "quota": "Daily action cap",
+      "expiry": "Valid until",
+      "revokeWindow": "Revoke window (min)",
+      "readScope": "May read",
+      "discloseScope": "May disclose",
+      "scopeHint": "Reading is not disclosing: the two scopes are judged separately.",
+      "level": {
+        "public": "Public",
+        "internal": "Internal",
+        "confidential": "Confidential",
+        "hr": "HR",
+        "finance": "Finance"
+      },
+      "save": "Save",
+      "saved": "Saved",
+      "ledger": "Recent agent actions",
+      "ledgerEmpty": "No action has been driven by a mandate yet.",
+      "ledgerDomain": "Domain",
+      "ledgerMode": "Mode",
+      "ledgerReversible": "Reversible until",
+      "ledgerIrreversible": "Irreversible",
+      "ledgerRevoked": "Revoked",
+      "revoke": "Revoke",
+      "revoked": "Revoked",
+      "revokeClosed": "Revoke window closed",
+      "violations": "Blocked today",
+      "violationsNone": "Nothing was blocked today.",
+      "noDowngrade": "Publishing and destructive actions may only be advised or drafted."
     }
   },
   "preview": {

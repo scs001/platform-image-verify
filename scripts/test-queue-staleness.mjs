@@ -319,3 +319,112 @@ test("the periodic sweep revives an orphan that nobody re-fires", async () => {
       "the sweep must put the orphan back on the chain without an operator action");
   } finally { await engine.idle(); }
 });
+
+// ── Period-aware staleness (fix-stale-drop-respects-period) ────────────────
+//
+// The bound alone reads "waited 10 minutes" as "the round is worthless", which
+// is only true when another occurrence is coming soon. Dropping a DAILY round
+// loses the whole day: `skipped` neither retries nor counts as `missed`. So a
+// round whose period EXCEEDS the bound is exempt — and, because it will never
+// be dropped, it must also stop counting as evidence that the queue is stuck.
+
+test("schedulePeriodMs: interval table, and null when it cannot be established", () => {
+  const { schedulePeriodMs } = engine;
+  assert.equal(schedulePeriodMs({ interval: { number: 1, unit: "minute" } }), 60_000);
+  assert.equal(schedulePeriodMs({ interval: { number: 2, unit: "hour" } }), 7_200_000);
+  assert.equal(schedulePeriodMs({ interval: { number: 1, unit: "day" } }), 86_400_000);
+  assert.equal(schedulePeriodMs({ interval: { number: 40, unit: "day" } }), 40 * 86_400_000, "every-40-days is expressible");
+  assert.equal(schedulePeriodMs({ interval: { number: 1, unit: "week" } }), 604_800_000);
+  // Unknown is NOT treated as exempt: guessing would widen the policy on bad data.
+  assert.equal(schedulePeriodMs({}), null);
+  assert.equal(schedulePeriodMs({ interval: { number: 1, unit: "year" } }), null);
+  assert.equal(schedulePeriodMs({ interval: { number: 0, unit: "day" } }), null);
+  assert.equal(schedulePeriodMs({ cron: "0 3 * * *" }), null, "cron tasks have no interval — unknown, not exempt");
+});
+
+test("isAgeExemptQueued: exempt iff the period is long enough to matter", () => {
+  const { isAgeExemptQueued } = engine;
+  const day = { state: "queued", trigger: "schedule", interval: { number: 1, unit: "day" } };
+  const hour = { state: "queued", trigger: "schedule", interval: { number: 1, unit: "hour" } };
+  const tenMin = 600_000;
+  assert.equal(isAgeExemptQueued(day), true, "losing a daily round costs a whole day");
+  assert.equal(isAgeExemptQueued({ state: "queued", trigger: "schedule", interval: { number: 6, unit: "hour" } }), true,
+    "the floor is inclusive: 6h is already a quarter of a day");
+  assert.equal(isAgeExemptQueued(hour), false, "an hourly round regenerates quickly — keep the queue moving");
+  assert.equal(isAgeExemptQueued(day, Infinity), false, "a floor above every period exempts nothing");
+  assert.equal(isAgeExemptQueued({ ...day, queuedBy: "human" }), false,
+    "a human ignition never ages out — a different rule, not this one");
+  assert.equal(isAgeExemptQueued({ ...day, trigger: "manual" }), false);
+  assert.equal(isAgeExemptQueued({ ...day, interval: undefined }), false, "unknown period keeps the old rule");
+});
+
+test("staleExemptMinPeriodMs: the floor is read per call, and is independently set", () => {
+  const { staleExemptMinPeriodMs, isAgeExemptQueued } = engine;
+  const saved = process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+  try {
+    delete process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+    assert.equal(staleExemptMinPeriodMs(), 6 * 3_600_000, "default 6h");
+    process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = String(30 * 60_000);
+    assert.equal(staleExemptMinPeriodMs(), 30 * 60_000, "the knob takes effect without a restart");
+    // And it really changes the decision: a 1h round is now exempt too.
+    assert.equal(isAgeExemptQueued({ trigger: "schedule", interval: { number: 1, unit: "hour" } }), true);
+    process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = "not-a-number";
+    assert.equal(staleExemptMinPeriodMs(), 6 * 3_600_000, "garbage falls back to the default");
+  } finally {
+    if (saved === undefined) delete process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+    else process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = saved;
+  }
+});
+
+test("a daily round is NOT swept while an hourly one is", async () => {
+  await boot(() => Promise.resolve({ ok: true }));
+  process.env.QUEUE_MAX_AGE_MS = "600000";
+  try {
+    engine.insertTask({ id: "daily", name: "daily", prompt: "p", trigger: "schedule", targetType: "persona", interval: { number: 1, unit: "day" } });
+    engine.insertTask({ id: "hourly", name: "hourly", prompt: "p", trigger: "schedule", targetType: "persona", interval: { number: 1, unit: "hour" } });
+    // Both waited far past the bound.
+    engine.getRecord("daily").firstQueuedAt = Date.now() - 30 * 60_000;
+    engine.getRecord("hourly").firstQueuedAt = Date.now() - 30 * 60_000;
+    engine.getRecord("daily").state = "queued";
+    engine.getRecord("hourly").state = "queued";
+
+    engine.sweepStaleQueuedFires();
+    assert.equal(engine.getRecord("daily").state, "queued", "the daily round is exempt — dropping it loses the day");
+    assert.equal(engine.getRecord("hourly").state, "skipped", "the hourly round is still superseded inside the window");
+    assert.match(engine.getRecord("hourly").error, /next cadence fire/, "and its error says so");
+  } finally {
+    delete process.env.QUEUE_MAX_AGE_MS;
+    for (const id of ["daily", "hourly"]) { try { engine.deleteRecord(id); } catch { /* gone */ } }
+    await engine.idle();
+  }
+});
+
+test("an age-exempt round alone must not report the cell as stalled", async () => {
+  await boot(() => Promise.resolve({ ok: true }));
+  process.env.QUEUE_MAX_AGE_MS = "600000";
+  try {
+    // The worst case: nothing has settled for longer than the bound (an idle
+    // cell), and the queue holds ONE round — the exempt one.
+    engine._stampSettlement(0);
+    engine.insertTask({ id: "lonely-daily", name: "lonely-daily", prompt: "p", trigger: "schedule", targetType: "persona", interval: { number: 1, unit: "day" } });
+    const rec = engine.getRecord("lonely-daily");
+    rec.state = "queued";
+    rec.firstQueuedAt = Date.now() - 60 * 60_000;
+
+    const health = engine.queueHealth();
+    assert.equal(health.degraded, false, "one waiting daily round is not a stalled queue");
+    assert.equal(health.oldestQueuedMs, null, "an exempt round is not evidence of waiting");
+    assert.equal(health.queuedExempt, 1, "and it is named, so `null` is not mistaken for an unreachable cell");
+
+    // The contrast that keeps the bound honest: swap it for an hourly round and
+    // the same snapshot must go degraded.
+    rec.interval = { number: 1, unit: "hour" };
+    const health2 = engine.queueHealth();
+    assert.equal(health2.degraded, true, "an hourly round waiting an hour IS a stall");
+    assert.ok(health2.oldestQueuedMs >= 60 * 60_000);
+  } finally {
+    delete process.env.QUEUE_MAX_AGE_MS;
+    try { engine.deleteRecord("lonely-daily"); } catch { /* gone */ }
+    await engine.idle();
+  }
+});

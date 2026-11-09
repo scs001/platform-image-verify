@@ -411,9 +411,48 @@ worker is available, tasks never touch the interactive runtime. Workers share
 the cell's composed profile (same home/patches/credentials), idle-reap after
 5 minutes, and pool-state changes broadcast as `worker_pool` events.
 
-fd-prod **keeps `TASK_WORKER_MAX=0`** until node capacity allows (the node's
-4GB OOM history — each worker is one more dsh child). The local/demo machine
-sets `TASK_WORKER_MAX=3` in `.env` for the parallel fan-out picture.
+fd-prod runs **`TASK_WORKER_MAX=3`** (GitOps source of truth:
+`fd-infra-deploy/all-services/prod/platform.yaml` — `0` → `1` → `3`, the last
+step because one slot cannot serve more than one persona). The 4GB-OOM history
+that once held this at 0 is no longer the binding constraint: the cell limit was
+raised 4Gi → 7Gi for exactly this (`harden-fleet-execution-economics` 2.3), and
+the wake-admission gate compares `used + footprint` against `limit × (1 − 0.15)`
+— at 4Gi that arithmetic refused every wake, which is what made the 2026-11-08
+`worker=2` trial idle for 608s. Rollback is `"1"`, or `"0"` for pure serial.
+
+**The pool being active changes which executor owns ordering.** With `N>0` the
+pool dispatcher claims queued tasks straight into `beginExecution` and never
+enters the serial chain — so the serial chain's human-priority ordering
+(`fix-main-chain-human-priority`, shipped while the pool was at 0) does not
+apply under the pool. The pool-side equivalent is `QUEUE_HUMAN_PRIORITY` below,
+and **it is not set in production today**: dispatch is FIFO.
+
+### Incident escape hatches — the knobs you need *while* the incident is live
+
+These five have a default that is already in force, so the only way to find the
+off switch is this table. Four of them shipped on 2026-11-09 documented only in
+source comments; `169 of 233` env reads still have no entry in `.env.example`.
+Turn them on/off in the platform `.env` (local/docker) or the `platform-config`
+ConfigMap (in-cluster, `fd-infra-deploy`) **and roll the pod** — they are read at
+process start, not per request.
+
+| Symptom | Knob | Action |
+|---|---|---|
+| Fleet turns cancelled "too early" (context pressure收口) | `FLEET_EARLY_STOP` | `=0` disables the whole early-stop policy, restoring the full turn budget. Default ON — the live threshold is **4** compactions past >= 60s (`EARLY_STOP_COMPACTIONS`, lowered from 6 after a 5-compaction round still burned the full 600s). It exists because one doomed turn held the cell's serial slot for 600s and pushed `oldestQueuedMs` to 17-25 min |
+| An operator's run-now sits in the queue for minutes | `QUEUE_HUMAN_PRIORITY` | `=1` makes human-fired tasks outrank cadence fires in the pool. **Not set in production today, so dispatch is FIFO.** Note the reserved extra slot remains human-*wake*-only, so a run-now'd cadence task still needs a normal slot to free — ordering is not a capacity grant (`fix-operator-ignition-priority`) |
+| "Why did that task never enter the pool?" | `WORKER_POOL_DEBUG` | `=1` logs every dispatcher claim/fallback decision. Default OFF. Set it *before* forming a theory — without it the decisions are entirely untraced |
+| `/api/gateway/status` reports a cell `near`/`over` on disk | `CELL_DISK_SOFT_MB` / `CELL_DISK_HARD_MB` | Defaults 512 / 2048 MiB, sized from a 1051 MiB real cell on a 30 GiB node. This only *reports* — refusing writes at the hard line is still open (`budget-cell-disk-usage` 2.2), so the node-side fix is the kubelet reservation in that change's §3 |
+| A daily/weekly round silently never ran | `QUEUE_STALE_EXEMPT_MIN_PERIOD_MS` | Rounds whose period reaches this floor (default 6h) are **never** age-dropped — losing one costs a whole period. Set it lower to let more rounds be dropped, higher to protect more. Independent of `QUEUE_MAX_AGE_MS` on purpose (see `.env.example`) |
+
+`/readyz` reads `oldestQueuedMs: null` in two different situations — no cell
+answered, **or** every queued round is exempt from dropping. Use `queuedExempt`
+(from the same payload) to tell them apart before concluding a cell is dead.
+
+If a cell is `over` and the node is already oscillating, do not wait for the
+write-refusal layer: add the node's `ephemeral-storage` reservation and raise
+`evictionHard` first (`budget-cell-disk-usage` task 3.1), then have the tenant
+export and clear. **The platform never deletes workspace content** — it is the
+user's real output.
 
 ### Mission Control console (MC bridge) — mission-control-bridge
 

@@ -965,7 +965,8 @@
       "connections": "Conexiones",
       "plugins": "Complementos",
       "delegation": "Delegación de decisiones",
-      "pairing": "Emparejamiento"
+      "pairing": "Emparejamiento",
+      "mandate": "Mandato"
     },
     "groups": {
       "basics": "Básico",
@@ -1334,6 +1335,49 @@
         "health": "Salud",
         "trace": "Traza por turno"
       }
+    },
+    "mandate": {
+      "title": "Mandato",
+      "hint": "Decide, por dominio, hasta dónde puede actuar el agente: aconsejar / redactar / actuar y avisar / autónomo. Los dominios sin configurar solo aconsejan y no tienen cuota.",
+      "domain": {
+        "ops": "Operación del equipo",
+        "external-comms": "Comunicación externa",
+        "advancement": "Impulso de tareas",
+        "research": "Producción de investigación"
+      },
+      "mode": "Modo de decisión",
+      "modeAdvise": "Solo aconsejar",
+      "modeDraft": "Redactar y esperar",
+      "modeNotify": "Actuar y avisar",
+      "modeSilent": "Autónomo, solo resumen",
+      "quota": "Límite diario de acciones",
+      "expiry": "Válido hasta",
+      "revokeWindow": "Ventana de revocación (min)",
+      "readScope": "Puede leer",
+      "discloseScope": "Puede divulgar",
+      "scopeHint": "Leer no es divulgar: los dos ámbitos se juzgan por separado.",
+      "level": {
+        "public": "Público",
+        "internal": "Interno",
+        "confidential": "Confidencial",
+        "hr": "Personal",
+        "finance": "Finanzas"
+      },
+      "save": "Guardar",
+      "saved": "Guardado",
+      "ledger": "Acciones recientes del agente",
+      "ledgerEmpty": "Aún no hay acciones impulsadas por un mandato.",
+      "ledgerDomain": "Dominio",
+      "ledgerMode": "Modo",
+      "ledgerReversible": "Reversible hasta",
+      "ledgerIrreversible": "Irreversible",
+      "ledgerRevoked": "Revocada",
+      "revoke": "Revocar",
+      "revoked": "Revocada",
+      "revokeClosed": "Ventana de revocación cerrada",
+      "violations": "Bloqueado hoy",
+      "violationsNone": "Hoy no se bloqueó nada.",
+      "noDowngrade": "Las acciones de publicación y destructivas solo se pueden aconsejar o redactar."
     }
   },
   "bindings": {

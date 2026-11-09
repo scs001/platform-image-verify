@@ -23,6 +23,7 @@ import {
   MonitorSmartphone,
   Scale,
   Paintbrush,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   UserRound,
@@ -35,6 +36,9 @@ const GeneralSection = lazy(() =>
 );
 const DelegationSection = lazy(() =>
   import("@/components/settings/DelegationSection").then((m) => ({ default: m.DelegationSection })),
+);
+const MandateSection = lazy(() =>
+  import("@/components/settings/MandateSection").then((m) => ({ default: m.MandateSection })),
 );
 const AccountSection = lazy(() =>
   import("@/components/settings/AccountSection").then((m) => ({ default: m.AccountSection })),
@@ -180,6 +184,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     testId: "settings-section-delegation",
     icon: Scale,
     Component: DelegationSection as SettingsSectionComponent,
+  },
+  {
+    // 委托状 (add-personal-mandate 6.1): the authority matrix — per-domain mode,
+    // quota, expiry, revoke window, and the two independent scopes. Sits right
+    // after `delegation` because it answers the next question: delegation says
+    // *who* rules, the mandate says *how far* the agent may act.
+    slug: "mandate",
+    group: "management",
+    labelKey: "settings.sections.mandate",
+    testId: "settings-section-mandate",
+    icon: ShieldCheck,
+    Component: MandateSection as SettingsSectionComponent,
   },
   {
     slug: "branding",

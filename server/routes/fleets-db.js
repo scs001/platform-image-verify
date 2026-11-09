@@ -10,6 +10,7 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import { storeDir } from "../../paths.js";
+import { mergeMandatePolicies, normalizeMandatePolicy } from "../../lib/personal-mandate.js";
 
 export const FLEET_STATES = ["active", "paused", "archived"];
 export const MEMBER_TARGET_KINDS = ["persona", "cluster", "a2a", "tool"];
@@ -1052,6 +1053,60 @@ export function createFleetDatabase({ file } = {}) {
     return normalizeDelegationPolicy(cellPolicy, override);
   }
 
+  // ── mandate policy (add-personal-mandate) ────────────────────────────────
+  // Same storage as delegation: cell_settings['delegationPolicy'] + fleets
+  // .delegation_policy. Writes carry a `domains` key and mirror the ops legacy
+  // fields on top, so the deputy reader above is unaffected.
+  function getFleetMandatePolicy(fleetId) {
+    return delegationToMandate(getCellSetting("delegationPolicy"), getFleetDelegationPolicyRaw(fleetId));
+  }
+
+  function setFleetMandatePolicy(fleetId, policy) {
+    const blob = mandateToBlob(policy);
+    if (blob === null) return null;
+    return setFleetDelegationPolicy(fleetId, blob);
+  }
+
+  function getCellMandatePolicy() {
+    return delegationToMandate(getCellSetting("delegationPolicy"), null);
+  }
+
+  function setCellMandatePolicy(policy) {
+    const blob = mandateToBlob(policy);
+    if (blob === null) return null;
+    setCellSetting("delegationPolicy", blob);
+    return blob;
+  }
+
+  // ── mandate violations (add-personal-mandate 4.4) ────────────────────────
+  // Rolling per-day counts of blocked outbound/read attempts, so a domain that
+  // is "quietly failing all day" shows up instead of looking idle. Stored in
+  // cell_settings (small, human-inspectable) rather than a new table; the day
+  // key lets readers prune by ignoring old keys.
+  function mandateViolations() {
+    const raw = getCellSetting("mandateViolations");
+    return raw && typeof raw === "object" ? raw : {};
+  }
+
+  function recordMandateViolation(domain, kind, day = new Date().toISOString().slice(0, 10)) {
+    if (!domain || !kind) return null;
+    const all = mandateViolations();
+    const forDay = all[day] && typeof all[day] === "object" ? all[day] : {};
+    const forDomain = forDay[domain] && typeof forDay[domain] === "object" ? forDay[domain] : {};
+    forDomain[kind] = (Number(forDomain[kind]) || 0) + 1;
+    forDay[domain] = forDomain;
+    // Keep a week: enough to see a trend, small enough to stay readable.
+    const merged = { ...all, [day]: forDay };
+    const pruned = {};
+    for (const d of Object.keys(merged).sort().slice(-7)) pruned[d] = merged[d];
+    setCellSetting("mandateViolations", pruned);
+    return pruned[day];
+  }
+
+  function getMandateViolations(day = new Date().toISOString().slice(0, 10)) {
+    return mandateViolations()[day] ?? {};
+  }
+
   // ── turn result events (append-only, pruned) ──────────────────────────────
 
   // Retention is read per call (same convention as the pack policy caps): an
@@ -1868,6 +1923,12 @@ export function createFleetDatabase({ file } = {}) {
     getFleetDelegationPolicyRaw,
     setFleetDelegationPolicy,
     getFleetDelegationPolicy,
+    getFleetMandatePolicy,
+    setFleetMandatePolicy,
+    getCellMandatePolicy,
+    setCellMandatePolicy,
+    recordMandateViolation,
+    getMandateViolations,
     routeForItem,
     close,
   };
@@ -1973,6 +2034,83 @@ export function normalizeQuestion(question) {
   if (typeof question !== "string") return null;
   const norm = question.replace(/\s+/g, " ").trim().replace(/[。.!?！？]+$/, "");
   return norm.length >= 8 ? norm : null;
+}
+
+// ── Mandate policy (add-personal-mandate 2.1/2.2) ───────────────────────────
+//
+// One blob, two readers. The deputy path keeps reading the flat top-level keys
+// (routes/maxSeverity/dailyBudget/...) via normalizeDelegationPolicy — it is
+// untouched by design, because that is the equivalence that makes the upgrade a
+// no-op. The mandate reader takes the same blob, uses the `domains` key when it
+// is there, and otherwise derives `ops` from the flat fields.
+//
+// `ops` mode stays conservative ("draft" when delegation is enabled, else
+// "advise"): the deputy's autonomy is expressed by the flat delegation fields,
+// and MUST NOT be re-expressed as an action mandate — otherwise enabling
+// delegation would silently grant autonomous action execution.
+
+const OPS_LEGACY_KEYS = [
+  "enabled",
+  "routes",
+  "maxSeverity",
+  "dailyBudget",
+  "model",
+  "digest",
+  "deputyMemberId",
+];
+
+export function opsModeForEnabled(enabled) {
+  return enabled === false ? "advise" : "draft";
+}
+
+// The flat view of an ops block, for mirroring onto the blob's top level so old
+// readers keep working after a v2 write.
+export function legacyFieldsFromOps(opsBlock) {
+  const out = {};
+  for (const key of OPS_LEGACY_KEYS) {
+    if (opsBlock && opsBlock[key] !== undefined) out[key] = opsBlock[key];
+  }
+  return out;
+}
+
+/**
+ * Stored blob → effective mandate policy (v2).
+ * Legacy equivalence is inherited from normalizeDelegationPolicy, which is the
+ * same function the deputy gate calls: one source, no parallel reimplementation.
+ */
+export function delegationToMandate(cellRaw, fleetRaw) {
+  const ops = normalizeDelegationPolicy(cellRaw, fleetRaw);
+  const opsBlock = { ...legacyFieldsFromOps(ops), mode: opsModeForEnabled(ops.enabled) };
+
+  const cellNorm = normalizeMandatePolicy(cellRaw);
+  const cellDomains = cellNorm.ok ? cellNorm.policy.domains : {};
+  // Explicit ops fields (limits/scopes/action rules) from the stored blob win,
+  // but the legacy-derived mode/fields above are the floor.
+  const baseDomains = { ...cellDomains, ops: { ...opsBlock, ...(cellDomains.ops ?? {}) } };
+
+  const fleetNorm = normalizeMandatePolicy(fleetRaw);
+  const fleetDomains = fleetNorm.ok ? fleetNorm.policy.domains : {};
+
+  return mergeMandatePolicies({ version: 2, domains: baseDomains }, { version: 2, domains: fleetDomains });
+}
+
+/**
+ * Effective mandate (v2) → the blob to persist. Mirrors the ops legacy fields on
+ * the top level so `normalizeDelegationPolicy` keeps producing identical results
+ * after the first v2 write (migration period double-write, design D9).
+ *
+ * IMPORTANT: pass the RAW declaration, never `delegationToMandate(...)`. The
+ * latter bakes defaults into every absent key; writing those back would turn a
+ * cell-level "replace the routes object" into a fleet-level "merge", and a key
+ * the operator never mentioned would be resurrected from DEFAULT. The
+ * equivalence test (scripts/test-personal-mandate-policy.mjs 2.3) pins this.
+ */
+export function mandateToBlob(policy) {
+  const normalized = normalizeMandatePolicy(policy);
+  if (!normalized.ok) return null;
+  const domains = normalized.policy.domains;
+  const legacy = legacyFieldsFromOps(domains.ops);
+  return { ...legacy, version: 2, domains };
 }
 
 function decisionPolicyOfRow(row) {

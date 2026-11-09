@@ -965,7 +965,8 @@
       "connections": "接続",
       "plugins": "プラグイン",
       "delegation": "決裁の委任",
-      "pairing": "ペアリングと連携"
+      "pairing": "ペアリングと連携",
+      "mandate": "委任状"
     },
     "groups": {
       "basics": "基本",
@@ -1334,6 +1335,49 @@
         "health": "ヘルス",
         "trace": "ターントレース"
       }
+    },
+    "mandate": {
+      "title": "委任状",
+      "hint": "領域ごとに、エージェントがどこまで自律してよいかを決めます：助言のみ／下書き／実行して報告／自律。未設定の領域は助言のみで、実行枠はありません。",
+      "domain": {
+        "ops": "チーム運用",
+        "external-comms": "外部コミュニケーション",
+        "advancement": "業務の推進",
+        "research": "調査・成果物"
+      },
+      "mode": "決定モード",
+      "modeAdvise": "助言のみ",
+      "modeDraft": "下書きして承認待ち",
+      "modeNotify": "実行して事後報告",
+      "modeSilent": "自律（日報のみ）",
+      "quota": "1日の実行上限",
+      "expiry": "有効期限",
+      "revokeWindow": "取り消し可能時間（分）",
+      "readScope": "読み取り可能",
+      "discloseScope": "開示可能",
+      "scopeHint": "読めることは開示できることではありません。二つの範囲は別々に判定します。",
+      "level": {
+        "public": "公開",
+        "internal": "社内",
+        "confidential": "機密",
+        "hr": "人事",
+        "finance": "財務"
+      },
+      "save": "保存",
+      "saved": "保存しました",
+      "ledger": "最近のエージェント操作",
+      "ledgerEmpty": "委任状による操作はまだありません。",
+      "ledgerDomain": "領域",
+      "ledgerMode": "モード",
+      "ledgerReversible": "取り消し期限",
+      "ledgerIrreversible": "取り消し不可",
+      "ledgerRevoked": "取り消し済み",
+      "revoke": "取り消す",
+      "revoked": "取り消しました",
+      "revokeClosed": "取り消し可能時間を過ぎています",
+      "violations": "本日ブロック",
+      "violationsNone": "本日ブロックされた操作はありません。",
+      "noDowngrade": "公開・破壊的な操作は助言か下書きのみです。"
     }
   },
   "bindings": {

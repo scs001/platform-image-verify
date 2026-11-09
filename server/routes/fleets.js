@@ -670,13 +670,26 @@ export function createFleetRoutes(app, ctx = null) {
       // Flood control (design D7): window = half the cadence period with a
       // 10-minute floor; at most 3 self reports per window. Derived (a2a)
       // rows never pass through this door, so they never count.
+      //
+      // The source session is resolved BEFORE the check because a round's FIRST
+      // report is exempt (checkFlood's `roundReports === 0`). Without that, a
+      // report filed from some other session (a stray probe, a platform chat)
+      // can fill the window and reject this round's only honest report
+      // wholesale — live 2026-11-09 the proposal post lost its three-slot
+      // disclosure that way, and the ledger kept an empty `metrics:{}` row.
+      const sessionId =
+        attribution.task?.sessionId ?? chatHistory.currentSessionId?.() ?? null;
       const windowMs = floodWindowMs(member.cadence, cronPeriodMs);
       const now = Date.now();
       const since = now - windowMs;
       const recent = db.listReports(member.id, { limit: 3 });
       const inWindow = recent.filter((r) => r.createdAt > since && r.source === "self");
+      const roundReports = sessionId
+        ? inWindow.filter((r) => r.sessionId === sessionId).length
+        : 0;
       const flood = checkFlood({
         countSince: inWindow.length,
+        roundReports,
         windowMs,
         now,
         oldestInWindowAt: inWindow.length ? inWindow[inWindow.length - 1].createdAt : null,
@@ -684,11 +697,6 @@ export function createFleetRoutes(app, ctx = null) {
       if (!flood.ok) {
         return res.status(429).json({ error: flood.error, windowResetsAt: flood.windowResetsAt });
       }
-
-      // Source session: the running task's bound session when the report
-      // rides a fleet fire, else the live conversation pointer.
-      const sessionId =
-        attribution.task?.sessionId ?? chatHistory.currentSessionId?.() ?? null;
 
       const declared = new Set(member.kpiSlots.map((s) => s.key));
       const submitted = Object.keys(payload.report.metrics);
@@ -2327,7 +2335,11 @@ export function createFleetRoutes(app, ctx = null) {
       const fleetId = req.query.fleetId ? String(req.query.fleetId) : null;
       const override = fleetId ? db.getFleetDelegationPolicyRaw(fleetId) : null;
       const effective = fleetId ? db.getFleetDelegationPolicy(fleetId) : normalizeDelegationPolicy(cellDefault, null);
-      res.json({ cellDefault: cellDefault ?? null, override, effective });
+      // Mandate view of the same blob (add-personal-mandate 2.4): the legacy
+      // fields above are unchanged; `mandate` adds the per-domain dimensions.
+      // Unconfigured domains resolve to `advise` with zero quota.
+      const mandate = fleetId ? db.getFleetMandatePolicy(fleetId) : db.getCellMandatePolicy();
+      res.json({ cellDefault: cellDefault ?? null, override, effective, mandate });
     } catch (err) {
       console.error("[fleets] delegation policy read error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -2343,6 +2355,21 @@ export function createFleetRoutes(app, ctx = null) {
       // 归一化即硬闸：routes 里的 config-change/hr/spend 会被强制归一为 owner
       // （normalizeRoutes），无需在此逐项拒绝。
       const scope = body.scope === "fleet" && body.fleetId ? "fleet" : "cell";
+      if (body.mandate !== undefined) {
+        // Mandate write path (add-personal-mandate): the value is the RAW
+        // declaration. Unknown domain names are rejected here rather than
+        // stored-and-ignored, and a null is a 400 rather than a silent reset.
+        if (body.mandate === null) return res.status(400).json({ error: "mandate must be an object (omit it to leave unchanged)" });
+        const written = scope === "cell"
+          ? db.setCellMandatePolicy(body.mandate)
+          : db.setFleetMandatePolicy(body.fleetId, body.mandate);
+        if (written === null) {
+          return res.status(400).json({ error: "invalid mandate: unknown domain or malformed policy" });
+        }
+        if (scope === "fleet") applyDeputyModel(db, body.fleetId, db.getFleetDelegationPolicy(body.fleetId));
+        const effectiveMandate = scope === "cell" ? db.getCellMandatePolicy() : db.getFleetMandatePolicy(body.fleetId);
+        return res.json({ ok: true, scope, mandate: effectiveMandate });
+      }
       if (scope === "cell") {
         db.setCellSetting("delegationPolicy", body.policy ?? null);
       } else {

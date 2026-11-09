@@ -8,7 +8,7 @@
 
 ## What Changes
 
-- collector 在舰队回合里统计压缩次数；达**硬阈值 6 次**且已运行 ≥60 秒时，**原生取消**该回合（`dshBridge.cancelSession`，与人工停止同一条 API），并以 `context pressure` 收口——随后走**同一条**收尾补数车道。
+- collector 在舰队回合里统计压缩次数；达**硬阈值 4 次**且已运行 ≥60 秒时，**原生取消**该回合（`dshBridge.cancelSession`，与人工停止同一条 API），并以 `context pressure` 收口——随后走**同一条**收尾补数车道。初稿写的是 6 次，实测下调：5 次压缩的回合同样烧满 600 秒且无可恢复产出。
 - 只在**舰队回合**启用（`earlyStop` 由 `sourceTag.fleetId` 决定）；人类会话与普通定时任务保留完整预算。
 - `FLEET_EARLY_STOP=0` 可整条关闭。
 

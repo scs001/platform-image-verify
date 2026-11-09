@@ -560,3 +560,123 @@ test("worker turns prompt a ROTATED child session, never the mirror id", async (
     process.env.TASK_WORKER_MAX = "2";
   }
 });
+
+// ── Operator ignition ordering (harden-fleet-execution-economics 3.x) ───────
+//
+// Two different markers, and they are easy to conflate:
+//   `queuedBy === "human"`  — stamped by runTaskNow on an EXISTING cadence task
+//   `humanPriority: true`   — stamped only by createManualTask (a fresh wake)
+//
+// QUEUE_HUMAN_PRIORITY makes the FIRST outrank cadence fires in dispatch order.
+// It deliberately does NOT extend the reserved beyond-cap slot, which stays
+// human-wake-only. Both halves are pinned here so the next reader gets the
+// decision from a test instead of inferring it from the dispatcher.
+
+function addCadenceTask(id, preset = "code") {
+  engine.insertTask({ id, name: id, prompt: "p", trigger: "schedule", targetType: "persona", preset });
+}
+
+// A leftover queued record keeps the dispatcher wanting to schedule and holds
+// the test process open, so every case clears the ids it minted.
+function clearRecords(...ids) {
+  for (const id of ids) {
+    try { engine.deleteRecord(id); } catch { /* already gone */ }
+  }
+}
+
+test("QUEUE_HUMAN_PRIORITY=1: a run-now'd cadence task outranks a waiting cadence fire", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  process.env.QUEUE_HUMAN_PRIORITY = "1";
+  const ctx = makeCtx([]);
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+  try {
+    const occupy = engine.createManualTask({ prompt: "occupy", persona: "code", initiator: "s1" });
+    await settle();
+    assert.equal(engine.getTask(occupy.id).state, "running", "the single slot is taken");
+
+    // FIFO order is cadence-first; the operator's ignition lands second.
+    addCadenceTask("cad");
+    engine.enqueueExecution("cad");
+    addCadenceTask("hum");
+    engine.runTaskNow("hum");
+    await settle();
+    assert.equal(engine.getRecord("hum").queuedBy, "human", "run-now marks the residence, not the trigger");
+    assert.equal(engine.getRecord("cad").queuedBy, "cadence");
+    assert.equal(engine.getRecord("hum").humanPriority, undefined, "run-now does NOT grant the wake marker");
+
+    FakeBridge.byPersona.get("code").release();
+    await settle(); await settle();
+    assert.equal(engine.getTask("hum").state, "running", "the ignition goes first despite queueing second");
+    assert.equal(engine.getTask("cad").state, "queued", "the cadence fire waits its turn");
+  } finally {
+    delete process.env.QUEUE_HUMAN_PRIORITY;
+    process.env.TASK_WORKER_MAX = "2";
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    clearRecords("cad", "hum");
+  }
+});
+
+test("with the flag off, the same two tasks keep FIFO order (default behavior unchanged)", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  delete process.env.QUEUE_HUMAN_PRIORITY;
+  const ctx = makeCtx([]);
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+  try {
+    const occupy = engine.createManualTask({ prompt: "occupy", persona: "code", initiator: "s1" });
+    await settle();
+    assert.equal(engine.getTask(occupy.id).state, "running");
+
+    addCadenceTask("cad");
+    engine.enqueueExecution("cad");
+    addCadenceTask("hum");
+    engine.runTaskNow("hum");
+    await settle();
+
+    FakeBridge.byPersona.get("code").release();
+    await settle(); await settle();
+    assert.equal(engine.getTask("cad").state, "running", "FIFO wins when the flag is off");
+    assert.equal(engine.getTask("hum").state, "queued");
+  } finally {
+    process.env.TASK_WORKER_MAX = "2";
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    clearRecords("cad", "hum");
+  }
+});
+
+test("QUEUE_HUMAN_PRIORITY=1 does not widen the human-only extra slot", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  process.env.QUEUE_HUMAN_PRIORITY = "1";
+  const ctx = makeCtx([]);
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+  try {
+    const occupy = engine.createManualTask({ prompt: "occupy", persona: "code", initiator: "s1" });
+    await settle();
+    assert.equal(engine.getTask(occupy.id).state, "running", "cap is full");
+
+    // A run-now'd cadence task is "human" for ordering only: at cap it must
+    // still wait for a normal slot rather than spawning the beyond-cap worker.
+    addCadenceTask("hum2");
+    engine.runTaskNow("hum2");
+    await settle(); await settle();
+    assert.equal(engine.getTask("hum2").state, "queued", "ordering must not become a capacity grant");
+
+    // The contrast: a real human WAKE still takes the one extra slot. It gets a
+    // DIFFERENT persona on purpose — FakeBridge indexes bridges by persona, so a
+    // second "code" worker would shadow the first and leave it unreleased.
+    const wake = engine.createManualTask({ prompt: "W", persona: "minimal", initiator: "s1", humanPriority: true });
+    assert.ok(await waitFor(() => engine.getTask(wake.id).state === "running"), "a human wake still gets the extra slot");
+  } finally {
+    delete process.env.QUEUE_HUMAN_PRIORITY;
+    process.env.TASK_WORKER_MAX = "2";
+    releaseAll();
+    await settle();
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    clearRecords("hum2");
+  }
+});

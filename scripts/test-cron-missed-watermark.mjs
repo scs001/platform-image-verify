@@ -88,3 +88,25 @@ test("records that have never run are not counted", () => {
   assert.equal(countMissedOccurrences(task), 0, "a never-run task has no gap to count");
   assert.equal(task.missed, 0);
 });
+
+test("hitting the per-load cap is stamped, so the count is not read as exact", () => {
+  // 每分钟一次、停了 3 小时 = 180 个触发点，超过单次加载上限（100）。
+  // 线上这个形状真实存在：一个 task 停了 15 天，watermark 落地前每次加载
+  // 都记 100，一天记了 2700——那个数被当成"饥饿"来读。
+  const task = rec({
+    cron: "* * * * *",
+    lastRun: new Date(Date.now() - 3 * 3600e3).toISOString(),
+  });
+  const missed = countMissedOccurrences(task);
+  assert.equal(missed, 100, "the walk stops at the cap");
+  const row = task.history.at(-1);
+  assert.equal(row.kind, "missed");
+  assert.equal(row.missedCapped, true, "a floor must be labelled a floor");
+});
+
+test("an uncapped gap is not labelled", () => {
+  const task = rec(); // 每天一次、停 3 天 -> 3 个缺口，远低于上限
+  const missed = countMissedOccurrences(task);
+  assert.ok(missed > 0 && missed < 100);
+  assert.equal(task.history.at(-1).missedCapped, undefined);
+});

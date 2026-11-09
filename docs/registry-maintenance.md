@@ -8401,3 +8401,164 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 - **行为约定（要告诉所有会话）**：从此**不许再 `kubectl set image` / `scale` 改 fd-mcp**，
   改版本一律改 `all-services/prod-fdmcp/` 的清单再 push；手动改会被打回，且可能让人误以为
   "自己没改成功"。这与 `all-services-prod` 管 cheap 那批服务是同一模型。
+
+### §15.156 续四十四（渠）：出片 `sha-dba8690`（含 actions 去重）——公开线，已进 ccr
+
+- **基线**：`gitee/release/cell-session-persona` = `79005d93e`（守卫先跑过
+  `check-release-lines.mjs` → `gitee = origin`；`3aa06f8f2`（actions 去重/自愈）是它的祖先）。
+- **快照**：`make-public-snapshot --init --ref … --out dist-opensource/platform-img3aa06f8`
+  → 结构断言 + 2064 文本文件禁词扫描 + gitleaks 全绿 → 快照提交 `a55f890`。
+- **坑（又踩一次，这次记准）**：快照里**没有** `image.yml` / `image-publish.yml`（scrubber 只留
+  build-check 一类），而镜像仓当时两者都无——**照原样强推不会出片**。恢复的文件是
+  **`image-publish.yml`（NAMESPACE `law-bench`）**，不是 `image.yml`（那是 `yizuo`，demo 线）。
+  判据：生产 `platform.yaml` / facet / platform-demo 拉的都已是 `law-bench/platform`。
+  台账旧记「后续班次照 `image.yml` 恢复」**已过期**。
+- **并发**：另一个会话 10 分钟前推过同一基线（`0ae3e9d`，提交信息 `ci: keep the mirror's
+  image-publish workflow in the snapshot`，image 已 success）——即**同源重复出片**，不是回退；
+  我这次把它替换成等价的两提交历史（`a55f890` + `dba8690`）。
+- **产物**：`hkccr.ccs.tencentyun.com/law-bench/platform:sha-dba8690` →
+  `ccr.ccs.tencentyun.com/law-bench/platform:sha-dba8690`，digest **`sha256:1d8d0d32…f736d`**
+  两边一致（skopeo 实证），Created `2026-11-09T04:32Z`。
+- **relay 没自动收**：`grep -c dba8690 /var/log/tcr-relay.log` = 0，手工补
+  `skopeo copy --all --src-creds … --dest-creds …`（注意：`skopeo copy` **没有** `--creds` 这个 flag，
+  用了会 `unknown flag`）。
+- **未做**：GitOps bump / 滚产线——那条部署正被别的线在调，等人工决定。
+
+### §15.157 续四十五（渠）：actions 去重已在产生效（无需再滚）+ 实测 −93…−126Mi/cell
+
+- **先纠正一件事**：我出的 `sha-dba8690` 与线上 `sha-0ae3e9d` **同一基线**（`79005d93e`），
+  GitOps 早已滚到 `0ae3e9d`（提交 `80682ea`，pod `platform-7b7cc68fb4-8m4sg` 04:34Z 起）。
+  所以**再滚 `dba8690` 只是把同一棵树重启一遍**，已停手，未改 GitOps。
+- **生效证据（生产 pod 内）**：
+  - 日志 4 个 cell 各一行 `[mcp] removed duplicate bundled "actions-mcp" (same program as "actions")`；
+  - 各 cell `extension_configs` 里只剩 `actions(user)`，bundled 那条已删；
+  - 今天 04:34 新写的 `mcp.patch.yml`：`serverName: actions` **1 条**、`actions-mcp` **0 条**
+    （条目总数 16 → 15）。
+- **实测内存变化**（`scripts/probe-satellite-sharing.mjs`，cap=0）：
+  - 卫星/每 dsh **13.33 → 12.25**；
+  - 同 cell 前后对比：`1da519d4` 14颗/1002Mi → 13颗/**909Mi**；`3fdc7b8e` 13/914 → 12/**817**；
+    `2b043ce0` 13/924 → 12/**798**（各 −93…−126Mi）。
+  - 4 个 cell 合计 RSS 少 ≈**0.4Gi**。
+- **口径**：本次只省了「重复的 actions 进程」这一项；卫星共享的收益仍需 `TASK_WORKER_MAX>0`
+  才兑现（见 §15.144 续三十二（渠））。
+- **遗留**：`sha-dba8690` 是重复出片（同基线），可留作回滚备选或让 registry 自然过期。
+
+### §15.156 续四十四：覆盖率审计抓到一个「被主动排除」的工作负载（law-bench-mcp）（11-09）
+
+**审计方法**：把两个集群的 live Deployment/StatefulSet 与所有 Argo Application 的
+`status.resources` 求差。cheap 102 个 workload / 73 纳管 / **29 未纳管**；xinru 8 / 1 / **7**。
+剔除集群组件（argocd、cert-manager、kube-system、postgres）与第三方栈（apisix、lago-*、
+law-rag 的 node 栈、qdrant）后，真正的产品缺口只有三个：`law-bench/law-bench-mcp`、
+`scraw/legal-auth-broker`、`scraw/proxy-control`（后两个的镜像 tag 是构建 sha，新旧需那条线自己判）。
+
+**law-bench-mcp 的根因是「主动排除」而不是遗漏**：`argocd/application.yaml` 用
+`directory.exclude: 'mcp-deployment.yaml'` + 注解把它挡在同步外，注释写明理由——「清单相对线上是旧的
+（sha-2c502d7 + cheap-4 vs 线上 sha-5f8041a on liuliangdmh1xr0w9ryu），两个 tag 在 Harbor 都不存在，
+同步会搬走 pod 并 ImagePullBackOff」，**并自己写了修法：「Reconcile the file with the intended
+state, then drop this exclusion」**。
+
+**恢复过程（每一步都先量再动）**：
+1. `kubectl diff` 先看差异 → 只有两处：`generation` 与 **nodeSelector（清单 cheap-4 / 线上
+   liuliangdmh1xr0w9ryu）**。也就是说镜像那半已经对齐，节点这半没有 —— 直接纳入会**搬 pod**。
+2. 确认搬不搬得动：该 pod 依赖 `hostPath /opt/lawbench-mcp-pkgs`。SSH 到 cheap-4 全部超时，
+   于是起一个 node-pinned pod 只读挂载该路径 → **202 个条目，两个节点都有这份覆盖**。
+   结论：这不是可运行性问题，只是放置选择。
+3. **选择不动线上**：把清单 nodeSelector 对齐到线上节点，于是纳入同步**零移动**；
+   要搬回 cheap-4 是那条线的运维决定，不由收编动作代做。
+4. 再 `kubectl diff` → **空**。然后才去掉排除。
+
+**发布面纪律（顺带发现一处未完成的基建）**：public `law-bench` 仓的 commit-msg 闸只认
+`exported-from: <sha>` trailer 或 `FD_ALLOW_HANDWRITE=1`，而它引用的
+`scripts/sync_public_from_internal.sh`、`scripts/merge_law_bench.sh`、`scripts/export-baseline.txt`
+**在两个仓里都不存在**（属 converge-law-bench-copies 5.3b 的未完成部分）。
+处置：改动做在真源仓 `law-bench-internal`（`a3bd52f`，已推），发布面**直接复制同一份内容**再提交，
+用 `FD_ALLOW_HANDWRITE=1` 显式放行并写明原因——**不伪造 exported-from**。溯源巡检会因此变红，
+这是有意取舍，比让一个在跑的 MCP 服务长期游离在 reconciler 之外更可接受。
+
+**验证**：`law-bench` app 现跟踪 `Deployment/law-bench-mcp` + `Service/law-bench-mcp`（均 Synced）；
+pod **未重启**（startTime 2026-10-27T22:07:20Z，restartCount 5 未变），仍在 `liuliangdmh1xr0w9ryu`，
+镜像 `law-template:sha-e411d22`，8080 端口在听。
+
+### §15.157 续四十五：另外两个未纳管服务的结论——不是落后，是「没人管」（11-09）
+
+覆盖率审计剩下的两个产品缺口，逐个查完了：
+
+| 服务 | 清单位置 | 清单 vs 线上 | 结论 |
+|---|---|---|---|
+| `scraw/proxy-control` | `fd-proxy-service/k8s/proxy-control.yaml` | **空差异**（image `fd-proxy-service:sha-ad65424`、replicas 1 全同） | 不落后 |
+| `scraw/legal-auth-broker` | `fd-law-data/k8s/legal-auth-broker.yaml` | **空差异**（image `legal-auth-broker:sha-b726e1f`、replicas 1 全同） | 不落后 |
+
+也就是说：这两处**没有版本欠账**，风险纯粹是结构性的——清单改了不会自动生效，live 改了也不会被纠正
+（law-bench 的教训在于此，但它至少还有一条 selfHeal 在管其它 workload）。
+
+**接不进去的原因是可验证的**：两个仓都是私有的
+（`git ls-remote https://gitee.com/FindDataTechnology/{fd-proxy-service,fd-law-data}.git` 均被拒），
+而 cheap 上 Argo 只登记了 7 个 repo 凭据（`helm-law-craw-web`、`law-bench`、`fd-infra-deploy`、
+`fd-legal-search-mcp`、`fd-lex`、`fd-text-core`、`fd-wire`），**这两个不在其中**。
+
+**我没有硬接**，理由：给 Argo 加 repo 凭据意味着往集群里放一个能读别人仓的密钥。正解是每仓一把
+**只读 deploy key**（由仓所有者开通），而不是把我自己的 gitee SSH 私钥塞进 argocd 命名空间。
+所以这一步停在"结论已明确、凭据待开"，不是"忘了做"。
+
+**建议（给两条线）**：各开一把 read-only deploy key → 我加 `argocd.argoproj.io/secret-type=repository`
+secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后再开 selfHeal），
+与 `fd-mcp-prod` 完全同套路。在开通前，这两个服务请按**手工清单**对待：改清单要记得 apply。
+
+### §15.158 续四十六（渠）：悬空 `registryName` 全量摸底——只有 1 个是真悬空
+
+把每个 cell 的 `mcp.patch.yml` 里**实际存在的 serverName** 与该 cell 已装 pack 声明的
+`mcpServers[].registryName` 做差集（生产 4 个活跃 cell）：
+
+| cell | packs | servers | 差集 |
+|---|---|---|---|
+| `1da519d4` | 36 | 30 | fd-paper-trading, wire-ops-mcp, wire-build-mcp, wanxing-ops, wire-ops, **actions-mcp** |
+| `3fdc7b8e` | 49 | 18 | 18 个（fd-* / eco-mcp-* / wire-* / law-bench …） |
+| `6db2b1b4` | 8 | 14 | 8 个 |
+| 其余 | 1–2 | 1–5 | 0–6 个 |
+
+**三分类（逐个对到清单的门上）**：
+1. **凭据门**（预期省略）：`wire-ops`（`credentialRef: wire-customer`）、
+   `wanxing-ops`（`credentialRef: wanxing-caller`）——连接器没连上就不该出现，属设计。
+2. **市场引用未安装**：`fd-*` / `eco-mcp-*` / `law-bench` / `wire-build*` 等**根本不在部署清单里**，
+   只能来自市场安装；pack 装了引用但该服务器未装进这个 cell。这是"pack 承诺了它拿不到的腿"，
+   安装报告里本来就该显示 unavailable / requires group —— 属可见的既有语义，不是新缺陷。
+3. **真悬空**：`actions-mcp` —— 清单里**无任何门**（stdio、无 envRefs/credentialRef），
+   它之所以不在，正是本次去重删掉的（§15.153）。全库只有这一个。
+
+**结论**：这类"同程序多份 / 悬空引用"的浪费到此摸完，除已修的 `actions` 外没有第二处可省。
+剩余的服务缺失全部有解释（凭据未连 / 市场未装），要收窄请看 `/api/monitoring` 与 pack 安装报告，
+不要去改组合逻辑。
+
+**回归面（五种部署形态全覆盖，均实测）**：
+| 形态 | 期望 | 实测 |
+|---|---|---|
+| 托管 cell（mcp.json + bundle） | 删 bundle 重复，留 `actions` | 生产日志 `removed duplicate bundled "actions-mcp"`，补丁 1 条 `actions` |
+| 老库已含重复行 | 启动自愈 | 本地造库 → `removed duplicate bundled` |
+| 运维手加同名行 | 不删 | `skipping the duplicate`，行保留 |
+| `actions` 被禁用 | bundle 那份补上 | 补丁只剩 `actions-mcp` |
+| 打包/桌面（无 mcp.json） | 去重不触发，`actions-mcp` 照常种 | 日志 `(none)`，补丁里 `actions-mcp` 在 |
+
+**不会复活（查过）**：pack 重装是唯一可能把 `actions-mcp` 行写回来的路径，而
+`installMcpRef("actions-mcp")` 的结果是——市场里**没有**同名条目
+（`findMarketMcpEntry` 返回 null），本地也没有同名行 → 走 `awaiting-local-binding`，
+**不写行**。所以去重是稳定的；唯一能让它回来的，是运维手工新建一个叫 `actions-mcp` 的服务器，
+那种情况按设计不删（尊重运维配置）。
+
+### §15.158 续四十六：OpenSpec 门禁回到 20/0（删三个空壳），归档口径说清（11-09）
+
+- **删了三个空壳 change**（业主拍板）：`add-shard-aware-coverage`（`5f1e940` 8-30）、
+  `cross-project-manifest-updates`（`aed2e54` 8-04）、`full-test-fd-open-data-mcp`（`31293bc` 8-02）。
+  依据是逐个看过文件清单：只有 `.openspec.yaml` 或一份 e2e 报告，**无 proposal、无 tasks、
+  无 delta**，主题工作也早在各自提交里落地。删除后 `openspec validate --all --strict`
+  → **20 passed / 0 failed**（此前长期 20/3）。
+- **没动的三个**：`protocol-migration-generator` 14/37（13h 前有人动）、
+  `fix-stock-semantic-retrieval` 22/24、`add-real-sources-to-protocol` 42/47 —— 有实质内容、
+  要么有人在推、要么只差几个任务。**替别人宣布完成就是假绿**，所以留着。
+- **本轮自己的归档**：`fix-read-entity-class-identity` 已归档，读侧不变量进了
+  `specs/observation-reading`（5 条需求）。同目录另有 5 个已归档（yfinance 代理、census、
+  财务代码映射、标识类型、argv 凭据）。
+- **明确没进 spec 的部分（如实说）**：隔离搬迁（351,739 + 11 行）、守卫脚本
+  `check_observation_entity_class.py`、口令漂移 `check-dsn-drift.sh`、fd-text-core 的三笔
+  loader 修复——都只有台账记录。理由：数据操作与运维工具，`fd-text-core`/`fd-proxy-service`/
+  `scraw-fd-open-data-mcp` **没有 openspec 目录**；读侧不变量本身已入 spec。
+  若要把"写入方不得绕过实体校验"也变成需求，应另开 change——待定。

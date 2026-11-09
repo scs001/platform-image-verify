@@ -335,7 +335,7 @@ app.use(express.static(WEB_DIST, { setHeaders: (res, filePath) => applySpaHeader
 // OWN headers (dynamic CSP, loader MIME) — the SPA fallback must not swallow
 // them before the zhiyu module answers. The member-facing /zhiyu page route
 // stays on the SPA fallback in the same breath.
-app.get(/^\/(?!api\/|external\/|auth\/|healthz$|assets\/|zhiyu\/embed\/|zhiyu\/join\/|zhiyu\/widget).*/, (_req, res) => {
+app.get(/^\/(?!api\/|external\/|auth\/|healthz$|readyz$|assets\/|zhiyu\/embed\/|zhiyu\/join\/|zhiyu\/widget).*/, (_req, res) => {
   res.sendFile(path.join(WEB_DIST, "index.html"), { headers: { "Cache-Control": SHELL_CACHE_CONTROL } });
 });
 

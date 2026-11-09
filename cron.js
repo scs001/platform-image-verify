@@ -246,16 +246,36 @@ function makeUpInterruptedBeat({ fleetId, memberId }) {
 // mutation and the reason stamping.
 function countMissedOccurrences(task) {
   const now = new Date();
-  const from = task.lastRun ? new Date(task.lastRun) : null;
-  if (!from || Number.isNaN(from.getTime())) return 0;
+  const lastRunMs = task.lastRun ? Date.parse(task.lastRun) : NaN;
+  if (!Number.isFinite(lastRunMs)) return 0;
+  // ── 水位：同一个缺口只能记一次（2026-11-09 实测修复）──────────────────
+  //
+  // 原先从 `lastRun` 一路数到现在，而这个函数在**每次启动加载**（cron.js 顶）
+  // 与**每次恢复**（resume）都会跑。于是一个 `lastRun` 停在昨天的 job，每次
+  // cell 重启都会把同一批历史触发点再数一遍并累加：
+  //   live 实测一个 `10 9 * * *`（每天一次）的 job，一天内 missed=69，
+  //   其中 8 次集中在两小时里——而那两小时我正好滚了 4 次版。
+  // 症状看起来像"排队饥饿"，实际是**我自己重启造成的假信号**；这个数同时被
+  // health 巡检与队列读面当信号用，假一次就要误诊一次。
+  //
+  // 修法：记一个"已经统计到哪"的水位 `lastMissedCountedUntil`，只数水位之后
+  // 的触发点。旧记录没有该字段时回落 `lastMissedAt`——它的语义正是"上次统计的
+  // 时刻"，所以存量数据立刻停止膨胀，不必等下一次成功运行。
+  const watermarkRaw = task.lastMissedCountedUntil ?? task.lastMissedAt ?? null;
+  const watermarkMs = watermarkRaw ? Date.parse(watermarkRaw) : NaN;
+  const fromMs = Math.max(
+    lastRunMs,
+    Number.isFinite(watermarkMs) ? watermarkMs : Number.NEGATIVE_INFINITY,
+  );
   try {
     const iter = parseRule(task.cron, task.tz);
-    const missed = countMissedBetween(iter, from.getTime());
+    const missed = countMissedBetween(iter, fromMs);
     if (missed > 0) {
       task.missed = (task.missed || 0) + missed;
       // Stamp the reason on the record so every surface that shows a task can
       // say WHY it skipped, not just that a counter moved (P2 visibility).
       task.lastMissedAt = now.toISOString();
+      task.lastMissedCountedUntil = now.toISOString();
       task.lastMissedReason = "downtime";
       task.history = task.history || [];
       task.history.push({ time: now.toISOString(), missed, success: null });
@@ -915,6 +935,8 @@ export {
   // Retry ladder hand-off (2026-11-08): the runner's readiness gate re-enqueues
   // the same round instead of losing it. Returns false when the record is gone.
   reenqueueJob,
+  // 停机缺口计数（含水位纪律）：导出给测试钉"同一缺口只记一次"。
+  countMissedOccurrences,
   getDashboardState,
   validateCron,
   // Downtime catch-up decision (P2, 2026-10-26) — exported so the window and

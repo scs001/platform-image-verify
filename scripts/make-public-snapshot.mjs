@@ -269,6 +269,7 @@ const EXCLUDE_PREFIXES = [
   "docs/registry-fork-patches/", // mcp-gateway fork patch notes (internal)
   "docs/dsh-lock-peer-deadlock.md", // internal handoff: private CI runner repo + TCR secrets
   "docs/queue-backlog-runbook.md", // internal ops runbook: names the private registry + a real outage
+  "docs/multi-agent-collaboration-explore.md", // internal defect ledger: private repo names, incident forensics, production coordinates
 ];
 
 const EXCLUDE_GLOBS = [

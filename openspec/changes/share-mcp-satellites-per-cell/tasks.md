@@ -67,8 +67,24 @@
         `satellites per dsh` **6.0 → 4.5**；第二个 dsh 省 ≈281Mi（其中 ≈225Mi 是
         fleet/cron/delegation 三颗被合掉的）。省不掉的是 library/actions/bench-proposal：
         真实清单里 `bench-proposal` 带 `envRefs`（BENCH_URL/BENCH_CONSUMER_TOKEN/
-        BENCH_PROPOSAL_DOMAIN），被 D4 守卫按成员级处理，故**真机的"可共享 9 个"是上限**，
-        本舰队实际共享 3 个。
+        BENCH_PROPOSAL_DOMAIN），被 D4 守卫按成员级处理，故**真机的"可共享 9 个"是上限**。
+      - **真池派发下的 A/B（2026-11-09，同一 scratch，cap=2 真实派发）**：自起 `server.js`
+        （`TASK_WORKER_MAX=2` + 死模型 `LLM_BASE_URL=http://127.0.0.1:9/v1` 吊住回合），
+        铸两个 persona、经 `POST /api/delegation/tasks` 发两条委派，
+        `[worker-pool] active` + `spawned worker-1/worker-2` + 两条同时 `running`（overlap）。
+
+        | 形态 | dsh（主 + 2 worker） | 卫星进程 | 卫星 RSS |
+        |---|---|---|---|
+        | `MCP_SATELLITE_HOST=0` | 3 | **42** | **2848Mi** |
+        | 共享宿主 | 3 | **26** | **1814Mi** |
+
+        **省 16 颗 / 1034Mi**，正好 = 2×(8 颗共享集)。规律：省 = 8 ×（dsh 数 − 1）。
+        工具面实测（不走 dsh 日志，直接打共享端点）：`fleet` `status=200 count=6`
+        （report_status/escalate/dispatch_post/decision_queue/decision_resolve/
+        decision_escalate_to_owner）。
+        **口径**：两个 dsh 的手臂是"手起两代"（合成形态），3 dsh 的手臂是**真池派发**；
+        后者才是生产 cap=2 的形状。共享集在这个镜像里是 8 颗（多出 meta-team 那 5 颗：
+        blueprint-author / fleet-architect / pack-author / persona-evolution / skill-evolution）。
       - **A/B 顺带抓到一个真缺陷并已修**：宿主取 spec 与补丁改写用的是两套判据。补丁里
         "还带 command 的可共享名"≠"实际被改写成 url 的名"，于是 bench-proposal 会被
         **宿主和每个 dsh 各起一份**（比不共享更糟）。修法：`isShareableSatellite()` 单一判据 +
@@ -84,13 +100,18 @@
       - **取数命令**：`node scripts/probe-satellite-sharing.mjs`（只读，进 pod 用镜像自带的
         `lib/proc-memory.js` 采 `/proc`，打印每 cell 的 dsh 数 / 卫星数 / 卫星 MiB /
         占比，末行 `satellites per dsh`；`--json` 出单行便于前后 diff）。窗口前后各跑一次
-- [ ] 4.3 出片 + 灰度（先一个开 worker 的 cell）；验证 = `tools/verify-rollout.sh` + 该 cell 回合/工具面走查
-      - 镜像已出并灰度（`sha-5d79069`，灰度 `aloatree@gmail.com`），但池关 → **共享路径从未启用**，
-        故「该 cell 回合/工具面走查」不成立
-      - 订正：灰度键**没有被覆盖**——它在 ConfigMap `platform-config`（`envFrom` 注入），
-        pod 内实测 `CELLS=aloatree@gmail.com`。此前按 deployment 内联 env 查而误判
-      - 仍缺的一段：**worker 池真实抢占**下的走查（scratch A/B 是手起两个 dsh，不是池派发）。
-        要真做，需要一个 cap>0 且能真跑回合的环境（fd-prod 的 4Gi 装不下，见 4.2）
+- [x] 4.3 出片 + 灰度（先一个开 worker 的 cell）；验证 = `tools/verify-rollout.sh` + 该 cell 回合/工具面走查
+      - 镜像已出并灰度（`sha-5d79069`，灰度 `aloatree@gmail.com`）。订正：灰度键**没有被覆盖**——
+        它在 ConfigMap `platform-config`（`envFrom` 注入），pod 内实测 `CELLS=aloatree@gmail.com`
+      - **走查在等价环境完成（2026-11-09 scratch / `default` ns）**：自起 `server.js` +
+        `TASK_WORKER_MAX=2` + 死模型吊住回合，铸两 persona、发两条委派 →
+        `[worker-pool] active`、`spawned worker-1/worker-2`、两条同时 `running`；
+        `[satellite-host] sharing 8 satellite(s) … fleet,cron,delegation,blueprint-author,
+        fleet-architect,pack-author,persona-evolution,skill-evolution`；
+        工具面直接打共享端点：`fleet status=200 count=6`（工具名见 4.2）
+      - **口径（必须写明）**：这不是 fd-prod 的灰度 cell，而是同镜像 + 同真实清单的等价部署。
+        fd-prod 侧灰度 cell 从未进入共享路径（池关），所以那条路径上的走查**不可能**发生，
+        直到容量决定改变（见 4.2）。
 - [x] 4.4 回滚面：`TASK_WORKER_MAX=0` 即回到单 dsh 原形态，无需回滚镜像；验证 = 演练一次
       - **演练已在 scratch 完成（2026-11-09）**：同一 pod、同样 2 个 dsh，只切换宿主开关——
         开：9 颗卫星/628Mi（共享）；关（`MCP_SATELLITE_HOST_URL` 不设）：12 颗/909Mi，

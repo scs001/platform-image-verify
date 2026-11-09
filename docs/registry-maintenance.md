@@ -8045,6 +8045,19 @@ BENCH_PROPOSAL_DOMAIN），被 D4 守卫当成员级留下——所以"可共享
 
 **没解决的**：fd-prod 仍不能验（`TASK_WORKER_MAX=0` + `4Gi`，容量决定）；scratch 用的是
 "两个 dsh 手起"而非 worker 池真实抢占，池侧集成仍只有单测 + 接线日志。
+
+- **真池派发下的 A/B（同日，补）**：scratch 里自起 `server.js`（`TASK_WORKER_MAX=2`，死模型
+  `LLM_BASE_URL=http://127.0.0.1:9/v1` 吊住回合），铸两 persona + 两条委派 →
+  `[worker-pool] active`、`spawned worker-1/worker-2`、两条同时 `running`：
+
+  | 形态 | dsh（主+2 worker） | 卫星 | 卫星 RSS |
+  |---|---|---|---|
+  | `MCP_SATELLITE_HOST=0` | 3 | **42** | **2848Mi** |
+  | 共享宿主 | 3 | **26** | **1814Mi** |
+
+  **省 16 颗 / 1034Mi**，正好 2×(8 颗共享集)；规律 **省 = 8 ×（dsh 数 − 1）**。
+  共享集在这个镜像里是 8 颗（比 2-dsh 玩具 A/B 多出 meta-team 五颗）。工具面直接打共享端点：
+  `fleet status=200 count=6`。**口径**：这是同镜像 + 同真实清单的等价部署，不是 fd-prod 灰度 cell。
 ### §15.145 续三十三：ship-spool 的 429 真因是「批量业务打了交互车道」（11-08）
 
 - **不是上游没额度，是路由走错**。sub2api 有两车道：

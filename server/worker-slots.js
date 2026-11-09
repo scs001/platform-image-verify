@@ -173,8 +173,18 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     const settle = (out) => {
       if (settled) return out;
       settled = true;
+      // Stamp the lane on EVERY settlement, including the failure paths.
+      // Without this, a worker turn that failed (early stop / prompt error /
+      // restart window) carried `carrier=null` in the ledger — indistinguishable
+      // from "unknown", and it cost a lane-attribution detour on 2026-11-10 when
+      // the three `stopped early` rows could not be attributed from the data.
+      // An absent carrier is not an empty one: name the truth here.
+      const withLane = {
+        ...out,
+        metering: { carrier: "worker", carrierInstance: worker.id, ...(out?.metering ?? {}) },
+      };
       try {
-        ctx.recordFleetTurnEvent?.(task, out, {
+        ctx.recordFleetTurnEvent?.(task, withLane, {
           startedAt,
           endedAt: Date.now(),
           // A tool task never calls a model; `null` keeps the ledger honest.

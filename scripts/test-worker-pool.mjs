@@ -886,3 +886,37 @@ test("worker 车道：压缩达阈值即停，且取消打到 worker 自己的 b
   engine.setSlotDispatcher(null);
   process.env.TASK_WORKER_MAX = "2";
 });
+
+// 车道必须落在台账上——失败回合也一样。
+//
+// 2026-11-10 实测：三条 `turn stopped early` 行的 `carrier` 是 **null**，而链道
+// 回合写的是 `cell`。worker 的失败结算路径（早停/提示词抛错/重启窗口）没带
+// metering，于是「worker 车道」在这张表里等于「未知」。判车道只能靠日志，
+// 而日志每条 pod 重建就没了。
+test("worker 回合失败结算也带 carrier=worker（车道不得为 null）", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  const events = [];
+  const ctx = makeCtx(events);
+  const recorded = [];
+  ctx.recordFleetTurnEvent = (_task, out) => recorded.push(out);
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+  const t = engine.createManualTask({
+    prompt: "boom",
+    persona: "boom-1",
+    initiator: "s1",
+    origin: { fleet: { fleetId: "f_lane", memberId: "m_lane" } },
+  });
+  for (let i = 0; i < 40 && !FakeBridge.byPersona.get("boom-1"); i++) await settle();
+  const bridge = FakeBridge.byPersona.get("boom-1");
+  bridge?.failWith(new Error("upstream exploded"));
+
+  for (let i = 0; i < 60 && recorded.length === 0; i++) await settle();
+  assert.equal(recorded.length, 1, "the failure must still reach the ledger");
+  assert.equal(recorded[0].metering?.carrier, "worker", "an absent lane is not an unknown lane");
+  assert.ok(recorded[0].metering?.carrierInstance, "which worker ran it is part of the fact");
+  releaseAll();
+  engine.setSlotDispatcher(null);
+  process.env.TASK_WORKER_MAX = "2";
+});

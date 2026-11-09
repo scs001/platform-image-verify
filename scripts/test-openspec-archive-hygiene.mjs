@@ -18,21 +18,31 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const CHANGES = path.join(REPO, "openspec", "changes");
 
-// Read the change list through the CLI so the shape (status/completedTasks)
-// is the CLI's, not a second implementation's.
+// Read the change list from tasks.md — NOT through the `openspec` CLI. The CLI
+// is installed globally on a developer machine but is deliberately NOT a
+// dependency of this repo, so shelling out to `npx openspec` would fail (or
+// worse, try to download) inside CI's fresh snapshot. The markdown is the
+// source of truth anyway: a task is done iff its line starts with "- [x]".
 function changeList() {
-  const out = execFileSync("npx", ["openspec", "list", "--json"], {
-    cwd: REPO,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  return JSON.parse(out).changes ?? [];
+  if (!existsSync(CHANGES)) return [];
+  const changes = [];
+  for (const entry of readdirSync(CHANGES, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === "archive") continue;
+    const tasksPath = path.join(CHANGES, entry.name, "tasks.md");
+    if (!existsSync(tasksPath)) continue;
+    const lines = readFileSync(tasksPath, "utf8").split("\n");
+    const total = lines.filter((l) => /^- \[[ xX]\]/.test(l)).length;
+    const done = lines.filter((l) => /^- \[[xX]\]/.test(l)).length;
+    changes.push({ name: entry.name, completedTasks: done, totalTasks: total });
+  }
+  return changes;
 }
 
 // A change "claims completion" when it has tasks AND all of them are ticked.

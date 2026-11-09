@@ -32,6 +32,10 @@ class FakeBridge {
     this.persona = params.agentPreset;
     this.closed = false;
     this.prompts = [];
+    // Early stop calls this natively (fix-worker-early-stop); a fake without it
+    // would make the pool's optional-chain call a silent no-op and the test
+    // would pass for the wrong reason.
+    this.cancelCalls = [];
     FakeBridge.byPersona.set(this.persona, this);
   }
   async start() {
@@ -58,6 +62,9 @@ class FakeBridge {
   }
   emit(notif) {
     this.params.onEvent(notif);
+  }
+  async cancelSession(sessionId) {
+    this.cancelCalls.push(sessionId);
   }
   close() {
     this.closed = true;

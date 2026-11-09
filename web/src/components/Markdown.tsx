@@ -281,7 +281,7 @@ function HighlightedCode({ code, lang }: { code: string; lang: string }) {
 
   return (
     <div className="group relative my-3 overflow-hidden rounded-md border border-border bg-[#22272e]">
-      <div className="flex items-center justify-between border-b border-border px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="micro-label flex items-center justify-between border-b border-border px-3 py-1 text-muted-foreground">
         <span>{effectiveLang ?? (lang || "text")}</span>
         <button
           onClick={copy}

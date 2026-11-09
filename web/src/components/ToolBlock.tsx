@@ -238,7 +238,7 @@ function ToolBlockBase({ block, onToggle }: Props) {
 function Section({ label, body, error }: { label: string; body: string; error?: boolean }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="micro-label mb-1 font-semibold text-muted-foreground">
         {label}
       </div>
       <pre

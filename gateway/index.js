@@ -106,6 +106,12 @@ const CELL_MEMORY_FLOOR = Number(process.env.CELL_MEMORY_ADMISSION_FLOOR ?? 0.15
 // after a hard kill). 0 disables the default — such wakes degrade to the
 // legacy current-only judgment. Byte-counted in the same ledger as archives.
 const CELL_WAKE_DEFAULT_FOOTPRINT_MB = Number(process.env.CELL_WAKE_DEFAULT_FOOTPRINT_MB ?? 512);
+// Footprint TTL (fix-stale-wake-footprint): how long an archived wake footprint
+// stays authoritative. Past this age the archive is ignored and the wake is
+// judged on the default footprint (then re-measured at the next park) — without
+// it a high-water mark from a heavier era permanently refuses the very wake that
+// would refresh it. 0 disables expiry.
+const CELL_FOOTPRINT_TTL_MS = Number(process.env.CELL_FOOTPRINT_TTL_MS ?? 6 * 60 * 60 * 1000);
 // One sampler for the whole process: the gate, the read face, and any future
 // reader share one TTL-cached /proc scan (高频请求不放大扫描开销).
 // Shared browser lane reachability (slim-browser-lane-footprint 3.2): once the
@@ -128,6 +134,7 @@ const registry = createCellRegistry({
   procMemory: procMemorySampler,
   memoryFloor: CELL_MEMORY_FLOOR,
   wakeDefaultFootprintMb: CELL_WAKE_DEFAULT_FOOTPRINT_MB,
+  footprintTtlMs: Number.isFinite(CELL_FOOTPRINT_TTL_MS) ? CELL_FOOTPRINT_TTL_MS : 6 * 60 * 60 * 1000,
   // Demo-cell bounds (openspec: mp-demo-mode): how many demo cells may run at
   // once, and how idle one may sit before it is stopped AND deleted —
   // independent of the account-cell contract above.

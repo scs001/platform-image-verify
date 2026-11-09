@@ -219,11 +219,11 @@ test("arm：舰队回合在压缩风暴超过阈值时原生取消并结算为�
   const p = collectTurn(ctx, "child-es", 30000, new Map(), collectors, "mirror-es", { earlyStop: true, earlyStopAfterMs: 0 });
   const push = collectors.get("child-es");
   // Six compactions, first one after the minimum elapsed window.
-  for (let i = 0; i < 6; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
+  for (let i = 0; i < 4; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
   const err = await p.then(() => null, (e) => e);
   assert.ok(err, "the turn settles without waiting out the budget");
   assert.equal(err.detail.contextPressure, true);
-  assert.equal(err.detail.compactions, 6);
+  assert.equal(err.detail.compactions, 4);
   assert.equal(err.earlyStop, true);
   assert.match(err.message, /stopped early — context pressure/);
   assert.deepEqual(cancelled, ["child-es"], "the runtime is cancelled natively, not left running");

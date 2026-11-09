@@ -8562,3 +8562,46 @@ secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后
   loader 修复——都只有台账记录。理由：数据操作与运维工具，`fd-text-core`/`fd-proxy-service`/
   `scraw-fd-open-data-mcp` **没有 openspec 目录**；读侧不变量本身已入 spec。
   若要把"写入方不得绕过实体校验"也变成需求，应另开 change——待定。
+
+### §15.159 续四十七（渠）：卫星共享**生产首次真跑**——同一 pod 内 24 vs 18 颗
+
+`TASK_WORKER_MAX` 已被另一条线在 GitOps 开到 `"1"`（清单第 358 行，附准入算术：
+7Gi×(1−0.15)=5.95Gi > used+足迹 4.07–4.16Gi → 放行；步长=1；回滚=改回 "0"）。
+线上实测 `CAP=1`，灰度 `MCP_SATELLITE_HOST_CELLS=aloatree@gmail.com`。
+
+**同一 pod、两种形态并存（`platform-548ff4bb55-r4xjd`，`sha-86d62c5`）**：
+
+| cell | dsh | 卫星 | 每 dsh | 卫星内存 | 日志 |
+|---|---|---|---|---|---|
+| `3fdc7b8e`（非灰度） | 2 | **24** | 12 | 1685Mi | `not sharing … is not in MCP_SATELLITE_HOST_CELLS` |
+| `1da519d4`（灰度） | 2 | **18** | **9** | 1341Mi | `sharing 8 satellite(s) … fleet,cron,delegation,blueprint-author,fleet-architect,pack-author,persona-evolution,skill-evolution` |
+
+- 差 **6 颗 / 344Mi**（同为 2 个 dsh）；每 dsh **12 → 9**。
+- 池确实在派发：`spawned worker-1/worker-2/worker-3`、`reaped … (idle)` 都有。
+- 口径：灰度 cell 省的是"第二个 dsh 本会重复的那 8 颗"，单 dsh 的 cell 共享前后进程数相同
+  （宿主把 8 颗从 dsh 子进程挪到 cell-server 名下），**不亏不赚**；收益只随 dsh 数增长。
+
+**下一步（待定）**：扩灰度 = `MCP_SATELLITE_HOST_CELLS` 置 `*` 或删除（不设=全部）。
+
+### §15.160 续四十八（渠）：卫星共享**扩到全量**——`satellites per dsh` 8.50
+
+**改动**（fd-infra-deploy `bd095b3`）：`MCP_SATELLITE_HOST_CELLS: aloatree@gmail.com → "*"`，
+stamp `2026-11-09T14:05Z-satellite-share-all` → ArgoCD 硬刷新 → 滚完（pod `platform-7ddffd89f9-xs6n2`，
+`CAP=1`、`CELLS=*`）。
+
+**实测**（`probe-satellite-sharing.mjs`，2026-11-09）：
+
+| cell | dsh | 卫星 | 卫星内存 | 总计 |
+|---|---|---|---|---|
+| `1da519d4` | 2 | 18 | 1316Mi | 2064Mi |
+| `3fdc7b8e` | 2 | 16 | 1185Mi | 1816Mi |
+
+`satellites per dsh` **8.50**；两个 cell 的日志都有
+`sharing 8 satellite(s) … fleet,cron,delegation,blueprint-author,fleet-architect,pack-author,persona-evolution,skill-evolution`。
+对照灰度窗（§15.159）：非灰度 cell 2 dsh 曾是 24 颗/1685Mi，现在同为 2 dsh 只有 16 颗/1185Mi。
+
+**回滚**：删 `MCP_SATELLITE_HOST_CELLS` 行（宿主不启动，全部回落 stdio，逐字节同改造前）
+或填回 owner 邮箱收窄。宿主失败本身 fail-open。
+
+**口径提醒**：单 dsh 的 cell 共享前后进程数相同（8 颗从 dsh 子进程挪到 cell-server 名下），
+不亏不赚；收益只随 dsh 数增长，所以真正的兑现面是「开了 worker 槽的 cell」。

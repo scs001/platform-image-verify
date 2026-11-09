@@ -8,19 +8,19 @@ Defines the in-app Settings modal: a single overlay surface that hosts the appli
 
 ### Requirement: Settings modal surface
 
-The web UI SHALL provide a Settings modal that overlays the current view rather than replacing it. The modal SHALL organize its sections into three stable groups, in order — **Basics（常规）**, **Capabilities（能力）**, **Management（管理）** — holding exactly twelve sections:
+The web UI SHALL provide a Settings modal that overlays the current view rather than replacing it. The modal SHALL organize its sections into three stable groups, in order — **Basics（常规）**, **Capabilities（能力）**, **Management（管理）** — holding exactly ten sections:
 
 - Basics（常规）: **General（通用）**, **Account（账户）**, **Pairing（配对与绑定）**
-- Capabilities（能力）: **Connections（连接）**, **Tools & Skills（技能与工具）**, **Plugins（插件）**, **Models（模型）**
+- Capabilities（能力）: **Connections（连接）**, **Models（模型）**
 - Management（管理）: **User roles（用户角色）**, **Workbench layout（工作面布局）**, **Delegation（委托策略）**, **Deployment branding（部署品牌）**, **System Status（系统状态）**
 
-Each section SHALL be identified by a stable slug which forms part of its URL and SHALL NOT change: `general`, `account`, `pairing`, `connections`, `mcp`, `plugins`, `models`, `roles`, `layout`, `delegation`, `branding`, `status`.
+Each section SHALL be identified by a stable slug which forms part of its URL and SHALL NOT change: `general`, `account`, `pairing`, `connections`, `models`, `roles`, `layout`, `delegation`, `branding`, `status`.
 
 `pairing` SHALL be the single section that binds the current account to external clients, and SHALL present three internal tabs — 小程序 (mini program), 桌面应用 (desktop app), 机器 (machine) — because all three mint from the same single-use 5-minute bind-code pool. The retired `devices` and `wechat-app` slugs SHALL remain addressable as aliases of `pairing` and SHALL open it with the corresponding tab preselected (`devices` → 桌面应用, `wechat-app` → 小程序); they SHALL NOT be separate sections. Their deep links, including `/settings/devices?bindcode=<code>` and `/settings/wechat-app?bindcode=<code>`, SHALL keep working and SHALL keep preselecting their tab.
 
 The former `channels` section SHALL leave the Settings modal entirely and become a nav surface at `/channels` (per `app-navigation` and `social-bot-channels`); `/settings/channels` and `/bots` SHALL redirect to `/channels`, and the bots management page SHALL no longer render inside the modal. The former `diagnostics` section SHALL be merged into `status` as a tab (状态 = 健康 + 逐回合追踪); the `diagnostics` slug SHALL remain addressable as an alias of `status` opening the per-turn trace tab, and `/trace` SHALL keep redirecting there.
 
-The former `websearch` section is retired as a rendered section; its `/settings/websearch` URL SHALL redirect to `/settings/connections?panel=search` (per `connection-center`) so existing deep links keep resolving — the slug remains stably addressable through this redirect rather than as a section pane. The merged Tools & Skills section SHALL additionally remain addressable at the legacy `skills` slug, with each of the two slugs (`mcp`, `skills`) opening the section with its corresponding sub-view active (tools vs skills), so existing deep links keep resolving. The former `packs` and `presets` sections are retired from Settings; their `/settings/packs` and `/settings/presets` URLs redirect to the corresponding `/agents` sub-tabs (per `agent-catalog`). Section labels SHALL resolve from the internationalization resource bundle keyed by the stable slug, so the label follows the active locale while the slug, ordering, and icon remain stable; user-facing zh-CN copy SHALL use user-language terms (连接, 技能与工具, 插件, 模型, 用户角色, 工作面布局, 委托策略, 部署品牌) and SHALL NOT surface developer vocabulary such as "MCP" in section labels.
+The former `websearch` section is retired as a rendered section; its `/settings/websearch` URL SHALL redirect to `/settings/connections?panel=search` (per `connection-center`) so existing deep links keep resolving — the slug remains stably addressable through this redirect rather than as a section pane. The former Tools & Skills section and its `skills` address, and the former Plugins section and its `plugins` address, SHALL leave the Settings modal entirely, because the capability markets are work surfaces and not configuration: `/settings/mcp`, `/settings/skills`, and `/settings/plugins` SHALL be route-level redirects to the 工具, 技能, and 插件 tabs of the 素材市场 surface at `/agents` (per `app-navigation`), and SHALL NOT open the Settings modal with any section active. They SHALL NOT be section aliases: an alias opens the modal on a canonical section, and the modal must not open at all here. `models` SHALL NOT leave: models are configuration, not a marketplace, so the Models section stays a plain Settings section. The former `packs` and `presets` sections are retired from Settings; their `/settings/packs` and `/settings/presets` URLs redirect to the corresponding `/agents` sub-tabs (per `agent-catalog`). Section labels SHALL resolve from the internationalization resource bundle keyed by the stable slug, so the label follows the active locale while the slug, ordering, and icon remain stable; user-facing zh-CN copy SHALL use user-language terms (连接, 模型, 用户角色, 工作面布局, 委托策略, 部署品牌) and SHALL NOT surface developer vocabulary such as "MCP" in section labels.
 
 The modal SHALL present an in-modal search field above the section list that filters the sections by their label text in the active locale. Filtering SHALL be client-side, over the already-resolved list, and SHALL NOT bypass resolved-layout hiding, section predicates, or the admin-only rules: a section hidden by layout or predicate SHALL NOT become visible because its label matches the query. With an empty query the list SHALL render unchanged; a query that matches no section SHALL render an explicit no-match line rather than an empty pane.
 
@@ -30,7 +30,7 @@ The **User roles** and **Workbench layout** sections SHALL be admin-only when au
 
 The rendered section list SHALL honor the resolved layout for the user (per `layout-configuration`): the factory preset renders the full canonical list above; a narrower preset hides sections, and deployment-hiding is terminal.
 
-The rendered section list SHALL be generated only from registry-resolved slugs: every section the modal can render SHALL exist in the `settings` surface registry, and every settings section definition SHALL be registered. A section definition absent from the registry SHALL NOT be silently dropped from the modal without a test-visible failure — the section definitions and the surface registry SHALL agree, so a section cannot exist in one place and not the other.
+The rendered section list SHALL be generated only from registry-resolved slugs: every section the modal can render SHALL exist in the `settings` surface registry, and every settings section definition SHALL be registered. A section definition absent from the registry SHALL NOT be silently dropped from the modal without a test-visible failure — the section definitions and the surface registry SHALL agree, so a section cannot exist in one place and not the other. That agreement SHALL hold over exactly the ten canonical sections above: `mcp`, `skills`, and `plugins` SHALL NOT appear on either side, because they are redirects into the market rather than sections.
 
 A section's declared group SHALL agree with its position in the canonical section list: members of a group SHALL be listed contiguously, and the modal SHALL render a group heading exactly once per group, at the group's first visible member. A group with no visible member SHALL render no heading.
 
@@ -44,10 +44,12 @@ A section's declared group SHALL agree with its position in the canonical sectio
 #### Scenario: canonical section set and ordering
 
 - **WHEN** the Settings modal renders for an admin (or auth is off) under the factory preset
-- **THEN** it SHALL present exactly twelve sections in three groups, Basics, Capabilities, Management, in that order: General, Account, Pairing; Connections, Tools & Skills, Plugins, Models; User roles, Workbench layout, Delegation, Deployment branding, System Status
+- **THEN** it SHALL present exactly ten sections in three groups, Basics, Capabilities, Management, in that order: General, Account, Pairing; Connections, Models; User roles, Workbench layout, Delegation, Deployment branding, System Status
 - **AND** each section label SHALL be resolved from the i18n bundle under a stable key
 - **AND** the section slugs, grouping, and ordering SHALL NOT change when the active locale changes
 - **AND** no Packs, Custom presets, Channels, or Diagnostics section SHALL be present
+- **AND** no Tools & Skills, MCP, Skills, or Plugins section SHALL be present
+- **AND** the Models section SHALL be present
 - **AND** each group heading SHALL appear exactly once, at the first section of its group
 
 #### Scenario: group membership agrees with list position
@@ -60,8 +62,9 @@ A section's declared group SHALL agree with its position in the canonical sectio
 #### Scenario: every section definition is registry-resolved
 
 - **WHEN** the settings section definitions are compared with the `settings` entries of the surface registry
-- **THEN** the two sets of canonical slugs SHALL be equal
+- **THEN** the two sets of canonical slugs SHALL be equal, and each SHALL contain exactly the ten slugs general, account, pairing, connections, models, roles, layout, delegation, branding, status
 - **AND** a slug present in one and absent from the other SHALL fail a test-visible check
+- **AND** `mcp`, `skills`, and `plugins` SHALL be absent from both sets
 - **AND** the modal SHALL render no section that the surface registry does not resolve
 
 #### Scenario: delegation is reachable from the list
@@ -123,7 +126,9 @@ A section's declared group SHALL agree with its position in the canonical sectio
 
 Each Settings section SHALL be addressable at the route `/settings/<slug>`. Navigating to such a URL SHALL open the modal with that section active. The route `/settings` with no section SHALL resolve to the first visible section (`/settings/general` under the factory preset). An unrecognized section slug SHALL resolve to the first visible section rather than rendering an empty modal or a 404.
 
-Aliased slugs SHALL resolve to their canonical section with the alias's sub-view active, and the URL SHALL keep the alias slug so the deep link stays stable and shareable: `devices` SHALL open `pairing` with the 桌面应用 tab active, `wechat-app` SHALL open `pairing` with the 小程序 tab active, `diagnostics` SHALL open `status` with the 逐回合追踪 tab active, and `skills` SHALL open `mcp` with the skills sub-view active. An alias SHALL NOT introduce a separate section, group membership, or list entry.
+Aliased slugs SHALL resolve to their canonical section with the alias's sub-view active, and the URL SHALL keep the alias slug so the deep link stays stable and shareable: `devices` SHALL open `pairing` with the 桌面应用 tab active, `wechat-app` SHALL open `pairing` with the 小程序 tab active, and `diagnostics` SHALL open `status` with the 逐回合追踪 tab active. An alias SHALL NOT introduce a separate section, group membership, or list entry.
+
+The retired capability slugs are NOT section aliases: `mcp`, `skills`, and `plugins` SHALL be intercepted at the route level and redirected to the 工具, 技能, and 插件 tabs of the 素材市场 surface at `/agents` (per `app-navigation`), so the Settings modal SHALL NOT open for them. An alias by definition opens the modal on a canonical section; these three must not, because their surface is a market, not a preference pane. Accordingly they SHALL NOT appear in the section list, SHALL NOT resolve as the first-visible-section fallback, and SHALL NOT be counted among the ten canonical slugs.
 
 Switching sections within the open modal SHALL update the URL to that section's canonical slug, so the browser's back button returns to the previously viewed section, and so the current section can be copied as a link.
 
@@ -162,9 +167,9 @@ When the modal is opened from within the app, the underlying view SHALL be carri
 
 #### Scenario: switching sections updates the URL
 
-- **WHEN** the Settings modal is open at `/settings/general` and the user selects the MCP section
-- **THEN** the URL SHALL become `/settings/mcp`
-- **AND** the MCP section SHALL be active
+- **WHEN** the Settings modal is open at `/settings/general` and the user selects the Models section
+- **THEN** the URL SHALL become `/settings/models`
+- **AND** the Models section SHALL be active
 - **AND** pressing the browser back button SHALL return to `/settings/general` with the General section active
 
 ### Requirement: Settings modal open and dismiss affordances
@@ -211,20 +216,23 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 | Legacy route | Redirects to |
 |---|---|
 | `/models` | `/settings/models` |
-| `/mcp` | `/settings/mcp` |
-| `/skills` | `/settings/skills` |
-| `/extensions` | `/settings/mcp` |
-| `/extensions/mcp` | `/settings/mcp` |
-| `/extensions/skills` | `/settings/skills` |
+| `/mcp` | `/agents?tab=tools` |
+| `/skills` | `/agents?tab=skills` |
+| `/extensions` | `/agents?tab=tools` |
+| `/extensions/mcp` | `/agents?tab=tools` |
+| `/extensions/skills` | `/agents?tab=skills` |
+| `/settings/mcp` | `/agents?tab=tools` |
+| `/settings/skills` | `/agents?tab=skills` |
+| `/settings/plugins` | `/agents?tab=plugins` |
 | `/dashboard` | `/settings/status` |
 | `/trace` | `/settings/diagnostics` |
 | `/bots` | `/channels` |
 | `/settings/channels` | `/channels` |
 | `/settings/websearch` | `/settings/connections?panel=search` |
-| `/settings/packs` | `/agents` (packs sub-tab, per `agent-catalog`) |
-| `/settings/presets` | `/agents` (presets sub-tab, per `agent-catalog`) |
+| `/settings/packs` | `/agents` (agents sub-tab, per `agent-catalog`) |
+| `/settings/presets` | `/agents` (agents sub-tab, per `agent-catalog`) |
 
-`/trace` SHALL keep resolving to the per-turn trace view, now the 逐回合追踪 tab of the `status` section (`/settings/diagnostics`). `/settings/channels` and `/bots` SHALL leave the Settings modal: both SHALL redirect to the `/channels` nav surface, and neither SHALL open the modal with a Channels section.
+`/trace` SHALL keep resolving to the per-turn trace view, now the 逐回合追踪 tab of the `status` section (`/settings/diagnostics`). `/settings/channels` and `/bots` SHALL leave the Settings modal: both SHALL redirect to the `/channels` nav surface, and neither SHALL open the modal with a Channels section. `/settings/mcp`, `/settings/skills`, and `/settings/plugins` SHALL likewise leave the Settings modal: each SHALL redirect to the corresponding tab of the 素材市场 surface, and none SHALL open the modal at all.
 
 #### Scenario: legacy model route redirects
 
@@ -235,9 +243,9 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 #### Scenario: legacy extension routes redirect
 
 - **WHEN** the user navigates to `/mcp`, `/extensions`, or `/extensions/mcp`
-- **THEN** the router SHALL redirect to `/settings/mcp`
+- **THEN** the router SHALL redirect to the 工具 tab of the 素材市场 surface at `/agents`
 - **WHEN** the user navigates to `/skills` or `/extensions/skills`
-- **THEN** the router SHALL redirect to `/settings/skills`
+- **THEN** the router SHALL redirect to the 技能 tab of the 素材市场 surface at `/agents`
 
 #### Scenario: legacy dashboard route redirects
 
@@ -262,7 +270,7 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 #### Scenario: demoted surface routes redirect
 
 - **WHEN** the user opens a route whose surface was demoted out of the working views or moved between containers
-- **THEN** it SHALL redirect to its canonical home — `/trace` and `/dashboard` into the status section, `/settings/channels` and `/bots` onto the `/channels` nav surface — rather than rendering a pane at the old address
+- **THEN** it SHALL redirect to its canonical home — `/trace` and `/dashboard` into the status section, `/settings/channels` and `/bots` onto the `/channels` nav surface, and `/settings/mcp`, `/settings/skills`, and `/settings/plugins` onto the matching tab of the 素材市场 surface — rather than rendering a pane at the old address
 
 #### Scenario: no legacy path renders a pane at its old URL
 
@@ -272,7 +280,7 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 
 ### Requirement: Settings sections reuse existing page components unchanged
 
-The Models, Tools & Skills, and System Status sections SHALL render the existing page components for those surfaces; the System Status section's 逐回合追踪 tab SHALL render the existing trace list page component. Their internal controls, behavior, REST calls, and `data-testid` attributes SHALL be unchanged — only the container changes from a full-width page to a modal section pane. The System Status section SHALL mount the health component for its health tab and the trace component for its trace tab, so the merged section mounts no more than the active tab.
+The Models and System Status sections SHALL render the existing page components for those surfaces; the System Status section's 逐回合追踪 tab SHALL render the existing trace list page component. Their internal controls, behavior, REST calls, and `data-testid` attributes SHALL be unchanged — only the container changes from a full-width page to a modal section pane. The System Status section SHALL mount the health component for its health tab and the trace component for its trace tab, so the merged section mounts no more than the active tab. The 工具 and 技能 views that the modal used to host are not Settings sections any more: they SHALL render unchanged inside the 工具 and 技能 tabs of the 素材市场 surface, keeping their controls, REST calls, and `data-testid` attributes.
 
 Section content SHALL be loaded lazily, so opening the modal mounts only the active section and not all of them. The Pairing section SHALL render the existing desktop-app pairing, paired-device list, and mini-program binding components as its three tabs, keeping their controls, REST calls, and `data-testid` attributes unchanged.
 
@@ -332,3 +340,27 @@ The Settings modal SHALL pair the current account with the WeChat mini program f
 - **WHEN** the tab renders where `/api/mp/bindcode` is unavailable
 - **THEN** it shows an explanatory hint and no broken controls
 - **AND** the other Settings sections remain fully usable
+
+### Requirement: Retired capability slugs redirect into the materials market without opening the modal
+
+The `/settings/mcp`, `/settings/skills`, and `/settings/plugins` URLs SHALL NOT resolve to a Settings section. Each SHALL be handled as a route-level redirect to the matching tab of the 素材市场 surface at `/agents` — 工具, 技能, and 插件 respectively — and the Settings modal SHALL NOT open. This SHALL be a redirect rather than a section alias, because an alias is defined to open the modal on a canonical section and these three have no canonical section to open.
+
+#### Scenario: tools URL lands on the market tools tab
+
+- **WHEN** the user navigates to `/settings/mcp`
+- **THEN** the router SHALL redirect to the 工具 tab of the `/agents` surface
+- **AND** the Settings modal SHALL NOT open
+- **AND** the address bar SHALL show the market route, not a `/settings/*` URL
+
+#### Scenario: skills URL lands on the market skills tab
+
+- **WHEN** the user navigates to `/settings/skills`
+- **THEN** the router SHALL redirect to the 技能 tab of the `/agents` surface
+- **AND** the Settings modal SHALL NOT open
+
+#### Scenario: plugins URL lands on the market plugins tab
+
+- **WHEN** the user navigates to `/settings/plugins`
+- **THEN** the router SHALL redirect to the 插件 tab of the `/agents` surface
+- **AND** the Settings modal SHALL NOT open
+- **AND** no Plugins section SHALL be listed or resolvable inside the modal

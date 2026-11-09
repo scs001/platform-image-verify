@@ -268,6 +268,7 @@ const EXCLUDE_PREFIXES = [
   "docs/adr/", // internal decision records: cluster names, registries, ops
   "docs/registry-fork-patches/", // mcp-gateway fork patch notes (internal)
   "docs/dsh-lock-peer-deadlock.md", // internal handoff: private CI runner repo + TCR secrets
+  "docs/queue-backlog-runbook.md", // internal ops runbook: names the private registry + a real outage
 ];
 
 const EXCLUDE_GLOBS = [

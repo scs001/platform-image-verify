@@ -2246,3 +2246,16 @@ node scripts/probe-deployment-secrets.mjs
 触发组合并读 child home 凭据文件断言键值在位 → 再用一个 store 无法解析的引用重部署，
 断言组合失败文案带缺失名 → 清理 registry 条目并下架 pack。**旧平台**（未含本变更）上探针
 会在部署面检查处明确报「platform does not run add-deployment-secrets yet」。
+
+## Push-time lint gate (release-line-hygiene)
+
+`release/cell-session-persona` 是多人共用的发布分支。推送前有一个钩子只检查**本次推送改动的文件**：
+
+```bash
+npx biome check --write <改动的文件>   # 先自动修一版，再人工收尾
+git push                               # 通过即静默；红则指名文件与修法
+
+SKIP_LINT_HOOK=1 git push              # 紧急逃生（CI 仍会红）
+```
+
+出片前仍应跑一次 `npm run lint`（全仓）：那个是全量的最终判据，钩子只挡"本次引入"。

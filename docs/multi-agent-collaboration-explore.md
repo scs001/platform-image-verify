@@ -210,6 +210,13 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**修复后复测（2026-11-09，镜像 sha-5621744 + 71 条归属回填）**：5 回合 → 2 ok / 3 failed（40%），但**失败形态变了**：
+- **不再有 600s 的盲回合**（此前实测 629s/600s、零产出、detail 为空）；
+- 剩余失败是 `context_overflow`，**comp=1、耗时 165–209s**，且 `reported=true` —— 它们**已经交过报数才倒**，收尾车道按设计拒绝重复补报（`wrap=null` 是正确行为，不是漏跑）；
+- `xb-chief` 一族的 23 条任务从「全部盲」变成「全部带归属」，那颗 629s 的种子已消除。
+
+**结论**：通过率数字本身没升（40% vs 50%），但**失败的性质变了**——从「十分钟、什么都不交、还盲跑」变成「两三分钟、报数已交」。剩下的 `context_overflow@comp=1` 是单轮工作集在第一步就超出窗口，属 dsh 上游的上下文入口问题（平台无旋钮，已在前文论证）。样本仍小（5 条）且 pod 每 15–20 分钟被并发会话重建。
+
 **第三源处置结果（2026-11-09，已执行 72 条、未动 53 条）**：
 - 写路径确认：`sourceTag` 是 `cron.updateJob` 支持的字段（`cron.js`：`if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null`），走 `PATCH /api/cron/:id`（引擎内存 + 落盘）。**不直接改 `jobs.json`**——cell 会整文件重写，外部改动会被覆盖。仅 `trigger=schedule` 可原地改。
 - 单点实弹先行：1 条写入 → 200，`sourceTag` 落地，`preset`/`cron`/`paused` 逐字未变。

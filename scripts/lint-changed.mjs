@@ -42,6 +42,15 @@ function resolveRange() {
   }
 }
 
+function diffRange(range) {
+  return execFileSync("git", ["diff", "--name-only", "--diff-filter=d", range], {
+    encoding: "utf8",
+  })
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
 function changedFiles() {
   const files = flag("--files");
   if (files) {
@@ -51,10 +60,23 @@ function changedFiles() {
       .filter(Boolean);
   }
   const range = resolveRange();
-  const out = execFileSync("git", ["diff", "--name-only", "--diff-filter=d", range], {
-    encoding: "utf8",
-  });
-  return out.split("\n").map((l) => l.trim()).filter(Boolean);
+  // A synthetic-history repo (the image-build mirror force-pushes ONE commit
+  // per snapshot) hands us a `before` sha that does not exist in the new
+  // history, and the range is invalid. Degrade instead of failing: try the
+  // requested range, then the single commit, then give up quietly — the
+  // full-repo `npm run lint` in the same job is the backstop there.
+  const ALL_ZERO = /^0+$/;
+  const [from] = range.split("..");
+  const candidates = ALL_ZERO.test(from ?? "") ? ["HEAD~1..HEAD"] : [range, "HEAD~1..HEAD"];
+  for (const candidate of candidates) {
+    try {
+      return diffRange(candidate);
+    } catch {
+      /* try the next, narrower range */
+    }
+  }
+  console.warn(`[lint-changed] 无法解析推送范围（${range}）——跳过；本仓全量 lint 仍是最终判据。`);
+  return [];
 }
 
 function isCode(rel) {
@@ -82,6 +104,10 @@ if (SKIP) {
 }
 
 const biome = path.resolve("node_modules/.bin/biome");
+if (!existsSync(biome)) {
+  console.warn("[lint-changed] 未找到 biome（先 npm install）——跳过推送前检查。");
+  process.exit(0);
+}
 let code = 0;
 try {
   execFileSync(biome, ["check", ...target], { stdio: "inherit" });

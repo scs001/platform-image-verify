@@ -25,6 +25,13 @@
 
 ## 5. 上线与观测
 
-- [ ] 5.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内确认 patch 行与预算
-- [ ] 5.2 观测：overflow 类失败占比、单条 tool/result 体积上限、`ok` 率
-- [ ] 5.3 归档
+- [x] 5.1 上产确认（2026-11-10 舱内实证）— 运行中 cell 的
+  `/data/cells/<hex>/dsh/profiles/platform/cordis.patch.yml` 里确有
+  `- id: spill-policy / config: { maxInlineTokens: 4000 }`（stock 12500），
+  即平台写的 patch 真的被 dsh 读到；镜像 `sha-3db84d7` 及以后均带此行为。
+- [x] 5.2 观测（12h，2026-11-10）— overflow 类失败 **28/215（13%）**；按产出分档 16 次
+  `reported:true`（干完再撞墙）、5 次 `hasOutput:false`（真白烧，约 2.3%）、6 次无 detail（旧片）。
+  工具结果体积：p50 916B / p90 8.2KB / p99 32.3KB / max 50.5KB，>40KB 仅 9 条。
+  **结论（否掉自己的假设）**：绝大多数工具结果离旧上限（≈40KB）很远，"降上限减少 overflow"不成立；
+  overflow 更可能来自**一轮内多步工具往返的累积**，属会话历史增长问题，另立观察。
+- [x] 5.3 归档（`openspec validate --strict` 通过后）

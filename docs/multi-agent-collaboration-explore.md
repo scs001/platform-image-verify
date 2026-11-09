@@ -294,9 +294,10 @@
 - **探针陷阱（我自己踩的）**：早停文案是 `turn stopped early — context pressure (4 compactions)`，用 `context pressure \((\d+) compactions\)` 正则数压力超时会**把它一起数进去**。第一版报「25 次超时/20 次 n≥4」是重复计数，真值是 19/14。凡按文案计数，先问「这段文案会不会也被别的桶匹配」。
 - **仍未做**：worker 的失败结算不带 metering，这些行的 `carrier` 是 NULL（与「未知」不可区分）。已修（`server/worker-slots.js` 的 settle 统一盖 `carrier=worker`+`carrierInstance`），随下一片带上；本片部署的 `sha-3db84d7` 里这三行仍是 null，故上面靠日志交叉判定。
 
-**残留观测：请求期超窗（`pi-ai detected context overflow`，2026-11-10 夜，未立项）**：早停管的是"压缩风暴"，这条是**请求时整段输入就超出模型窗口**，属于另一类。近 6h 四次（12:40 / 16:43 / 17:09 / 17:25，三个不同岗位，各烧 160–302s）。
-关键区别：**最近两次（17:09、17:25）都带 `hasOutput:true, reported:true`** —— 回合干完活、交过报数后才撞墙，不是静默白烧；更早两次（12:40、16:43）`detail` 为 null（旧片）。
-`contextPressureDetail()` 已把 overflow 与超时归一到同一口径（`kind=context_overflow`），收尾车道照常补数，所以**记账面是完整的**。剩余可调的是单轮输入上界（`spill-policy.maxInlineTokens` 现 4000，可下调），但那会把工具结果更多地推到文件读取，属权衡，等有"overflow 是否随 4000 显著下降"的更长窗口再定。
+**残留观测：请求期超窗（`pi-ai detected context overflow`，2026-11-10 夜，未立项）**：早停管的是"压缩风暴"，这条是**请求时整段输入就超出模型窗口**，属于另一类。**12h 内 28 次 / 215 回合（13%）**，时长 p50 188s、max 454s，散在 11 个岗位（`user-preset-2` 7、`if-sentinel` 7、`company-ceo` 3）。
+按产出分档（这决定它是不是浪费）：**16 次带 `reported:true`**（干完活、交过报数才撞墙）、**5 次 `hasOutput:false`**（真白烧）、其余 6 次无 detail（旧片）。所以「静默白烧」约 2.3%，其余是「干完再撞墙」。
+`contextPressureDetail()` 已把 overflow 与超时归一到同一口径（`kind=context_overflow`），收尾车道照常补数，**记账面是完整的**。
+剩余旋钮是单轮输入上界（`spill-policy.maxInlineTokens` 现 4000，stock 12500）：工具结果分布 p50 916B / p90 8.2KB / p99 32.3KB / max 50.5KB，仅 9 条 >40KB——即绝大多数工具结果本来就没到旧上限，"降到 4000 显著减少 overflow"这个假设**未被数据支持**，故不再下调；下一步要看的是**多步累积**（一轮内多次工具往返），那是会话历史增长问题，不是单条上限问题。
 
 **P0′-1 第五批 + 产线观测（2026-11-09）**：
 - **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。

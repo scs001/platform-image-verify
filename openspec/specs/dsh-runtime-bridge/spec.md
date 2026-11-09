@@ -2,7 +2,9 @@
 
 ## Purpose
 The platform's seam to the DeepSeek Harness (dsh): the server spawns dsh as a child process speaking newline-delimited JSON-RPC over stdio, owns its lifecycle (spawn, health-check, restart with backoff), generates the profile that composes the core plugins, the Volces adapter, the agent-preset roster and the platform bridge plugin, forwards prompts as `session.prompt`, and translates runtime notifications into the existing WebSocket vocabulary so the frontend contract is unchanged. The bridge also carries restart overrides (cwd, model, preset), keeps sessions usable across child restarts, parks per-session preset picks until the session exists, exposes the permission-preset roster and live switch, and registers the user-questions provider that routes `ask_user_question` to the host and releases pending asks safely on restart or abort. Its live-control methods are dsh-specific depth, not part of the generic harness-adapter contract.
+
 ## Requirements
+
 ### Requirement: Server spawns the dsh runtime as a subprocess communicating over JSON-RPC stdio
 
 The server SHALL spawn the DeepSeek Harness (dsh) runtime as a child process (`dsh` CLI or a composed entrypoint) with stdio pipes, and SHALL communicate with it using newline-delimited JSON-RPC 2.0. The server SHALL own the child process lifecycle: spawn on startup, health-check, restart-with-backoff on unexpected exit, and terminate on shutdown. The server SHALL remain buildless plain JavaScript ESM — the dsh runtime is the only TypeScript process, isolated in the subprocess. When the dsh binary is absent, the server SHALL log a warning and start without chat capability (degraded), mirroring the existing "no chat provider" graceful-degradation contract.
@@ -52,7 +54,7 @@ The server SHALL forward each accepted WebSocket `prompt` message to the dsh run
 
 ### Requirement: dsh runtime is configured via a profile that composes core plugins
 
-The server SHALL pass the dsh runtime a profile/bundle configuration (or CLI flags) that composes: `core/session`, `core/agent-loop`, `core/tools`, `dsh-tool-bash`, `dsh-tool-fs` (read/write/edit/grep), `dsh-mcp-client`, and the platform's Volces llm adapter. The profile SHALL be the single source of which plugins the runtime loads; the server SHALL NOT duplicate tool or MCP wiring in JavaScript.
+The server SHALL pass the dsh runtime a profile/bundle configuration (or CLI flags) that composes: `core/session`, `core/agent-loop`, `core/tools`, `dsh-tool-bash`, `dsh-tool-fs` (read/write/edit/grep), `dsh-mcp-client`, and the platform's Volces llm adapter. The profile SHALL be the single source of which plugins the runtime loads; the server SHALL NOT duplicate tool or MCP wiring in JavaScript. The profile SHALL also compose the retained-output budget (`dsh-spill-policy` `maxInlineTokens`): the server SHALL write that row with a bounded inline budget (default 4000 tokens, operator-tunable), because a single tool result or assistant message was measured at 40–43 KB — 79–87% of an overflowing fleet round — and the stock 12500-token budget lets two such results consume a fifth of a 128K window. Text beyond the inline budget SHALL continue to spill to disk with a reference, so the budget costs a re-read, never the information.
 
 #### Scenario: profile composes built-in tools
 - **WHEN** the dsh runtime starts with the platform profile
@@ -61,6 +63,16 @@ The server SHALL pass the dsh runtime a profile/bundle configuration (or CLI fla
 #### Scenario: profile composes MCP client
 - **WHEN** the profile includes `dsh-mcp-client` and a server config is provided
 - **THEN** MCP tools SHALL be registered with `mcp__<serverName>__<toolName>` names by the dsh plugin, not by server-side JavaScript
+
+#### Scenario: profile carries the inline budget
+
+- **WHEN** the server composes the dsh profile
+- **THEN** the profile's patch carries exactly one `spill-policy` row with a positive `maxInlineTokens` (default 4000), replacing any stale value rather than duplicating the row
+
+#### Scenario: budget is operator-tunable and never zero
+
+- **WHEN** the deployment sets the inline-budget override to a positive integer
+- **THEN** that value is written verbatim; a non-numeric or non-positive value falls back to the default, never to zero (zero would suppress every result body)
 
 ### Requirement: Bridge restart accepts a new working directory
 

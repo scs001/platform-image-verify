@@ -15,9 +15,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# QUEUED, not cancelling (openspec: queue-release-ci-runs): same reason as ci.yml
+# — a long build superseded by the next push reports nothing at all.
 concurrency:
   group: image-check-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

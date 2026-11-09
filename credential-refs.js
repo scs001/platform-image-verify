@@ -133,6 +133,26 @@ const REFS = new Map(
   ].map((entry) => [entry.refName, entry]),
 );
 
+// The gateway credential (one per identity, minted by the registry SSO) is what
+// makes a dual-credential server possible: it authenticates the caller to the
+// gateway while the server's OWN credential rides X-Authorization upstream.
+const gatewayEntry = REFS.get(registryCredentials.REGISTRY_CREDENTIAL_REF);
+
+// A server reached through the MCP gateway rather than a direct upstream. Only
+// there does the Authorization header belong to the gateway instead of the
+// server: a direct URL has no gateway to authenticate to, so relaying must not
+// apply (the server's own token stays in Authorization, as before).
+const GATEWAY_HOST = "mcp.finddatatech.cloud";
+
+export function isGatewayUrl(url) {
+  if (typeof url !== "string" || !url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase() === GATEWAY_HOST;
+  } catch {
+    return false;
+  }
+}
+
 export function knownRef(name) {
   return REFS.has(name);
 }
@@ -272,16 +292,46 @@ export function resolveCredentials(servers, email) {
       const omittedNames = [];
       for (const [name, config] of rows) {
         const token = entry.liveToken(email, config);
-        if (token) {
-          out[name] = {
-            ...out[name],
-            headers: { ...(out[name].headers || {}), Authorization: `Bearer ${token}` },
-          };
-          injectedNames.push(name);
-        } else {
+        if (!token) {
           delete out[name];
           omittedNames.push(name);
+          continue;
         }
+        if (isGatewayUrl(out[name]?.url) && config?.relayCallerCredential === true) {
+          // Dual credential (relayCallerCredential): the gateway authenticates
+          // the CALLER with its own token, and forwards the caller's own
+          // credential to the upstream as X-Authorization (auth-server's
+          // INGRESS_RELAY_SERVERS). Servers whose upstream authenticates the
+          // end user — wire/lex Logto ID tokens, facet device tokens — are
+          // otherwise unusable through the gateway: the gateway strips the
+          // caller's Authorization, and the designed alternative (egress vault)
+          // needs a secret store this deployment does not have.
+          // Fail closed: no gateway credential -> omit the server entirely,
+          // never fall back to putting a foreign token in Authorization.
+          const gatewayToken = gatewayEntry?.liveToken(email, {
+            credentialRef: gatewayEntry?.refName,
+          });
+          if (!gatewayToken) {
+            delete out[name];
+            omittedNames.push(name);
+            continue;
+          }
+          out[name] = {
+            ...out[name],
+            headers: {
+              ...(out[name].headers || {}),
+              Authorization: `Bearer ${gatewayToken}`,
+              "X-Authorization": `Bearer ${token}`,
+            },
+          };
+          injectedNames.push(name);
+          continue;
+        }
+        out[name] = {
+          ...out[name],
+          headers: { ...(out[name].headers || {}), Authorization: `Bearer ${token}` },
+        };
+        injectedNames.push(name);
       }
       if (injectedNames.length) injected.push({ ref: entry.refName, names: injectedNames });
       if (omittedNames.length) omitted.push({ ref: entry.refName, names: omittedNames });

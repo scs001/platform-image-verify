@@ -817,3 +817,67 @@ test("worker 回合调用 collectTurn 时带上 earlyStop（风暴早停不得�
     "worker 车道丢了 earlyStop → 池开着时早停失效，且不会有任何报错");
   assert.match(args, /earlyStopAfterMs/, "下限可被嵌入方压低（测试/demo 需要）");
 });
+
+// ── 行为：worker 车道的风暴早停（确定性版，2026-11-10）──────────────────
+//
+// 之前这条一直写不稳，是因为默认 60s 下限 + 事件泵时序。现在把下限注入为 0，
+// 只留下「压缩到阈值就必须停」这一条事实，于是它是确定性的。
+// 同时钉住第二个坑：取消必须打到 **该 worker 自己的 bridge**——发到主 bridge
+// 是 no-op，回合会一直烧到 prompt 自己结束（槽也就不释放）。
+class StormBridge extends FakeBridge {
+  constructor(params) {
+    super(params);
+    this.cancelCalls = [];
+  }
+  cancelSession(sessionId) {
+    this.cancelCalls.push(sessionId);
+    return Promise.resolve({ cancelled: true });
+  }
+  async prompt(sessionId, blocks) {
+    this.prompts.push({ sessionId, blocks });
+    // 4 次压缩 = 达阈值；之后保持静默（线上最常见的形状：前 60 秒连压 4 次）
+    for (let i = 0; i < 4; i++) {
+      this.emit({ method: "session.event", params: { event: { type: "compaction/start", data: {} } } });
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    // 被取消后运行时收口：这里用 idle 模拟 turn close
+    await new Promise((resolve) => { this.release = resolve; });
+    this.emit({ method: "session.status", params: { status: "idle" } });
+  }
+}
+
+test("worker 车道：压缩达阈值即停，且取消打到 worker 自己的 bridge", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  const events = [];
+  const ctx = makeCtx(events);
+  ctx.earlyStopAfterMs = 0; // 去掉时间下限，只留策略事实
+  ctx.dshBridge = { cancelSession: () => { throw new Error("must not cancel the primary bridge"); } };
+  attachWorkerPool(ctx, { spawnBridge: (p) => new StormBridge(p) });
+
+  const t = engine.createManualTask({
+    prompt: "storm",
+    persona: "storm-1",
+    initiator: "s1",
+    origin: { fleet: { fleetId: "f_storm", memberId: "m_storm" } },
+  });
+
+  // 等到 worker 拿到会话并开始喷压缩事件
+  for (let i = 0; i < 40 && !FakeBridge.byPersona.get("storm-1"); i++) await settle();
+  const bridge = FakeBridge.byPersona.get("storm-1");
+  assert.ok(bridge, "worker must have been spawned");
+
+  // 取消落地 → 放行 prompt 的收口
+  for (let i = 0; i < 60 && bridge.cancelCalls.length === 0; i++) await settle();
+  assert.ok(bridge.cancelCalls.length >= 1, "会话属于 worker 的子进程：取消必须打到这个 bridge");
+  bridge.release?.();
+  await settle();
+  await settle();
+
+  const task = engine.getTask(t.id);
+  assert.equal(task.state, "failed", `storm round must settle as failure, got ${task.state}`);
+  assert.match(String(task.error || ""), /stopped early/);
+  releaseAll();
+  engine.setSlotDispatcher(null);
+  process.env.TASK_WORKER_MAX = "2";
+});

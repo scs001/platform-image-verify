@@ -220,7 +220,7 @@ export function waitForIdle(ctx, timeoutMs) {
 // while the mirror rows land under the stable host session — the fleet round
 // rotation prompts the child under a per-round id and mirrors into `cron-<id>`.
 // Exported for the delegation aggregator and the worker pool.
-export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors, mirrorSessionId = sessionId, { earlyStop = false, earlyStopAfterMs = EARLY_STOP_MIN_ELAPSED_MS } = {}) {
+export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors, mirrorSessionId = sessionId, { earlyStop = false, earlyStopAfterMs = EARLY_STOP_MIN_ELAPSED_MS, cancelSession = null } = {}) {
   const collected = new Promise((resolve, reject) => {
     let text = "";
     let error = null;
@@ -286,7 +286,15 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         }
         return false;
       }
-      try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
+      // Cancel on the bridge that OWNS this session. On the serial chain that is
+      // ctx.dshBridge; on the worker pool the session lives in a per-worker child
+      // process, so the caller passes its own canceller — sending `session/cancel`
+      // to the primary bridge for a worker session is a no-op, and the round keeps
+      // burning until its prompt finally resolves (2026-11-10).
+      const cancel = typeof cancelSession === "function"
+        ? cancelSession
+        : (sid) => ctx.dshBridge?.cancelSession?.(sid);
+      try { cancel(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
       const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
       err.message = `turn stopped early — context pressure (${compactions} compactions)`;
       err.earlyStop = true;

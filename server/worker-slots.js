@@ -219,6 +219,10 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         earlyStop: Boolean(fleetTagOf(task)),
         // The 60s floor stays the default; an embedder (or a test) may lower it.
         ...(Number.isFinite(ctx.earlyStopAfterMs) ? { earlyStopAfterMs: ctx.earlyStopAfterMs } : {}),
+        // The session belongs to THIS worker's child process, not the primary
+        // bridge: cancelling the primary would leave the round running (and the
+        // slot blocked on `await bridge.prompt`) until it burned the full budget.
+        cancelSession: (sid) => worker.bridge.cancelSession?.(sid),
       },
     );
     let result;

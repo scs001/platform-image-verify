@@ -489,7 +489,17 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 
 ---
 
-## 十、实证坐标索引
+### 十一、全站阻断：ArgoCD 拉不到 gitee（2026-11-09 夜，未修）
+
+**现象**：`all-services-prod` 及其余所有应用 `SYNC STATUS = Unknown`，消息为
+`Failed to load target state: failed to generate manifest ... authentication required`。
+**定位**：在 argocd-repo-server 内用 secret `repo-fd-infra-deploy` 的凭据直接拉取，返回
+`FindDataTechnology: Incorrect username or password (access token)` → **gitee 访问令牌已失效**（重置或过期），不是网络、不是配置。
+**影响**：任何 manifest 改动都无法经 GitOps 落地。当晚我的 `sha-34d7cda`（worker 车道风暴早停）与并发会话后续改动都卡在这里；现网停在 `sha-0b19a2e`（其镜像已含本夜三项：worker 会话轮转、内联预算 4000、早停阈值 4，**缺 worker 车道早停**）。
+**未做**：没有手动 `kubectl set image`。理由：`34d7cda` 基线不含真源最新提交，手动滚会在 ArgoCD 恢复时被回卷——一次会自我撤销的部署只会制造混乱。也**没有**擅自轮换凭据（凭据不入仓/不出手是红线）。
+**修复**：重新签发 gitee 私人令牌 → 更新 argocd secret `repo-fd-infra-deploy` 的 `password` → 重启 repo-server。
+
+# 十、实证坐标索引
 
 ```
 回合输入与注入缝   cron.js:295-350 · task-engine.js:662-683,737 · server/cron-runner.js:114-128,1284

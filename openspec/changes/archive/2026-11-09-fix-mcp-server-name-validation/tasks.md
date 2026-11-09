@@ -18,6 +18,11 @@
 - [x] 2.5 单测 `test-mcp-server-name.mjs` 4/4；`test-connector-binding-injection` 9/9、
       `test-connector-binding-entries` 5/5、其余绑定系全绿
 
-## 3. 待验
+## 3. 真机验收（2026-11-09，镜像 `sha-b3a68fc` / 基线 paas `e0bb7efd6`）
 
-- [ ] 3.1 出片后重跑真机回合，确认岗位能列出并调用 `mcp__connector_*` 工具
+- [x] 3.1 重新部署后 descriptor 的 serverName 已是 `connector_qWlY4rrXowgN9_cf2888b4`，
+      岗位 home 的 `mcp.patch.yml` 同步为该名
+- [x] 3.2 真机回合：岗位答「当前确实有以 `mcp__connector__` 开头的工具（list_apps / search_actions /
+      list_connections / get_action_guide / execute_action）」，并**真调用 `list_apps` 返回连接器里的真实数据**
+- [x] 3.3 演练产物清零：注册处 DELETE 204、卸包、台账 deprecated、部署/密钥/包行归零、岗位 home 已删、
+      连接器 `deploy:` 令牌 0 残留

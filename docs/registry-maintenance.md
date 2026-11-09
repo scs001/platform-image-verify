@@ -8319,9 +8319,18 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
 url 条目无 command，不参与判重（按名字走）。
 
 **验证**：单测 `scripts/test-mcp-seed-dedupe.mjs` 4/4；生产「修改前」证据已取（两条并存）。
-「修改后」的 boot 级验证**未完成**：把新 server.js 塞进旧镜像跑不起来（`sha-6f121f5` 缺
-`server/routes/plugin-supply.js`），换 `sha-baf1e75` 后两次都被 **ephemeral-storage 驱逐**
-（cheap-8 阈值 3.86Gi / 可用 3.18Gi）。为不挤掉生产 pod 未再重试——下一次出片时顺便验。
+「修改后」的 boot 级验证**已在本地完成**（不必上集群）：直接起 `node server.js`
+（临时 DB/DSH_HOME + 生产 `mcp.json` + 仓库自带 `platform.bundle.json`，`TASK_WORKER_MAX=0`）：
+
+```
+ready=true
+[mcp] bundled "actions-mcp" is the same program as "actions"; skipping the duplicate
+serverNames(12) 里 actions 条目 = 1（修复前 = 2）
+```
+
+（先在集群上试过两次都失败：旧镜像 `sha-6f121f5` 缺 `server/routes/plugin-supply.js`，
+换 `sha-baf1e75` 后被 ephemeral-storage 驱逐。结论：这类"启动期组合"验证本地起服务就够了，
+只有涉及镜像内进程/资源的行为才需要 pod。）
 
 **顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
 就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、

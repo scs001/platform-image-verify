@@ -142,6 +142,35 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     worker.currentFleet = task.sourceTag?.fleetId ?? null;
     worker.currentSession = sessionId;
     worker.lastUsedAt = Date.now();
+    // Turn accounting on the pool path (live 2026-11-08): a worker turn ran 43s
+    // and reported `state=done success=true tokens{in769,out652}` while
+    // `member_turn_events` gained no row, `trace.db` held 0 events for that
+    // session and `/reports` was unchanged — the turn was unauditable, so the
+    // fleet harness could not see it. The serial chain settles through
+    // `ctx.recordFleetTurnEvent`; the pool must settle the same way.
+    //
+    // Settled exactly once via a latch: the bridge can reject AFTER the
+    // collector already produced an outcome, and both branches must not each
+    // write a row.
+    const startedAt = Date.now();
+    let settled = false;
+    const settle = (out) => {
+      if (settled) return out;
+      settled = true;
+      try {
+        ctx.recordFleetTurnEvent?.(task, out, {
+          startedAt,
+          endedAt: Date.now(),
+          // A tool task never calls a model; `null` keeps the ledger honest.
+          model: task.targetType === "tool" ? null : (out?.usage?.model ?? null),
+          ledgerTurn: null,
+        });
+      } catch (e) {
+        // Accounting must never swallow the turn's real outcome.
+        console.warn(`[worker-pool] turn event record failed for ${task.id}: ${e?.message || e}`);
+      }
+      return out;
+    };
     chatHistory.recordMessage(sessionId, "user", task.prompt);
     if (task.sessionTitle) {
       try {
@@ -166,12 +195,12 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         abortTurn?.(`worker prompt failed: ${e?.message || String(e)}`);
         collected.catch(() => {}); // 结算后的拒绝由此吞掉；调用方拿的是下面的返回值
       } catch { /* 结算失败不能掩盖原始错误 */ }
-      return { ok: false, error: e?.message || String(e), interrupted: e?.interrupted === true };
+      return settle({ ok: false, error: e?.message || String(e), interrupted: e?.interrupted === true });
     } finally {
       worker.currentSession = null;
     }
-    if (result.error) return { ok: false, error: result.error };
-    return { ok: true, usage: result.usage ?? null };
+    if (result.error) return settle({ ok: false, error: result.error });
+    return settle({ ok: true, usage: result.usage ?? null });
   }
 
   // Slot watchdog — the pool's counterpart to the serial chain's

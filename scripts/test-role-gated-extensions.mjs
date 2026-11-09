@@ -423,7 +423,20 @@ test("5.2 owner-groups snapshot feeds the boot path", () => {
   assert.equal(snap.email, "dave@cell.test");
   assert.deepEqual(snap.groups, ["team-a"]);
   ownerGroups.noteOwnerGroups({ email: "dave@cell.test", groups: [] });
-  assert.deepEqual(ownerGroups.readOwnerGroups().groups, [], "revocation updates the snapshot");
+  // Empty is NOT a revocation (harden-fleet-tool-face-and-queue 1.1): an
+  // explicitly empty x-forwarded-groups header used to blank the snapshot, and
+  // the next profile rewrite then deleted every group-gated server (live
+  // 2026-11-09: fd-open-data-mcp vanished, 30 -> 26 servers).
+  assert.deepEqual(ownerGroups.readOwnerGroups().groups, ["team-a"],
+    "an empty group set must not blank a populated snapshot");
+  // A real full revocation is still expressible, but only explicitly.
+  assert.equal(ownerGroups.noteOwnerGroups({ email: "dave@cell.test", groups: [] }, { revokeAll: true }),
+    true, "explicit revokeAll still clears the snapshot");
+  assert.deepEqual(ownerGroups.readOwnerGroups().groups, [], "explicit revocation updates the snapshot");
+  // A non-empty shrink is a trustworthy change and is not guarded.
+  ownerGroups.noteOwnerGroups({ email: "dave@cell.test", groups: ["team-a", "team-b"] });
+  ownerGroups.noteOwnerGroups({ email: "dave@cell.test", groups: ["team-a"] });
+  assert.deepEqual(ownerGroups.readOwnerGroups().groups, ["team-a"], "non-empty shrink applies");
 });
 
 // ── 1.2 REST exposure ────────────────────────────────────────────────────────

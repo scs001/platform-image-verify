@@ -801,3 +801,19 @@ test("池认领（返回 true 但不执行）的任务不再被 sweep 重派；�
   engine.setSlotDispatcher(null);
   await settle();
 });
+
+// ── 接线：worker 车道必须把早停开关传下去 ────────────────────────────────
+//
+// 2026-11-09：这一行被一次重构（orphan sweep 改写 dispatch 段）顺手删掉，
+// 没有任何测试或类型拦住它 —— 池开着时"风暴早停"静默失效，而链上车道照停，
+// 线上三轮 7/7/9 次压缩各烧满 600s。行为级用例依赖事件泵时序，不稳定；
+// 这里断言的是接线事实本身：调用点把 earlyStop 交给了 collectTurn。
+test("worker 回合调用 collectTurn 时带上 earlyStop（风暴早停不得静默丢失）", () => {
+  const src = fs.readFileSync(new URL("../server/worker-slots.js", import.meta.url), "utf8");
+  const call = src.slice(src.indexOf("collectTurn(\n      ctx, childSessionId"));
+  assert.ok(call.length > 0, "worker-slots 必须用多行形态调用 collectTurn（否则下面的定位失效）");
+  const args = call.slice(0, call.indexOf(");"));
+  assert.match(args, /earlyStop:\s*Boolean\(fleetTagOf\(task\)\)/,
+    "worker 车道丢了 earlyStop → 池开着时早停失效，且不会有任何报错");
+  assert.match(args, /earlyStopAfterMs/, "下限可被嵌入方压低（测试/demo 需要）");
+});

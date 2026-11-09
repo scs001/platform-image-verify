@@ -208,7 +208,19 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         chatHistory.setTitle(sessionId, task.sessionTitle);
       } catch { /* sanitize failure leaves the prompt-derived title */ }
     }
-    const collected = collectTurn(ctx, childSessionId, turnTimeoutMs, worker.activeTurns, worker.collectors, sessionId);
+    // Early stop applies to a worker exactly as it does to the chain
+    // (fix-worker-early-stop): both lanes run the same fleet rounds, and without
+    // this the pool silently disabled the storm stop — measured 2026-11-09, three
+    // consecutive rounds at 7/7/9 compactions each burned the full 600s because
+    // they ran on workers, while the chain path stopped at 4.
+    const collected = collectTurn(
+      ctx, childSessionId, turnTimeoutMs, worker.activeTurns, worker.collectors, sessionId,
+      {
+        earlyStop: Boolean(fleetTagOf(task)),
+        // The 60s floor stays the default; an embedder (or a test) may lower it.
+        ...(Number.isFinite(ctx.earlyStopAfterMs) ? { earlyStopAfterMs: ctx.earlyStopAfterMs } : {}),
+      },
+    );
     let result;
     try {
       await worker.bridge.prompt(childSessionId, [{ type: "text", text: task.prompt }]);

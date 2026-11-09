@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  Blocks,
   BookOpen,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -37,7 +36,6 @@ import {
   MessageSquare,
   MessagesSquare,
   Network,
-  Package,
   PanelLeftClose,
   Search,
   Server,
@@ -90,14 +88,6 @@ const NAV_ICONS: Record<string, typeof MessageSquare> = {
   blueprints: DraftingCompass,
 };
 
-// 构建 family footer (restructure-yizuo-ia): the capability Settings sections
-// that sit one click from where capabilities are acquired and iterated. Order
-// is fixed — connect/tools/plugins/models reads as "what the agent can use".
-const SETTINGS_SHORTCUTS: { slug: string; labelKey: string; icon: typeof MessageSquare }[] = [
-  { slug: "mcp", labelKey: "nav.shortcuts.tools", icon: Blocks },
-  { slug: "plugins", labelKey: "nav.shortcuts.plugins", icon: Package },
-  { slug: "models", labelKey: "nav.shortcuts.models", icon: Sparkles },
-];
 
 // Route for a nav slug (the registry slug IS the route segment — the R1
 // "slug is public API" rule).
@@ -152,15 +142,6 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 构建 family footer rows (restructure-yizuo-ia). Visibility follows the
-  // resolved Settings list: a deployment that hides `plugins` must not offer a
-  // row that dead-ends on a section it will not render. A server without the
-  // field keeps every row (the pre-change behaviour of the sections).
-  const settingsShortcuts = useMemo(() => {
-    const resolved = resolvedLayout?.settings;
-    if (!resolved) return SETTINGS_SHORTCUTS;
-    return SETTINGS_SHORTCUTS.filter((s) => resolved.includes(s.slug));
-  }, [resolvedLayout]);
 
   // ── Nav families (add-knowledge-memory-surface D1) ────────────────────────
   // Registry-resolved nav entries arranged into collapsible families
@@ -230,6 +211,31 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     const hit = visibleNav.find((n) => location.pathname === n.to || location.pathname.startsWith(`${n.to}/`));
     return hit ? (navFamilyOf.get(hit.slug) ?? null) : null;
   }, [visibleNav, location.pathname, navFamilyOf]);
+
+  // Reveal-on-entry (fix-ia-shell-polish): when the route CHANGES INTO a family
+  // whose stored state is collapsed, expand it once, so a deep link never lands
+  // on a surface the user cannot see. This is an entry-time act, not a standing
+  // force — an explicit collapse afterwards is honoured even for the active
+  // family (the old `!isActiveFamily` condition made that click a dead control).
+  const prevActiveFamilyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const next = activeFamilyId;
+    const prev = prevActiveFamilyRef.current;
+    prevActiveFamilyRef.current = next;
+    if (!next || prev === next) return;
+    setCollapsedFamilies((prevSet) => {
+      if (!prevSet.has(next)) return prevSet;
+      const n = new Set(prevSet);
+      n.delete(next);
+      try {
+        localStorage.setItem(NAV_FAMILY_COLLAPSED_KEY, JSON.stringify([...n]));
+      } catch {
+        /* storage blocked — the reveal still applies for this session */
+      }
+      return n;
+    });
+  }, [activeFamilyId]);
+
   // Render order: a family is emitted once, at the position of its first
   // present member; single-member families flatten to a plain entry.
   const navRender = useMemo(() => {
@@ -723,10 +729,12 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
 
           if (entry.kind === "item") return navLink(entry.item, false);
 
-          // A family: the active route's family is always open; otherwise the
-          // user's persisted collapse choice decides (default expanded).
+          // A family: the STORED choice decides, always — including for the
+          // family holding the active route (a standing force-expand turned that
+          // click into a dead control). Reveal-on-entry above keeps a deep link
+          // from landing inside a collapsed family; once there, the user owns it.
           const isActiveFamily = activeFamilyId === entry.id;
-          const collapsed = !isActiveFamily && collapsedFamilies.has(entry.id);
+          const collapsed = collapsedFamilies.has(entry.id);
           return (
             <div key={`fam-${entry.id}`} data-testid={`nav-family-${entry.id}`}>
               <button
@@ -734,7 +742,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                 onClick={() => toggleFamily(entry.id)}
                 data-testid={`nav-family-toggle-${entry.id}`}
                 aria-expanded={!collapsed}
-                className="flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="micro-label flex w-full items-center gap-1 rounded-md px-2 py-1.5 text-left font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 {collapsed ? (
                   <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -742,49 +750,19 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                   <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
                 )}
                 <span className="truncate">{t(`nav.family.${entry.id}`)}</span>
+                {collapsed && isActiveFamily ? (
+                  <span
+                    data-testid={`nav-family-active-dot-${entry.id}`}
+                    aria-label={t("nav.familyActiveHint")}
+                    title={t("nav.familyActiveHint")}
+                    className="ml-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
+                  />
+                ) : null}
               </button>
               {collapsed ? null : (
                 <div className="flex flex-col gap-0.5">
                   {entry.items.map((n) => navLink(n, true))}
-                  {/* 构建 family footer (restructure-yizuo-ia): the three
-                      capability Settings sections sit one level under the
-                      family that uses them, so "where are my tools" is one
-                      click instead of a hunt through the gear. Shortcuts, not
-                      surfaces: no active state, never counted as tabs, and
-                      rendered only when the section survives the resolved
-                      layout (a deployment-hidden section gets no row). */}
-                  {entry.id === "build" && settingsShortcuts.length > 0 ? (
-                    <div
-                      className="mt-1 flex flex-col gap-0.5 border-t border-border/60 pt-1"
-                      data-testid="nav-family-build-shortcuts"
-                    >
-                      {settingsShortcuts.map((shortcut) => {
-                        const ShortcutIcon = shortcut.icon;
-                        return (
-                          <button
-                            key={shortcut.slug}
-                            type="button"
-                            data-testid={`nav-shortcut-${shortcut.slug}`}
-                            onClick={() => {
-                              // Carry the CURRENT view as the modal's background
-                              // (or keep the one already recorded), so closing
-                              // returns here instead of falling back to /chat.
-                              const existing = (location.state as { backgroundLocation?: unknown } | null)
-                                ?.backgroundLocation;
-                              navigate(settingsPath(shortcut.slug), {
-                                state: existing ? location.state : { backgroundLocation: location },
-                              });
-                              onNavigate?.();
-                            }}
-                            className="flex items-center gap-2 rounded-md py-1.5 pl-6 pr-3 text-left text-xs text-muted-foreground/80 hover:bg-muted hover:text-foreground"
-                          >
-                            <ShortcutIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                            <span className="truncate">{t(shortcut.labelKey)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
+
                 </div>
               )}
             </div>
@@ -863,7 +841,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                     aria-haspopup="menu"
                     aria-expanded={projectMenuOpen}
                     onClick={() => setProjectMenuOpen((v) => !v)}
-                    className="flex min-w-0 flex-1 items-center gap-1 text-[11px] font-semibold text-foreground hover:text-foreground/80"
+                    className="micro-label flex min-w-0 flex-1 items-center gap-1 font-semibold text-foreground hover:text-foreground/80"
                   >
                     <span className="truncate" data-testid="project-switcher-label">
                       {currentProjectName}

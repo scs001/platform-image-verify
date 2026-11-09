@@ -50,13 +50,15 @@ const get = async (base, path) => {
 
 // ── species metadata ─────────────────────────────────────────────────────────
 
-test("species enumeration: five species, version 1", async () => {
+test("species enumeration: six species, version 2 (plugin added)", async () => {
   const { base, close } = await listen(app({ facadeSource: fakeSource({ configured: false }), anchorSource: fakeSource({ configured: false }) }));
   try {
     const { status, body } = await get(base, "/api/supply-catalog/species");
     assert.equal(status, 200);
-    assert.deepEqual(body.species, ["pack", "skill", "mcp", "facade", "data-anchor"]);
-    assert.equal(body.version, 1);
+    // unify-material-market: the sixth species `plugin` extends the enumeration
+    // and bumps the version — the rule the spec states for exactly this case.
+    assert.deepEqual(body.species, ["pack", "skill", "mcp", "facade", "data-anchor", "plugin"]);
+    assert.equal(body.version, 2);
   } finally { close(); }
 });
 

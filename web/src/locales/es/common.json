@@ -65,7 +65,7 @@
     },
     "knowledge": "Biblioteca",
     "resources": "Resultados",
-    "agents": "Mercado de Agentes",
+    "agents": "Materiales",
     "bots": "Bots",
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
@@ -80,10 +80,11 @@
     "tuning": "Ajuste",
     "channels": "Canales",
     "shortcuts": {
-      "tools": "Herramientas / MCP",
+      "tools": "Herramientas",
       "plugins": "Complementos",
       "models": "Modelos"
-    }
+    },
+    "familyActiveHint": "Este grupo contiene la vista actual"
   },
   "trace": {
     "title": "Traza",
@@ -3990,10 +3991,14 @@
       "tuning": "Ajuste",
       "apps": "Apps",
       "market": "Mercado",
-      "mine": "Míos"
+      "mine": "Míos",
+      "agents": "Agentes",
+      "tools": "Herramientas",
+      "skills": "Habilidades",
+      "plugins": "Complementos"
     },
     "market": {
-      "subtitle": "La creación y publicación se movieron al dominio de suministro; la instalación y ejecución quedan aquí",
+      "subtitle": "Adquiere y gestiona capacidades: agentes, herramientas, habilidades, complementos",
       "openStudio": "Abrir Studio",
       "installed": "Packs instalados en esta máquina"
     }
@@ -4041,5 +4046,26 @@
     "tabBrowse": "Por capa",
     "tabTimeline": "Cronología",
     "fromHarness": "de {{harness}}"
+  },
+  "market": {
+    "plugins": {
+      "state": {
+        "available": "Disponible",
+        "enabled": "Activado",
+        "unsupplied": "No suministrado"
+      },
+      "request": "Solicitar suministro",
+      "requested": "Suministro solicitado: {{name}}",
+      "requestPending": "Solicitado — pendiente del próximo suministro",
+      "refresh": "Actualizar catálogo",
+      "emptyTitle": "Este despliegue no incluye complementos",
+      "emptyBody": "El catálogo de complementos se suministra con el despliegue; este aún no trae ninguno.",
+      "rosterUnavailable": "La lista de complementos no está disponible",
+      "errorTitle": "No se pudo leer el catálogo"
+    },
+    "agents": {
+      "unavailableTitle": "Este despliegue no tiene mercado de agentes",
+      "unavailableBody": "No hay mercado conectado. Los paquetes ya instalados siguen en «Míos» y funcionan igual."
+    }
   }
 }

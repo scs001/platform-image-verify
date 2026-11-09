@@ -65,7 +65,7 @@
     },
     "knowledge": "Bibliothèque",
     "resources": "Résultats",
-    "agents": "Marché d'Agents",
+    "agents": "Matériels",
     "bots": "Bots",
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
@@ -80,10 +80,11 @@
     "tuning": "Réglage",
     "channels": "Canaux",
     "shortcuts": {
-      "tools": "Outils / MCP",
+      "tools": "Outils",
       "plugins": "Plugins",
       "models": "Modèles"
-    }
+    },
+    "familyActiveHint": "Ce groupe contient la vue courante"
   },
   "trace": {
     "title": "Traçage",
@@ -3990,10 +3991,14 @@
       "tuning": "Ajustement",
       "apps": "Apps",
       "market": "Marché",
-      "mine": "Les miens"
+      "mine": "Les miens",
+      "agents": "Agents",
+      "tools": "Outils",
+      "skills": "Compétences",
+      "plugins": "Plugins"
     },
     "market": {
-      "subtitle": "La création et la publication ont déménagé vers le domaine d'approvisionnement ; l'installation et l'exécution restent ici",
+      "subtitle": "Acquérir et gérer des capacités : agents, outils, compétences, plugins",
       "openStudio": "Ouvrir Studio",
       "installed": "Packs installés sur cette machine"
     }
@@ -4041,5 +4046,26 @@
     "tabBrowse": "Par couche",
     "tabTimeline": "Chronologie",
     "fromHarness": "de {{harness}}"
+  },
+  "market": {
+    "plugins": {
+      "state": {
+        "available": "Disponible",
+        "enabled": "Activé",
+        "unsupplied": "Non fourni"
+      },
+      "request": "Demander la fourniture",
+      "requested": "Fourniture demandée : {{name}}",
+      "requestPending": "Demandé — en attente du prochain approvisionnement",
+      "refresh": "Actualiser le catalogue",
+      "emptyTitle": "Ce déploiement ne fournit aucun plugin",
+      "emptyBody": "Le catalogue de plugins est fourni avec le déploiement ; celui-ci n'en contient pas encore.",
+      "rosterUnavailable": "La liste des plugins est indisponible",
+      "errorTitle": "Lecture du catalogue impossible"
+    },
+    "agents": {
+      "unavailableTitle": "Ce déploiement n'a pas de marché d'agents",
+      "unavailableBody": "Aucun marché n'est branché ici. Les paquets déjà installés restent sous « Les miens » et fonctionnent comme avant."
+    }
   }
 }

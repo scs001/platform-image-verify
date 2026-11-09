@@ -291,7 +291,22 @@ async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerSt
 // IS the persisted flag, no live execution is chained — and go straight onto
 // the queue; runQueuedExecution re-checks every guard before running.
 function drainRepairQueue() {
-  for (const id of repairQueue.splice(0)) {
+  // Replay in WAITING order, not file order (harden-fleet-tool-face-and-queue
+  // 2.4). `repairQueue` is rebuilt at load from the persisted order, so a task
+  // that had been waiting for hours landed behind tasks queued minutes ago
+  // every time the platform restarted — and this platform restarted ~8 times in
+  // one day (2026-11-09 live: a human-exempt fire sat `queued` for 1.5 h while
+  // later arrivals kept overtaking it). `firstQueuedAt` is the per-residence
+  // anchor that boot does NOT re-stamp, so sorting on it preserves the real
+  // waiting order across restarts.
+  const replay = repairQueue.splice(0);
+  replay.sort((a, b) => {
+    const ta = tasks.get(a), tb = tasks.get(b);
+    const ka = Number.isFinite(ta?.firstQueuedAt) ? ta.firstQueuedAt : (Number.isFinite(ta?.queuedAt) ? ta.queuedAt : 0);
+    const kb = Number.isFinite(tb?.firstQueuedAt) ? tb.firstQueuedAt : (Number.isFinite(tb?.queuedAt) ? tb.queuedAt : 0);
+    return ka - kb;
+  });
+  for (const id of replay) {
     const t = tasks.get(id);
     if (!t || scheduleSideBlocked(t)) {
       if (t) {

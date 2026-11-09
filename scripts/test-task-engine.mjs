@@ -170,6 +170,31 @@ test("run-now on an already-queued fire upgrades the staleness exemption", async
   await engine.idle();
 });
 
+test("replay order is waiting order, not file order", async () => {
+  // harden-fleet-tool-face-and-queue 2.4. The platform restarted ~8 times in one
+  // day; each boot rebuilt the repair queue from the persisted order, so a fire
+  // that had waited for hours kept landing behind later arrivals (live
+  // 2026-11-09: a human-exempt fire sat queued for 1.5 h). firstQueuedAt is the
+  // per-residence anchor boot does NOT re-stamp, so replay must sort on it.
+  const order = [];
+  const now = Date.now();
+  // Real wall-clock anchors, both human-exempt so the staleness policy (30 min
+  // default) is not what decides this test — ordering is.
+  const old = legacyRecord({ id: "job_old", state: "queued", queuedBy: "human",
+    queuedAt: now - 20 * 60_000, firstQueuedAt: now - 20 * 60_000 });
+  const fresh = legacyRecord({ id: "job_fresh", state: "queued", queuedBy: "human",
+    queuedAt: now - 60_000, firstQueuedAt: now - 60_000 });
+  // File order deliberately puts the long-waiting fire LAST.
+  await boot([fresh, old], async (promptOrTask) => {
+    order.push(typeof promptOrTask === "string" ? promptOrTask : (promptOrTask?.id ?? "unknown"));
+    return { ok: true };
+  });
+  engine.drainRepairQueue();
+  await engine.idle();
+  assert.equal(order.length, 2, "both replayed fires ran");
+  assert.equal(order[0].includes("old"), true, `the oldest waiter must run first, got ${JSON.stringify(order)}`);
+});
+
 test("failed execution records the gist and re-run works", async () => {
   let n = 0;
   await boot([legacyRecord()], async () => {

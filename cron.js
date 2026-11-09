@@ -278,7 +278,9 @@ function countMissedOccurrences(task) {
       task.lastMissedCountedUntil = now.toISOString();
       task.lastMissedReason = "downtime";
       task.history = task.history || [];
-      task.history.push({ time: now.toISOString(), missed, success: null });
+      // 到期未执行是**独立一类**，不是失败（1.4）：写入方声明 kind，
+      // 读方不必再猜这个形状（同一天里它被误读成失败过一次，89.7% 假失败率）。
+      task.history.push({ kind: "missed", time: now.toISOString(), missed, success: null });
       console.log(`[cron] Task ${task.id} missed ${missed} occurrence(s) during downtime`);
       return missed;
     }

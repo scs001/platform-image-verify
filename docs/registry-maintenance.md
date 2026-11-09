@@ -8346,6 +8346,19 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 **收益口径**：每 dsh 少一个 ≈77Mi 进程（A/B 实测 79008KiB / 78992KiB）。cap=0 的三个 cell 合计
 ≈231Mi；开 worker 槽时同样受益——即「一个槽的净增量」从 ≈430Mi 降到 ≈350Mi。
 
+**残余：pack 侧的 `actions-mcp` 名字会悬空（已知、当前无害、待命名统一）**
+市场目录里确有 pack 用 `mcpServers: [{registryName: "actions-mcp"}]`（site-plaza catalog、
+`docs/fleet-templates/staging/registry-allowtools.json` 都是这个名字），而保留下来的是 `actions`。
+实测影响：
+1. **不丢工具**——聚焦层（focus layer）始终保留「部署基线里的每个 mcp.json server」，`actions` 在；
+2. pack 那条 `allowTools: ["propose_action"]` 因名字对不上而不生效——但该 server 只暴露
+   `propose_action` 一个工具，**这条 allowlist 本来就是 no-op**；
+3. 唯一实质后果是「pack 声明的 registryName 找不到同名 server」这种悬空引用，属整洁性问题。
+
+**建议（需产品侧拍板，不在本次范围）**：把两边名字统一成 `actions-mcp`（市场/pack 已经用它），
+即部署基线 `mcp.json` 的那条改名、`dsh-profile` 的 proposer 注入目标随之改名；
+或反过来在工具域推导里加一层 `actions-mcp → actions` 的别名。两者都别与本次修复混在一起。
+
 **顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
 就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、
 用完即删。

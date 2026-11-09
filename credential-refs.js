@@ -174,6 +174,31 @@ export function credentialRefForEntry(entry) {
   return registryCredentials.REGISTRY_CREDENTIAL_REF;
 }
 
+// Refs whose credential belongs to the END USER and is verified by the upstream
+// itself (wire/lex Logto ID tokens, facet device tokens). A server installed
+// with one of these and reached THROUGH the gateway needs the dual-credential
+// shape: the gateway authenticates the caller with its own token, and the
+// caller's own credential rides X-Authorization upstream (auth-server's
+// INGRESS_RELAY_SERVERS). Without it the gateway strips the caller's auth and
+// every call 401s.
+//
+// Derived, not configured: these servers are composed from the market catalog at
+// profile-write time, so there is no `extension_configs` row to carry a flag —
+// grep confirms zero such rows for wire/lex/facet. Deriving from the ref keeps
+// the behaviour correct for every install path (pack store and market card)
+// without asking anyone to remember a flag.
+const RELAY_REF_NAMES = new Set([
+  lineCredentials.WIRE_CUSTOMER_CREDENTIAL_REF,
+  lineCredentials.LEX_CREDENTIAL_REF,
+  facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF,
+]);
+
+export function needsRelayedCallerCredential(config, refName) {
+  if (!isGatewayUrl(config?.url)) return false;
+  if (config?.relayCallerCredential === true) return true;   // explicit opt-in wins
+  return RELAY_REF_NAMES.has(refName);
+}
+
 export function credentialConnected(refName, email) {
   // Table-first (fix-wire-install-gate D1): an entry that declares `connected`
   // is judged by its own resolver — a line ref falling through to the registry
@@ -297,7 +322,7 @@ export function resolveCredentials(servers, email) {
           omittedNames.push(name);
           continue;
         }
-        if (isGatewayUrl(out[name]?.url) && config?.relayCallerCredential === true) {
+        if (needsRelayedCallerCredential(out[name], entry.refName)) {
           // Dual credential (relayCallerCredential): the gateway authenticates
           // the CALLER with its own token, and forwards the caller's own
           // credential to the upstream as X-Authorization (auth-server's

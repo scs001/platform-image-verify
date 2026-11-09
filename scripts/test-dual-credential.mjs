@@ -97,17 +97,56 @@ test("no gateway credential => the server is omitted, never sent with a foreign 
   assert.equal(out["wire-build-mcp"], undefined);
 });
 
-test("rows without the flag keep the legacy single-token behaviour", () => {
+test("a line ref on a DIRECT url keeps the single-token shape", () => {
+  // The flag/ref only switches the shape when the gateway is in the path; a
+  // direct upstream has no gateway to authenticate to, so the server's own
+  // token must stay in Authorization (byte-identical to before).
   seed(EMAIL);
   const servers = {
     plain: {
-      url: "https://mcp.finddatatech.cloud/plain/mcp",
+      url: "http://cheap6.mesh.finddata.cn:31898/mcp",
       credentialRef: "wire-customer",
     },
   };
   const { servers: out } = creds.resolveCredentials(servers, EMAIL);
   assert.equal(out.plain.headers.Authorization, "Bearer line-token");
   assert.equal(out.plain.headers["X-Authorization"], undefined);
+});
+
+test("a line ref on a gateway url needs no flag — the ref decides", () => {
+  seed(EMAIL);
+  line.store({ email: EMAIL, line: "lex", token: "lex-token" });
+  const servers = {
+    "wire-build-mcp": {
+      url: "https://mcp.finddatatech.cloud/wire-build-mcp/mcp",
+      credentialRef: "wire-customer",
+    },
+    "lex-ops": {
+      url: "https://mcp.finddatatech.cloud/lex-ops-mcp/mcp",
+      credentialRef: "lex",
+    },
+  };
+  const { servers: out } = creds.resolveCredentials(servers, EMAIL);
+  for (const n of ["wire-build-mcp", "lex-ops"]) {
+    assert.equal(
+      out[n]?.headers?.["X-Authorization"] !== undefined,
+      true,
+      n + " should relay (line ref + gateway url)",
+    );
+  }
+});
+
+test("the registry ref keeps the single-token shape even on the gateway", () => {
+  seed(EMAIL);
+  const servers = {
+    "fd-open-data-mcp": {
+      url: "https://mcp.finddatatech.cloud/fd-open-data-mcp/mcp",
+      credentialRef: "registry",
+    },
+  };
+  const { servers: out } = creds.resolveCredentials(servers, EMAIL);
+  assert.equal(out["fd-open-data-mcp"].headers.Authorization, "Bearer gateway-token");
+  assert.equal(out["fd-open-data-mcp"].headers["X-Authorization"], undefined);
 });
 
 test("isGatewayUrl only matches the gateway host", () => {

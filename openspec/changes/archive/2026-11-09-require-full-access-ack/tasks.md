@@ -42,6 +42,9 @@
 - [x] 5.2 lint + typecheck + build 本地通过（Biome `error` 数为 0）
   - 实证：`biome check` 六个改动文件 → No fixes applied（0 error）；
     `npm run typecheck` 无输出（tsc 干净）；`npm run web:build:e2e` exit=0
-- [ ] 5.3 归档：`openspec archive require-full-access-ack` 后 `openspec/specs/permission-mode-selection/spec.md` 生效
+- [x] 5.3 归档：`openspec archive require-full-access-ack` 后 `openspec/specs/permission-mode-selection/spec.md` 生效
+  - 实证：`openspec validate --strict` 绿 → archive `~ 2 modified` → 归档为
+    `2026-11-09-require-full-access-ack`；spec 现含 `acknowledge` 前缀要求与
+    "full access requires acknowledgement" 场景
   - **未勾原因**：归档要在本 change 随 paas 出片上产后做（spec 一旦生效就代表线上行为，
     而线上仍跑不校验 acknowledge 的旧码）；滚版后补勾。

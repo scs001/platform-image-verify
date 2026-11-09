@@ -27,6 +27,8 @@
 
 - [x] 4.1 `openspec validate fix-auto-artifact-attribution --strict` 绿
 - [x] 4.2 lint（Biome）0 error
-- [ ] 4.3 归档（随出片；本次改动的是运行时归属判定，spec 生效应与线上一致）
+- [x] 4.3 归档（代码已落主线；spec 描述代码契约，出片节奏属发布线）
+  - 实证：archive `~ 1 modified` → 归档为 `2026-11-09-fix-auto-artifact-attribution`；
+    spec 现明写"按调用前的名字快照判定、不得依据文件时间戳 tick"
   - **未勾原因**：等本 change 随 paas 出片后再 `openspec archive`。
 - [ ] 4.4 出片后复验：CI 基线的 `1.5 + 4.2` 在 ubuntu runner 上转绿（这是当初发现它的地方）

@@ -594,8 +594,24 @@ function seedStartupMcpConfigs(mcpJsonServers) {
   for (const [name, config] of Object.entries(mcpJsonServers)) {
     extensionStore.seedMcpServer({ name, config, enabled: true });
   }
+  // One program, one row (2026-11-09): the deployment baseline and the packaged
+  // bundle name the actions bridge differently — `actions` in mcp.json,
+  // `actions-mcp` in platform.bundle.json — and seeding keys on NAME, so a
+  // hosted cell got both. Each dsh then spawned the script twice (~80Mi each),
+  // the roster offered `propose_action` under two servers, and the bundle copy
+  // carried no ACTIONS_MCP_PROPOSER_EMAIL: its proposals were stored with
+  // proposer_email NULL, which the owner check (`userEmail === proposer`) can
+  // never approve — a dead end. Skip a bundled entry whose program is already
+  // seeded under another ENABLED name; an admin-disabled twin does not block it,
+  // otherwise disabling `actions` would leave no path at all.
+  const seededRows = extensionStore.listMcpServers();
   for (const [name, entry] of Object.entries(ctx.bundle.mcpServers)) {
     const { enabled = true, ...config } = entry;
+    const twin = enabled ? extensionStore.findSameProgram(seededRows, config, { excludeName: name }) : null;
+    if (twin) {
+      console.log(`[mcp] bundled "${name}" is the same program as "${twin}"; skipping the duplicate`);
+      continue;
+    }
     // The bundle owns its rows' config (command/args/envRefs drift across
     // releases); seeding alone is skip-if-exists, so a changed bundle would
     // leave a stale row shadowing it forever. Sync bundled-origin configs on
@@ -611,6 +627,9 @@ function seedStartupMcpConfigs(mcpJsonServers) {
       origin: "bundled",
       ...ctx.splitPolicy(ctx.bundle.permissions[`mcp:${name}`]),
     });
+    // Keep the view current: a later bundle entry must not re-seed the same
+    // program under a third name.
+    seededRows.push({ name, config, enabled });
   }
 }
 

@@ -8297,3 +8297,32 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
 
 **仍是手动 sync**：先观察几天，确认没有意外差异（尤其别的地方改了 live），再决定是否开
 `automated` + `selfHeal`。这一步不做，收编只解决"清单在仓里"，不解决"漂移自动纠正"。
+
+### §15.153 续四十一（渠）：一个脚本两行 MCP——`actions` / `actions-mcp` 重复（已修）
+
+**现象**（A/B 时看见的，不是猜的）：每个 dsh 都起 **两个** `server/actions-mcp.js` 进程（各 ≈80Mi）。
+线上 cell 的 `mcp.patch.yml` 里确有两条：`serverName: actions`（带
+`ACTIONS_MCP_PROPOSER_EMAIL`）与 `serverName: actions-mcp`（无 env），`args` 完全相同。
+
+**来源**：部署基线 `mcp.json` 叫 `actions`，打包清单 `platform.bundle.json` 叫 `actions-mcp`
+（桌面形态的名字），而 `seedStartupMcpConfigs` 按**名字**入库 → 托管 cell 两条都进。
+
+**三个后果，第三个最严重**：
+1. 每个 dsh 多一个 ≈80Mi 进程（cap=0 时每 cell 一份；开 worker 槽再加一份）；
+2. 工具面里 `propose_action` 出现两次（两个 server 名下），模型更容易选错；
+3. bundle 那份没有 `ACTIONS_MCP_PROPOSER_EMAIL` → 提案落库 `proposer_email = NULL`，
+   而批准条件是 `userEmail === proposer`，**永远批不了**——是个死路。
+
+**修法**：`extension-store.js` 出 `mcpProgramKey()` / `findSameProgram()`（command+args 为程序身份），
+`seedStartupMcpConfigs` 在种 bundle 条目时跳过「同程序、不同名、已启用」的重复。
+两条纪律写进代码注释：**被管理员禁用的同名项不算重复**（否则禁 `actions` 会把两条都关掉）；
+url 条目无 command，不参与判重（按名字走）。
+
+**验证**：单测 `scripts/test-mcp-seed-dedupe.mjs` 4/4；生产「修改前」证据已取（两条并存）。
+「修改后」的 boot 级验证**未完成**：把新 server.js 塞进旧镜像跑不起来（`sha-6f121f5` 缺
+`server/routes/plugin-supply.js`），换 `sha-baf1e75` 后两次都被 **ephemeral-storage 驱逐**
+（cheap-8 阈值 3.86Gi / 可用 3.18Gi）。为不挤掉生产 pod 未再重试——下一次出片时顺便验。
+
+**顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
+就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、
+用完即删。

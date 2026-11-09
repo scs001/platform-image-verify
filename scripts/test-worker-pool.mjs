@@ -485,6 +485,37 @@ test("a worker turn settles ctx.recordFleetTurnEvent (success path)", async () =
   }
 });
 
+test("a worker turn carries text/tool evidence, not just usage", async () => {
+  // Ledger E28/E27: E21's first cut settled `{ok:true, usage}` only, dropping the
+  // collector's text and tool blocks. The settlement seam judges "did this round
+  // produce anything" from those, so a worker round that DID answer still looked
+  // hollow. Live 2026-11-09: `spawned worker-1 for persona hotel-watch-scout`
+  // then the row came back status=ok with model/trace/usage all empty.
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+  const recorded = [];
+  ctx.recordFleetTurnEvent = (_job, outcome) => {
+    recorded.push({ ok: outcome?.ok, text: outcome?.text, hollow: outcome?.hollow, hasUsage: Boolean(outcome?.usage) });
+    return null;
+  };
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+  try {
+    engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    await settle(); await settle();
+    FakeBridge.byPersona.get("code").release();
+    await settle(); await settle();
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0].text, "stub reply", "the collected text must ride the outcome");
+    assert.notEqual(recorded[0].hollow, true, "a round that answered is not hollow");
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    for (let i = 0; i < 6; i += 1) { releaseAll(); await settle(); }
+  }
+});
+
 test("a worker turn records exactly once even when the bridge throws", async () => {
   await bootEngine();
   const events = [];

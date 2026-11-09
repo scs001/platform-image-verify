@@ -8442,3 +8442,39 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 - **口径**：本次只省了「重复的 actions 进程」这一项；卫星共享的收益仍需 `TASK_WORKER_MAX>0`
   才兑现（见 §15.144 续三十二（渠））。
 - **遗留**：`sha-dba8690` 是重复出片（同基线），可留作回滚备选或让 registry 自然过期。
+
+### §15.156 续四十四：覆盖率审计抓到一个「被主动排除」的工作负载（law-bench-mcp）（11-09）
+
+**审计方法**：把两个集群的 live Deployment/StatefulSet 与所有 Argo Application 的
+`status.resources` 求差。cheap 102 个 workload / 73 纳管 / **29 未纳管**；xinru 8 / 1 / **7**。
+剔除集群组件（argocd、cert-manager、kube-system、postgres）与第三方栈（apisix、lago-*、
+law-rag 的 node 栈、qdrant）后，真正的产品缺口只有三个：`law-bench/law-bench-mcp`、
+`scraw/legal-auth-broker`、`scraw/proxy-control`（后两个的镜像 tag 是构建 sha，新旧需那条线自己判）。
+
+**law-bench-mcp 的根因是「主动排除」而不是遗漏**：`argocd/application.yaml` 用
+`directory.exclude: 'mcp-deployment.yaml'` + 注解把它挡在同步外，注释写明理由——「清单相对线上是旧的
+（sha-2c502d7 + cheap-4 vs 线上 sha-5f8041a on liuliangdmh1xr0w9ryu），两个 tag 在 Harbor 都不存在，
+同步会搬走 pod 并 ImagePullBackOff」，**并自己写了修法：「Reconcile the file with the intended
+state, then drop this exclusion」**。
+
+**恢复过程（每一步都先量再动）**：
+1. `kubectl diff` 先看差异 → 只有两处：`generation` 与 **nodeSelector（清单 cheap-4 / 线上
+   liuliangdmh1xr0w9ryu）**。也就是说镜像那半已经对齐，节点这半没有 —— 直接纳入会**搬 pod**。
+2. 确认搬不搬得动：该 pod 依赖 `hostPath /opt/lawbench-mcp-pkgs`。SSH 到 cheap-4 全部超时，
+   于是起一个 node-pinned pod 只读挂载该路径 → **202 个条目，两个节点都有这份覆盖**。
+   结论：这不是可运行性问题，只是放置选择。
+3. **选择不动线上**：把清单 nodeSelector 对齐到线上节点，于是纳入同步**零移动**；
+   要搬回 cheap-4 是那条线的运维决定，不由收编动作代做。
+4. 再 `kubectl diff` → **空**。然后才去掉排除。
+
+**发布面纪律（顺带发现一处未完成的基建）**：public `law-bench` 仓的 commit-msg 闸只认
+`exported-from: <sha>` trailer 或 `FD_ALLOW_HANDWRITE=1`，而它引用的
+`scripts/sync_public_from_internal.sh`、`scripts/merge_law_bench.sh`、`scripts/export-baseline.txt`
+**在两个仓里都不存在**（属 converge-law-bench-copies 5.3b 的未完成部分）。
+处置：改动做在真源仓 `law-bench-internal`（`a3bd52f`，已推），发布面**直接复制同一份内容**再提交，
+用 `FD_ALLOW_HANDWRITE=1` 显式放行并写明原因——**不伪造 exported-from**。溯源巡检会因此变红，
+这是有意取舍，比让一个在跑的 MCP 服务长期游离在 reconciler 之外更可接受。
+
+**验证**：`law-bench` app 现跟踪 `Deployment/law-bench-mcp` + `Service/law-bench-mcp`（均 Synced）；
+pod **未重启**（startTime 2026-10-27T22:07:20Z，restartCount 5 未变），仍在 `liuliangdmh1xr0w9ryu`，
+镜像 `law-template:sha-e411d22`，8080 端口在听。

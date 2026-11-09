@@ -83,11 +83,11 @@ test.afterEach(async ({ page }) => {
 //
 // The conversion itself is alive and covered server-side:
 // scripts/test-preset-pack-bridge.mjs (6/6, including the route's gate, 404 and
-// report paths). What is lost is only the doorway, which is an IA decision
-// (agent-catalog's "Experts sub-tab SHALL present ... inline management" still
-// names a tab that no longer exists). Marked fixme, not deleted, so the gap
-// stays visible and these flip back on the moment a doorway lands.
-test.fixme("all-migratable preset converts clean through the page action", async ({ page }) => {
+// report paths). These were parked as fixme because the page had lost its
+// inline management when IA consolidation removed the "Experts" sub-tab; the
+// doorway is back on /agents?tab=agents (CustomPresetsPage rendered under the
+// catalogue), so they run for real again.
+test("all-migratable preset converts clean through the page action", async ({ page }) => {
   test.setTimeout(180_000);
   await connectRegistry(page);
   await installHelperPack(page);
@@ -139,7 +139,7 @@ test.fixme("all-migratable preset converts clean through the page action", async
   expect(roster.presets.some((p) => p.id === "user.bridge-clean")).toBe(true);
 });
 
-test.fixme("a mixed preset converts with the pending-replacement report", async ({ page }) => {
+test("a mixed preset converts with the pending-replacement report", async ({ page }) => {
   test.setTimeout(180_000);
   await connectRegistry(page);
   await installHelperPack(page);

@@ -193,14 +193,13 @@ test.afterEach(async ({ page }) => {
 // `preset-create` exists nowhere else (grep: one hit, CustomPresetsPage.tsx).
 // So `/agents?tab=agents` lands on the market face and the page never renders.
 //
-// The behaviour underneath is alive and covered without the UI: the API tests in
-// this same file (cross-pack lifecycle, shadowed id, reserved-namespace) drive
+// The behaviour underneath is also covered without the UI: the API tests in this
+// same file (cross-pack lifecycle, shadowed id, reserved-namespace) drive
 // create/edit/delete over /api/agent/presets, and scripts/test-preset-pack-bridge
-// covers the conversion route 6/6. What is missing is only the doorway, which is
-// an IA decision (agent-catalog still names a "Experts sub-tab" that no longer
-// exists). Marked fixme, not deleted, so the gap stays visible and these flip
-// back the moment a doorway lands.
-test.fixme("create→select→focus: the page's form, the badge, and both patches", async ({ page }) => {
+// covers the conversion route 6/6. These UI cases were parked as fixme only
+// because the page had no doorway after IA consolidation dropped the "Experts"
+// sub-tab; CustomPresetsPage now renders under /agents?tab=agents, so they run.
+test("create→select→focus: the page's form, the badge, and both patches", async ({ page }) => {
   test.setTimeout(240_000);
   await gotoChatZh(page);
   await installPack(page, 1);
@@ -258,7 +257,13 @@ test.fixme("create→select→focus: the page's form, the badge, and both patche
   await expect
     .poll(() => page.evaluate(() => window.__chatStore.getState().currentAgent), { timeout: 90_000 })
     .toBe("user.counsel-e2e");
-  expect(mcpServersOf()).toEqual(["memory"]);
+  // The contract is "the DB-installed, NON-baseline server is focused out",
+  // not "the baseline is exactly one row": the baseline roster grows with the
+  // product (fleet landed after this test was written), and pinning it turned
+  // an every-deploy event into a red. Assert the stable halves instead.
+  const focusedMcp = mcpServersOf();
+  expect(focusedMcp).toContain("memory");
+  expect(focusedMcp).not.toContain(EXTRA_MCP);
   const focusedDirs = skillDirsOf().map((d) => path.resolve(d));
   expect(focusedDirs).toEqual([path.resolve(repoRoot, "skills"), presetsRoot("user.counsel-e2e")]);
   // The compose root links exactly the two available references.
@@ -297,7 +302,7 @@ test("a cross-pack reference follows its pack's lifecycle", async ({ page }) => 
   await idleSwitch(page, "standard");
 });
 
-test.fixme("editing through the page regenerates the persona and the focused set", async ({ page }) => {
+test("editing through the page regenerates the persona and the focused set", async ({ page }) => {
   test.setTimeout(180_000);
   await gotoChatZh(page);
   await installPack(page, 1);
@@ -334,7 +339,7 @@ test.fixme("editing through the page regenerates the persona and the focused set
   await idleSwitch(page, "standard");
 });
 
-test.fixme("deleting the selected preset resets to the built-in agent and prunes", async ({ page }) => {
+test("deleting the selected preset resets to the built-in agent and prunes", async ({ page }) => {
   test.setTimeout(180_000);
   await gotoChatZh(page);
   const preset = await createPresetApi(page, {
@@ -355,10 +360,13 @@ test.fixme("deleting the selected preset resets to the built-in agent and prunes
     .poll(() => page.evaluate(() => window.__chatStore.getState().currentAgent), { timeout: 90_000 })
     .toBe(preset.id);
 
-  // Delete through the page (confirm dialog test-double: accept).
-  page.once("dialog", (d) => d.accept());
+  // Delete through the page. The confirmation is the THEMED ConfirmDialog, not
+  // a native window.confirm — the native path was replaced product-wide
+  // (web-operate-states「破坏性操作主题化确认」), so the old `page.once("dialog",
+  // accept)` never fired and the delete silently never happened.
   await page.goto("/agents?tab=agents");
   await page.getByTestId(`preset-delete-${preset.id}`).click();
+  await page.getByTestId("confirm-dialog-confirm").click();
   await expect(page.getByTestId(`preset-item-${preset.id}`)).toHaveCount(0, { timeout: 30_000 });
 
   // The selection fell back to the built-in agent (agent_changed)…

@@ -29,6 +29,7 @@ import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
 import { PackMarketView } from "@/components/packs/PackMarketView";
+import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { ExtensionsPage } from "@/pages/ExtensionsPage";
 import { PluginCatalogView } from "@/components/plugins/PluginCatalogView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
@@ -182,6 +183,17 @@ export function AgentMarketPage() {
                 <ExternalLink className="h-3.5 w-3.5 opacity-60" />
               </a>
             </div>
+            {/* Preset management lives here because this IS the doorway the
+                parked e2e suite expects (/agents?tab=agents + preset-create):
+                agent-catalog's「Experts 子标签」was this page's inline
+                management before the IA consolidation removed the sub-tab and
+                left a built, server-backed page unmounted (9 tests fixme'd in
+                custom-presets / preset-pack-bridge / preset-publish-flow).
+                Rendering it under the catalogue restores the doorway without
+                inventing a new top-level surface — the 6-top IA stays. */}
+            <section className="mt-10 border-t border-border pt-6" data-testid="agent-market-presets">
+              <CustomPresetsPage />
+            </section>
             <PackMarketView
               initialDetailId={deployCastPack}
               onSubscribed={() => tabs.includes("mine") && selectTab("mine")}

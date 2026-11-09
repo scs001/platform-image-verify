@@ -97,15 +97,16 @@ test.afterEach(async ({ page }) => {
 // mounts AgentsPage, and the testids exist nowhere else in web/src. So the flow
 // cannot be started from any URL today.
 //
-// The flow's own contract is still guarded server-side: the compose→publish
+// The flow's own contract is also guarded server-side: the compose→publish
 // bridge route and its report are covered by scripts/test-preset-pack-bridge.mjs
-// (6/6) and the publish gate by scripts/test-facet-publish-bridge.mjs. What is
-// missing is the doorway — the same IA decision that parked custom-presets and
-// preset-pack-bridge. Marked fixme, not deleted, so these resurrect with it.
+// (6/6) and the publish gate by scripts/test-facet-publish-bridge.mjs. These were
+// parked as fixme for the same reason as custom-presets (no doorway after the IA
+// consolidation); with CustomPresetsPage mounted under /agents?tab=agents the
+// whole flow runs again.
 //
 // ── Preset → publish → deploy one-click flow e2e (add-facet-platform S4.1) ───
 
-test.fixme("one action takes a preset to a published pack and deploys it", async ({ page }) => {
+test("one action takes a preset to a published pack and deploys it", async ({ page }) => {
   test.setTimeout(180_000);
   const state = gatewayState();
   await installGatewayMock(page, state);
@@ -161,7 +162,7 @@ test.fixme("one action takes a preset to a published pack and deploys it", async
   expect(draft.publishedPackId).toBe(state.packs[0].id);
 });
 
-test.fixme("publish failure stops the flow with the failing step named", async ({ page }) => {
+test("publish failure stops the flow with the failing step named", async ({ page }) => {
   test.setTimeout(180_000);
   const state = gatewayState();
   state.publishDenied = true; // e.g. no creator membership → gateway 403
@@ -200,7 +201,7 @@ test.fixme("publish failure stops the flow with the failing step named", async (
 // disabled case (no corpus skills) keeps the flow publishable as an ordinary
 // pack with the reason shown in place.
 
-test.fixme("facade toggle publishes the pack with a facade block", async ({ page }) => {
+test("facade toggle publishes the pack with a facade block", async ({ page }) => {
   test.setTimeout(180_000);
   const state = gatewayState();
   await installGatewayMock(page, state);
@@ -239,7 +240,7 @@ test.fixme("facade toggle publishes the pack with a facade block", async ({ page
   });
 });
 
-test.fixme("facade toggle disabled without corpus skills; publish stays ordinary", async ({ page }) => {
+test("facade toggle disabled without corpus skills; publish stays ordinary", async ({ page }) => {
   test.setTimeout(180_000);
   const state = gatewayState();
   await installGatewayMock(page, state);

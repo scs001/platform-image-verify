@@ -28,8 +28,7 @@ process.env.DSH_HOME = path.join(tmpRoot, "dsh");
 fs.mkdirSync(process.env.DSH_HOME, { recursive: true });
 fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
 
-const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport, attachCronRunner } = await import("../server/cron-runner.js");
-const attachCronRunnerForTest = (ctx) => attachCronRunner(ctx, { runPersona: async () => ({ ok: true }), runA2a: async () => ({ ok: true }), listAgents: () => [] });
+const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport } = await import("../server/cron-runner.js");
 
 test.after(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });

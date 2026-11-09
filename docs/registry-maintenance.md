@@ -8401,3 +8401,26 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 - **行为约定（要告诉所有会话）**：从此**不许再 `kubectl set image` / `scale` 改 fd-mcp**，
   改版本一律改 `all-services/prod-fdmcp/` 的清单再 push；手动改会被打回，且可能让人误以为
   "自己没改成功"。这与 `all-services-prod` 管 cheap 那批服务是同一模型。
+
+### §15.156 续四十四（渠）：出片 `sha-dba8690`（含 actions 去重）——公开线，已进 ccr
+
+- **基线**：`gitee/release/cell-session-persona` = `79005d93e`（守卫先跑过
+  `check-release-lines.mjs` → `gitee = origin`；`3aa06f8f2`（actions 去重/自愈）是它的祖先）。
+- **快照**：`make-public-snapshot --init --ref … --out dist-opensource/platform-img3aa06f8`
+  → 结构断言 + 2064 文本文件禁词扫描 + gitleaks 全绿 → 快照提交 `a55f890`。
+- **坑（又踩一次，这次记准）**：快照里**没有** `image.yml` / `image-publish.yml`（scrubber 只留
+  build-check 一类），而镜像仓当时两者都无——**照原样强推不会出片**。恢复的文件是
+  **`image-publish.yml`（NAMESPACE `law-bench`）**，不是 `image.yml`（那是 `yizuo`，demo 线）。
+  判据：生产 `platform.yaml` / facet / platform-demo 拉的都已是 `law-bench/platform`。
+  台账旧记「后续班次照 `image.yml` 恢复」**已过期**。
+- **并发**：另一个会话 10 分钟前推过同一基线（`0ae3e9d`，提交信息 `ci: keep the mirror's
+  image-publish workflow in the snapshot`，image 已 success）——即**同源重复出片**，不是回退；
+  我这次把它替换成等价的两提交历史（`a55f890` + `dba8690`）。
+- **产物**：`hkccr.ccs.tencentyun.com/law-bench/platform:sha-dba8690` →
+  `ccr.ccs.tencentyun.com/law-bench/platform:sha-dba8690`，digest **`sha256:1d8d0d32…f736d`**
+  两边一致（skopeo 实证），Created `2026-11-09T04:32Z`。
+- **relay 没自动收**：`grep -c dba8690 /var/log/tcr-relay.log` = 0，手工补
+  `skopeo copy --all --src-creds … --dest-creds …`（注意：`skopeo copy` **没有** `--creds` 这个 flag，
+  用了会 `unknown flag`）。
+- **未做**：GitOps bump / 滚产线——那条部署正被别的线在调，等人工决定。
+

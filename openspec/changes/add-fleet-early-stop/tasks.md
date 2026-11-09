@@ -20,7 +20,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测
+- [x] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测（2026-11-10 `sha-ffc8186`，见 6.4）
 - [ ] 4.2 归档（`openspec validate --strict` 通过后）
 
 ## 5. 上产后发现的缺陷：闸门被「开场压缩风暴」绕过（2026-11-09，已修 `1726c40ff`）
@@ -51,3 +51,26 @@
   `turn stopped early` 显著上升、`turn timed out — context pressure` 中 n≥4 的降到 0。
   复算用 `paas/scripts/queue-history-stats.mjs --hours 24 --json`（唯一读面，别再自己写 `cls()`）。
 
+
+## 6. 上产后发现的第二处缺陷：worker 车道的接线被同仓重构整段删掉（2026-11-10）
+
+> 5.x 修的是「闸门位置」。这一节是另一回事：闸门本身在，但**池车道的入口把参数丢了**。
+
+- [x] 6.1 归因 — `fix-…` 曾把 `collectTurn(..., { earlyStop })` 接进 worker 车道；
+  随后 `1c003d38b`（orphan sweep 改写 dispatch 段）重写同一调用点时，把整个
+  **可选参数对象连注释一起**删除。可选参数 ⇒ 编译通过、类型无涉、19 条既有用例
+  全绿，**没有任何信号**。产线 `TASK_WORKER_MAX=3`，于是池车道跑满 600s、链道照停。
+  - 线上取证：`sha-0b19a2e` 容器内 `grep -c "earlyStop: Boolean(fleetTagOf(task))"`
+    = **0**（同镜像 `spill-policy`=4、阈值 4 都在，排除「镜像不对」）。
+  - 基线（近 12h，按小时对账）：`turn stopped early` **6** 次 vs
+    `turn timed out — context pressure` **25** 次（其中 n≥4 **20** 次）。
+- [x] 6.2 修法 — 恢复那 4 行；`earlyStopAfterMs` 保留可注入。
+- [x] 6.3 测试 — `test-worker-pool` 新增**源码级接线断言**（调用点必须把 `earlyStop`
+  交给 `collectTurn`）；行为级用例依赖事件泵时序，天然 flaky，故守接线事实。
+  反证：删掉该行 → 1 红；恢复 → 20/20 绿（快照树内同验）。
+- [x] 6.4 部署 — `sha-ffc8186`（源 `fd23f9ceb`），was **superset** of 前一片
+  `sha-7a73257`（同基线 `f5cd5ebfc`，树内 `interrupted` 结算与 `earlyStop` 同时在）。
+  走正常 GitOps（ArgoCD 于 16:03Z 恢复首同步）+ digest 闸 `sha256:a412af86`
+  （hkccr 与 ccr 同 digest）。舱内实测 `earlyStop=1`、`spill-policy=4`、阈值 4、20/20 绿。
+- [ ] 6.5 上产验证 — 与 5.4 同一窗口；修复后 24h 内应看到 n≥4 的压力超时趋零。
+  **回滚注意**：`sha-7a73257` 及更早的片**不含**本接线，回滚会把缺陷装回去。

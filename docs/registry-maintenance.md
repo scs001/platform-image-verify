@@ -8543,3 +8543,22 @@ secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后
 （`findMarketMcpEntry` 返回 null），本地也没有同名行 → 走 `awaiting-local-binding`，
 **不写行**。所以去重是稳定的；唯一能让它回来的，是运维手工新建一个叫 `actions-mcp` 的服务器，
 那种情况按设计不删（尊重运维配置）。
+
+### §15.158 续四十六：OpenSpec 门禁回到 20/0（删三个空壳），归档口径说清（11-09）
+
+- **删了三个空壳 change**（业主拍板）：`add-shard-aware-coverage`（`5f1e940` 8-30）、
+  `cross-project-manifest-updates`（`aed2e54` 8-04）、`full-test-fd-open-data-mcp`（`31293bc` 8-02）。
+  依据是逐个看过文件清单：只有 `.openspec.yaml` 或一份 e2e 报告，**无 proposal、无 tasks、
+  无 delta**，主题工作也早在各自提交里落地。删除后 `openspec validate --all --strict`
+  → **20 passed / 0 failed**（此前长期 20/3）。
+- **没动的三个**：`protocol-migration-generator` 14/37（13h 前有人动）、
+  `fix-stock-semantic-retrieval` 22/24、`add-real-sources-to-protocol` 42/47 —— 有实质内容、
+  要么有人在推、要么只差几个任务。**替别人宣布完成就是假绿**，所以留着。
+- **本轮自己的归档**：`fix-read-entity-class-identity` 已归档，读侧不变量进了
+  `specs/observation-reading`（5 条需求）。同目录另有 5 个已归档（yfinance 代理、census、
+  财务代码映射、标识类型、argv 凭据）。
+- **明确没进 spec 的部分（如实说）**：隔离搬迁（351,739 + 11 行）、守卫脚本
+  `check_observation_entity_class.py`、口令漂移 `check-dsn-drift.sh`、fd-text-core 的三笔
+  loader 修复——都只有台账记录。理由：数据操作与运维工具，`fd-text-core`/`fd-proxy-service`/
+  `scraw-fd-open-data-mcp` **没有 openspec 目录**；读侧不变量本身已入 spec。
+  若要把"写入方不得绕过实体校验"也变成需求，应另开 change——待定。

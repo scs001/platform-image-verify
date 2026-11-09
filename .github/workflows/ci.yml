@@ -26,11 +26,17 @@ jobs:
   gates:
     name: lint → typecheck → unit → locales → build → e2e (fast)
     runs-on: ubuntu-latest
-    # Sized for the chain that actually runs: lint/typecheck/unit/locales/build
-    # take ~15 min, and the fast e2e project is ~640 specs at workers: 1. The
-    # old 30 killed the job mid-unit the first time e2e was reachable
-    # (run 42455044835), so e2e could never be observed at all.
-    timeout-minutes: 90
+    # Measured, not guessed. The UNIT step alone runs ~63 min on a fresh
+    # 2-core runner (run 42630983629, 2026-11-09) — the suite spawns servers
+    # and dsh children, and every case is serialised by --test-concurrency=1
+    # because the tests share global state. With the old 90-minute ceiling that
+    # left ~27 min for build + e2e, i.e. one slow case away from a job kill that
+    # looks exactly like a product failure. 120 buys headroom without changing
+    # any semantics. Raising this is a stop-gap: the real fix is sharding the
+    # unit suite or trimming its slowest server-spawning cases (capacity work,
+    # tracked separately) — a shard split has to be done carefully BECAUSE the
+    # serial constraint is what keeps those tests deterministic.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4

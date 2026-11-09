@@ -40,6 +40,14 @@ export function budgetConfigFromEnv(env = process.env) {
   };
   return {
     enabled: String(env.MODEL_BUDGET_ENABLED ?? "").trim() === "1" || String(env.MODEL_BUDGET_ENABLED ?? "").toLowerCase() === "true",
+    // 预警比例（4.2）：用量到上限的这个比例就产出一条预警事件，
+    // 让"额度快烧完"在变成成批 budget_exhausted 之前就可见。
+    // 0 或非法值 = 关闭；默认 0.9。
+    warnRatio: (() => {
+      const n = Number(env.MODEL_BUDGET_WARN_RATIO);
+      if (!Number.isFinite(n) || n <= 0 || n >= 1) return 0.9;
+      return n;
+    })(),
     single: int(env.MODEL_BUDGET_SINGLE, 8192),
     daily: int(env.MODEL_BUDGET_DAILY, 1_000_000),
     monthly: int(env.MODEL_BUDGET_MONTHLY, 10_000_000),
@@ -97,6 +105,24 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_budget_log_created ON budget_exhausted_log(created_at);
+
+    -- 阈值预警（4.2）：**按窗口幂等**——同一 (model, tier, window_start) 只记一条。
+    -- 为什么单独一张表而不是复用 budget_exhausted_log：耗尽与"快到上限"是两类事件，
+    -- 混在一起后"有多少真正撞墙"就数不清了（当天 68% 的失败是耗尽，预警必须可分辨）。
+    -- 只落库，不自己发通知：出口归 wire-alert-delivery（该 change 已归档，五线接通）。
+    CREATE TABLE IF NOT EXISTS budget_warning_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model TEXT NOT NULL,
+      tier TEXT NOT NULL,
+      used INTEGER NOT NULL,
+      limit_tokens INTEGER NOT NULL,
+      ratio REAL,
+      window_start INTEGER NOT NULL,
+      window_end INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(model, tier, window_start)
+    );
+    CREATE INDEX IF NOT EXISTS idx_budget_warning_created ON budget_warning_log(created_at);
 
     -- 分账表（harden-fleet-execution-economics 4.1）：**记账面，不参与准入判定**。
     -- 为什么不改 model_budget 的键：它的 UNIQUE(model,tier) 是内联约束，往键里加
@@ -221,6 +247,44 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
     }));
   }
 
+  // 阈值预警（4.2）：到比例就记一条**窗口幂等**的事件。返回本次是否新建。
+  //
+  // 放在 checkBudget 里而不是定时器里：checkBudget 是每个回合的前置门，
+  // 本就是"最接近真实用量"的采样点；幂等由唯一索引兜住，重复调用不重复记。
+  function warnIfNearLimit(model, tier, row) {
+    if (!cfg.enabled || !model) return false;
+    const ratio = cfg.warnRatio;
+    if (!(ratio > 0)) return false;                       // 0/非法 = 关闭
+    if (!(row.limitTokens > 0)) return false;
+    const utilization = row.used / row.limitTokens;
+    if (utilization < ratio) return false;                 // 还没到比例
+    // 已经撞墙的由 budget_exhausted_log 负责，预警不重复报同一件事。
+    if (row.used >= row.limitTokens) return false;
+    const info = db.prepare(`
+      INSERT OR IGNORE INTO budget_warning_log
+        (model, tier, used, limit_tokens, ratio, window_start, window_end, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(model, tier, Math.round(row.used), row.limitTokens, ratio,
+           row.windowStart, row.windowEnd, now());
+    if (info.changes > 0) {
+      console.warn(
+        `[model-budget] WARN ${model}/${tier} at ${(utilization * 100).toFixed(1)}% of cap ` +
+        `(${row.used}/${row.limitTokens}), window ends ${new Date(row.windowEnd).toISOString()}`,
+      );
+      return true;
+    }
+    return false;
+  }
+
+  // 预警读面：谁在靠近上限、到什么程度。给巡检/看板，不自己发通知。
+  function warningLog({ limit = 100 } = {}) {
+    return db.prepare(`
+      SELECT id, model, tier, used, limit_tokens AS limitTokens, ratio,
+             window_start AS windowStart, window_end AS windowEnd, created_at AS createdAt
+      FROM budget_warning_log ORDER BY id DESC LIMIT ?
+    `).all(limit);
+  }
+
   // 入口检查（daily/monthly）。返回 { allowed, blocked: [{tier, used, limit}] }。
   // single 不在此列——它没有跨回合窗口，检查发生在结算面。
   function checkBudget(model) {
@@ -228,6 +292,13 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
     const blocked = [];
     for (const tier of ["daily", "monthly"]) {
       const row = rollWindow(model, tier);
+      // 预警要在"耗尽判定"之前跑：撞墙那一次由 exhausted 日志负责，预警只管临近。
+      try {
+        warnIfNearLimit(model, tier, row);
+      } catch (e) {
+        // degrade-open：预警坏了不许挡住回合（与模块其余入口同纪律）。
+        console.warn(`[model-budget] warn failed (degrade open): ${e?.message || e}`);
+      }
       if (row.used >= row.limitTokens) blocked.push({ tier, used: row.used, limit: row.limitTokens });
     }
     return { allowed: blocked.length === 0, blocked };
@@ -296,7 +367,7 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
       .all(limit);
   }
 
-  return { checkBudget, consumeBudget, resetDaily, resetMonthly, report, exhaustedLog, scopeReport, config: cfg };
+  return { checkBudget, consumeBudget, resetDaily, resetMonthly, report, exhaustedLog, scopeReport, warningLog, config: cfg };
 }
 
 // Boot wiring（fleet-cost-digest 同款纪律）：60s 检查器——UTC 日/月界翻页

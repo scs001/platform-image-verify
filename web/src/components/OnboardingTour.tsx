@@ -236,7 +236,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
         style={cardStyle}
       >
         <div className="flex items-start justify-between gap-2">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="micro-label font-medium text-muted-foreground">
             {t("onboarding.tour.stepLabel", { n })}
           </p>
           <button

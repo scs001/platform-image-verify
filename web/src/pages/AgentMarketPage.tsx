@@ -65,9 +65,9 @@ export function AgentMarketPage() {
   const setComposerDraft = useChatStore((s) => s.setComposerDraft);
   const { packMarketplace, resolvedLayout } = useAppConfig();
 
-  // The visible set comes from the server-resolved layout; an older server
-  // (no field) falls back to the factory pair minus the predicate we can check
-  // locally (packMarketplace is part of the same /api/config payload).
+  // The visible set comes from the server-resolved layout; an older server (no
+  // field) falls back to the full tab set. No tab is predicate-gated any more:
+  // the 智能体 front page degrades in place on a market-less deployment.
   const tabs = useMemo<Tab[]>(() => {
     const resolved = resolvedLayout?.agentsTabs;
     const raw = resolved ?? ALL_TABS;

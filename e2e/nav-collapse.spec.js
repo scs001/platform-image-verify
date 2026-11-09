@@ -83,3 +83,36 @@ test.describe("nav family collapse", () => {
     await expect(family(page, "build").getByTestId("nav-tuning")).toHaveCount(0);
   });
 });
+
+// The first-run tour card used to render its own i18n KEY as body text
+// (`onboarding.tour.steponboarding.tour.step1.title`) — the key was built by
+// concatenating `step` + a value that was already a full key. A raw key on the
+// very first screen is the most visible failure the shell can produce, so it
+// gets its own assertion rather than relying on the copy looking right.
+test.describe("first-run tour copy", () => {
+  test("the tour card carries real copy, never a raw i18n key", async ({ page }) => {
+    // Opt back IN to the tour (every other spec opts out) and land on chat.
+    await page.addInitScript(() => {
+      // Every other spec opts out of the tour in its own init script; this one
+      // opts back in by REMOVING the marker on a short interval, because the
+      // opt-out may run after this script on the same page.
+      try {
+        localStorage.setItem("platform.locale", "en");
+        const clear = () => localStorage.removeItem("onboarding.tour.done");
+        clear();
+        const timer = setInterval(clear, 50);
+        setTimeout(() => clearInterval(timer), 4000);
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto("/chat");
+    // Assert on the CARD: the outer `onboarding-tour` node is a zero-box
+    // wrapper (its children are `fixed`), so "visible" on it is meaningless.
+    const card = page.getByTestId("tour-card");
+    await expect(card).toBeVisible({ timeout: 15000 });
+    const text = await card.innerText();
+    expect(text).not.toMatch(/onboarding\.[a-z]/i);
+    expect(text.trim().length).toBeGreaterThan(10);
+  });
+});

@@ -101,7 +101,7 @@ export function SlashCommandPicker({ text, open, highlight, onHighlight, onPick,
     >
       {filteredCommands.length > 0 && (
         <>
-          <div className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="micro-label px-3 pb-1 pt-2 font-medium text-muted-foreground">
             {t("composer.slashPicker.sectionCommands")}
           </div>
           {filteredCommands.map((c) => {
@@ -135,7 +135,7 @@ export function SlashCommandPicker({ text, open, highlight, onHighlight, onPick,
       )}
       {filteredSkills.length > 0 && (
         <>
-          <div className="border-t border-border px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="micro-label border-t border-border px-3 pb-1 pt-2 font-medium text-muted-foreground">
             {t("composer.slashPicker.sectionSkills")}
           </div>
           {filteredSkills.map((c) => {

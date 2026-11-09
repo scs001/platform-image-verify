@@ -300,3 +300,20 @@ test("a queued-but-off-chain task is re-dispatched instead of being absorbed", a
       "the re-dispatched execution must actually run");
   } finally { await engine.idle(); }
 });
+
+test("the periodic sweep revives an orphan that nobody re-fires", async () => {
+  const started = [];
+  await boot((task) => { started.push(task.id); return Promise.resolve({ ok: true }); });
+  try {
+    addScheduledTask("orphan-swept");
+    engine.enqueueExecution("orphan-swept");
+    await waitFor(() => started.includes("orphan-swept"));
+    // Drift into the orphan state: queued, but no pending execution holds it.
+    engine.getRecord("orphan-swept").state = "queued";
+    assert.equal(engine.queueHealth().orphaned >= 1, true);
+    const before = started.filter((x) => x === "orphan-swept").length;
+    engine.sweepStaleQueuedFires();
+    assert.equal(await waitFor(() => started.filter((x) => x === "orphan-swept").length > before), true,
+      "the sweep must put the orphan back on the chain without an operator action");
+  } finally { await engine.idle(); }
+});

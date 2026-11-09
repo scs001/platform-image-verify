@@ -955,6 +955,20 @@ export function sweepStaleQueuedFires(nowMs = Date.now()) {
     if (dropIfStaleQueued(t, nowMs)) dropped += 1;
   }
   if (dropped > 0) void saveTasks();
+  // Orphan re-dispatch (fix-orphaned-queued-executions): a task that loses its
+  // pending execution while sitting still has nobody to re-fire it — the
+  // enqueue-time heal only runs when someone enqueues. Live 2026-11-09: after
+  // each finished turn the cell drifted back to `queued 1, running 0,
+  // orphaned 1, degraded true` and stayed there. The same slow pass therefore
+  // puts orphans back on the chain; it dispatches at most once per task per
+  // sweep and never touches the in-flight execution.
+  const onChain = new Set(pendingExecutions.map((e) => e.id));
+  if (inFlightExecutionId) onChain.add(inFlightExecutionId);
+  for (const t of tasks.values()) {
+    if (t.state !== "queued" || onChain.has(t.id) || scheduleSideBlocked(t)) continue;
+    console.warn(`[task-engine] ${t.id} is queued but off the chain — re-dispatching (sweep)`);
+    dispatch(t.id);
+  }
   return dropped;
 }
 

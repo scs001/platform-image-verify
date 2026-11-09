@@ -202,7 +202,7 @@ test("ZhiyuRoomPage：房间记忆区块整体包在 {isOwner && (...)} 内（�
     "拉取 effect 以 isOwner 前置：非房主不发 project 请求",
   );
   assert.ok(
-    src.includes("/api/memory/entries?project=$" + "{encodeURIComponent(`room-${roomId}`)}"),
+    /\/api\/memory\/entries\?project=\$\{encodeURIComponent\(`room-\$\{roomId\}`\)\}/.test(src),
     "拉取走既有 entries 代理的 room-<roomId> project 参数化",
   );
 });

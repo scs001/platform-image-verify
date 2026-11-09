@@ -161,6 +161,18 @@ const RUNTIME_READY_POLL_MS = 1_000;
 // the outcome is NAMED (and lets the wrap-up lane help), never when the turn
 // stops.
 const CONTEXT_PRESSURE_COMPACTIONS = 2;
+// Early stop (fix-fleet-output-salvage D5): naming a storm is not enough when
+// the round will not finish anyway. Live 2026-11-09: the rounds that die at the
+// budget had 12-15 compactions; the serial slot is the cell's only executor, so
+// every one of those minutes is taken from every other round in the queue.
+// Above this many compactions a fleet round is cancelled natively and settled as
+// context pressure — it then goes through the SAME salvage lane, so the worst
+// case (no report recoverable) is exactly today's behaviour, and the best case
+// frees the slot minutes early.
+const EARLY_STOP_COMPACTIONS = 6;
+// Only fleet rounds stop early: a web chat is the human's turn and keeps its
+// full budget regardless of how often the runtime compacts.
+const EARLY_STOP_MIN_ELAPSED_MS = 60_000;
 // The wrap-up lane's own budget (fix-fleet-output-salvage D2): 90s proved too
 // short — the one live salvage attempt returned nothing. A session that just
 // compacted eight times needs room to emit one short call. Still hard-bounded so
@@ -204,7 +216,7 @@ export function waitForIdle(ctx, timeoutMs) {
 // while the mirror rows land under the stable host session — the fleet round
 // rotation prompts the child under a per-round id and mirrors into `cron-<id>`.
 // Exported for the delegation aggregator and the worker pool.
-export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors, mirrorSessionId = sessionId) {
+export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors, mirrorSessionId = sessionId, { earlyStop = false, earlyStopAfterMs = EARLY_STOP_MIN_ELAPSED_MS } = {}) {
   const collected = new Promise((resolve, reject) => {
     let text = "";
     let error = null;
@@ -235,6 +247,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     // salvage lane declined to help exactly where it was needed. A completed
     // report_status call is the fact that matters.
     let reported = false;
+    let earlyStopped = false;
     // Turn metering (add-turn-metering): the first assistant event's absolute
     // timestamp — ttft_ms derives from it at the executor. Absent on a
     // zero-output turn (honest NULL, never a 0).
@@ -286,7 +299,26 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       if (method !== "session.event") return;
       const ev = params.event;
       if (!ev) return;
-      if (ev.type === "compaction/start") compactions += 1;
+      if (ev.type === "compaction/start") {
+        compactions += 1;
+        // Early stop: past the hard threshold a fleet round is not going to
+        // finish, and the serial slot is the cell's only executor. Cancel it
+        // natively and settle as pressure (the salvage lane then tries for the
+        // report) instead of holding everyone else's queue for another N seconds.
+        if (
+          earlyStop
+          && earlyStopEnabled()
+          && compactions >= EARLY_STOP_COMPACTIONS
+          && Date.now() - startedAtMs >= earlyStopAfterMs
+        ) {
+          earlyStopped = true;
+          try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
+          const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
+          err.message = `turn stopped early — context pressure (${compactions} compactions)`;
+          err.earlyStop = true;
+          return settle(reject, err);
+        }
+      }
       if (ev.type === "assistant/message") {
         // Turn metering: the FIRST assistant event is the time-to-first-token
         // anchor (subsequent steps update usage, not the anchor).
@@ -429,6 +461,12 @@ export function contextPressureDetail(error, { compactions = 0, reported = false
     hasOutput: hasOutput === true,
     ...(overflow ? { overflow: true } : {}),
   };
+}
+
+// Early stop is a fleet-only policy and can be switched off for an operator
+// who would rather always use the full budget (FLEET_EARLY_STOP=0).
+export function earlyStopEnabled() {
+  return process.env.FLEET_EARLY_STOP !== "0";
 }
 
 export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {
@@ -966,7 +1004,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   // model value is pre-positioned into the runtime before each attempt — the
   // param rides for call-site documentation only.
   const attempt = async (_attemptModel) => {
-    const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId);
+    const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId, { earlyStop: Boolean(job.sourceTag?.fleetId) });
     // The collector is now the visible trace of this turn — hand the runtime
     // over to it and drop the preset-switch reservation.
     releaseReservation?.();
@@ -1140,7 +1178,14 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   if (budgetLedger.length) {
     try {
       for (const a of budgetLedger) {
-        const r = ctx.modelBudget?.consumeBudget?.(a.model, a.tokens, { jobId: job.id, sessionId });
+        // 分账归属（4.1）：owner/fleet 从任务自身的来源读，读不到就是 unknown——
+        // 绝不回落到"默认舰队"（那会把别人的用量算到无辜的线上）。
+        const r = ctx.modelBudget?.consumeBudget?.(a.model, a.tokens, {
+          jobId: job.id,
+          sessionId,
+          owner: job.owner ?? job.ownerEmail ?? ctx.ownerEmail ?? null,
+          fleet: job.sourceTag?.fleetId ?? job.origin?.fleet?.fleetId ?? null,
+        });
         if (r?.singleExceeded) {
           console.warn(`[fleets] single-turn budget exceeded for ${job.id}: model=${a.model} tokens=${a.tokens} cap=${ctx.modelBudget?.config?.single}`);
         }

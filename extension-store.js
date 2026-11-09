@@ -59,6 +59,25 @@ export function getMcpServer(name) {
   return config;
 }
 
+// "Same program" = same command + same args, whatever name a manifest gave it.
+// The deployment baseline and the packaged bundle disagree on the actions
+// bridge's name (`actions` vs `actions-mcp`) while pointing at one script;
+// seeding keys on name, so without this a hosted cell ran it twice AND the
+// bundle copy named no proposer (2026-11-09 live finding).
+export function mcpProgramKey(config) {
+  return [config?.command, ...(config?.args ?? [])].join(" ");
+}
+
+// Name of an ENABLED row that already runs this program, or null. `excludeName`
+// skips the row being (re)seeded; disabled rows do not count, so disabling one
+// name can never make the other one disappear too.
+export function findSameProgram(rows, config, { excludeName = null } = {}) {
+  const want = mcpProgramKey(config);
+  if (!want.trim()) return null;
+  const hit = rows.find((r) => r.enabled !== false && r.name !== excludeName && mcpProgramKey(r.config) === want);
+  return hit?.name ?? null;
+}
+
 // seed on startup — skip if already present (preserves user edits).
 // origin/locked/permissions come from the bundle manifest for packaged seeds
 // ("bundled", locked, tool allow/deny lists); default to a plain user row.

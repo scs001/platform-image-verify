@@ -97,6 +97,25 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_budget_log_created ON budget_exhausted_log(created_at);
+
+    -- 分账表（harden-fleet-execution-economics 4.1）：**记账面，不参与准入判定**。
+    -- 为什么不改 model_budget 的键：它的 UNIQUE(model,tier) 是内联约束，往键里加
+    -- owner/fleet 必须重建表；而这段代码在 32 个 cell 的库上开机即跑，
+    -- 重建失败 = 整库 disabled（历史上裸 ALTER 抛错就是这么翻车的）。
+    -- 所以准入仍走全局 (model,tier) 行（行为零变化），本表只回答"谁把额度烧完了"。
+    -- 归属为"未知"而不是某个默认舰队：宁可显式 unknown，也不把别人的用量塞给某个线。
+    CREATE TABLE IF NOT EXISTS model_budget_scope (
+      owner TEXT NOT NULL,
+      fleet TEXT NOT NULL,
+      model TEXT NOT NULL,
+      tier TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      window_start INTEGER NOT NULL,
+      window_end INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(owner, fleet, model, tier)
+    );
+    CREATE INDEX IF NOT EXISTS idx_budget_scope_window ON model_budget_scope(tier, window_end);
   `);
 
   const tierLimit = { single: cfg.single, daily: cfg.daily, monthly: cfg.monthly };
@@ -107,22 +126,27 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
   // 窗口行惰性对齐：不存在则建满额新窗；越界则就地滚窗（used 归零）。
   // 返回滚动后的行。monthly 窗尾对齐下月 1 号 UTC（+30d 会让二月压进三月，
   // 跨月窗重叠三天使三月前几日记错账）。
+  // 窗口边界（daily=UTC 日；monthly=本月 1 号 → 下月 1 号 UTC，避免 +30d
+  // 让二月压进三月造成跨月窗重叠）。抽出来给分账表复用，两处口径必须一致，
+  // 否则分账合计与全局用量对不上。
+  function windowBounds(tier, nowMs = now()) {
+    if (tier === "monthly") {
+      const mKey = utcMonthKey(nowMs);
+      const start = Date.parse(`${mKey}-01T00:00:00Z`);
+      const [y, m] = mKey.split("-").map(Number);
+      const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+      return { start, end: Date.parse(`${next}-01T00:00:00Z`) };
+    }
+    const start = Date.parse(`${utcDayKey(nowMs)}T00:00:00Z`);
+    return { start, end: start + DAY_MS };
+  }
+
   function rollWindow(model, tier) {
     const nowMs = now();
     const limit = tierLimit[tier];
     const existing = getRow(model, tier);
     if (existing && nowMs < existing.windowEnd) return existing;
-    let start;
-    let end;
-    if (tier === "monthly") {
-      start = Date.parse(`${utcMonthKey(nowMs)}-01T00:00:00Z`);
-      const [y, m] = utcMonthKey(nowMs).split("-").map(Number);
-      const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-      end = Date.parse(`${next}-01T00:00:00Z`);
-    } else {
-      start = Date.parse(`${utcDayKey(nowMs)}T00:00:00Z`);
-      end = start + DAY_MS;
-    }
+    const { start, end } = windowBounds(tier, nowMs);
     db.prepare(`
       INSERT INTO model_budget (model, tier, used, limit_tokens, window_start, window_end, updated_at)
       VALUES (?, ?, 0, ?, ?, ?, ?)
@@ -137,6 +161,64 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
   function logExhausted(model, tier, used, limitTokens, meta = {}) {
     db.prepare(`INSERT INTO budget_exhausted_log (model, tier, used, limit_tokens, job_id, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(model, tier, used, limitTokens, meta.jobId ?? null, meta.sessionId ?? null, now());
+  }
+
+  // ── 分账（4.1）：只记账，不参与准入 ────────────────────────────────
+  //
+  // 归属缺失一律记 "unknown"，MUST NOT 落进任何具体舰队——"不知道是谁"与
+  // "就是默认那条线"是两件事，混起来会把别人的用量算到无辜的线上。
+  const UNKNOWN_SCOPE = "unknown";
+
+  function scopeKey(meta = {}) {
+    const owner = typeof meta.owner === "string" && meta.owner.trim() ? meta.owner.trim() : UNKNOWN_SCOPE;
+    const fleet = typeof meta.fleet === "string" && meta.fleet.trim() ? meta.fleet.trim() : UNKNOWN_SCOPE;
+    return { owner, fleet };
+  }
+
+  function chargeScope({ owner, fleet }, model, tier, tokens) {
+    const nowMs = now();
+    const { start, end } = windowBounds(tier, nowMs);
+    const existing = db.prepare(
+      `SELECT used, window_end AS windowEnd FROM model_budget_scope
+       WHERE owner = ? AND fleet = ? AND model = ? AND tier = ?`
+    ).get(owner, fleet, model, tier);
+    if (!existing || nowMs >= existing.windowEnd) {
+      db.prepare(`
+        INSERT INTO model_budget_scope (owner, fleet, model, tier, used, window_start, window_end, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(owner, fleet, model, tier) DO UPDATE SET
+          used = excluded.used, window_start = excluded.window_start,
+          window_end = excluded.window_end, updated_at = excluded.updated_at
+      `).run(owner, fleet, model, tier, Math.round(tokens), start, end, nowMs);
+      return;
+    }
+    db.prepare(`
+      UPDATE model_budget_scope SET used = used + ?, updated_at = ?
+      WHERE owner = ? AND fleet = ? AND model = ? AND tier = ?
+    `).run(Math.round(tokens), nowMs, owner, fleet, model, tier);
+  }
+
+  // 分账报表面：按 owner×fleet 给出各模型三级用量。**只回答"谁用了多少"**，
+  // 是否符合额度仍以全局 model_budget 行 + checkBudget 为准。
+  function scopeReport({ sinceMs = null } = {}) {
+    const nowMs = now();
+    const rows = db.prepare(
+      `SELECT owner, fleet, model, tier, used, window_start AS windowStart, window_end AS windowEnd
+       FROM model_budget_scope
+       WHERE window_end > ? AND (? IS NULL OR window_end > ?)
+       ORDER BY used DESC, owner, fleet, model, tier`
+    ).all(nowMs, sinceMs, sinceMs ?? nowMs);
+    return rows.map((r) => ({
+      owner: r.owner,
+      fleet: r.fleet,
+      model: r.model,
+      tier: r.tier,
+      used: r.used,
+      windowStart: r.windowStart,
+      windowEnd: r.windowEnd,
+      // "unknown" 是显式的未知归属，不是某个默认舰队；调用方必须原样展示。
+      unattributed: r.owner === UNKNOWN_SCOPE || r.fleet === UNKNOWN_SCOPE,
+    }));
   }
 
   // 入口检查（daily/monthly）。返回 { allowed, blocked: [{tier, used, limit}] }。
@@ -162,6 +244,14 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
       if (row.used + tokens > row.limitTokens) {
         logExhausted(model, tier, row.used + tokens, row.limitTokens, meta);
       }
+    }
+    // 分账：与全局同一笔、同一窗口口径。失败绝不能挡住扣费/回合
+    // （degrade-open 纪律：分账是账务，不是闸门）。
+    try {
+      const { owner, fleet } = scopeKey(meta);
+      for (const tier of ["daily", "monthly"]) chargeScope({ owner, fleet }, model, tier, tokens);
+    } catch (e) {
+      console.warn(`[model-budget] scope charge failed (degrade open): ${e?.message || e}`);
     }
     const singleExceeded = tokens > tierLimit.single;
     if (singleExceeded) logExhausted(model, "single", tokens, tierLimit.single, meta);
@@ -206,7 +296,7 @@ export function createBudgetEngine({ db, config, now = () => Date.now() } = {}) 
       .all(limit);
   }
 
-  return { checkBudget, consumeBudget, resetDaily, resetMonthly, report, exhaustedLog, config: cfg };
+  return { checkBudget, consumeBudget, resetDaily, resetMonthly, report, exhaustedLog, scopeReport, config: cfg };
 }
 
 // Boot wiring（fleet-cost-digest 同款纪律）：60s 检查器——UTC 日/月界翻页

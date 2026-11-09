@@ -151,6 +151,10 @@ function saveTasks() {
       // opaque passthrough on every surface — the engine never interprets it;
       // the fleet reconcile layer locates its materialized tasks by it.
       sourceTag: t.sourceTag ?? null,
+      // 顶替留痕（3.1）：被谁顶掉的，事后可查。
+      supersededBy: t.supersededBy ?? null,
+      // 岗位级豁免（3.1）：该岗位的排队轮不参与顶替。
+      noSupersede: t.noSupersede === true,
       // Project attribution (add-web-project-container): cron jobs live in this
       // file store rather than SQLite, so the optional project id rides the
       // record itself. Absent/NULL = the 默认项目 bucket (legacy + desktop).
@@ -588,6 +592,12 @@ function enqueueExecution(id, opts = {}) {
     releaseCatchUpMarker(t);
     return { ok: false, error: `task is ${t.paused ? "paused" : t.status}` };
   }
+  // 同岗位顶替（默认关闭）：必须在"本次入队"之前执行，新轮才能排到旧轮前面。
+  const supersededIds = supersedeQueuedForPost(t);
+  if (supersededIds.length) {
+    console.warn(`[task-engine] ${t.id} superseded ${supersededIds.length} queued round(s) for the same post`);
+    void saveTasks();
+  }
   if (t.state === "queued" || t.state === "running") {
     // fix-task-queue-deadlock D4: this used to answer a bare {ok:true,
     // already:true}, which read exactly like a successful enqueue. On
@@ -725,6 +735,73 @@ const QUEUE_MAX_AGE_MS_DEFAULT = 30 * 60_000;
 // 的等待时钟），`firstQueuedAt` 才是"这发请求第一次要槽位"的时刻、且跨重启存活。
 // 任何对外暴露"等了多久"的地方都必须用它，否则重启后积压会显示成刚入队——
 // 而 `/api/ready` 的 degraded 判定与 fleet-cost-digest 的承载提议都吃这个数。
+// 同岗位排队顶替（harden-fleet-execution-economics 3.1）。**默认关闭**。
+//
+// 要解决的问题：舰队接棒/集群派发是 `trigger=manual`，而老化策略只对
+// `trigger=schedule` 生效（manual 是"人真的要求了这一轮"，不能按时间丢）。
+// 结果是接棒链可以无限堆积——实测 2026-11-08 owner cell：13 个 queued 里 12 个是
+// manual 接棒，最老跨度 3.7 小时，新触发排在过期轮次后面。
+//
+// 处置不是"丢弃"而是"顶替"：同一岗位又有新一轮入队时，把**尚未开始的旧轮**
+// 标记为 superseded（留痕 + 指向新轮），让新轮直接排到队头附近。
+// 为什么可以顶替：接棒轮的语义是"把上游结果往下传"，中间轮传递的是更旧的上游
+// 状态，最新一轮覆盖它不会丢结论——但**会丢中间轮的产出**，所以：
+//   * 默认关闭（`QUEUE_SUPERSEDE_MANUAL=1` 才开）；
+//   * 岗位可在 manifest 用 `noSupersede: true` 显式豁免；
+//   * 被顶替的轮次进 history 且带 `supersededBy`，事后可查。
+function supersedeManualEnabled() {
+  const raw = process.env.QUEUE_SUPERSEDE_MANUAL;
+  return String(raw ?? "").trim() === "1" || String(raw ?? "").toLowerCase() === "true";
+}
+
+// "同岗位"的判定键：同一舰队 + 同一岗位成员 + 同一 preset。
+// 只用 preset 会把不同舰队的同名岗位混在一起；只用 fleetId 会把一个舰队的
+// 全部岗位当成一个岗——两者都不对。
+function postKey(t) {
+  if (!t) return null;
+  const member = t.sourceTag?.memberId ?? t.origin?.fleet?.memberId ?? null;
+  const fleet = t.sourceTag?.fleetId ?? t.origin?.fleet?.fleetId ?? null;
+  const preset = t.preset ?? null;
+  if (!fleet && !preset) return null;          // 无可归属 → 永不顶替
+  return [fleet ?? "-", member ?? "-", preset ?? "-"].join("|");
+}
+
+// 把同一岗位上尚未开始的 manual 轮标为 superseded，返回被顶替的 id 列表。
+// 只在 enqueueExecution 里、新轮入队**之前**调用。
+function supersedeQueuedForPost(t) {
+  if (!supersedeManualEnabled()) return [];
+  if (t?.trigger !== "manual") return [];
+  if (t?.noSupersede === true) return [];
+  const key = postKey(t);
+  if (!key) return [];
+  const superseded = [];
+  for (const other of tasks.values()) {
+    if (other.id === t.id) continue;
+    if (other.state !== "queued") continue;      // 只有"还没开始"的能被顶替
+    if (other.trigger !== "manual") continue;
+    if (other.noSupersede === true) continue;
+    if (other.queuedBy === "human") continue;    // 人点的那一轮不顶
+    if (postKey(other) !== key) continue;
+    other.state = "skipped";
+    other.error = `superseded by ${t.id}: a newer round for the same post was enqueued while this one had not started`;
+    other.supersededBy = t.id;
+    other.firstQueuedAt = null;
+    other.queuedAt = null;
+    other.lastRun = other.lastRun ?? null;
+    other.history ||= [];
+    other.history.push({
+      time: new Date().toISOString(),
+      duration: 0,
+      state: "skipped",
+      success: false,
+      error: other.error,
+      supersededBy: t.id,
+    });
+    superseded.push(other.id);
+  }
+  return superseded;
+}
+
 function queueAnchorMs(t) {
   if (!t) return null;
   if (Number.isFinite(t.firstQueuedAt)) return t.firstQueuedAt;

@@ -73,7 +73,7 @@ export function AgentMarketPage() {
     const raw = resolved ?? ALL_TABS;
     const visible = raw.filter((slug): slug is Tab => (ALL_TABS as string[]).includes(slug));
     return visible.length ? visible : ["agents"];
-  }, [resolvedLayout, packMarketplace]);
+  }, [resolvedLayout]);
 
   const requested = searchParams.get("tab") ?? "";
   const active: Tab = useMemo(() => {

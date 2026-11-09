@@ -8262,3 +8262,142 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
   就必须 `ignoreDifferences`（只列凭据键，不列整块 `/data`）+ `RespectIgnoreDifferences=true`，
   并在轮换后跑 `tools/check-dsn-drift.sh` 再重启服务。
 - 验证：`drift_exit=0`（7/7 当前口令），Argo 应用 `Synced Healthy`。
+
+### §15.153 续四十一：fd-mcp 正式纳入 Argo（远端集群 + 手动 sync），面板 0.5.53（11-09）
+
+**收编落地**（业主「你处理下吧」授权，选**注册远端集群**而非在 xinru-ts 装一套 Argo）：
+
+- 集群凭据：`argocd/cluster-xinru-ts`（`argocd.argoproj.io/secret-type=cluster`），从本地
+  kubeconfig 现场生成、0600 临时文件、apply 后即删、**不进仓**。客户端证书
+  `O=system:masters, CN=system:admin`，**2027-08-18 到期**。
+- **TLS 坑**：该 apiserver 证书只对 `10.1.0.4 / 10.43.0.1 / 127.0.0.1 / ::1` 有效，
+  tailnet 的 `100.64.0.3` 不在 SAN 里 → Argo 报
+  `x509: certificate is valid for …, not 100.64.0.3`。本地 kubectl 一直是
+  `insecure-skip-tls-verify: true` 在连，所以 cluster secret 的 `tlsClientConfig.insecure`
+  跟随它（并**不是**我随手关的校验）。改完要等控制器刷新一轮才生效。
+- Application `fd-mcp-prod`（`argocd/app-fd-mcp-prod.yaml`）：source `all-services/prod-fdmcp`，
+  destination `https://100.64.0.3:6443` / ns `fd-mcp`，**不写 automated**——接管在跑的服务
+  第一次必须人看着 sync；`syncOptions: CreateNamespace=false`（ns 与带外 secret 都已存在）。
+- 首次 sync 范围只有 **1 个 Deployment**，差异只有 3 个 metadata 标签；同步后
+  `Synced / Healthy`。
+
+**踩到的顺序错误（值得记）**：我先改本地清单、**没推就触发 sync**，Argo 读 gitee main 上的
+旧值，把面板从我刚滚到的 0.5.53 又滚回 `sha-7588e44`。**Argo 的真源是仓，不是本地工作树**——
+推完再 sync，才回到 `sha-2a7db55`。
+
+**面板现在**：`version 0.5.53`，DSN 指纹 `881e6dbb36`（当前口令），`/` 与 `/health` 均 200。
+面板的镜像从 `sha-7588e44`（read_series 按实体真实类的修复提交）跟到 `sha-2a7db55`
+（0.5.53 发布头：ingest 脚本改为从 env 读 DSN）；回滚点 `sha-3d110d0`（0.5.52）。
+
+**顺手清掉一处仍在泄漏的明文**：线上 Deployment 的
+`kubectl.kubernetes.io/last-applied-configuration` 注解里还留着改 secretKeyRef **之前**的
+`SCRAW_K8S_DATABASE_URL=postgresql+psycopg2://fd:28ux…` ——任何有 `get deploy` 权限的人都能读到。
+已 `kubectl annotate … last-applied-configuration-` 删除（改 metadata 注解不触发滚动），
+删除后 `grep postgresql+psycopg2://fd:` 在该对象里为 **0**，服务健康不受影响。
+
+**仍是手动 sync**：先观察几天，确认没有意外差异（尤其别的地方改了 live），再决定是否开
+`automated` + `selfHeal`。这一步不做，收编只解决"清单在仓里"，不解决"漂移自动纠正"。
+
+### §15.153 续四十一（渠）：一个脚本两行 MCP——`actions` / `actions-mcp` 重复（已修）
+
+**现象**（A/B 时看见的，不是猜的）：每个 dsh 都起 **两个** `server/actions-mcp.js` 进程（各 ≈80Mi）。
+线上 cell 的 `mcp.patch.yml` 里确有两条：`serverName: actions`（带
+`ACTIONS_MCP_PROPOSER_EMAIL`）与 `serverName: actions-mcp`（无 env），`args` 完全相同。
+
+**来源**：部署基线 `mcp.json` 叫 `actions`，打包清单 `platform.bundle.json` 叫 `actions-mcp`
+（桌面形态的名字），而 `seedStartupMcpConfigs` 按**名字**入库 → 托管 cell 两条都进。
+
+**三个后果，第三个最严重**：
+1. 每个 dsh 多一个 ≈80Mi 进程（cap=0 时每 cell 一份；开 worker 槽再加一份）；
+2. 工具面里 `propose_action` 出现两次（两个 server 名下），模型更容易选错；
+3. bundle 那份没有 `ACTIONS_MCP_PROPOSER_EMAIL` → 提案落库 `proposer_email = NULL`，
+   而批准条件是 `userEmail === proposer`，**永远批不了**——是个死路。
+
+**修法**：`extension-store.js` 出 `mcpProgramKey()` / `findSameProgram()`（command+args 为程序身份），
+`seedStartupMcpConfigs` 在种 bundle 条目时跳过「同程序、不同名、已启用」的重复，
+并且**已有库里那条重复行会被删掉**（`origin === "bundled"` 才删——运维手加的行不动，
+只在日志里说"跳过"）。只挡新入库是不够的：老 cell 的库里那行还在，而**起进程的是行**。
+边界实测：`actions` 被管理员禁用时，bundle 那份照常种（否则关一个名字等于把两条路都关掉）。
+两条纪律写进代码注释：**被管理员禁用的同名项不算重复**（否则禁 `actions` 会把两条都关掉）；
+url 条目无 command，不参与判重（按名字走）。
+
+**验证**：单测 `scripts/test-mcp-seed-dedupe.mjs` 4/4；生产「修改前」证据已取（两条并存）；
+**迁移路径另外演过**：造一个已含 `actions-mcp`(bundled) 行的库 → 起服务 → 日志
+`[mcp] removed duplicate bundled "actions-mcp" (same program as "actions")`，补丁里只剩 1 条。
+即老 cell 在下次启动时自愈。两个边界也演过：手加的 `actions-mcp`(user) **不删**（只跳种）；
+`actions` 禁用时 bundle 那份照常种、补丁里只剩 `actions-mcp`。
+「修改后」的 boot 级验证**已在本地完成**（不必上集群）：直接起 `node server.js`
+（临时 DB/DSH_HOME + 生产 `mcp.json` + 仓库自带 `platform.bundle.json`，`TASK_WORKER_MAX=0`）：
+
+```
+ready=true
+[mcp] bundled "actions-mcp" is the same program as "actions"; skipping the duplicate
+serverNames(12) 里 actions 条目 = 1（修复前 = 2）
+```
+
+（先在集群上试过两次都失败：旧镜像 `sha-6f121f5` 缺 `server/routes/plugin-supply.js`，
+换 `sha-baf1e75` 后被 ephemeral-storage 驱逐。结论：这类"启动期组合"验证本地起服务就够了，
+只有涉及镜像内进程/资源的行为才需要 pod。）
+
+**删行为什么安全**：`platform.bundle.json` 的 `permissions` 整块为空（`mcp:actions-mcp` 无 allow/deny
+策略），所以删掉这行**不丢任何工具白/黑名单**；row 的 `locked` 也是默认 false。
+唯一被跳过的情形是运维手加的同名行（`origin==="user"`），那种一律不删。
+
+**收益口径**：每 dsh 少一个 ≈77Mi 进程（A/B 实测 79008KiB / 78992KiB）。cap=0 的三个 cell 合计
+≈231Mi；开 worker 槽时同样受益——即「一个槽的净增量」从 ≈430Mi 降到 ≈350Mi。
+
+**残余：pack 侧的 `actions-mcp` 名字会悬空（已用代码+数据证实无害，命名统一另议）**
+市场目录里确有 pack 用 `mcpServers: [{registryName: "actions-mcp"}]`（site-plaza catalog、
+`docs/fleet-templates/staging/registry-allowtools.json` 都是这个名字），而保留下来的是 `actions`。
+实测影响（本轮补的证据：全量扫在跑 cell 的 pack 表，共 819 行，命中 3 行——
+`1da519d4` 的「工厂集群 / 优化团队 / 行业分析团队」，均为
+`{registryName:"actions-mcp", allowTools:["propose_action"]}`）：
+1. **不丢工具**——`dsh-profile.js:1266` 的 `const keep = new Set(Object.keys(mcpJsonServers))`
+   保证 pack persona 一律保留部署基线的每个 server，`actions` 不会被聚焦层删掉；
+2. pack 那条 `allowTools: ["propose_action"]` 因名字对不上而不生效——但该 server 只暴露
+   `propose_action` 一个工具，**这条 allowlist 本来就是 no-op**；
+3. 唯一实质后果是「pack 声明的 registryName 找不到同名 server」这种悬空引用，属整洁性问题。
+
+**建议（需产品侧拍板，不在本次范围）**：把两边名字统一成 `actions-mcp`（市场/pack 已经用它），
+即部署基线 `mcp.json` 的那条改名、`dsh-profile` 的 proposer 注入目标随之改名；
+或反过来在工具域推导里加一层 `actions-mcp → actions` 的别名。两者都别与本次修复混在一起。
+
+**顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
+就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、
+用完即删。
+
+### §15.154 续四十二：fd-mcp 收编补齐——Service 纳入 + 两处「永久差异」源头掐掉（11-09）
+
+- **Service 也进了 Argo**（`all-services/prod-fdmcp/fd-panel-service.yaml`，ClusterIP 8302，
+  selector `app=fd-panel`）。此前只有 Deployment 被管，Service 改了没人纠正。
+  `clusterIP` / `clusterIPs` 是**服务端分配且不可变**，所以不写进清单，
+  用 `ignoreDifferences` 忽略——同步后实测 `ip=10.43.36.180` 未变、端口未变。
+- **同时掐掉两处会制造永久差异的源头**（Application 的 `ignoreDifferences`）：
+  1. Service 的 `clusterIP(s)`；
+  2. Deployment pod 模板的 `kubectl.kubernetes.io/restartedAt` —— `kubectl rollout restart`
+     会写这个注解；不忽略的话**每次重启都让 Application 永久 OutOfSync**，而手动 sync 又会
+     把注解抹掉，于是 pod 与模板从此不一致。
+  必须同时开 `RespectIgnoreDifferences=true`（只加 ignoreDifferences 只挡差异判定，
+  sync 仍会写回——这一点在 `all-services-prod` 上已经实测吃过一次）。
+  实证：`kubectl rollout restart deploy/fd-panel` → 刷新后仍 `Synced/Healthy`，
+  容器内 `0.5.53`、`/health` 200。
+- **又一次踩到同一条顺序**：我先建了 Service 清单、没提交就 refresh，Argo 看不到它
+  （只显示 Deployment）。**Argo 的真源是仓**——这与上一轮「没推就 sync 把面板滚回去」
+  是同一个错误的两个面。已固化为操作顺序：**改清单 → commit → push → refresh → diff →
+  sync → 复核**。
+- 现状：`fd-mcp-prod` 管 2 个资源（Service + Deployment），`Synced / Healthy`，
+  面板 `0.5.53`（`sha-2a7db55`）。仍**手动 sync**，是否开 `automated + selfHeal` 待观察几天。
+
+### §15.155 续四十三：fd-mcp 开启自动纠正，并做了两次人为漂移验证（11-09）
+
+- **开 `automated: {prune: false, selfHeal: true}`**（`argocd/app-fd-mcp-prod.yaml`）。
+  理由：面板曾经落后主线 14 个版本而无人发现，根因就是它不在任何 reconciler 的视野里。
+  开的前提是**清单已完整**（Service + Deployment、clusterIP 与 restartedAt 已排除），
+  否则自动 sync 会按不完整清单裁剪线上。`prune` 仍为 false：删资源要人做。
+- **两次漂移实证（不是看配置，是看它真的纠正）**：
+  1. `kubectl scale deploy fd-panel --replicas=2`（清单 1）→ **20 秒内回到 1**；
+  2. `kubectl set image … :sha-0000zzz`（不存在的 tag）→ **20 秒内回到 `sha-2a7db55`**。
+  两次之后 `Synced/Healthy`，容器内 `0.5.53`、DSN 指纹 `881e6dbb36`、`/health` 200。
+- **行为约定（要告诉所有会话）**：从此**不许再 `kubectl set image` / `scale` 改 fd-mcp**，
+  改版本一律改 `all-services/prod-fdmcp/` 的清单再 push；手动改会被打回，且可能让人误以为
+  "自己没改成功"。这与 `all-services-prod` 管 cheap 那批服务是同一模型。

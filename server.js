@@ -1278,6 +1278,30 @@ ctx.reenqueueFleetTurn = (id, delayMs) => cron.reenqueueJob(id, delayMs);
 // posts are out of scope — the fan-out picks the member after this seam runs.
 ctx.resolveFleetIdentity = (presetId, { turn } = {}) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId, turn });
 
+// Direct member identity for a preset, off the RUNNING task record
+// (trim-mcp-injection-per-post 2.2). A cron fire carries `sourceTag`
+// { fleetId, memberId } — authoritative, no scanning. The preset→member scan
+// above returns null unless attribution is a unique "preset" match, and that
+// is exactly why the member-patch branch (and the per-post MCP trimming inside
+// it) never ran for fleet cron fires: the cell logged "injection surface: 34
+// MCP server(s)" with no trim line and no member-* profile dir at all.
+// Only `running`/`queued` records count, so a finished fire cannot leave a
+// stale identity for the next chat turn on the same persona.
+ctx.memberIdentityForPreset = (presetId) => {
+  if (!presetId) return null;
+  try {
+    for (const rec of engine.allRecords()) {
+      if (rec?.preset !== presetId) continue;
+      if (rec.state !== "running" && rec.state !== "queued") continue;
+      const tag = rec.sourceTag;
+      if (tag?.fleetId && tag?.memberId) {
+        return { fleetId: tag.fleetId, memberId: tag.memberId };
+      }
+    }
+  } catch { /* identity is best-effort; the scan fallback still runs */ }
+  return null;
+};
+
 // Chat-lane team context (fix-external-team-chat-lane B1): a visitor chatting
 // with a fleet persona gets the TRIMMED team roster (identity + members +
 // dispatchable targets) so the persona can name its teammates and dispatch to
@@ -1788,7 +1812,14 @@ attachDelegationAggregator(ctx).rearm();
     if (!personaPreset || memberPatchCache.has(personaPreset)) return memberPatchCache.get(personaPreset) ?? null;
     let out = null;
     try {
-      const identity = ctx.resolveFleetIdentity?.(personaPreset) ?? null;
+      // The cron path already KNOWS the member: `sourceTag` carries
+      // { fleetId, memberId } straight off the task record. Preferring it over
+      // the preset→member scan matters because that scan returns null whenever
+      // attribution is not a unique "preset" match — which is why this whole
+      // branch (and therefore per-post MCP trimming) never ran for fleet cron
+      // fires. Falls back to the scan for the chat lane, where no task exists.
+      const taskIdentity = ctx.memberIdentityForPreset?.(personaPreset) ?? null;
+      const identity = taskIdentity ?? ctx.resolveFleetIdentity?.(personaPreset) ?? null;
       if (identity?.fleetId && identity?.memberId) {
         const cfg = cellMemoryConfig(process.env);
         const owner = ctx.runtimeOwnerEmail ?? null;

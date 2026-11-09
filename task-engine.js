@@ -1806,6 +1806,12 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   let oldestQueuedMs = null;
   let oldestRunningMs = null;
   let overBudget = 0;
+  // Rounds that will never be age-dropped (fix-stale-drop-respects-period).
+  // Reported separately and deliberately NOT folded into `oldestQueuedMs`: the
+  // operator runbook reads `oldestQueuedMs: null` as "no cell answered", so a
+  // cell whose only queued round is exempt would otherwise look unreachable.
+  // Naming the count keeps both facts readable instead of sacrificing one.
+  let queuedExempt = 0;
   const maxAgeMs = queueMaxAgeMs();
 
   for (const t of tasks.values()) {
@@ -1814,15 +1820,17 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
       const anchor = queueAnchorMs(t);
       if (anchor !== null) {
         const waited = Math.max(0, now - anchor);
-        // Age-exempt rounds (fix-stale-drop-respects-period) are excluded on
-        // purpose: they will never be dropped, so they must not act as evidence
-        // that the queue is stuck. Counting them here means one waiting DAILY
-        // round — with the cell otherwise idle — drives `queuedTooLong` true,
+        // Age-exempt rounds are excluded from the age maximum on purpose: they
+        // will never be dropped, so they must not act as evidence that the
+        // queue is stuck. Counting them here means one waiting DAILY round —
+        // with the cell otherwise idle — drives `queuedTooLong` true,
         // `stalled` true, `degraded` true, and `/api/ready` answers 503 for a
         // perfectly healthy cell. Losing a day's round is bad; broadcasting the
         // platform as not-ready is worse.
-        if (!isAgeExemptQueued(t)) {
-          if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
+        if (isAgeExemptQueued(t)) {
+          queuedExempt += 1;
+        } else if (oldestQueuedMs === null || waited > oldestQueuedMs) {
+          oldestQueuedMs = waited;
         }
       }
     } else if (t.state === "running") {
@@ -1876,6 +1884,10 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
     oldestQueuedMs,
     oldestRunningMs,
     overBudget,
+    // Age-exempt rounds waiting by design (see the counter's declaration): a
+    // non-zero value here with `oldestQueuedMs === null` means "nothing
+    // droppable is waiting", not "the cell is unreachable".
+    queuedExempt,
     orphaned,
     lastSettledAt: lastSettledAt || null,
     degraded: stalled || overBudget > 0 || orphaned > 0,

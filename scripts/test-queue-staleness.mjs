@@ -396,6 +396,7 @@ test("an age-exempt round alone must not report the cell as stalled", async () =
     const health = engine.queueHealth();
     assert.equal(health.degraded, false, "one waiting daily round is not a stalled queue");
     assert.equal(health.oldestQueuedMs, null, "an exempt round is not evidence of waiting");
+    assert.equal(health.queuedExempt, 1, "and it is named, so `null` is not mistaken for an unreachable cell");
 
     // The contrast that keeps the bound honest: swap it for an hourly round and
     // the same snapshot must go degraded.

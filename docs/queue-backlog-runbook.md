@@ -33,7 +33,8 @@ python3 -m json.tool /tmp/q.json
 | 字段 | 读法 |
 |---|---|
 | `queued` | 所有 resident cell 的排队总数 |
-| `oldestQueuedMs` | **最老等待**（`null` = 没有任何 cell 答上来，不要读成 0） |
+| `oldestQueuedMs` | **最老等待**（`null` = 没有任何 cell 答上来 **或** 排队的轮全是按设计豁免的，不要读成 0；用 `queuedExempt` 与 `answered` 区分） |
+| `queuedExempt` | 按设计继续等待的排期轮（周期 ≥ 6 小时，丢一轮会损失整天覆盖）。`queued>0` 而 `oldestQueuedMs=null` 且 `queuedExempt=queued` → 队列没卡，是这些轮在正常等槽 |
 | `degradedCells` | 哪些 cell 自己报了降级（超阈值/超预算） |
 | `unknown` | 问不到的 cell 及原因（**不算失败**：一个慢 cell 不该摘掉整个平台） |
 | `answered` | 答上来的 cell 数；`answered < cells` 说明有 cell 失联，结合 `unknown` 看 |

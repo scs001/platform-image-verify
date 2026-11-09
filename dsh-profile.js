@@ -1515,9 +1515,11 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
         skillRoots,
       })}`,
     );
-  } catch (e) {
+  } catch {
     // Observation only — a missing/garbled skills patch must never fail the
-    // MCP patch write it was measuring.
+    // MCP patch write it was measuring. (Optional catch binding: the error is
+    // deliberately not inspected, and naming it made lint read it as an unused
+    // variable — the intent was always an empty catch, not a swallowed one.)
   }
   return patchPath;
 }

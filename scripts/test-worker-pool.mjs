@@ -902,7 +902,8 @@ test("worker 回合失败结算也带 carrier=worker（车道不得为 null）",
   ctx.recordFleetTurnEvent = (_task, out) => recorded.push(out);
   attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
 
-  const t = engine.createManualTask({
+  // Side effect only — the handle is never read; the case asserts on `recorded`.
+  engine.createManualTask({
     prompt: "boom",
     persona: "boom-1",
     initiator: "s1",

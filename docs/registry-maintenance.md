@@ -8582,3 +8582,26 @@ secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后
   （宿主把 8 颗从 dsh 子进程挪到 cell-server 名下），**不亏不赚**；收益只随 dsh 数增长。
 
 **下一步（待定）**：扩灰度 = `MCP_SATELLITE_HOST_CELLS` 置 `*` 或删除（不设=全部）。
+
+### §15.160 续四十八（渠）：卫星共享**扩到全量**——`satellites per dsh` 8.50
+
+**改动**（fd-infra-deploy `bd095b3`）：`MCP_SATELLITE_HOST_CELLS: aloatree@gmail.com → "*"`，
+stamp `2026-11-09T14:05Z-satellite-share-all` → ArgoCD 硬刷新 → 滚完（pod `platform-7ddffd89f9-xs6n2`，
+`CAP=1`、`CELLS=*`）。
+
+**实测**（`probe-satellite-sharing.mjs`，2026-11-09）：
+
+| cell | dsh | 卫星 | 卫星内存 | 总计 |
+|---|---|---|---|---|
+| `1da519d4` | 2 | 18 | 1316Mi | 2064Mi |
+| `3fdc7b8e` | 2 | 16 | 1185Mi | 1816Mi |
+
+`satellites per dsh` **8.50**；两个 cell 的日志都有
+`sharing 8 satellite(s) … fleet,cron,delegation,blueprint-author,fleet-architect,pack-author,persona-evolution,skill-evolution`。
+对照灰度窗（§15.159）：非灰度 cell 2 dsh 曾是 24 颗/1685Mi，现在同为 2 dsh 只有 16 颗/1185Mi。
+
+**回滚**：删 `MCP_SATELLITE_HOST_CELLS` 行（宿主不启动，全部回落 stdio，逐字节同改造前）
+或填回 owner 邮箱收窄。宿主失败本身 fail-open。
+
+**口径提醒**：单 dsh 的 cell 共享前后进程数相同（8 颗从 dsh 子进程挪到 cell-server 名下），
+不亏不赚；收益只随 dsh 数增长，所以真正的兑现面是「开了 worker 槽的 cell」。

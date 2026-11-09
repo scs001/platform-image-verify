@@ -247,7 +247,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     // salvage lane declined to help exactly where it was needed. A completed
     // report_status call is the fact that matters.
     let reported = false;
-    let earlyStopped = false;
+    // Write-only today: the overflow lane sets it but nothing reads it yet.
+    // Underscore keeps the intent (mainline lint: noUnusedVariables) visible.
+    let _earlyStopped = false;
     // Turn metering (add-turn-metering): the first assistant event's absolute
     // timestamp — ttft_ms derives from it at the executor. Absent on a
     // zero-output turn (honest NULL, never a 0).
@@ -311,7 +313,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
           && compactions >= EARLY_STOP_COMPACTIONS
           && Date.now() - startedAtMs >= earlyStopAfterMs
         ) {
-          earlyStopped = true;
+          _earlyStopped = true;
           try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
           const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
           err.message = `turn stopped early — context pressure (${compactions} compactions)`;

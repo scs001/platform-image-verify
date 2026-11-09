@@ -23,6 +23,10 @@
 - [ ] 4.2 归档——验证：`openspec archive fix-stale-drop-respects-period --yes --strict` 成功，`openspec/specs/cell-execution-queue/spec.md` 中该需求已含周期感知条款
 - [ ] 4.3 在 `fix-operator-ignition-priority` 的 design Open Questions 里补一句：点火优先的上线前置是本 change 已生效——验证：两处文档互相指向
 
+## 4b. 已知副本（记录，不阻塞）
+
+- [x] 4b.1 `interval` 单位表在 `cron.js`（`UNIT_MS`）与 `task-engine.js`（`INTERVAL_UNIT_MS`）各一份——引擎不能反向依赖调度前端，副本是有意的；已在 design 的 Open Questions 记下"扩展单位时两处必须同步"，验证：design.md 的 Open Questions 含该条
+
 ## 5. 上线顺序（不阻塞归档）
 
 - [ ] 5.1 出片后观察一个日更周期：确认无长周期轮被丢弃、`oldestQueuedMs` 未异常抬升——验证：对比上线前后 24h 的 `skipped` 计数与 `oldestQueuedMs` 分布

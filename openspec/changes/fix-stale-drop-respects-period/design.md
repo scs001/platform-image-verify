@@ -99,4 +99,11 @@ cadence 最小错峰 15 分钟、典型小时级"）。于是"周期 > 10 分钟
 
 ## Open Questions
 
-（无——判据、边界与文案都已定；剩下的是实施与观测。）
+- **`interval` 单位表的第二份副本**：`cron.js` 定义 `UNIT_MS`（minute/hour/day/week），`task-engine.js` 里为
+  `schedulePeriodMs` 复制了一份同名表 `INTERVAL_UNIT_MS`——引擎不能反向依赖调度前端，所以这份副本是有意的。
+  当前安全（`cron.js` 的 `validateInterval` 只放行这四个单位），但**没有机制保证两处同步**：若将来加入
+  `month` 之类的新单位，引擎侧会把它判成 `null` → 走「判不出即丢弃」的老规则 → 月更任务又会被整轮丢掉，
+  也就是本 change 要修的那个 bug 在新单位上复现。缓解办法有两个，择一即可：把单位表提到共享模块
+  （`lib/` 下），或在 `cron.js` 扩展单位时同步改 `task-engine.js` 并在 `validateInterval` 加一条断言。
+  不阻塞本 change。
+- **点火是否应获得额外槽**（与 `fix-operator-ignition-priority` 共用同一裁决）：现状授予「否」，本 change 不改变它。

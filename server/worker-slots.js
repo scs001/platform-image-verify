@@ -187,6 +187,21 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       }
       return out;
     };
+    // A turn claimed while the runtime is restarting can never run (ledger E28,
+    // live 2026-11-09: `spawned worker-1 for persona hotel-watch-scout` at
+    // 23:36:16, `credential change: runtime child restarted` at 23:36:22 — the
+    // turn died six seconds in and the row still said ok). The serial chain
+    // waits for readiness before prompting (`awaitRuntimeReadyForJob`); the pool
+    // did not, so a restart-shaped moment produced an empty success. Settle it
+    // as interrupted here instead: the engine then offers a re-run and the
+    // ledger stops claiming a round that never happened.
+    if (ctx?.dshBridge?.isReady?.() === false || ctx?.dshBridge?.isRestarting?.() === true) {
+      return settle({
+        ok: false,
+        interrupted: true,
+        error: "the agent runtime was restarting when this slot was claimed — the round did not run",
+      });
+    }
     chatHistory.recordMessage(sessionId, "user", task.prompt);
     if (task.sessionTitle) {
       try {

@@ -206,3 +206,53 @@ test("失败回合留下收尾判据的四项事实（下次不用从外面猜�
   // And the shape the runner writes is the one a reader can act on.
   assert.deepEqual(Object.keys(facts).sort(), ["interrupted", "isFleet", "pressure", "reported"]);
 });
+
+// ── early stop (fix-fleet-output-salvage D5) ────────────────────────────────
+const { earlyStopEnabled } = await import("../server/cron-runner.js");
+
+test("arm：舰队回合在压缩风暴超过阈值时原生取消并结算为压力", async () => {
+  const ctx = makeCtx();
+  let cancelled = [];
+  ctx.dshBridge = { cancelSession: async (sid) => { cancelled.push(sid); } };
+  const collectors = new Map();
+  // The floor is injectable so the POLICY is under test, not a 60s wait.
+  const p = collectTurn(ctx, "child-es", 30000, new Map(), collectors, "mirror-es", { earlyStop: true, earlyStopAfterMs: 0 });
+  const push = collectors.get("child-es");
+  // Six compactions, first one after the minimum elapsed window.
+  for (let i = 0; i < 6; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
+  const err = await p.then(() => null, (e) => e);
+  assert.ok(err, "the turn settles without waiting out the budget");
+  assert.equal(err.detail.contextPressure, true);
+  assert.equal(err.detail.compactions, 6);
+  assert.equal(err.earlyStop, true);
+  assert.match(err.message, /stopped early — context pressure/);
+  assert.deepEqual(cancelled, ["child-es"], "the runtime is cancelled natively, not left running");
+  assert.equal(shouldSalvageReport(err.detail, { isFleet: true }), true, "and the salvage lane still applies");
+});
+
+test("非舰队回合不提前停（人类/普通定时保留完整预算）", async () => {
+  const ctx = makeCtx();
+  let cancelled = 0;
+  ctx.dshBridge = { cancelSession: async () => { cancelled++; } };
+  const collectors = new Map();
+  const p = collectTurn(ctx, "child-web", 30000, new Map(), collectors, "child-web");
+  const push = collectors.get("child-web");
+  for (let i = 0; i < 8; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
+  let settled = false;
+  p.then(() => { settled = true; }, () => { settled = true; });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(settled, false, "no early stop without the flag");
+  assert.equal(cancelled, 0);
+  push({ method: "session.status", params: { status: "idle" } });
+  const out = await p;
+  assert.equal(out.compactions, 8, "the count is still reported");
+});
+
+test("FLEET_EARLY_STOP=0 可整条关掉", () => {
+  const saved = process.env.FLEET_EARLY_STOP;
+  process.env.FLEET_EARLY_STOP = "0";
+  assert.equal(earlyStopEnabled(), false);
+  delete process.env.FLEET_EARLY_STOP;
+  assert.equal(earlyStopEnabled(), true);
+  if (saved !== undefined) process.env.FLEET_EARLY_STOP = saved;
+});

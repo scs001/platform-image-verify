@@ -24,7 +24,30 @@
 - [x] 2.4 单测：阈值判定（含边界/负数）、采集在目录缺失时为 0 不抛、符号链接不计、
       TTL 命中与过期刷新、`snapshot()/invalidate()` 行为
 
-## 3. 基础设施（另一仓，需与运维确认）
+## 3. 基础设施（host 级，需运维执行——我这边无节点权限）
 
-- [ ] 3.1 `fd-infra-deploy`：给该节点加 `systemReserved`/`kubeReserved` 的 ephemeral-storage 预留
-- [ ] 3.2 把 `evictionHard` 的 nodefs 阈值抬到与真实余量匹配（消除振荡式驱逐）
+实测该节点（`liuliangjkiimypbdzxa`）的 kubelet 现状：
+
+| 项 | 现状 | 问题 |
+|---|---|---|
+| `systemReserved` / `kubeReserved` | **都没设** | `allocatable` 等于 `capacity`（30.5G/29.9G），没有任何缓冲带 |
+| `evictionHard` | `nodefs.available: 5%`（≈1.5G） | 与 10% 回收目标一起，形成"贴线反复驱逐" |
+| `evictionSoft` | 未设 | 没有软性预警带，只有硬驱逐 |
+| `enforceNodeAllocatable` | `["pods"]` | 正常 |
+
+- [ ] 3.1 给节点加 ephemeral-storage 预留（`/etc/rancher/k3s/config.yaml`，改完 `systemctl restart k3s`）：
+      ```yaml
+      kubelet-arg:
+        - "system-reserved=ephemeral-storage=2Gi"
+        - "kube-reserved=ephemeral-storage=1Gi"
+        - "eviction-hard=nodefs.available<15%,imagefs.available<10%"
+        - "eviction-soft=nodefs.available<20%"
+        - "eviction-soft-grace-period=nodefs.available=2m"
+        - "eviction-max-pod-grace-period=30"
+      ```
+      让驱逐发生在还有余量时、且先软后硬，而不是贴着 1.5G 反复抖。
+      注意：**预留会降低 allocatable**，该节点已有 pod 的 request 需复核（当前 requests 很低，影响可忽略）。
+- [ ] 3.2 改完复核：`kubectl get node … -o json | jq '.status.allocatable'` 应小于 capacity；
+      观察 24h 内 `DiskPressure` 不再翻转、无 pod 被驱逐。
+- [ ] 3.3 该节点还托管 facet（hostPath 钉死），建议后续把 facet 迁到独立节点或改用 PV，
+      避免"节点磁盘问题 → 市场面停机"这种耦合。

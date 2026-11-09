@@ -108,3 +108,72 @@ h.success === false              → 真失败
 | 改 limit 后 pod 建不出来、全站断 | `fd-prod` 配额 `limits.memory` 顶满；`Recreate` 先删旧 pod → 直接断服。**改资源前先 `get quota`** |
 | worker 池开了但回合空转 608s | 唤醒准入拒（`limit` 太小，投影 <15% headroom）；且当时无池级看门狗 |
 | `budget_exhausted` 占比极高 | 每日额度 8M 已耗尽；加并发无益，要么分账要么降任务量 |
+
+## 七、抬 tag / 滚版前的三查（2026-11-09 实战版）
+
+> 这三查都是当天真踩过才写的：第一查漏了会**上线一个死的端点**，第二查漏了会
+> **拉镜像失败停机 3 分钟**，第三查漏了会**建不出 pod 直接断服**。
+
+### 查 1：目标镜像里到底有没有你要的那个提交
+
+不要相信 tag 的语义，直接用**能区分新旧的特征**去镜像仓源码里 grep：
+
+```bash
+# 例：确认某版本的 gateway/index.js 里已经有 /readyz 这个端点
+gh api "repos/<mirror-org>/<mirror-repo>/contents/gateway/index.js?ref=<shortsha>" \
+  --jq '.content' | base64 -d | grep -c '"/readyz"'
+# 1 = 有；0 = 没有
+```
+
+更彻底的做法是让出片写 `BUILD-INFO.json`（基线 commit + 源分支），那样"这片含不含
+某提交"可以直接读文件回答，不用猜。
+
+**当日教训**：镜像滚上去了、代码也在里面，但 `/readyz` 返回的是 SPA 的 HTML——
+路由被兜底正则吞了。**"代码在镜像里" ≠ "功能可用"**，接口类改动必须打一次真实请求验。
+
+### 查 2：tag 是否已在目标节点缓存（否则 Recreate 会停机）
+
+```bash
+M=$(grep -m1 '^\s*image:' all-services/prod/platform.yaml | sed 's/#.*//' | awk '{print $2}')
+L=$(kubectl -n fd-prod get deploy platform -o jsonpath='{.spec.template.spec.containers[0].image}')
+echo "manifest=$M"; echo "live=$L"
+```
+
+- **两者相同** → 该 tag 的进程正在节点上跑，必然已缓存，滚版不会拉取。
+- **不同** → 需要拉取，先确认 ccr 上已有该 tag（relay 从 hkccr 同步，间隔 ≤5 分钟），
+  否则会复现 `ImagePullBackOff`（2026-11-08 实测停机约 3 分钟）。
+
+### 查 3：命名空间配额装得下新 pod
+
+```bash
+kubectl -n fd-prod get resourcequota compute-quota \
+  -o jsonpath='{.status.used.limits\.memory} / {.status.hard.limits\.memory}{"\n"}'
+```
+
+`strategy: Recreate` 会**先删旧 pod 再建新的**——新 pod 被配额拒绝就是全站断服，
+不是"滚版失败"。（2026-11-08 实测断服约 2 分钟：改 limit 前没查这一项。）
+
+### 抬完怎么验（四条，缺一不算成功）
+
+```bash
+POD=$(kubectl -n fd-prod get pods -o name | grep 'platform-' | grep -v demo | head -1)
+
+# ① 存活 + cell 数没掉 + 无错误 cell
+kubectl -n fd-prod exec $POD -c platform -- curl -s http://127.0.0.1:3100/healthz
+
+# ② 新端点真的打得通（且返回 JSON，不是 HTML）
+kubectl -n fd-prod exec $POD -c platform -- \
+  sh -c 'curl -s -H "accept: application/json" http://127.0.0.1:3100/readyz | head -c 200'
+#   拿到 {"ready":...} 才算通；拿到 <!doctype html> 说明被 SPA 兜底吞了
+
+# ③ 队列读面
+kubectl -n fd-prod exec $POD -c platform -- curl -s http://127.0.0.1:3100/readyz | python3 -m json.tool
+
+# ④ 镜像身份（防止"以为滚了其实没滚"）
+kubectl -n fd-prod get deploy platform \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+```
+
+**当日教训**：`/readyz` 的 5 条单测全绿，而线上它返回 HTML——因为测试只测了聚合纯函数，
+没测路由可达性。所以第 ② 步不能省：**接口类改动必须打真实请求**。
+

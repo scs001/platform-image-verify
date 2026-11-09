@@ -83,6 +83,45 @@ export function registerUserBindingRoutes(ctx) {
     });
   });
 
+  // ── Personal-data erase (privacy: the destructive half) ───────────────────
+  //
+  // Scope decision, made explicit because it is not the implementation's to
+  // invent: PERSONAL ROWS GO, CONVERSATION CONTENT STAYS, and the only thing
+  // that happens to sessions is that their ownership is detached — the row says
+  // "someone ran these turns", which is a personal fact, while the transcript
+  // may be shared material a teammate still reads.
+  //
+  // Requires an explicit confirmation token. A destructive endpoint that fires
+  // on a bare DELETE is one stray retry away from wiping a real account, and the
+  // UI's own ConfirmDialog already carries the human acknowledgement.
+  app.delete("/api/users/me/data", (req, res) => {
+    const user = requireIdentity(req, res);
+    if (!user) return;
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "User data is disabled (database unavailable)" });
+    }
+    const confirm = req.body?.confirm ?? req.query?.confirm;
+    if (confirm !== "erase") {
+      return res.status(400).json({
+        error: 'Confirmation required: send { "confirm": "erase" }',
+        scope: {
+          deletes: "rows keyed by your identity in the personal tables",
+          detaches: "session ownership (conversation content is kept)",
+          keeps: ["user_preferences", "user_presets", "chart_bindings", "session messages and documents"],
+        },
+      });
+    }
+    const result = db.erasePersonalRows?.(user.email) ?? null;
+    if (!result) return res.status(503).json({ error: "User data is disabled" });
+    console.log(`[privacy] erased personal rows for ${user.email}: ${JSON.stringify(result.deleted)}, detached ${result.detachedSessions} session(s)`);
+    res.json({
+      erased: true,
+      deleted: result.deleted,
+      detachedSessions: result.detachedSessions,
+      kept: ["user_preferences", "user_presets", "chart_bindings", "session messages and documents"],
+    });
+  });
+
   app.get("/api/users/me/bindings", (req, res) => {
     const user = requireIdentity(req, res);
     if (!user) return;

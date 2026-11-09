@@ -1506,6 +1506,30 @@ const PERSONAL_TABLE_ALLOW = new Set([
   "user_ciyuan_account",
 ]);
 
+// Erase the personal rows an export would have listed — and nothing else.
+//
+// Scope is deliberately the SAME allowlist as the export (one definition, so a
+// future column can never be exported but forgotten on erase), plus DETACHING
+// session ownership rather than deleting sessions: the conversation belongs to
+// the transcript archive, and a user asking for their personal data to go does
+// not ask for a teammate's shared history to vanish. Returns per-table counts so
+// the caller can report exactly what went.
+export function erasePersonalRows(email) {
+  if (!dbReady || !email) return null;
+  const deleted = {};
+  for (const table of PERSONAL_TABLE_ALLOW) {
+    try {
+      deleted[table] = stmt(`DELETE FROM ${table} WHERE email = ?`).run(email).changes;
+    } catch {
+      deleted[table] = 0; // table absent in this deployment
+    }
+  }
+  // Ownership is a personal fact (it says "this identity ran these turns"), so
+  // it goes too — but the session row and its messages stay.
+  const detached = stmt("UPDATE chat_sessions SET owner = NULL WHERE owner = ?").run(email).changes;
+  return { deleted, detachedSessions: detached };
+}
+
 export function listPersonalRows(table, email) {
   if (!dbReady || !email) return [];
   if (!PERSONAL_TABLE_ALLOW.has(table)) throw new Error(`not a personal table: ${table}`);

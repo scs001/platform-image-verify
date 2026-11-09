@@ -27,4 +27,8 @@
 - [x] 4.1 `openspec validate add-personal-data-export --strict` 绿
 - [x] 4.2 全仓 lint 0 error + web typecheck 干净
 - [ ] 4.3 归档（随出片）
-- [ ] 4.4 **删除/擦除**：待产品裁定级联范围后另立 change
+- [x] 4.4 删除/擦除：按「个人行删、会话正文留」落地（产品裁定为 B 档）
+  - 实现：`DELETE /api/users/me/data`，须显式 `{confirm:"erase"}`，否则 400 并声明口径；
+    `db.erasePersonalRows()` 与导出**共用同一张白名单**（新增列不可能只导出漏删除）
+  - 实证：`node --test scripts/test-personal-export.mjs` → **10 tests / 10 pass**，
+    含「无确认即拒」「删行+解绑但正文仍在」「全局态不动」三条

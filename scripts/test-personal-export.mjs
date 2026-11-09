@@ -144,3 +144,66 @@ test("the reader refuses a table outside the personal allowlist", () => {
   // Allow-listed but absent in this deployment → empty, not an error.
   assert.deepEqual(listPersonalRows("user_ciyuan_account", "nobody@example.com"), []);
 });
+
+// ── erase: personal rows go, conversation content stays ──────────────────────
+
+async function del(app, url, body) {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const res = await fetch(base + url, {
+    method: "DELETE",
+    headers: body === undefined ? {} : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const out = await res.json().catch(() => null);
+  await new Promise((r) => server.close(r));
+  return { status: res.status, body: out };
+}
+
+test("erase refuses to run without the explicit confirmation token", async () => {
+  const app = appFor(ALICE);
+  const bare = await del(app, "/api/users/me/data");
+  assert.equal(bare.status, 400);
+  assert.match(bare.body.error, /Confirmation required/);
+  // The refusal TEACHES the scope, so a caller cannot claim they were not told.
+  assert.match(bare.body.scope.deletes, /personal tables/);
+  assert.match(bare.body.scope.detaches, /session ownership/);
+
+  const wrong = await del(app, "/api/users/me/data", { confirm: "yes" });
+  assert.equal(wrong.status, 400, "a truthy-but-wrong token must not erase anything");
+});
+
+test("erase removes personal rows and detaches ownership, keeping transcripts", async () => {
+  const email = "erase@corp.com";
+  const who = { email };
+  db.setUserModelBinding(email, "provider-e", "model-e");
+  const sid = "erase-sess-1";
+  db.upsertSession(sid, "Shared history", new Date().toISOString(), new Date().toISOString());
+  db.stampSessionOwner(sid, email);
+  db.appendMessage(sid, "user", "SHARED TRANSCRIPT", new Date().toISOString(), "[]");
+
+  const out = await del(appFor(who), "/api/users/me/data", { confirm: "erase" });
+  assert.equal(out.status, 200);
+  assert.equal(out.body.erased, true);
+  assert.ok(out.body.deleted.user_model_bindings >= 1, "the personal row is gone");
+  assert.ok(out.body.detachedSessions >= 1, "ownership is detached");
+
+  // The identity is no longer attached to the row…
+  assert.equal(db.listPersonalRows("user_model_bindings", email).length, 0);
+  // …but the transcript survives, ownerless.
+  const meta = db.getSessionMeta(sid);
+  assert.ok(meta, "session row must survive");
+  assert.equal(meta.owner ?? null, null, "ownership must be detached");
+  const msgs = db.getChatMessages(sid);
+  assert.ok(msgs.some((m) => m.content === "SHARED TRANSCRIPT"), "conversation content must be kept");
+});
+
+test("erase leaves deployment-global state alone", async () => {
+  db.setPreference("agent.preset", "standard");
+  const before = db.getPreference("agent.preset");
+  const out = await del(appFor(ALICE), "/api/users/me/data", { confirm: "erase" });
+  assert.equal(out.status, 200);
+  assert.equal(db.getPreference("agent.preset"), before, "global preferences are untouched");
+  assert.deepEqual(out.body.kept.includes("user_preferences"), true);
+});

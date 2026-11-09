@@ -52,3 +52,48 @@ for a complete account archive.
 
 - **WHEN** a request arrives without an identity, or the database is unavailable
 - **THEN** the response is 401 and 503 respectively, and no data is returned
+
+### Requirement: A user can erase their personal data without destroying shared conversation content
+
+The platform SHALL let an authenticated caller erase the personal data it holds
+about them: their rows in every personal table (the same allowlist the export
+reads, so a column can never be exported but forgotten on erase) and their
+session OWNERSHIP — because ownership is itself a personal fact ("this identity
+ran these turns").
+
+Session rows and their messages SHALL survive an erase: a transcript may be
+material a teammate still reads, and a user asking for their personal data to go
+is not asking for shared history to vanish. Deployment-global state SHALL be
+untouched, because it was never the individual's data.
+
+The request SHALL require an explicit confirmation token
+(`{ "confirm": "erase" }`); without it the platform SHALL refuse with 400 and
+state the scope it would apply, so a destructive call cannot fire on a bare
+DELETE or on a stale retry. The response SHALL report per-table deletion counts
+and the number of detached sessions, so the caller can verify what happened
+instead of trusting it.
+
+#### Scenario: a bare request is refused with its scope stated
+
+- **WHEN** a caller sends the erase request without the confirmation token, or with any other value
+- **THEN** the platform refuses with 400, erases nothing, and names what it would delete, detach and keep
+
+#### Scenario: personal rows are erased and ownership detached
+
+- **WHEN** a caller erases with the confirmation token
+- **THEN** their rows are gone from the personal tables and their sessions carry no owner
+
+#### Scenario: conversation content survives
+
+- **WHEN** a caller who owns sessions with messages erases their personal data
+- **THEN** those session rows and their messages still exist and remain readable, with no owner attached
+
+#### Scenario: deployment-global state is untouched
+
+- **WHEN** an erase runs on a deployment with preferences, custom presets and chart bindings
+- **THEN** none of them change
+
+#### Scenario: the response reports what happened
+
+- **WHEN** an erase completes
+- **THEN** the response carries per-table deletion counts and the number of detached sessions

@@ -8537,3 +8537,9 @@ secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后
 | 运维手加同名行 | 不删 | `skipping the duplicate`，行保留 |
 | `actions` 被禁用 | bundle 那份补上 | 补丁只剩 `actions-mcp` |
 | 打包/桌面（无 mcp.json） | 去重不触发，`actions-mcp` 照常种 | 日志 `(none)`，补丁里 `actions-mcp` 在 |
+
+**不会复活（查过）**：pack 重装是唯一可能把 `actions-mcp` 行写回来的路径，而
+`installMcpRef("actions-mcp")` 的结果是——市场里**没有**同名条目
+（`findMarketMcpEntry` 返回 null），本地也没有同名行 → 走 `awaiting-local-binding`，
+**不写行**。所以去重是稳定的；唯一能让它回来的，是运维手工新建一个叫 `actions-mcp` 的服务器，
+那种情况按设计不删（尊重运维配置）。

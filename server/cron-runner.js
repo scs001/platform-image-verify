@@ -162,14 +162,18 @@ const RUNTIME_READY_POLL_MS = 1_000;
 // stops.
 const CONTEXT_PRESSURE_COMPACTIONS = 2;
 // Early stop (fix-fleet-output-salvage D5): naming a storm is not enough when
-// the round will not finish anyway. Live 2026-11-09: the rounds that die at the
-// budget had 12-15 compactions; the serial slot is the cell's only executor, so
-// every one of those minutes is taken from every other round in the queue.
-// Above this many compactions a fleet round is cancelled natively and settled as
-// context pressure — it then goes through the SAME salvage lane, so the worst
-// case (no report recoverable) is exactly today's behaviour, and the best case
-// frees the slot minutes early.
-const EARLY_STOP_COMPACTIONS = 6;
+// the round will not finish anyway. Live 2026-11-09 measurements:
+//   • the rounds that die at the budget had 12-15 compactions;
+//   • a round with FIVE compactions and 13 steps also burned the full 600s and
+//     landed nothing recoverable — 6 was too generous, and every one of those
+//     minutes is taken from every other round in the cell's queue.
+// A round that compacts this often has already lost the thread of its own work,
+// so a fleet round is cancelled natively and settled as context pressure — it
+// then goes through the SAME salvage lane, so the worst case (no report
+// recoverable) is exactly today's behaviour, and the best case frees the slot
+// minutes early. Rounds that finish normally stay at 1-3 compactions (measured),
+// so this line does not touch them.
+const EARLY_STOP_COMPACTIONS = 4;
 // Only fleet rounds stop early: a web chat is the human's turn and keeps its
 // full budget regardless of how often the runtime compacts.
 const EARLY_STOP_MIN_ELAPSED_MS = 60_000;

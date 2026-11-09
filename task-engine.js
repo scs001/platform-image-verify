@@ -1848,8 +1848,19 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   // cell whose only queued round is exempt would otherwise look unreachable.
   // Naming the count keeps both facts readable instead of sacrificing one.
   let queuedExempt = 0;
+  // 被顶替的轮次（3.3 的读面半边）。被顶替者已经落到 history 的
+  // `kind:"superseded"` 行并留了 `supersededBy`，所以它自己也停在被顶替时的
+  // `state="skipped"`——但只读 state 看不出"这是被同岗位新轮顶掉的"还是
+  // "被老化/降级跳过的"。这里按 `supersededBy` 计数，让两种情况在 /api/ready
+  // 上可分。
+  //
+  // 同时必须把**开关**一起报出去：产线 `QUEUE_SUPERSEDE_MANUAL` 未设时这条路径
+  // 整段不生效，这个数就恒为 0。只报计数不报开关，读的人会把"功能没开"
+  // 读成"从来没发生过顶替"——那正是本 change 一直在消灭的那类读数。
+  let superseded = 0;
 
   for (const t of tasks.values()) {
+    if (t.supersededBy) superseded += 1;
     if (t.state === "queued") {
       queued += 1;
       const anchor = queueAnchorMs(t);
@@ -1924,6 +1935,11 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
     // droppable is waiting", not "the cell is unreachable".
     queuedExempt,
     orphaned,
+    // 3.3：顶替的可见性。`superseded > 0` 说明有轮次被同岗位新轮顶掉；
+    // `supersedeEnabled === false` 说明这条路径根本没开，此数必然为 0，
+    // 读数时不该据此判断"没有发生过顶替"。
+    superseded,
+    supersedeEnabled: supersedeManualEnabled(),
     lastSettledAt: lastSettledAt || null,
     degraded: stalled || overBudget > 0 || orphaned > 0,
   };

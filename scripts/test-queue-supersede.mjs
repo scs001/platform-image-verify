@@ -127,3 +127,44 @@ test("different posts and exempt posts are untouched", async () => {
   assert.notEqual(engine.getRecord(exempt.id).state, "skipped", "noSupersede must survive");
   delete process.env.QUEUE_SUPERSEDE_MANUAL;
 });
+
+// ── 3.3：被顶替/被降级要能在读面上看见 ────────────────────────────────
+//
+// 只报计数不报开关，会把"功能没开"读成"从来没发生过顶替"——产线
+// `QUEUE_SUPERSEDE_MANUAL` 恰恰没设。所以这两个字段必须同时出现。
+
+test("读面：开关关时 superseded=0 且 supersedeEnabled=false（零带原因）", async () => {
+  delete process.env.QUEUE_SUPERSEDE_MANUAL;
+  await freshEngine();
+  const a = relay("f1", "m1", "code", "round A");
+  const b = relay("f1", "m1", "code", "round B");
+  queue(a.id);
+  engine.enqueueExecution(b.id);
+
+  const h = engine.queueHealth();
+  assert.equal(h.superseded, 0, "关着的时候不可能有顶替");
+  assert.equal(h.supersedeEnabled, false,
+    "必须把开关报出来，否则 0 会被误读成「没发生过」");
+});
+
+test("读面：开关开时 superseded 计数可见，且与 history 的 kind 对得上", async () => {
+  process.env.QUEUE_SUPERSEDE_MANUAL = "1";
+  await freshEngine();
+  const a = relay("f1", "m1", "code", "round A");
+  const b = relay("f1", "m1", "code", "round B");
+  queue(a.id);
+  engine.enqueueExecution(b.id);
+
+  const ra = engine.getRecord(a.id);
+  assert.equal(ra.state, "skipped");
+
+  const h = engine.queueHealth();
+  assert.equal(h.supersedeEnabled, true);
+  assert.ok(h.superseded >= 1, `读面必须数得到被顶替的轮次，实际 ${h.superseded}`);
+
+  // 两个面必须一致：jobs.json 里的 history 行 与 /api/ready 的计数
+  const histKinds = (ra.history || []).filter((x) => x.kind === "superseded");
+  assert.equal(histKinds.length, 1, "history 里恰有一条 kind:superseded");
+  assert.equal(histKinds[0].supersededBy, b.id);
+  delete process.env.QUEUE_SUPERSEDE_MANUAL;
+});

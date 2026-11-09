@@ -1173,6 +1173,38 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 116,
+    // add-personal-mandate: the mandate columns on the execution ledger.
+    // `action_audit` is the single source of truth for "what ran", so the
+    // mandate reference rides here rather than in a second table (design D6).
+    //   mandate_ref     — which policy+domain authorized it (nullable: most
+    //                     actions are still proposed and approved by a human)
+    //   mandate_domain  — the domain, for "show me this domain's actions"
+    //   mandate_mode    — advise/draft/act-notify/act-silent at execution time
+    //   disclose_level  — the strictest level the content touched (nullable)
+    //   reversible_until— epoch ms; null means irreversible (never auto-run)
+    //   content_digest  — sha256 of the outbound text; the text itself is NOT
+    //                     stored (a second copy of what the agent said in your
+    //                     name would be a new sensitive surface)
+    //   revoked_at      — set when the owner撤回s inside the window
+    // All additive and nullable: existing rows and readers are untouched.
+    apply: (db) => {
+      const cols = new Set(db.prepare("PRAGMA table_info(action_audit)").all().map((c) => c.name));
+      const add = (name, type) => {
+        if (!cols.has(name)) db.exec(`ALTER TABLE action_audit ADD COLUMN ${name} ${type}`);
+      };
+      add("mandate_ref", "TEXT");
+      add("mandate_domain", "TEXT");
+      add("mandate_mode", "TEXT");
+      add("disclose_level", "TEXT");
+      add("reversible_until", "INTEGER");
+      add("content_digest", "TEXT");
+      add("revoked_at", "TEXT");
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_audit_domain ON action_audit(mandate_domain)`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_audit_reversible ON action_audit(reversible_until)`);
+    },
+  },
 ];
 
 function nowIso() {

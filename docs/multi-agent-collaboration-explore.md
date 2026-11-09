@@ -499,6 +499,9 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 **未做**：没有手动 `kubectl set image`。理由：`34d7cda` 基线不含真源最新提交，手动滚会在 ArgoCD 恢复时被回卷——一次会自我撤销的部署只会制造混乱。也**没有**擅自轮换凭据（凭据不入仓/不出手是红线）。
 **修复**：重新签发 gitee 私人令牌 → 更新 argocd secret `repo-fd-infra-deploy` 的 `password` → 重启 repo-server。
 
+**凭据核查（2026-11-09，实测）**：argocd 命名空间下 `gitee-law-bench` / `repo-fd-legal-search-mcp` / `repo-fd-text-core` 三份 secret 的令牌**同样被拒**——即账号 `FindDataTechnology` 名下**所有**令牌都已失效（轮换后未同步集群），集群内**没有**可用备件。
+
+
 # 十、实证坐标索引
 
 ```

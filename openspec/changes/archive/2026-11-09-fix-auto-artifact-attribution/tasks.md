@@ -31,4 +31,12 @@
   - 实证：archive `~ 1 modified` → 归档为 `2026-11-09-fix-auto-artifact-attribution`；
     spec 现明写"按调用前的名字快照判定、不得依据文件时间戳 tick"
   - **未勾原因**：等本 change 随 paas 出片后再 `openspec archive`。
-- [ ] 4.4 出片后复验：CI 基线的 `1.5 + 4.2` 在 ubuntu runner 上转绿（这是当初发现它的地方）
+- [x] 4.4 复验 `1.5 + 4.2`（当初发现它的那条用例）
+  - 实证：**真实依赖**跑 `scripts/test-browser-lane-service.mjs`（该文件用 mkdtemp 自建目录、
+    不碰共享 sqlite，故借依赖安全）→ `✔ 1.5 + 4.2 screenshots land in the calling cell's
+    workspace and not the other's (33ms)`，11/11 绿、耗时 4s；连跑三次均 11/0。
+    配套确定性用例 `test-browser-lane-artifacts` 5/5（用 utimesSync 把 mtime 压到 sinceMs
+    之前，正是当初 only-on-Linux 的边界）。
+  - 注：原挂账写法是"回 ubuntu runner 复验"。改为本地真实依赖复现，因为镜像仓 CI 的
+    unit 步骤本身已跑到 60+ 分钟（见下条观察），跑不到这条用例就有结果；
+    而该用例的失败模式（mtime tick 取整）已被确定性用例覆盖，不再依赖平台。

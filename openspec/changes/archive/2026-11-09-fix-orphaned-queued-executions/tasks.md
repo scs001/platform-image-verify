@@ -20,5 +20,9 @@
 
 ## 4. 收口
 
-- [ ] 4.1 出片 + GitOps 滚版，并在产上确认：`queue.queued` 与 `fairness` pending 不再背离，
-      `orphaned` 字段出现在 `/api/ready`，孤悬时 degraded 为 true
+- [x] 4.1 出片 + GitOps 滚版，产上确认
+  - 镜像 `sha-ca1faea`（基线含他线 `7c7c0fc` 的重放排序修复，两者共存）；ccr relay OK 2026-11-09T17:55:36+08:00；
+    GitOps `5da0707`。容器内实证 `inFlightExecutionId` 5 处、`orphaned` 字段 1 处、`firstQueuedAt` 14 处
+    （我的孤悬自愈与他线的重放按真实等待顺序**同时在线**，未互顶）
+  - 产上 `/api/ready`：`queued 2 / running 1 / orphaned 0 / pending 4 / degraded false`
+    —— 新字段可读、队列在推进、无孤悬

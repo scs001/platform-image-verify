@@ -15,6 +15,7 @@
 - [ ] 3.2 新增用例：日更排期轮在多次人工点火插队后仍留在队列——验证：构造 `queuedBy=human` 点火序列 + 日更任务，断言其 state 仍为 queued 且未被记 skipped
 - [ ] 3.3 新增用例：每小时排期轮在同一场景下仍被丢弃——验证：同上构造，断言 skipped 且 error 含"下一次排期"
 - [ ] 3.4 队列健康观测面不被误伤——验证：豁免发生后 `queueFairnessSnapshot` / `/readyz` 的 `oldestQueuedMs` 语义不变（仍是等待时长），且 `degradedCells` 的判据阈值未因此常亮（人工核对一次真实读数）
+- [ ] 3.5 **豁免不得把健康 cell 判成 stalled**（design 风险 1）：被豁免的轮 SHALL NOT 参与 `queueHealth().oldestQueuedMs` 的取最大，或等价地显式不参与 `stalled` 判定——验证：构造「队列里只剩一条被豁免的日更轮 + 无回合收口 + 已过 10 分钟」，断言 `degraded === false`；同一构造下把该轮换成周期 ≤ 上限的任务时，仍应正常丢弃而不是停留在队列里顶高指标
 
 ## 4. 收口
 

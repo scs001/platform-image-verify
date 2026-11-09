@@ -51,7 +51,21 @@
 
 ## Risks / Trade-offs
 
-- **[风险] 被豁免的长周期轮长期占位，队列健康度指标（`oldestQueuedMs`）持续偏高，看起来像积压** → 缓解：豁免只影响"是否丢弃"，不占用槽位；`/readyz` 的 `degradedCells` 判据基于 `oldestQueuedMs` 阈值，需在实施时确认不会因此常亮——这是唯一需要回归验证的观测面。
+- **[风险] 豁免会把 `queueHealth().degraded` 顶成 true，进而让 `/readyz` 常亮 503** —— 这是本单最尖锐的一条，链条已核实：
+  ```
+  degraded = stalled || overBudget > 0 || orphaned > 0
+  stalled  = oldestQueuedMs > QUEUE_MAX_OLDEST_QUEUED_MS && !settledRecently
+  ```
+  被豁免的长周期轮会一直留在 `queued`，`oldestQueuedMs` 持续累积 → `queuedTooLong` 恒真。
+  只要该 cell 还有别的回合在settle，`settledRecently` 为真、`stalled` 为假，没事。
+  **但一旦它是队列里最后一条、且 cell 再没有回合收口**（豁免期间正好空闲），
+  `settledRecently` 在 10 分钟后转假 → `stalled` 为真 → `degraded` → cell 侧 `/api/ready` 503
+  → 网关 `/readyz` 聚合出 `degradedCells` → 200 变 503。**一条在等槽的日更轮，能把整个平台标成未就绪。**
+
+  → 缓解（纳入实施要求）：**被豁免的轮 SHALL NOT 参与 `oldestQueuedMs` 的取最大**，或等价的显式豁免——
+  即"永不丢弃"的任务不能同时充当"队列卡住"的证据。宁可让健康指标看不见它，
+  也不能让它把一个健康但空闲的 cell 判成 stalled。
+- **[风险] 被豁免的长周期轮长期占位，看起来像积压** → 缓解：豁免只影响"是否丢弃"，不占用槽位；观测面按上一条处理后，`oldestQueuedMs` 反映的仍只是可丢弃的那批。
 - **[风险] 日更轮被豁免后仍要等槽，可能等到下一班才跑（跑了也是过期的）** → 缓解：这是取舍的另一半。至少它跑过；若将来要区分"过期但仍有意义"，那是内容层判断，不属于队列策略。
 - **[风险] 与 `fix-operator-ignition-priority` 同时上线时，队列瞬时深度上升** → 缓解：两单的建议上线顺序是**先本单、再开点火开关**，观察一轮 `oldestQueuedMs` 与 `skipped` 计数后再决定。
 

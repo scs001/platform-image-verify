@@ -8159,3 +8159,55 @@ BENCH_PROPOSAL_DOMAIN），被 D4 守卫当成员级留下——所以"可共享
   `embedding-bulk`(组12)——那是网关侧的决定，我不擅自改路由。
 - **口径**：`fd-infra-deploy` 的 Argo 读 **gitee** main；本地 `gitee` 远端的 pushurl 指向 github，
   所以「push 成功」不等于 Argo 能看见——必须先 `fetch gitee && rebase` 再推（本次踩了一次）。
+
+### §15.150 续三十八：三件收口——列表接管准备、lint 转绿、口令漂移工具（11-09）
+
+**一、fd-mcp 收编：只备清单不建 Application**
+
+`all-services-prod` 的 destination 是 cheap 的 in-cluster + `fd-prod`；xinru-ts 上**没有 Argo**，
+cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 GitOps 必须先答两问：
+谁管 xinru-ts（装一套 Argo / 把 xinru 注册成远端集群，后者要存集群凭据），带外 secret
+（`fd-mcp-env` 等）归属如何。已交 `all-services/prod-fdmcp/fd-panel-deployment.yaml`（导出快照，
+标注"未收编"）+ `docs/fd-mcp-gitops-onboarding.md`（含安全接管四步：清单 ⊇ 线上、
+`prune: false`、先 `argocd app diff`、接管后再改版本）。
+
+**顺手抓到一个真问题**：`fd-panel` 的 `SCRAW_K8S_DATABASE_URL` 是**明文口令**，
+指纹 `dbd5ce9cea` 而当前库口令是 `881e6dbb36`——既是 0.5.49 在爬虫面修过的同类泄漏，
+也意味着面板 launcher 的默认 DSN 一直连不上库。已改为
+`secretKeyRef(fd-mcp-env/FD_OPEN_DATA_MCP_DATABASE_URL)`，重启后容器内实测指纹
+`881e6dbb36`、`/` 与 `/health` 均 200。提交时仓库密钥闸正好拦下了含明文的导出件——**拦得对**。
+
+**二、lint 307→0（顺带把这个仓的 ci 首次弄绿）**
+
+`fd-text-core` 的 ci 自 10-12「不再 `|| true`」起一直红。207 条全是机械项：
+151 条安全自动修复（**没用 `--unsafe-fixes`**——ruff 给 UP031 的建议是把 SQL 百分号插值
+改 `.format()`，一样不安全，改加带理由的 noqa）；BLE001/S110/S112 在 CLI 脚本里是刻意的
+（报告并退出）；EXE001/EXE002 让执行位跟随 shebang（12 个 +x、8 个 -x）；ISC004 给有意的
+中文长句拼接补括号；PIE810/PLW0602/PLW1510/SIM103/TRY004/RUF007/PERF102 按建议改写，
+语义不变（399 测试绿）。两处刻意不合规的写进 `per-file-ignores` 并注明原因
+（`seen` 是"已产出条数"不是下标；`__enter__` 的返回标注是调用方在用的形状）。
+中途我把 `subprocess.run(check=False, [...])` 写成了关键字后置位置参数（非法语法），
+被 ruff 解析器抓到并修正。
+快照仓 `2d1e751` 两条通道**都 success**（ci 是历史首次），`sha-2d1e751` 已上产。
+
+**三、嵌入队列清零了**
+
+`sha-d5590d0` 那一轮起，吞吐恢复；到 `sha-2d1e751` 时实测：
+`[queue] 嵌入积压 0 条，最老 0.0h（阈值 6.0h）`，且该 Job **第一次 Succeeded（exit 0）**。
+从 3,096 条 / 10.0h 最老 → 0。四件事共同起作用：车道纠正（key166→组12）、25s×2、
+请求切片（每 96 条一次调用）、自检 503 不再打死整轮。
+
+**四、口令漂移工具上线，并当场抓到一处旧账**
+
+`tools/check-dsn-drift.sh`：真源取 `fd-master/fd-db-secret`，逐条比对两个集群里所有
+指向 `100.64.0.3:30432` 的 secret 键（只比 md5 指纹、不打印明文；已知抄写点集中登记）。
+首跑结果：5 处 ok、**2 处 DRIFT** —— `fd-prod/fd-paper-trading-env` 的
+`ASTOCK_DSN` 与 `FD_OPEN_DATA_MCP_DATABASE_URL` 仍是 `fa95d89765`。
+
+原因值得记：我 11-08 在 **live secret** 上改对了，但这份 secret 由 Argo 管，清单
+`all-services/prod/fd-paper-trading-astock-dsn-secret.yaml` 把口令写在 `stringData` 里，
+**selfHeal 在一小时内把旧口令写了回去**——所以那次「7 处全修」实际只成了 5 处。
+而把新口令写进仓会违反「口令不得写入任何仓文件」的红线，所以这次**没动**：
+要么接受凭据入仓、要么上 sealed-secrets/ExternalSecrets、要么把这两键移出清单管理
+（注意 `prune: false` 不代表安全——Argo 用 client-side apply，从清单里删键会把线上键删掉）。
+三条路都要人拍板，工具会一直如实报它。

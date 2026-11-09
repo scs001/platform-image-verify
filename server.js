@@ -609,7 +609,19 @@ function seedStartupMcpConfigs(mcpJsonServers) {
     const { enabled = true, ...config } = entry;
     const twin = enabled ? extensionStore.findSameProgram(seededRows, config, { excludeName: name }) : null;
     if (twin) {
-      console.log(`[mcp] bundled "${name}" is the same program as "${twin}"; skipping the duplicate`);
+      // Skipping the seed is not enough: cells that predate this fix ALREADY
+      // carry the duplicate row, and it is the row that spawns the second
+      // process. Remove it — but only when the bundle owns it, so a row the
+      // operator added by hand is never deleted on their behalf.
+      const duplicate = extensionStore.getMcpServer(name);
+      if (duplicate?.origin === "bundled") {
+        extensionStore.removeMcpServer(name);
+        const at = seededRows.findIndex((r) => r.name === name);
+        if (at >= 0) seededRows.splice(at, 1);
+        console.log(`[mcp] removed duplicate bundled "${name}" (same program as "${twin}")`);
+      } else {
+        console.log(`[mcp] bundled "${name}" is the same program as "${twin}"; skipping the duplicate`);
+      }
       continue;
     }
     // The bundle owns its rows' config (command/args/envRefs drift across

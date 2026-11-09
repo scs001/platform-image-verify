@@ -8314,11 +8314,18 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
    而批准条件是 `userEmail === proposer`，**永远批不了**——是个死路。
 
 **修法**：`extension-store.js` 出 `mcpProgramKey()` / `findSameProgram()`（command+args 为程序身份），
-`seedStartupMcpConfigs` 在种 bundle 条目时跳过「同程序、不同名、已启用」的重复。
+`seedStartupMcpConfigs` 在种 bundle 条目时跳过「同程序、不同名、已启用」的重复，
+并且**已有库里那条重复行会被删掉**（`origin === "bundled"` 才删——运维手加的行不动，
+只在日志里说"跳过"）。只挡新入库是不够的：老 cell 的库里那行还在，而**起进程的是行**。
+边界实测：`actions` 被管理员禁用时，bundle 那份照常种（否则关一个名字等于把两条路都关掉）。
 两条纪律写进代码注释：**被管理员禁用的同名项不算重复**（否则禁 `actions` 会把两条都关掉）；
 url 条目无 command，不参与判重（按名字走）。
 
-**验证**：单测 `scripts/test-mcp-seed-dedupe.mjs` 4/4；生产「修改前」证据已取（两条并存）。
+**验证**：单测 `scripts/test-mcp-seed-dedupe.mjs` 4/4；生产「修改前」证据已取（两条并存）；
+**迁移路径另外演过**：造一个已含 `actions-mcp`(bundled) 行的库 → 起服务 → 日志
+`[mcp] removed duplicate bundled "actions-mcp" (same program as "actions")`，补丁里只剩 1 条。
+即老 cell 在下次启动时自愈。两个边界也演过：手加的 `actions-mcp`(user) **不删**（只跳种）；
+`actions` 禁用时 bundle 那份照常种、补丁里只剩 `actions-mcp`。
 「修改后」的 boot 级验证**已在本地完成**（不必上集群）：直接起 `node server.js`
 （临时 DB/DSH_HOME + 生产 `mcp.json` + 仓库自带 `platform.bundle.json`，`TASK_WORKER_MAX=0`）：
 

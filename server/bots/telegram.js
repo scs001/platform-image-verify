@@ -20,13 +20,15 @@ const CALL_TIMEOUT_MS = 10_000;
 
 const api = (token, method) => `${API}/bot${token}/${method}`;
 
-async function call(token, method, body, timeoutMs = CALL_TIMEOUT_MS) {
+async function call(token, method, body, timeoutMs = CALL_TIMEOUT_MS, signal = undefined) {
   // Outbound call discipline: shared deadline wrapper — per-call override
-  // keeps the long-poll lane above its own 25s window.
+  // keeps the long-poll lane above its own 25s window. `signal` lets the poll
+  // loop cancel a parked getUpdates on shutdown instead of waiting it out.
   const res = await fetchWithTimeout(api(token, method), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   }, { timeoutMs });
   const json = await res.json().catch(() => ({}));
   if (!json.ok) throw new Error(`telegram ${method} failed: ${json.description || res.status}`);
@@ -86,14 +88,17 @@ export const registry = {
   start(bot, deliver) {
     let stopped = false;
     let offset = 0;
+    let abortPoll = null;
     const loop = async () => {
       while (!stopped) {
         try {
+          const controller = new AbortController();
+          abortPoll = () => controller.abort();
           const updates = await call(bot.credentials.token, "getUpdates", {
             offset,
             timeout: POLL_TIMEOUT_SEC,
             allowed_updates: ["message"],
-          }, POLL_TIMEOUT_MS);
+          }, POLL_TIMEOUT_MS, controller.signal);
           for (const u of updates) {
             offset = u.update_id + 1;
             const msg = toMessage(u);
@@ -107,7 +112,15 @@ export const registry = {
       }
     };
     loop();
-    return () => { stopped = true; };
+    // Stopping must also cancel the in-flight long poll. `stopped = true` alone
+    // leaves a getUpdates request parked for its full 25s window, and that
+    // pending socket keeps the process alive — the unit suite's bots file never
+    // exited because of it (CI unit step → 1h hang → cancelled rollouts,
+    // 2026-11-09). Abort the request so shutdown is immediate and complete.
+    return () => {
+      stopped = true;
+      abortPoll?.();
+    };
   },
 };
 

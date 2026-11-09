@@ -12,7 +12,7 @@ import schedule from "node-schedule";
 import cronParser from "cron-parser";
 import * as engine from "./task-engine.js";
 import { catchUpWindowMs, withinCatchUpWindow, countMissedBetween } from "./server/cron-decisions.js";
-import { resolveTurnBudgetMs } from "./server/cron-runner.js";
+import { resolveTurnBudgetMs, fleetTagOf } from "./server/cron-runner.js";
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
@@ -366,7 +366,7 @@ async function composeFleetPrompt(task) {
   const prefix = task.catchUpPending
     ? "【补跑】上一轮因平台停机被跳过，本次为补跑（正常节奏不受影响）。\n\n"
     : "";
-  const isFleet = !!task?.sourceTag?.fleetId;
+  const isFleet = Boolean(fleetTagOf(task));
   const promptStr = typeof basePrompt === "string" ? basePrompt : "";
   // Two placeholder families (add-fleet-edge-context D1): the cadence template
   // asks for the patrol rendering ({{fleetContext}}), the four hand-built edge

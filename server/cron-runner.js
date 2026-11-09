@@ -807,9 +807,27 @@ async function disposeRoundChild(ctx, childSessionId, mirrorSessionId) {
 // scheduled fire) — and a colliding id would silently resume the very history
 // the rotation exists to drop. The engine's own execution counter rides in, so
 // the id is unique per execution without any extra bookkeeping.
+// A task's fleet attribution, from EITHER source (fix-legacy-fleet-task-tags).
+// `sourceTag` is the modern field, but production holds 2026-10-24-era manual
+// tasks that carry `origin.fleet.fleetId` with `sourceTag: null` (111 of 276
+// fleet-like tasks in one cell, 42 of 66 in another). Every gate that asked
+// `sourceTag?.fleetId` alone therefore treated them as NON-fleet: no session
+// rotation, no fleet context injection, no early stop, no report salvage — and
+// the failure surfaced only as a 600s round with an empty detail.
+// `buildTurnRequest`'s own attribution already read both fields; this makes the
+// rest of the runner agree with it.
+export function fleetTagOf(job) {
+  const fleetId = job?.sourceTag?.fleetId ?? job?.origin?.fleet?.fleetId ?? null;
+  if (!fleetId) return null;
+  return {
+    fleetId,
+    memberId: job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null,
+  };
+}
+
 export function roundChildSessionId(job, startedAt, seq = 0) {
   const sessionId = job.sessionId || `cron-${job.id}`;
-  if (!job.sourceTag?.fleetId) return sessionId;
+  if (!fleetTagOf(job)) return sessionId;
   return `${sessionId}#r${startedAt}${seq ? `-${seq}` : ""}`;
 }
 
@@ -833,7 +851,7 @@ export async function awaitRuntimeReadyForJob(ctx, job, {
   now = () => Date.now(),
 } = {}) {
   if (ctx.dshBridge?.isReady()) return { ok: true };
-  if (!job.sourceTag?.fleetId) {
+  if (!fleetTagOf(job)) {
     return { ok: false, error: "the agent runtime is not ready" };
   }
   // A restarting child is "not ready yet, but coming back" — the wait must
@@ -1006,7 +1024,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   // model value is pre-positioned into the runtime before each attempt — the
   // param rides for call-site documentation only.
   const attempt = async (_attemptModel) => {
-    const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId, { earlyStop: Boolean(job.sourceTag?.fleetId) });
+    const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId, { earlyStop: Boolean(fleetTagOf(job)) });
     // The collector is now the visible trace of this turn — hand the runtime
     // over to it and drop the preset-switch reservation.
     releaseReservation?.();
@@ -1029,7 +1047,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
           text: out.text ?? "",
           childSessionId,
           mirrorSessionId: sessionId,
-          isFleet: Boolean(job.sourceTag?.fleetId),
+          isFleet: Boolean(fleetTagOf(job)),
         });
         return { ok: false, error: out.error, interrupted: false, detail, metering };
       }
@@ -1061,7 +1079,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       // no wrap-up, and every candidate explanation had to be guessed at from
       // the outside. This is one small object on a turn that already failed.
       const salvageFacts = {
-        isFleet: Boolean(job?.sourceTag?.fleetId),
+        isFleet: Boolean(fleetTagOf(job)),
         interrupted: e.interrupted === true,
         pressure: detail?.contextPressure === true,
         reported: detail?.reported === true,

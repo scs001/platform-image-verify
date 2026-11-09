@@ -200,3 +200,68 @@ test("a run-now on a cadence task is never aged out, however long it waits", asy
     assert.equal(ran, true, "a human ignition must run regardless of queue age");
   } finally { delete process.env.QUEUE_MAX_AGE_MS; }
 });
+
+// The dequeue-time check only ever sees the fire that WINS the slot. With human
+// wakes and manual turns arriving continuously, an over-age cadence fire parked
+// behind them never reaches the front — so it was never dropped, and it held
+// `queueHealth().degraded` true the whole time (live 2026-11-09:
+// job_1793413192186_g51s7b, cadence, 80 minutes queued, /api/ready 503 on an
+// otherwise healthy cell). The sweep looks at the queue itself, not the slot.
+test("the sweep drops an over-age cadence fire that never reaches the front", async () => {
+  // Hold the slot with a blocker so nothing dequeues during the test.
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await boot((task) => (task.id === "blocker" ? gate : Promise.resolve({ ok: true })));
+  process.env.QUEUE_MAX_AGE_MS = "50";
+  try {
+    addScheduledTask("blocker");
+    engine.enqueueExecution("blocker");
+    addScheduledTask("parked-old");
+    engine.enqueueExecution("parked-old");
+    const rec = engine.getRecord("parked-old");
+    assert.equal(rec.state, "queued");
+    rec.firstQueuedAt = Date.now() - 660_000; // 11 min parked behind the blocker
+    assert.equal(engine.queueHealth().degraded, true, "an over-age queued fire degrades the probe");
+
+    const dropped = engine.sweepStaleQueuedFires();
+    assert.ok(dropped >= 1, "the parked cadence fire is swept");
+    assert.equal(engine.getRecord("parked-old").state, "skipped");
+    assert.match(engine.getRecord("parked-old").error ?? "", /queue staleness/);
+    assert.equal(engine.queueHealth().degraded, false, "sweeping it restores queue health");
+  } finally {
+    delete process.env.QUEUE_MAX_AGE_MS;
+    release({ ok: true });
+    await engine.idle();
+  }
+});
+
+test("the sweep never touches a human ignition nor a running turn", async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  await boot((task) => (task.id === "runner" ? gate : Promise.resolve({ ok: true })));
+  process.env.QUEUE_MAX_AGE_MS = "50";
+  try {
+    addScheduledTask("runner");
+    engine.enqueueExecution("runner");           // becomes the running turn
+    // Dispatch is a promise chain: wait for the turn to actually start, else the
+    // sweep would legitimately see it as queued and drop it.
+    assert.equal(await waitFor(() => engine.getRecord("runner").state === "running"), true);
+    addScheduledTask("human-old");
+    engine.runTaskNow("human-old");              // queued, human
+    const human = engine.getRecord("human-old");
+    human.firstQueuedAt = Date.now() - 600_000;
+    const runner = engine.getRecord("runner");
+    if (Number.isFinite(runner.firstQueuedAt)) runner.firstQueuedAt = Date.now() - 600_000;
+
+    // Other tests' leftovers may also be swept here — assert on THIS pair, which
+    // is the actual contract: a human ignition and a running turn are untouchable.
+    engine.sweepStaleQueuedFires();
+    assert.equal(engine.getRecord("human-old").state, "queued", "a human ignition is never swept");
+    assert.equal(engine.getRecord("human-old").queuedBy, "human");
+    assert.notEqual(engine.getRecord("runner").state, "skipped", "a running turn is never swept");
+  } finally {
+    delete process.env.QUEUE_MAX_AGE_MS;
+    release({ ok: true });
+    await engine.idle();
+  }
+});

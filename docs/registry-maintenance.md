@@ -8019,6 +8019,45 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   单测已把 `failOnStartupError: false` 与 `serverName` 钉住（宿主挂了只灰掉工具，不拦 dsh 启动）。
 
 
+
+### §15.145 续三十三（渠）：卫星共享 A/B 真机跑通（12→9 颗、909→628Mi）+ 抓到一个"多起一份"缺陷
+
+**在哪做的**：不占 fd-prod 配额（它 38Gi 已满）。`default` 命名空间（cheap-ts，12Gi 配额 0 使用）
+起一次性 pod，用生产镜像 `sha-6f121f5` + **线上真实清单**（ConfigMap `platform-mcp-config`，
+13 个服务器）+ 真 dsh（`node /app/node_modules/@deepseek-ai/dsh/lib/bin.js --profile platform
+--patch …`，stdin 必须吊住否则立刻退）。镜像里**没有 `ps`**，用 `/proc/*/cmdline` + `VmRSS` 计。
+
+| 形态 | dsh | 卫星进程 | 卫星 RSS |
+|---|---|---|---|
+| 不共享 | 2 | 12 | 909Mi |
+| 共享一份宿主 | 2 | 9 | 628Mi |
+
+`satellites per dsh` 6.0 → 4.5；第二个 dsh 省 ≈281Mi（≈225Mi 是 fleet/cron/delegation 被合掉）。
+**注意口径**：真实清单里 `bench-proposal` 带 `envRefs`（BENCH_URL/BENCH_CONSUMER_TOKEN/
+BENCH_PROPOSAL_DOMAIN），被 D4 守卫当成员级留下——所以"可共享 9 个"是**上限**，本舰队实际共享 3 个。
+
+**A/B 抓到的缺陷（已修）**：宿主取 spec 用"补丁里还带 command 的可共享名"，补丁改写用
+"没凭据/没 envRefs"——两套判据，于是被改写拒绝的 bench-proposal 仍会进宿主的 spawn 列表，
+结果是**宿主一份 + 每个 dsh 一份**，比不共享更差。修法：`isShareableSatellite()` 单一判据，
+`writeMcpPatch` 每次落 `mcp.shared.json` 权威清单，宿主只认它（无 sidecar 回落声明集，
+老 profile 目录升级不退化）。真环境复核：sidecar 恰为 `fleet,cron,delegation`，宿主 specs 一致。
+回归用例：`test-mcp-satellite-wiring.mjs`「a satellite the rewrite refused is not spawned by the host」。
+
+**没解决的**：fd-prod 仍不能验（`TASK_WORKER_MAX=0` + `4Gi`，容量决定）；scratch 用的是
+"两个 dsh 手起"而非 worker 池真实抢占，池侧集成仍只有单测 + 接线日志。
+
+- **真池派发下的 A/B（同日，补）**：scratch 里自起 `server.js`（`TASK_WORKER_MAX=2`，死模型
+  `LLM_BASE_URL=http://127.0.0.1:9/v1` 吊住回合），铸两 persona + 两条委派 →
+  `[worker-pool] active`、`spawned worker-1/worker-2`、两条同时 `running`：
+
+  | 形态 | dsh（主+2 worker） | 卫星 | 卫星 RSS |
+  |---|---|---|---|
+  | `MCP_SATELLITE_HOST=0` | 3 | **42** | **2848Mi** |
+  | 共享宿主 | 3 | **26** | **1814Mi** |
+
+  **省 16 颗 / 1034Mi**，正好 2×(8 颗共享集)；规律 **省 = 8 ×（dsh 数 − 1）**。
+  共享集在这个镜像里是 8 颗（比 2-dsh 玩具 A/B 多出 meta-team 五颗）。工具面直接打共享端点：
+  `fleet status=200 count=6`。**口径**：这是同镜像 + 同真实清单的等价部署，不是 fd-prod 灰度 cell。
 ### §15.145 续三十三：ship-spool 的 429 真因是「批量业务打了交互车道」（11-08）
 
 - **不是上游没额度，是路由走错**。sub2api 有两车道：
@@ -8133,3 +8172,93 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   `embedding-bulk`(组12)——那是网关侧的决定，我不擅自改路由。
 - **口径**：`fd-infra-deploy` 的 Argo 读 **gitee** main；本地 `gitee` 远端的 pushurl 指向 github，
   所以「push 成功」不等于 Argo 能看见——必须先 `fetch gitee && rebase` 再推（本次踩了一次）。
+
+### §15.150 续三十八：三件收口——列表接管准备、lint 转绿、口令漂移工具（11-09）
+
+**一、fd-mcp 收编：只备清单不建 Application**
+
+`all-services-prod` 的 destination 是 cheap 的 in-cluster + `fd-prod`；xinru-ts 上**没有 Argo**，
+cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 GitOps 必须先答两问：
+谁管 xinru-ts（装一套 Argo / 把 xinru 注册成远端集群，后者要存集群凭据），带外 secret
+（`fd-mcp-env` 等）归属如何。已交 `all-services/prod-fdmcp/fd-panel-deployment.yaml`（导出快照，
+标注"未收编"）+ `docs/fd-mcp-gitops-onboarding.md`（含安全接管四步：清单 ⊇ 线上、
+`prune: false`、先 `argocd app diff`、接管后再改版本）。
+
+**顺手抓到一个真问题**：`fd-panel` 的 `SCRAW_K8S_DATABASE_URL` 是**明文口令**，
+指纹 `dbd5ce9cea` 而当前库口令是 `881e6dbb36`——既是 0.5.49 在爬虫面修过的同类泄漏，
+也意味着面板 launcher 的默认 DSN 一直连不上库。已改为
+`secretKeyRef(fd-mcp-env/FD_OPEN_DATA_MCP_DATABASE_URL)`，重启后容器内实测指纹
+`881e6dbb36`、`/` 与 `/health` 均 200。提交时仓库密钥闸正好拦下了含明文的导出件——**拦得对**。
+
+**二、lint 307→0（顺带把这个仓的 ci 首次弄绿）**
+
+`fd-text-core` 的 ci 自 10-12「不再 `|| true`」起一直红。207 条全是机械项：
+151 条安全自动修复（**没用 `--unsafe-fixes`**——ruff 给 UP031 的建议是把 SQL 百分号插值
+改 `.format()`，一样不安全，改加带理由的 noqa）；BLE001/S110/S112 在 CLI 脚本里是刻意的
+（报告并退出）；EXE001/EXE002 让执行位跟随 shebang（12 个 +x、8 个 -x）；ISC004 给有意的
+中文长句拼接补括号；PIE810/PLW0602/PLW1510/SIM103/TRY004/RUF007/PERF102 按建议改写，
+语义不变（399 测试绿）。两处刻意不合规的写进 `per-file-ignores` 并注明原因
+（`seen` 是"已产出条数"不是下标；`__enter__` 的返回标注是调用方在用的形状）。
+中途我把 `subprocess.run(check=False, [...])` 写成了关键字后置位置参数（非法语法），
+被 ruff 解析器抓到并修正。
+快照仓 `2d1e751` 两条通道**都 success**（ci 是历史首次），`sha-2d1e751` 已上产。
+
+**三、嵌入队列清零了**
+
+`sha-d5590d0` 那一轮起，吞吐恢复；到 `sha-2d1e751` 时实测：
+`[queue] 嵌入积压 0 条，最老 0.0h（阈值 6.0h）`，且该 Job **第一次 Succeeded（exit 0）**。
+从 3,096 条 / 10.0h 最老 → 0。四件事共同起作用：车道纠正（key166→组12）、25s×2、
+请求切片（每 96 条一次调用）、自检 503 不再打死整轮。
+
+**四、口令漂移工具上线，并当场抓到一处旧账**
+
+`tools/check-dsn-drift.sh`：真源取 `fd-master/fd-db-secret`，逐条比对两个集群里所有
+指向 `100.64.0.3:30432` 的 secret 键（只比 md5 指纹、不打印明文；已知抄写点集中登记）。
+首跑结果：5 处 ok、**2 处 DRIFT** —— `fd-prod/fd-paper-trading-env` 的
+`ASTOCK_DSN` 与 `FD_OPEN_DATA_MCP_DATABASE_URL` 仍是 `fa95d89765`。
+
+原因值得记：我 11-08 在 **live secret** 上改对了，但这份 secret 由 Argo 管，清单
+`all-services/prod/fd-paper-trading-astock-dsn-secret.yaml` 把口令写在 `stringData` 里，
+**selfHeal 在一小时内把旧口令写了回去**——所以那次「7 处全修」实际只成了 5 处。
+而把新口令写进仓会违反「口令不得写入任何仓文件」的红线，所以这次**没动**：
+要么接受凭据入仓、要么上 sealed-secrets/ExternalSecrets、要么把这两键移出清单管理
+（注意 `prune: false` 不代表安全——Argo 用 client-side apply，从清单里删键会把线上键删掉）。
+三条路都要人拍板，工具会一直如实报它。
+
+### §15.151 续三十九：把「口令轮换会被 selfHeal 卷回」这件事从机制上堵掉（11-09）
+
+- **现象**：`fd-paper-trading-env` 的两条 DSN 一直是旧口令。我在 live secret 上改对过两次，
+  都在几分钟内变回旧值。原因不是我的手误，而是：这份 secret 由 Argo `all-services-prod` 管，
+  清单 `all-services/prod/fd-paper-trading-astock-dsn-secret.yaml` 把口令写在 `stringData` 里，
+  `selfHeal: true` 把清单值又 apply 回来。**所以 §15.142 里「7 处全修」实际只成了 5 处**，
+  直到 `tools/check-dsn-drift.sh` 才被抓出来——这也说明那个工具值得存在。
+- **只加 `ignoreDifferences` 不够**（实测）：它只影响**差异判定**，应用因任何别的原因 sync 时，
+  清单仍被全量 apply 覆盖回来——加完再轮换一次照样在 3 分钟内被卷回。
+- **正解（两步）**：
+  1. `spec.ignoreDifferences` 只针对那**四个**指针
+     （`/stringData` 与 `/data` 各两条 DSN），**不是整块 `/data`**——只增不删的教训还在
+     （这条线 11-06 被占位版覆盖丢过三个键），整块忽略会让以后新增的键也进不去；
+  2. `syncOptions: RespectIgnoreDifferences=true`，让 sync 也跳过这些字段。
+  改完 `kubectl apply -f argocd/app-all-services-prod.yaml`（这套 Application 是手工 apply，
+  没有 app-of-apps），重新轮换，**observe 3 分钟以上无回卷**。
+- **结果**：`tools/check-dsn-drift.sh` 现在 **7/7 全当前，exit 0**；
+  `fd-paper-trading` 仍 `ready=1`（改的是 secret，未重启服务）。
+- **口径**：清单里那份旧口令现在只是**历史残留**，真源是 live secret 与
+  `fd-master/fd-db-secret`；以后轮换照旧走「改 live secret + 跑 drift 检查」，
+  不需要也不允许把新口令写进仓。真要彻底解决，仍是 sealed-secrets / ExternalSecrets 的活。
+
+### §15.152 续四十：凭据入仓只剩一处，已把它的四个键全部排除比对（11-09）
+
+- **全量审计**（`all-services/prod/` 下所有 Secret，只看键名与是否含内嵌口令）：
+  凭据写进清单的**只有 `fd-paper-trading-env` 一个**（4 个键：`ASTOCK_DSN`、
+  `FD_OPEN_DATA_MCP_DATABASE_URL`、`DATABASE_URL`、`JWT_SECRET`）；
+  其余 12 个服务（agent-runner-*、edu-catalog、fd-erp-*、fd-juchuang、fd-memory*、
+  fd-shilun、fd-mcp 等）都是 `envFrom`/`secretKeyRef` 按名字引用带外 secret——**正确形态**。
+- 四个键全部纳入 `ignoreDifferences`（此前只做了两条 DSN）。补上的两个按危害排更靠前：
+  - `JWT_SECRET` 被 selfHeal 回卷 = **旧令牌继续有效而无人察觉**（比 DB 口令更隐蔽，因为
+    DB 口令错了至少下次重启会炸）；
+  - `DATABASE_URL` 指向 paper-trading 自己的库（100.64.0.12:5435），轮换同样会被卷回。
+- **通用规则已写进** `docs/fd-mcp-gitops-onboarding.md`：凭据不进同步路径；实在要进，
+  就必须 `ignoreDifferences`（只列凭据键，不列整块 `/data`）+ `RespectIgnoreDifferences=true`，
+  并在轮换后跑 `tools/check-dsn-drift.sh` 再重启服务。
+- 验证：`drift_exit=0`（7/7 当前口令），Argo 应用 `Synced Healthy`。

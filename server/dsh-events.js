@@ -18,6 +18,7 @@
 
 import { createReasoningLeakFilter, stripReasoningLeak } from "./reasoning-leak.js";
 import * as chatHistory from "../chat-history.js";
+import * as bindingNames from "../connector-bindings.js";
 import * as trace from "./trace.js";
 import { recordPackUsage } from "./usage-telemetry.js";
 import { observeTurnTap } from "./observe-tap.js";
@@ -97,8 +98,11 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
       // never stored, so there is no record to look up: synthesize the config
       // from the name. The slot identifies exactly one binding even when two
       // packs declare the same key, so the 401 marks that row alone.
-      if (!config && serverName.startsWith("connector:")) {
-        const slot = serverName.slice("connector:".length);
+      if (!config && bindingNames.isBindingServerName(serverName)) {
+        // Resolve the slot from the SAME definition that produced the name —
+        // never by parsing it. The name is slug+hash inside the mcp-client
+        // alphabet, so it is not reversible.
+        const slot = bindingNames.slotForServerName(serverName, bindingNames.bindingSlotsForOwner(ctx.runtimeOwnerEmail));
         if (slot) config = { credentialRef: "connector-binding", slot };
       }
       const entry = credentialRefs.refFor(config);

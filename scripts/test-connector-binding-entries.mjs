@@ -21,8 +21,12 @@ const row = (over) => ({ serverName: "connector:pack:market", url: "https://conn
 test("a resolved binding becomes one authenticated MCP row", () => {
   const entries = connectorBindingEntries([row()], { connector_binding_market: "oct_child" });
   assert.equal(entries.length, 1);
-  assert.equal(entries[0].id, "mcp-connector:pack:market");
-  assert.equal(entries[0].config.serverName, "connector:pack:market");
+  // The row's id/serverName go through the mcp-client alphabet
+  // (^[A-Za-z0-9_-]{1,32}$) — a colon name is refused by the plugin and the
+  // server then never starts (measured 2026-11-09).
+  assert.match(entries[0].id, /^mcp-[A-Za-z0-9_-]{1,32}$/);
+  assert.match(entries[0].config.serverName, /^[A-Za-z0-9_-]{1,32}$/);
+  assert.equal(entries[0].config.serverName, "connector_pack_market_7f873b95");
   assert.equal(entries[0].config.transport, "streamable-http");
   assert.equal(entries[0].config.url, "https://connector.example.test/mcp");
   assert.equal(entries[0].config.headers.Authorization, "Bearer oct_child");

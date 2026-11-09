@@ -2540,11 +2540,11 @@ export function registerPackRoutes(app, {
             // fetches names listed in descriptor.secret_refs, so the binding
             // secret has to be merged into that same map — otherwise the row
             // would point at a name nobody fetches.
-            secretRefs[granted.agentId] ??= {};
-            secretRefs[granted.agentId][granted.name] = `sec_${id}_${granted.agentId}_${granted.name}`;
-            connectorBindings[granted.agentId] ??= [];
-            connectorBindings[granted.agentId].push({
-              serverName: `connector:${id}:${granted.bindingKey}`,
+            (secretRefs[granted.agentId] ??= {})[granted.name] = `sec_${id}_${granted.agentId}_${granted.name}`;
+            (connectorBindings[granted.agentId] ??= []).push({
+              // Same definition that names the cell-side row (mcp-client's
+              // serverName alphabet is [A-Za-z0-9_-]{1,32} — see connector-bindings).
+              serverName: connectorBindingsModule.bindingServerName(`${id}:${granted.bindingKey}`),
               url: `${origin}/mcp`,
               secretName: granted.name,
             });

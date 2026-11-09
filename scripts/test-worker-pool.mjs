@@ -871,10 +871,15 @@ test("worker 车道：压缩达阈值即停，且取消打到 worker 自己的 b
   for (let i = 0; i < 60 && bridge.cancelCalls.length === 0; i++) await settle();
   assert.ok(bridge.cancelCalls.length >= 1, "会话属于 worker 的子进程：取消必须打到这个 bridge");
   bridge.release?.();
-  await settle();
-  await settle();
 
-  const task = engine.getTask(t.id);
+  // 轮询到结算落地，而不是固定等两个 tick：pod 里 CPU 争用时引擎落盘的
+  // 那一拍可能晚到（2026-11-10 实测 1/8 假红，本地不复现）。
+  let task = engine.getTask(t.id);
+  for (let i = 0; i < 100 && task.state === "running"; i++) {
+    await settle();
+    task = engine.getTask(t.id);
+  }
+
   assert.equal(task.state, "failed", `storm round must settle as failure, got ${task.state}`);
   assert.match(String(task.error || ""), /stopped early/);
   releaseAll();

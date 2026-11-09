@@ -7,7 +7,7 @@
 // "镜像更新了、看起来好点了"——那正是这份 change 想消灭的读数方式。
 //
 // 判据（基线 → 期望方向）：
-//   1. 失败率        baseline 27.9%   → 更低
+//   1. 失败率        **只报告，不判定**（见下）
 //   2. ctx 失败耗时  基线 p50 619582ms → 更低（这是修复真正改变的量）
 //   3. 早停覆盖率    达到阈值的回合里，早停应占绝大多数（基线 3/(3+44)=6.4% → 目标 >=90%）
 //
@@ -32,6 +32,10 @@ import { summarizeHistory } from "../server/history-kinds.js";
 // 基线常量取自 reports/queue-baseline-2026-11-09.md（2026-11-08T23:41Z 之后的
 // 干净窗口：751 行 / executed 373 / failed 104）。改基线必须同时改那份报告。
 const BASELINE = {
+  // 只作参考值报告。**不能当通过/不通过判据**：早停的回合按设计仍结算为
+  // failed（只是从 600s 变成 60~240s），所以这个修复不减少失败数量、只减少
+  // 每次占用；把它当闸门会让"修复生效"读成"更糟"。2026-11-09 实测：近 2h
+  // 12 条失败里有 5 条就是早停本身。
   failureRate: 0.279,
   // ctx 失败的中位耗时（17 天实测 p50）。修复前这些回合跑满预算。
   ctxMedianMs: 619582,
@@ -120,8 +124,10 @@ const checks = [
     label: "失败率",
     baseline: `${(BASELINE.failureRate * 100).toFixed(1)}%`,
     measured: all.failureRate === null ? "null" : `${(all.failureRate * 100).toFixed(1)}%`,
-    pass: all.failureRate !== null && all.failureRate < BASELINE.failureRate,
-    why: "分母只含真执行过的回合；ctx 早停生效后应下降",
+    // informational：见 BASELINE 上的注释。不参与通过/不通过。
+    informational: true,
+    pass: true,
+    why: "仅供参考——早停回合仍记 failed，此数不因本修复下降（看耗时与覆盖率）",
   },
   {
     id: "ctxDuration",
@@ -181,7 +187,9 @@ if (asJson) {
   }
   console.log("");
   for (const c of checks) {
-    console.log(`${c.pass ? "✓" : "✗"} ${c.label.padEnd(22)} 基线 ${c.baseline.padEnd(16)} 实测 ${c.measured}`);
+    const mark = c.informational ? "•" : c.pass ? "✓" : "✗";
+    const suffix = c.informational ? "   （仅参考，不判定）" : "";
+    console.log(`${mark} ${c.label.padEnd(22)} 基线 ${c.baseline.padEnd(16)} 实测 ${c.measured}${suffix}`);
   }
   if (unreadable.length) {
     console.log("\n== 读不了的文件（未计入零行）==");

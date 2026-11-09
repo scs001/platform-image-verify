@@ -8478,3 +8478,87 @@ state, then drop this exclusion」**。
 **验证**：`law-bench` app 现跟踪 `Deployment/law-bench-mcp` + `Service/law-bench-mcp`（均 Synced）；
 pod **未重启**（startTime 2026-10-27T22:07:20Z，restartCount 5 未变），仍在 `liuliangdmh1xr0w9ryu`，
 镜像 `law-template:sha-e411d22`，8080 端口在听。
+
+### §15.157 续四十五：另外两个未纳管服务的结论——不是落后，是「没人管」（11-09）
+
+覆盖率审计剩下的两个产品缺口，逐个查完了：
+
+| 服务 | 清单位置 | 清单 vs 线上 | 结论 |
+|---|---|---|---|
+| `scraw/proxy-control` | `fd-proxy-service/k8s/proxy-control.yaml` | **空差异**（image `fd-proxy-service:sha-ad65424`、replicas 1 全同） | 不落后 |
+| `scraw/legal-auth-broker` | `fd-law-data/k8s/legal-auth-broker.yaml` | **空差异**（image `legal-auth-broker:sha-b726e1f`、replicas 1 全同） | 不落后 |
+
+也就是说：这两处**没有版本欠账**，风险纯粹是结构性的——清单改了不会自动生效，live 改了也不会被纠正
+（law-bench 的教训在于此，但它至少还有一条 selfHeal 在管其它 workload）。
+
+**接不进去的原因是可验证的**：两个仓都是私有的
+（`git ls-remote https://gitee.com/FindDataTechnology/{fd-proxy-service,fd-law-data}.git` 均被拒），
+而 cheap 上 Argo 只登记了 7 个 repo 凭据（`helm-law-craw-web`、`law-bench`、`fd-infra-deploy`、
+`fd-legal-search-mcp`、`fd-lex`、`fd-text-core`、`fd-wire`），**这两个不在其中**。
+
+**我没有硬接**，理由：给 Argo 加 repo 凭据意味着往集群里放一个能读别人仓的密钥。正解是每仓一把
+**只读 deploy key**（由仓所有者开通），而不是把我自己的 gitee SSH 私钥塞进 argocd 命名空间。
+所以这一步停在"结论已明确、凭据待开"，不是"忘了做"。
+
+**建议（给两条线）**：各开一把 read-only deploy key → 我加 `argocd.argoproj.io/secret-type=repository`
+secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后再开 selfHeal），
+与 `fd-mcp-prod` 完全同套路。在开通前，这两个服务请按**手工清单**对待：改清单要记得 apply。
+
+### §15.158 续四十六（渠）：悬空 `registryName` 全量摸底——只有 1 个是真悬空
+
+把每个 cell 的 `mcp.patch.yml` 里**实际存在的 serverName** 与该 cell 已装 pack 声明的
+`mcpServers[].registryName` 做差集（生产 4 个活跃 cell）：
+
+| cell | packs | servers | 差集 |
+|---|---|---|---|
+| `1da519d4` | 36 | 30 | fd-paper-trading, wire-ops-mcp, wire-build-mcp, wanxing-ops, wire-ops, **actions-mcp** |
+| `3fdc7b8e` | 49 | 18 | 18 个（fd-* / eco-mcp-* / wire-* / law-bench …） |
+| `6db2b1b4` | 8 | 14 | 8 个 |
+| 其余 | 1–2 | 1–5 | 0–6 个 |
+
+**三分类（逐个对到清单的门上）**：
+1. **凭据门**（预期省略）：`wire-ops`（`credentialRef: wire-customer`）、
+   `wanxing-ops`（`credentialRef: wanxing-caller`）——连接器没连上就不该出现，属设计。
+2. **市场引用未安装**：`fd-*` / `eco-mcp-*` / `law-bench` / `wire-build*` 等**根本不在部署清单里**，
+   只能来自市场安装；pack 装了引用但该服务器未装进这个 cell。这是"pack 承诺了它拿不到的腿"，
+   安装报告里本来就该显示 unavailable / requires group —— 属可见的既有语义，不是新缺陷。
+3. **真悬空**：`actions-mcp` —— 清单里**无任何门**（stdio、无 envRefs/credentialRef），
+   它之所以不在，正是本次去重删掉的（§15.153）。全库只有这一个。
+
+**结论**：这类"同程序多份 / 悬空引用"的浪费到此摸完，除已修的 `actions` 外没有第二处可省。
+剩余的服务缺失全部有解释（凭据未连 / 市场未装），要收窄请看 `/api/monitoring` 与 pack 安装报告，
+不要去改组合逻辑。
+
+**回归面（五种部署形态全覆盖，均实测）**：
+| 形态 | 期望 | 实测 |
+|---|---|---|
+| 托管 cell（mcp.json + bundle） | 删 bundle 重复，留 `actions` | 生产日志 `removed duplicate bundled "actions-mcp"`，补丁 1 条 `actions` |
+| 老库已含重复行 | 启动自愈 | 本地造库 → `removed duplicate bundled` |
+| 运维手加同名行 | 不删 | `skipping the duplicate`，行保留 |
+| `actions` 被禁用 | bundle 那份补上 | 补丁只剩 `actions-mcp` |
+| 打包/桌面（无 mcp.json） | 去重不触发，`actions-mcp` 照常种 | 日志 `(none)`，补丁里 `actions-mcp` 在 |
+
+**不会复活（查过）**：pack 重装是唯一可能把 `actions-mcp` 行写回来的路径，而
+`installMcpRef("actions-mcp")` 的结果是——市场里**没有**同名条目
+（`findMarketMcpEntry` 返回 null），本地也没有同名行 → 走 `awaiting-local-binding`，
+**不写行**。所以去重是稳定的；唯一能让它回来的，是运维手工新建一个叫 `actions-mcp` 的服务器，
+那种情况按设计不删（尊重运维配置）。
+
+### §15.158 续四十六：OpenSpec 门禁回到 20/0（删三个空壳），归档口径说清（11-09）
+
+- **删了三个空壳 change**（业主拍板）：`add-shard-aware-coverage`（`5f1e940` 8-30）、
+  `cross-project-manifest-updates`（`aed2e54` 8-04）、`full-test-fd-open-data-mcp`（`31293bc` 8-02）。
+  依据是逐个看过文件清单：只有 `.openspec.yaml` 或一份 e2e 报告，**无 proposal、无 tasks、
+  无 delta**，主题工作也早在各自提交里落地。删除后 `openspec validate --all --strict`
+  → **20 passed / 0 failed**（此前长期 20/3）。
+- **没动的三个**：`protocol-migration-generator` 14/37（13h 前有人动）、
+  `fix-stock-semantic-retrieval` 22/24、`add-real-sources-to-protocol` 42/47 —— 有实质内容、
+  要么有人在推、要么只差几个任务。**替别人宣布完成就是假绿**，所以留着。
+- **本轮自己的归档**：`fix-read-entity-class-identity` 已归档，读侧不变量进了
+  `specs/observation-reading`（5 条需求）。同目录另有 5 个已归档（yfinance 代理、census、
+  财务代码映射、标识类型、argv 凭据）。
+- **明确没进 spec 的部分（如实说）**：隔离搬迁（351,739 + 11 行）、守卫脚本
+  `check_observation_entity_class.py`、口令漂移 `check-dsn-drift.sh`、fd-text-core 的三笔
+  loader 修复——都只有台账记录。理由：数据操作与运维工具，`fd-text-core`/`fd-proxy-service`/
+  `scraw-fd-open-data-mcp` **没有 openspec 目录**；读侧不变量本身已入 spec。
+  若要把"写入方不得绕过实体校验"也变成需求，应另开 change——待定。

@@ -19,6 +19,26 @@ import os from "node:os";
 import fs from "node:fs";
 import express from "express";
 
+// Hermetic outbound: this suite claims "no network", but the telegram adapter
+// still issues real calls (getMe on start, sendText on a turn). With no route
+// out, those connects park forever and the FILE never exits — that pending
+// socket is what hung the CI unit step for an hour and cancelled every rollout
+// (2026-11-09). Answer them locally instead: a 401-shaped body exercises the
+// adapter's own failure path without leaving anything open.
+const REAL_FETCH = globalThis.fetch;
+globalThis.fetch = (input, init) => {
+  const url = typeof input === "string" ? input : (input?.url ?? String(input));
+  if (url.startsWith("https://api.telegram.org")) {
+    return Promise.resolve(
+      new Response(JSON.stringify({ ok: false, description: "Unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  }
+  return REAL_FETCH(input, init);
+};
+
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "bots-test-"));
 process.env.DB_PATH = path.join(tmpRoot, "app.db");
 delete process.env.BOTS_ALLOW_TOOLS;
@@ -81,9 +101,18 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
+after(async () => {
   bots.stopAll();
-  server?.close();
+  // `close()` only stops new connections; a keep-alive socket from the fetch
+  // calls above keeps the event loop alive, and the file-level test then hangs
+  // forever ("Promise resolution is still pending") — which is what stalled the
+  // CI unit step for an hour and cancelled every rollout (2026-11-09). Close the
+  // connections too, and await the close so teardown is done when it returns.
+  await new Promise((resolve) => {
+    if (!server) return resolve();
+    server.closeAllConnections?.();
+    server.close(() => resolve());
+  });
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 

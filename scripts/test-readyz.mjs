@@ -15,6 +15,11 @@
 // 注意：纯函数测试无法证明 gateway/index.js 里的实现没写错（同构断言只能覆盖结构）。
 // 真链路验证靠部署后 `curl 127.0.0.1:3100/readyz` 看到 `answered`/`unknown`。
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 // 复刻 /readyz 的聚合逻辑（与 gateway/index.js 中实现同构）。
 // 之所以抽成纯函数：路由里那段不可单测（依赖 express + registry + fetch）。
@@ -82,3 +87,18 @@ function summarize(cells, answers) {
 }
 
 console.log("readyz: all assertions passed");
+
+// ── 路由必须可达（2026-11-09 线上实测暴露）──────────────────────────────
+//
+// 上面那些测的是聚合语义；**它们全绿，而线上 /readyz 返回的是 SPA 的 HTML**：
+// 网关的 SPA 兜底正则（gateway/index.js 顶部）没有排除 readyz，我的路由注册在
+// 它之后，于是永远轮不到。纯函数测试天生看不见这一类——所以这里直接断言兜底
+// 正则的形状（它是唯一决定"路由能不能到达"的东西）。
+{
+  const src = fs.readFileSync(path.join(here, "..", "gateway", "index.js"), "utf8");
+  const line = src.split("\n").find((l) => l.includes("app.get(/^\\/(?!")) ?? "";
+  assert.ok(line, "SPA fallback route not found — was it renamed or removed?");
+  assert.ok(/healthz\$/.test(line), "fallback should still pass /healthz through");
+  assert.ok(/readyz\$/.test(line), "fallback MUST pass /readyz through, else the probe endpoint is dead");
+  console.log("readyz: SPA fallback excludes /readyz");
+}

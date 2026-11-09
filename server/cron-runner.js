@@ -618,11 +618,28 @@ export async function applyPostEffort(ctx, plan) {
 // selection time only: resolution already roster-filtered the candidates, the
 // loop walks past a hop only if the roster drifted between the read and the
 // switch. No candidates at all → honest failure, no invented model.
-async function normalizeModelForJob(ctx, preset) {
+async function normalizeModelForJob(ctx, preset, job = null) {
   const plan = (await ctx.resolveFleetModel?.(preset)) ?? null;
   // Not a fleet post (plain cron task or a persona holding no post): the turn
   // runs on the current model, byte-for-byte the pre-change behavior.
-  if (!plan) return { ok: true };
+  //
+  // BUT a job that DOES carry fleet attribution must not take this door: with
+  // no plan there is no model normalization at all, and the call returned
+  // `{ok:true}` — which is how three rounds settled `status=ok` with
+  // `model=null`, no usage and no trace (ledger E28, live 2026-11-09: the
+  // catalog fetch was failing, `resolveFleetModel` came back null, the turn was
+  // "successful" without ever running). Losing the post's model resolution is a
+  // failure of this round, not a licence to skip it.
+  if (!plan) {
+    const fleet = job ? fleetTagOf(job) : null;
+    if (fleet) {
+      return {
+        ok: false,
+        error: "post model resolution unavailable (catalog/model roster unreachable) — the round would run on an unspecified model",
+      };
+    }
+    return { ok: true };
+  }
   const notices = [...plan.notices];
   let landed = null;
   // fix-fleet-model-drift: a post with an explicit chain cannot trust the
@@ -952,7 +969,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
     // the two switches short-circuit independently, so a same-persona model
     // change is never swallowed, and switchModelTo's live path flips the model
     // without a second restart when the bridge declares model/set.
-    modeled = await normalizeModelForJob(ctx, job.preset);
+    modeled = await normalizeModelForJob(ctx, job.preset, job);
     if (!modeled.ok) {
       releaseReservation?.();
       return withPresetPath(modeled, presetPath);

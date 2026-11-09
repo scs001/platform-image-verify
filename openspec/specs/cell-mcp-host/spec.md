@@ -1,7 +1,10 @@
 # cell-mcp-host Specification
 
 ## Purpose
-TBD - created by archiving change share-mcp-satellites-per-cell. Update Purpose after archive.
+把「只读 cell env」的那几个 MCP 卫星进程从一个 dsh runtime 一份，改成**一个 cell 一份宿主、
+各 dsh 世代按 url 接入**，从而在每个 cell 有多个 runtime（主对话 bridge 与 worker 槽）时
+省掉重复的卫星常驻内存。它同时规定边界：宿主失败不跨 cell、不改回合语义；成员级覆盖
+（library/actions 等按人、按会话的开关）不经宿主下发；共享是否生效必须可观测。
 
 ## Requirements
 

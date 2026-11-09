@@ -1,7 +1,9 @@
 # cell-execution-queue Specification
 
 ## Purpose
-TBD - created by archiving change fix-cell-turn-throughput. Update Purpose after archive.
+cell 内那一个串行执行槽的排队纪律：谁先跑（人点过的优先）、排太久的排期轮该丢而不是补跑、
+以及"名额"必须对应真实调度。它存在的理由是 2026-11-08 那次活体故障——一个回合在 runnning
+状态卡了 6.5 分钟、24 条任务在后面排队而探针仍答 ready，于是停产几小时才被发现。
 
 ## Requirements
 

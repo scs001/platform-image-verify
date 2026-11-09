@@ -169,6 +169,18 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     // collector already produced an outcome, and both branches must not each
     // write a row.
     const startedAt = Date.now();
+    // Run ledger on the pool path (ledger E21's last gap, live 2026-11-10): the
+    // serial chain opens one in runCronJobTurn, which registers the session for
+    // collectTurn's trace tap and yields the turnId the row carries. The pool
+    // never did — so EVERY worker round settled with `traceTurnId: null` and no
+    // trace rows, and the acceptance harness could not see what it called (nor
+    // how many tools it was handed). Same seam, one call, degrade-open.
+    let ledgerTurn = null;
+    try {
+      ledgerTurn = ctx.fleetTurnLedger?.begin?.(task, { startedAt, sessionIds: [childSessionId] }) ?? null;
+    } catch (e) {
+      console.warn(`[worker-pool] ledger begin failed for ${task.id}: ${e?.message || e}`);
+    }
     let settled = false;
     const settle = (out) => {
       if (settled) return out;
@@ -189,7 +201,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
           endedAt: Date.now(),
           // A tool task never calls a model; `null` keeps the ledger honest.
           model: task.targetType === "tool" ? null : (out?.usage?.model ?? null),
-          ledgerTurn: null,
+          // The handle opened above: the recorder writes turnId/runId/chain and
+          // the trace key from it — that is what makes a worker round auditable.
+          ledgerTurn,
         });
       } catch (e) {
         // Accounting must never swallow the turn's real outcome.

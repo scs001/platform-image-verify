@@ -19,6 +19,56 @@
            → 池在正常起停 worker，不是"池坏了"
 ```
 
+等待中的三条（同一时刻读 `jobs.json`）：
+
+```
+job_1792876490012_ygkf05   intel-poster   queuedBy=human    wait 57.4min  nextRun 次日 00:10Z
+job_1792885292645_v3q0yz   zx-patrol      queuedBy=human    wait 57.4min  nextRun 当日 23:50Z
+task_1794234897853_ovd0h8  law-chief      queuedBy=cadence  wait 56.5min  nextRun None（manual）
+```
+
+占着全池 cap=3 的三个 persona 是 `intel-patrol` / `intel-chief` / `user-preset-2`——与等待中的三个
+**零重叠**。这是判定「撞在亲和+cap 上」而非「排序不公」的关键事实：它们的次序再往前挪也没用，
+**没有可派的槽**。
+
+### 观测一之后发生了什么（2026-11-09 23:35–23:43）
+
+```
+23:35:31  job_1792876490012_ygkf05  done success=true     ← 等到槽，跑完了
+23:37:32  job_1792885292645_v3q0yz  done success=true     ← 等到槽，跑完了
+23:38     pod 滚版（sha-27c7d1e → sha-0b19a2e）
+23:40     /readyz ready=true queued=0；第三条 law-chief 在新 pod 上继续 running
+```
+
+**结论要小心读**：这次"好了"不是被修好的——镜像 `baseCommit = 108e694b`，经
+`git merge-base --is-ancestor` 核对，其中**不含**任何队列/池修复。它好起来是因为
+**等够了**（56 分钟后占用者终于腾出槽）。
+
+### 观测二（反证）：换了占用组合就不堵
+
+```
+23:44  /readyz ready=true queued=0 degradedCells=[]
+       在跑：law-chief（上一条还没跑完）+ zx-chief（新一轮）
+       池：spawned worker-1 for persona zx-chief
+       日志：8 分钟内零条 "off the chain"
+```
+
+同一批岗位、同一个 cell、同一个 cap=3，**只是占 cap 的组合换成了"1 条长回合 + 空余 2 槽"**，就完全
+不堵了。这条反证的价值在于它排除了「这些任务本身有问题」：**是否堵车取决于当时占 cap 的是谁**，
+与任务来源（human 点火 / 排期）无关。
+
+### 由此可写死的成立条件
+
+同时满足以下三条才会出现本例的极端等待：
+
+1. cap 个槽位恰好被 **N 个与等待者不重叠**的 persona 占满（本例 N = cap = 3）；
+2. 这些占用者都是**长回合**（本例 law-chief 单条就超过 8 分钟）；
+3. 等待者是**别的 persona**，既不能复用占用者的 worker（亲和），也不能新开（cap 已满）。
+
+`intel-*` / `zx-*` / `law-*` 是同一批常驻舰队岗位，因此这不是偶发：撞上哪个组合取决于当时谁在跑，
+而撞上就必然等到长回合结束。
+
+
 ## 二、机制（读码，`server/worker-slots.js:341-355`）
 
 ```js
@@ -63,6 +113,17 @@ const placeable = (id) => {
 | **C. 按 persona 分别排队 + 轮转派发** | 不改容量，只改**顺序**：多个 persona 都有等待时，派发轮转而不是先到先服务 | 纯排序，零容量风险 | **不解决本例**——本例的问题是"没有可派的槽"，不是顺序（只有一个 persona 有队） |
 
 **C 不能解决本例**，这点值得写明：今天立的 `fix-operator-ignition-priority` 也是纯排序改动，同样救不了这个。
+
+## 四之二、这份文档的证据强度
+
+| 证据 | 内容 | 作用 |
+|---|---|---|
+| 观测一 | 23:25，三条轮等 51–57 分钟，占 cap 的三个 persona 与它们零重叠 | 证明撞车确实发生 |
+| 观测一续 | 23:35/23:37 两条 done（等够才跑），23:38 滚版，镜像不含任何队列修复 | 排除"已被修好"的误判 |
+| 观测二 | 23:44 同 cell 同 cap，占用组合换成"1 条长回合 + 2 空槽"→ 完全不堵 | **反证**：与任务来源无关，只与占用组合有关 |
+
+三条合起来，足以把"这是 persona 亲和 + 共享 cap 的结构性结果"这一判断与"这是某个 bug / 排序问题"
+区分开。
 
 ## 五、我倾向哪个
 

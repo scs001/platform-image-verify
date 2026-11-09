@@ -80,6 +80,13 @@ supervisor；② `TASK_WORKER_MAX=0` 时**不启动**，单 dsh 路径零改动�
 即 F2 表格第一行 + bench-proposal。`actions` 本期**不做**（它的 `DSH_SESSION_ID` 需要按请求
 注入，属额外改造）；library/websearch/fd-memory 明确不动。
 
+**实测订正（2026-11-09 scratch A/B）**：F2 的 9 个名额是**上限，不是保证**。线上真实清单
+（ConfigMap `platform-mcp-config`）里 `bench-proposal` 带
+`envRefs: [BENCH_URL, BENCH_CONSUMER_TOKEN, BENCH_PROPOSAL_DOMAIN]`，按本节的守卫规则
+**不共享**。本舰队实际共享的是 fleet / cron / delegation 三颗（A/B 里省下的 ≈225Mi 就是它们）。
+判据集中在 `isShareableSatellite()`，`writeMcpPatch` 每次把结果落成 `mcp.shared.json`，
+宿主机只认这份清单——两处各自推导会漂移成"宿主一份 + 每个 dsh 一份"（比不共享更差）。
+
 ### D5. 失败语义沿用 dsh 既有降级，不新增回退
 
 宿主挂 = 该 cell 的这些工具按 F1 的阶梯降级/恢复；**不**在 cell 内回退拉起 per-dsh 卫星

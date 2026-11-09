@@ -86,10 +86,15 @@
         占比，末行 `satellites per dsh`；`--json` 出单行便于前后 diff）。窗口前后各跑一次
 - [ ] 4.3 出片 + 灰度（先一个开 worker 的 cell）；验证 = `tools/verify-rollout.sh` + 该 cell 回合/工具面走查
       - 镜像已出并灰度（`sha-5d79069`，灰度 `aloatree@gmail.com`），但池关 → **共享路径从未启用**，
-        故「该 cell 回合/工具面走查」不成立；且该灰度 env 已被并发的 `memlimit-7gi` 滚动覆盖，
-        现网部署上已无 `MCP_SATELLITE_HOST_CELLS`。**走查并入 4.2 的同一窗口重做**
-- [ ] 4.4 回滚面：`TASK_WORKER_MAX=0` 即回到单 dsh 原形态，无需回滚镜像；验证 = 演练一次
-      - 不能现在"演练"：共享路径在产从未处于开启态，没有可回滚的活态。两面已被别的证据钉住：
-        ①现网 cap=0 的形态就是原形态（三 cell 各 1 dsh、patch 全 stdio，实测）；
-        ②单测「without a host url the composition is byte-identical stdio」证明无残留。
-        **真演练必须与 4.2 同窗**：cap=1 开 → 看到 1×13 → 立刻回 0 → 确认回到 1 dsh/全 stdio
+        故「该 cell 回合/工具面走查」不成立
+      - 订正：灰度键**没有被覆盖**——它在 ConfigMap `platform-config`（`envFrom` 注入），
+        pod 内实测 `CELLS=aloatree@gmail.com`。此前按 deployment 内联 env 查而误判
+      - 仍缺的一段：**worker 池真实抢占**下的走查（scratch A/B 是手起两个 dsh，不是池派发）。
+        要真做，需要一个 cap>0 且能真跑回合的环境（fd-prod 的 4Gi 装不下，见 4.2）
+- [x] 4.4 回滚面：`TASK_WORKER_MAX=0` 即回到单 dsh 原形态，无需回滚镜像；验证 = 演练一次
+      - **演练已在 scratch 完成（2026-11-09）**：同一 pod、同样 2 个 dsh，只切换宿主开关——
+        开：9 颗卫星/628Mi（共享）；关（`MCP_SATELLITE_HOST_URL` 不设）：12 颗/909Mi，
+        patch 逐条回到 `transport: stdio` + `command: node`，即改造前形态，**未回滚镜像**
+      - 生产侧的两个杠杆另有实证：`TASK_WORKER_MAX=0` → 宿主根本不启动（`worker pool off`，
+        2026-11-08 实测）；单测「without a host url the composition is byte-identical stdio」
+      - 口径：这是**机制回滚**演练；真正的"生产开→关"演练要等池开启（与 4.3 同一场）

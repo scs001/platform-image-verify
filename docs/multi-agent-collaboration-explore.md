@@ -210,6 +210,8 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**重启成本已量化（2026-11-09，实测日志时间戳）**：pod 重建后 `gateway listening` 在 3 秒、三个 cell 的 HTTP 面在 9 秒，但 **dsh runtime ready 分别要 29 / 62 / 97 秒**（`[cell …] [dsh] runtime ready`）——这段是 dsh 初始化（35 个 MCP 源串行），`awaitRuntimeReadyForJob` 的 120s 轮询把它兜住了，所以**重启丢的不是回合，是约 90 秒的推迟**；风险在于推迟窗口里撞上上游 429/503 就会被记成失败。**并行化 MCP 初始化在 dsh 内部，平台侧无旋钮**（与工具输出上限同一结论），故此项不做代码改动，仅记录。
+
 **留痕立刻破案（2026-11-09，产线实证）**：`salvageSkipped={"isFleet":true,"interrupted":false,"pressure":true,"reported":true}` —— 那条 12 次压缩后超时的回合**已经交过报数**，所以收尾车道按设计拒绝补第二次（否则写重复报数）。此前两次「原因已点名却没收尾」的怀疑，答案大概率一直是这个——**实现没有 bug，判据是对的**。这条也验证了留痕字段的价值：一个字段省掉了一整轮从外部猜。
 
 **P0′-1 第五批 + 产线观测（2026-11-09）**：

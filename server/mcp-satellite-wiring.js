@@ -19,11 +19,19 @@
 // keeps its stdio entries and the cell behaves exactly as before.
 
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import yaml from "js-yaml";
 import { SHARED_SATELLITE_SERVERS } from "../dsh-profile.js";
 import { createMcpSatelliteHost } from "./mcp-satellite-host.js";
 
 // Reads the composed patch and returns the specs for the shareable servers.
+//
+// The AUTHORITY is mcp.shared.json — written by writeMcpPatch with the exact
+// set the patch rewrite converted. Deriving the set here instead (any shareable
+// name that still has a command) is how the host came to own satellites that
+// every dsh also spawns: an envRefs-bearing satellite keeps its stdio entry in
+// the patch, so "still has a command" and "was converted" are different sets.
+// The fallback keeps directories written by an older image working.
 export function satelliteSpecsFromPatch(patchPath) {
   let rows;
   try {
@@ -31,11 +39,19 @@ export function satelliteSpecsFromPatch(patchPath) {
   } catch {
     return [];
   }
+  let authoritative = null;
+  try {
+    const parsed = JSON.parse(readFileSync(join(dirname(patchPath), "mcp.shared.json"), "utf8"));
+    if (Array.isArray(parsed?.sharedSatelliteNames)) authoritative = new Set(parsed.sharedSatelliteNames);
+  } catch {
+    /* older profile dir — fall back to the declared list */
+  }
   const inserts = rows.filter((r) => r?.insert).flatMap((r) => r.insert);
   const specs = [];
   for (const row of inserts) {
     const name = row?.config?.serverName;
     if (!name || !SHARED_SATELLITE_SERVERS.includes(name)) continue;
+    if (authoritative && !authoritative.has(name)) continue;
     const command = row.config.command;
     if (!command) continue; // already a url entry — nothing to spawn
     specs.push({

@@ -8019,6 +8019,32 @@ streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（
   单测已把 `failOnStartupError: false` 与 `serverName` 钉住（宿主挂了只灰掉工具，不拦 dsh 启动）。
 
 
+
+### §15.145 续三十三（渠）：卫星共享 A/B 真机跑通（12→9 颗、909→628Mi）+ 抓到一个"多起一份"缺陷
+
+**在哪做的**：不占 fd-prod 配额（它 38Gi 已满）。`default` 命名空间（cheap-ts，12Gi 配额 0 使用）
+起一次性 pod，用生产镜像 `sha-6f121f5` + **线上真实清单**（ConfigMap `platform-mcp-config`，
+13 个服务器）+ 真 dsh（`node /app/node_modules/@deepseek-ai/dsh/lib/bin.js --profile platform
+--patch …`，stdin 必须吊住否则立刻退）。镜像里**没有 `ps`**，用 `/proc/*/cmdline` + `VmRSS` 计。
+
+| 形态 | dsh | 卫星进程 | 卫星 RSS |
+|---|---|---|---|
+| 不共享 | 2 | 12 | 909Mi |
+| 共享一份宿主 | 2 | 9 | 628Mi |
+
+`satellites per dsh` 6.0 → 4.5；第二个 dsh 省 ≈281Mi（≈225Mi 是 fleet/cron/delegation 被合掉）。
+**注意口径**：真实清单里 `bench-proposal` 带 `envRefs`（BENCH_URL/BENCH_CONSUMER_TOKEN/
+BENCH_PROPOSAL_DOMAIN），被 D4 守卫当成员级留下——所以"可共享 9 个"是**上限**，本舰队实际共享 3 个。
+
+**A/B 抓到的缺陷（已修）**：宿主取 spec 用"补丁里还带 command 的可共享名"，补丁改写用
+"没凭据/没 envRefs"——两套判据，于是被改写拒绝的 bench-proposal 仍会进宿主的 spawn 列表，
+结果是**宿主一份 + 每个 dsh 一份**，比不共享更差。修法：`isShareableSatellite()` 单一判据，
+`writeMcpPatch` 每次落 `mcp.shared.json` 权威清单，宿主只认它（无 sidecar 回落声明集，
+老 profile 目录升级不退化）。真环境复核：sidecar 恰为 `fleet,cron,delegation`，宿主 specs 一致。
+回归用例：`test-mcp-satellite-wiring.mjs`「a satellite the rewrite refused is not spawned by the host」。
+
+**没解决的**：fd-prod 仍不能验（`TASK_WORKER_MAX=0` + `4Gi`，容量决定）；scratch 用的是
+"两个 dsh 手起"而非 worker 池真实抢占，池侧集成仍只有单测 + 接线日志。
 ### §15.145 续三十三：ship-spool 的 429 真因是「批量业务打了交互车道」（11-08）
 
 - **不是上游没额度，是路由走错**。sub2api 有两车道：

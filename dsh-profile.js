@@ -270,6 +270,20 @@ export function targetPaths(dirs) {
 // rows in the patch (the scaffold's inserts) are preserved. Atomic:
 // temp+rename; dsh-hmr watches this file, so a mid-session write hot-applies.
 // Returns { providers, models } so server.js can source its model selector.
+// How many tokens of a single tool result stay INLINE in the context before it
+// spills to disk and becomes a reference. Stock dsh: 12500 (~40KB), which on a
+// 128K window is a third of the budget for one result. 4000 (~13KB) still holds
+// a useful listing or grep hit; anything larger the model can re-read through
+// the spill. Invalid or non-positive values fall back to the default, never to 0
+// (0 would suppress every result body).
+const DSH_MAX_INLINE_TOKENS_DEFAULT = 4000;
+export function inlineTokensBudget(env = process.env) {
+  const raw = env.DSH_MAX_INLINE_TOKENS;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return DSH_MAX_INLINE_TOKENS_DEFAULT;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DSH_MAX_INLINE_TOKENS_DEFAULT;
+}
+
 export async function writeLlmProfile(opts = {}) {
   const { dirs, ...buildOpts } = opts;
   const patchPath = targetPaths(dirs).settings;
@@ -282,8 +296,25 @@ export async function writeLlmProfile(opts = {}) {
     // ENOENT is expected on first run; anything else is warned but not fatal.
     if (err.code !== "ENOENT") console.warn("[dsh-profile] profile patch unreadable, recreating llm row:", err.message);
   }
-  const kept = rows.filter((r) => !(r && typeof r === "object" && !r.insert && r.id === "llm-pi-ai"));
+  // Own BOTH rows we compose: the llm route and the inline budget.
+  const kept = rows.filter(
+    (r) => !(r && typeof r === "object" && !r.insert && (r.id === "llm-pi-ai" || r.id === "spill-policy")),
+  );
   kept.push({ id: "llm-pi-ai", name: "@deepseek-ai/dsh-llm-pi-ai", config: { providers } });
+  // Inline budget for tool results and other retained output
+  // (fix-dsh-inline-budget): dsh ships `spill-policy` with maxInlineTokens 12500
+  // (~40KB per result), and the traced rounds showed exactly that — single tool
+  // results at 40KB and single assistant messages at 43KB, 79-87% of the bytes
+  // in an overflowing round. On a 128K window two of those plus history is most
+  // of the budget, which is how a round dies at `context overflow` after ONE
+  // compaction. The retained text is not discarded — it spills to disk and the
+  // model gets a reference — so a smaller inline budget costs a re-read, not the
+  // information. Env-tunable; set 12500 to restore the stock behaviour.
+  kept.push({
+    id: "spill-policy",
+    name: "@deepseek-ai/dsh-spill-policy",
+    config: { maxInlineTokens: inlineTokensBudget() },
+  });
   atomicWriteTextSync(patchPath, yaml.dump(kept));
 
   if (Object.keys(providers).length === 0) {

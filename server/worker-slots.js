@@ -307,13 +307,38 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     if (!fleetId) return 0;
     return [...workers].filter((w) => w.busy && w.currentFleet === fleetId).length + (pendingFleets.get(fleetId) ?? 0);
   }
+  // 人工点火优先（harden-fleet-execution-economics 3.x）。**默认关闭**。
+  //
+  // 缺口（2026-11-09 实测）：`queuedBy === "human"` 被三处豁免同时保护——
+  //   ① 老化不丢它（queueMaxAgeMs 只丢非 human 的 schedule 触发）；
+  //   ② 顶替不动它（supersedeQueuedForPost 显式跳过 human）；
+  //   ③ 但池里 human 只换来"多一个额外槽"，**没有优先认领**。
+  // 于是它成了"既不能被丢弃、也不能被顶替、又抢不到槽"的任务——实测
+  // hotel-watch-scout 以 queuedBy=human 在队列里等了 20 分钟，而 nextRun
+  // 已经是第二天：它被礼貌地饿死，而系统认为自己"正确地没丢它"。
+  //
+  // 打开后：`waiting` 里 human 的任务优先参与派发（仍然是"能派就派"，不改
+  // 岗位亲和与舰队闸的判定）。默认关闭是为了不擅自改变生产调度顺序。
+  function humanFirstEnabled() {
+    const raw = process.env.QUEUE_HUMAN_PRIORITY;
+    return String(raw ?? "").trim() === "1" || String(raw ?? "").toLowerCase() === "true";
+  }
+
+  // 派发决策留痕（默认关闭，避免生产日志噪音）。为什么要它：dispatcher 的
+  // claim/fallback 决定**完全不留痕**，于是"任务为什么没进池"只能靠猜——
+  // 2026-11-09 我为此连续误判两次（先怪 cap、再怪 spawning 泄漏）。
+  function dispatchDebugEnabled() {
+    const raw = process.env.WORKER_POOL_DEBUG;
+    return String(raw ?? "").trim() === "1" || String(raw ?? "").toLowerCase() === "true";
+  }
+
   function scheduleNext() {
     const fleetCap = (() => {
       const n = Number(process.env.FLEET_MAX_INFLIGHT);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 4;
     })();
     while (waiting.length) {
-      const idx = waiting.findIndex((id) => {
+      const placeable = (id) => {
         const t = engine.getRecord(id);
         if (!t || t.paused || t.status === "expired" || t.status === "completed") return false;
         const persona = t.preset;
@@ -328,7 +353,17 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         // exists only for a human wake while none is outstanding.
         if (workers.size + spawning < cap) return true;
         return human && !humanExtraOut;
-      });
+      };
+      // 人工点火优先：先在可派的任务里挑 human 的，挑不到再按原顺序。
+      let idx = -1;
+      if (humanFirstEnabled()) {
+        idx = waiting.findIndex((id) => {
+          const t = engine.getRecord(id);
+          if (!(t && (t.humanPriority === true || t.queuedBy === "human"))) return false;
+          return placeable(id);
+        });
+      }
+      if (idx === -1) idx = waiting.findIndex(placeable);
       if (idx === -1) return;
       const id = waiting.splice(idx, 1)[0];
       const task = engine.getRecord(id);
@@ -383,23 +418,29 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   // the pool can serve them now or soon; anything else goes to the primary.
   function dispatcher(task) {
     if (!task) return false;
-    if (task.trigger !== "manual" && task.trigger !== "schedule") return false;
+    const dbg = dispatchDebugEnabled();
+    const no = (why) => {
+      if (dbg) console.log(`[worker-pool] dispatch ${task.id} -> fallback:${why}`);
+      return false;
+    };
+    if (task.trigger !== "manual" && task.trigger !== "schedule") return no(`trigger=${task.trigger}`);
     // Carrier gate (add-fleet-carrier): the CONFIGURED placement decides
     // claim eligibility — cell tasks stay on the primary chain, runner tasks
     // route through the remote executor; only worker/auto tasks are claimed.
     // auto = today's behavior (claim when the pool is active).
     const carrier = task.carrier ?? "auto";
-    if (carrier === "cell" || carrier === "runner") return false;
+    if (carrier === "cell" || carrier === "runner") return no(`carrier=${carrier}`);
     // a2a targets are remote turns (add-agent-delegation-a2a) — no persona to
     // pin; they ride the primary chain's remote executor.
-    if (task.targetType === "a2a") return false;
+    if (task.targetType === "a2a") return no("targetType=a2a");
     // Cluster targets (agent-cluster-platform): `preset` carries the cluster
     // id, not a persona — a worker pinned to it would boot a broken child.
     // The primary chain's cluster executor fans members out itself.
-    if (task.targetType === "cluster") return false;
+    if (task.targetType === "cluster") return no("targetType=cluster");
     // Null-ref (legacy live-preset) tasks have no persona to pin a worker to.
-    if (!task.preset) return false;
+    if (!task.preset) return no("no-preset");
     waiting.push(task.id);
+    if (dbg) console.log(`[worker-pool] dispatch ${task.id} -> claim:${task.preset}`);
     scheduleNext();
     return true;
   }

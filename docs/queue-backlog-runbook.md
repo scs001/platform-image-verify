@@ -177,3 +177,32 @@ kubectl -n fd-prod get deploy platform \
 **当日教训**：`/readyz` 的 5 条单测全绿，而线上它返回 HTML——因为测试只测了聚合纯函数，
 没测路由可达性。所以第 ② 步不能省：**接口类改动必须打真实请求**。
 
+## 八、`history[]` 是执行历史，不是便签本（2026-11-09 实测）
+
+**任何写进 `history[]` 的行都会被统计工具当成"一次执行"。**
+
+当天教训：校准脚本为了留痕，往 `history[]` 追加了一条
+`{ time, missed: 0, success: null, note: "missed counter recalibrated …" }`。
+这条记录没有 `state`、没有 `error`，于是被统计脚本归进"未分类失败"——
+**真实失败率 38.3% 被我读成 62.1%**（75 条审计行冒充失败）。
+
+规则：
+
+- `history[]` 只写真执行结果（`success` 必须是 true/false/null+missed 三态之一）；
+- 元数据类改动（校准、迁移、重置、打标）写**记录级字段**，例如
+  `missedResetAt` / `missedResetReason` —— 它们已经在 `clientShape` 的读面里；
+- 统计脚本必须能识别非执行行：若某行没有 `state` 且有 `note`，它不是一次执行。
+
+自检一条命令（近 6 小时）：
+
+```bash
+# 形状分布：出现 state=undefined + note 的行就是元数据混入
+node -e '...过滤 h.success===null && !h.missed...'
+```
+
+清理（需停 cell，否则 `saveTasks` 覆盖）：
+
+```bash
+node scripts/missed-recalibrate.mjs --dir /data/cells --clean-markers --apply
+```
+

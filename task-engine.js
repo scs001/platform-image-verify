@@ -552,6 +552,36 @@ const DEFAULT_RETRY_BACKOFF_MS = 60_000;
 // the cap keeps every backoff inside timer territory and bounds one wait to
 // a day.
 const RETRY_DELAY_CAP_MS = 24 * 60 * 60 * 1000;
+
+// Which failures may be retried at all (harden-fleet-tool-face-and-queue 3.4 /
+// ledger E26). Live 2026-11-09: four DIFFERENT failures — an upstream 502
+// (`llm/retry` exhausted 5 attempts), a real context overflow, a model budget
+// exhaustion, and `runtime not ready` after a rollout — all surfaced through
+// the same "context overflow" wording, and because the retry policy defaulted
+// to zero every one of them retired the round permanently. Only the transient
+// shapes below deserve another attempt: retrying a context overflow burns the
+// same window again, and retrying a budget exhaustion is pure waste.
+const TRANSIENT_FAILURE_RE = new RegExp(
+  [
+    "upstream service temporarily unavailable",
+    "\\b50[234]\\b",
+    "\\b429\\b",
+    "rate.?limit",
+    "timed out|timeout",
+    "econn[a-z]+|socket hang up|network|fetch failed|other side closed",
+    "runtime is not ready",
+    "upstream_error",
+  ].join("|"),
+  "i",
+);
+
+// A failure the engine may retry on its own. Pure predicate — the caller
+// already decided that `max` allows it.
+function isTransientFailure(error) {
+  if (!error) return false;
+  const text = String(error);
+  return TRANSIENT_FAILURE_RE.test(text);
+}
 const warnedRetryEnvs = new Set();
 
 function warnBadRetryEnv(name, value) {
@@ -1472,7 +1502,15 @@ function finishExecution(t, startTime, result) {
   // Default max = 0 keeps this block inert on today's deployments.
   if (t.state === "failed") {
     const policy = resolveRetryPolicy(t.targetType);
-    if (policy.max > attempt) scheduleRetry(t, attempt, policy);
+    // Only a transient failure earns another attempt (ledger E26). A context
+    // overflow would burn the same window again; a budget exhaustion is waste;
+    // an upstream 502 or a not-ready runtime usually clears on its own.
+    const transient = isTransientFailure(t.error);
+    if (policy.max > attempt && transient) {
+      scheduleRetry(t, attempt, policy);
+    } else if (policy.max > attempt && !transient) {
+      console.log(`[task-engine] ${t.id} failed permanently (${String(t.error).slice(0, 80)}) — not retried`);
+    }
   }
 }
 
@@ -1738,6 +1776,7 @@ function shutdown() {
 export {
   initTaskEngine,
   drainRepairQueue,
+  isTransientFailure,
   loadTasks,
   saveTasks,
   getRecord,

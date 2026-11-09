@@ -167,7 +167,9 @@ test("开+退避重试：两败一成 → 第三次执行 done，每次尝试落
   let n = 0;
   await boot([legacyRecord()], async () => {
     n++;
-    return n <= 2 ? { ok: false, error: `boom ${n}` } : { ok: true };
+    // 瞬时错误才走重试（harden-fleet-tool-face-and-queue 3.4 / E26）：
+    // 502 与 runtime not ready 会自愈，context overflow 不会。
+    return n <= 2 ? { ok: false, error: `502: Upstream service temporarily unavailable (attempt ${n})` } : { ok: true };
   });
   engine.enqueueExecution("job_1");
   await engine.idle(); // 第一次执行落定（failed）
@@ -179,8 +181,8 @@ test("开+退避重试：两败一成 → 第三次执行 done，每次尝试落
   assert.equal(task.state, "done");
   assert.deepEqual(task.history.map((h) => h.attempt), [1, 2, 3]);
   assert.deepEqual(task.history.map((h) => h.state), ["failed", "failed", "done"]);
-  assert.match(task.history[0].error, /boom 1/);
-  assert.match(task.history[1].error, /boom 2/);
+  assert.match(task.history[0].error, /attempt 1/);
+  assert.match(task.history[1].error, /attempt 2/);
 
   // 指数退避只验下界（计时器不会早触发；上界受 CI 负载影响不可验）
   const t1 = Date.parse(task.history[0].time);
@@ -221,7 +223,7 @@ test("耗尽（max=2）：两次失败后无第三次自动执行", async () => 
   let n = 0;
   await boot([legacyRecord()], async () => {
     n++;
-    return { ok: false, error: "boom" };
+    return { ok: false, error: "502: upstream_error" };
   });
   engine.enqueueExecution("job_1");
   await waitFor(() => n >= 2);
@@ -232,6 +234,41 @@ test("耗尽（max=2）：两次失败后无第三次自动执行", async () => 
   assert.equal(n, 2, "耗尽后不再自动执行");
   assert.equal(engine.getTask("job_1").history.at(-1).attempt, 2);
   await engine.saveTasks();
+});
+
+test("非瞬时失败不重试：overflow / budget 一次就终态", async () => {
+  // harden-fleet-tool-face-and-queue 3.4 / ledger E26. Live 2026-11-09: an
+  // upstream 502, a real context overflow, a budget exhaustion and a not-ready
+  // runtime all surfaced through the same wording; enabling retries naively
+  // would burn the same window again on every overflow.
+  process.env.PLATFORM_TASK_RETRY_MAX = "3";
+  process.env.PLATFORM_TASK_RETRY_BACKOFF_MS = "10";
+  for (const err of ["pi-ai detected context overflow for model \"deepseek-v4.1-flash\"",
+                     "budget_exhausted: all candidate models are over budget"]) {
+    let n = 0;
+    await boot([legacyRecord()], async () => {
+      n++;
+      return { ok: false, error: err };
+    });
+    engine.enqueueExecution("job_1");
+    await engine.idle();
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(n, 1, `永久性失败只能跑一次（${err.slice(0, 30)}）`);
+    assert.equal(engine.getTask("job_1").state, "failed");
+    await engine.saveTasks();
+  }
+});
+
+test("瞬时判据本身：502/429/timeout/runtime 为真，overflow/budget 为假", () => {
+  const f = engine.isTransientFailure;
+  for (const e of ["502: Upstream service temporarily unavailable", "429 rate limit",
+                   "turn timed out", "the agent runtime is not ready (waiting)"]) {
+    assert.equal(f(e), true, e);
+  }
+  for (const e of ["pi-ai detected context overflow for model x",
+                   "budget_exhausted: all candidate models"]) {
+    assert.equal(f(e), false, e);
+  }
 });
 
 // ── 手动重跑取代待发重试 ─────────────────────────────────────────────────────
@@ -288,7 +325,7 @@ test("按任务类覆盖：persona 按全局策略重试，a2a 被覆盖关闭",
     [legacyRecord(), legacyRecord({ id: "job_2", targetType: "a2a", preset: "agent-1" })],
     async (t) => {
       runs[t.id]++;
-      return { ok: false, error: "boom" };
+      return { ok: false, error: "502: upstream_error" };
     },
   );
   engine.enqueueExecution("job_1");

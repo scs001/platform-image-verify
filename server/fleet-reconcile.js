@@ -75,6 +75,10 @@ export function materializedSpec({ fleet, member, rosterPresetId = (id) => id, c
     carrier: member.carrier ?? null,
     packId: member.packId ?? null,
   };
+  // 岗位级顶替豁免（3.2）：manifest 声明 `noSupersede: true` 的岗位，其排队轮
+  // 不参与同岗位顶替（`supersedeQueuedForPost` 见该字段直接跳过）。
+  // 不声明时不写这个键 —— 记录的形状与加入本字段之前完全一致。
+  if (member.noSupersede === true) base.noSupersede = true;
   if (member.targetKind === "cluster") {
     return { ...base, clusterId: member.targetId, ...(clusterName ? { clusterName } : {}) };
   }
@@ -101,6 +105,10 @@ export function specDrift(task, spec) {
   // bound session and execution history stay put (换身体不换会话).
   if ((task.carrier ?? null) !== (spec.carrier ?? null)) changes.carrier = spec.carrier;
   if ((task.packId ?? null) !== (spec.packId ?? null)) changes.packId = spec.packId;
+  // 豁免是岗位属性，改它要能就地生效（改的是判定，不换会话/历史）。
+  if ((task.noSupersede === true) !== (spec.noSupersede === true)) {
+    changes.noSupersede = spec.noSupersede === true;
+  }
   if ((task.tz ?? null) !== (spec.tz ?? null)) changes.tz = spec.tz;
   if ((task.prompt ?? null) !== (spec.prompt ?? null)) changes.prompt = spec.prompt;
   if ((task.sessionTitle ?? null) !== (spec.sessionTitle ?? null)) changes.sessionTitle = spec.sessionTitle;

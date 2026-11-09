@@ -532,6 +532,9 @@ async function addJob({
   projectId,
   carrier,
   packId,
+  // 岗位级顶替豁免（3.2 的 manifest 入口）：不声明 = false = 可被顶替，
+  // 与加入本字段之前逐字节一致。谁该豁免是业务配置，代码只负责把声明送到记录上。
+  noSupersede,
   // add-cron-automation-parity: the two new schedule forms + the finite cap.
   delayMinutes,
   interval,
@@ -667,6 +670,8 @@ async function addJob({
     history: [],
     // Owning front-end tag (agent-fleet-core) — opaque passthrough.
     sourceTag: sourceTag ?? null,
+    // 只有显式 true 才豁免；缺省/undefined 一律 false（不落噪声字段进记录）。
+    ...(noSupersede === true ? { noSupersede: true } : {}),
     // Project attribution (add-web-project-container) — opaque passthrough to
     // the read surfaces; NULL = the 默认项目 bucket. The engine never reads it.
     projectId: projectId ?? null,
@@ -697,7 +702,7 @@ async function updateJob(id, changes = {}) {
     throw new Error("only schedule tasks can be updated in place");
   }
 
-  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns, carrier, packId } = changes;
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag, delayMinutes, interval, maxRuns, carrier, packId, noSupersede } = changes;
 
   if (cron !== undefined) {
     if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
@@ -770,6 +775,12 @@ async function updateJob(id, changes = {}) {
   // bound session and execution history survive (换身体不换会话).
   if (carrier !== undefined) task.carrier = carrier ?? null;
   if (packId !== undefined) task.packId = packId ?? null;
+  // 豁免可被就地改回（reconcile 的 drift 修正）：false 要真的删掉这个键，
+  // 否则记录上留一个 `noSupersede: false`，读的人会以为"声明过但没生效"。
+  if (noSupersede !== undefined) {
+    if (noSupersede === true) task.noSupersede = true;
+    else delete task.noSupersede;
+  }
   if (tz !== undefined) task.tz = tz || null;
   if (sessionTitle !== undefined) task.sessionTitle = sessionTitle || null;
   if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null;

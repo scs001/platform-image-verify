@@ -287,3 +287,34 @@ test("packId survives the row round-trip: create→get and update→get both rea
   db.updateMember("m_pin", { packId: null });
   assert.equal(db.getMember("m_pin")?.packId, null, "null clears the pin");
 });
+
+// ── ③ 岗位级顶替豁免（3.2 的 manifest 入口）──────────────────────────────
+//
+// 这条入口以前只存在于注释里（task-engine 写着"岗位可在 manifest 用
+// noSupersede: true 豁免"），但没有任何代码把 manifest 读进记录 ——
+// 于是这个承诺是空的。这里钉三件事：不声明 = 不写字段；声明 = 送到 spec 且能
+// 就地改回；默认行为逐字节不变。
+test("noSupersede: 不声明就不写键（记录形状与加入本字段前一致）", () => {
+  const fleet = { id: "fleet_c1", name: "承载舰队" };
+  const member = { id: "m_cell", title: "驻留岗", cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "跑" } };
+  const spec = materializedSpec({ fleet, member });
+  assert.equal(spec.noSupersede, undefined, "默认不得落这个键");
+  const changes = specDrift({ cron: spec.cron, preset: "pack-a" }, spec);
+  assert.equal(changes.noSupersede, undefined, "无声明时也不许产生 drift");
+});
+
+test("noSupersede: 声明后进 spec，并能就地改回（清掉键而不是留 false）", () => {
+  const fleet = { id: "fleet_c1", name: "承载舰队" };
+  const member = { id: "m_cell", title: "驻留岗", noSupersede: true,
+    cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "跑" } };
+  const spec = materializedSpec({ fleet, member });
+  assert.equal(spec.noSupersede, true);
+
+  const task = { cron: spec.cron, preset: "pack-a" };
+  assert.equal(specDrift(task, spec).noSupersede, true, "新声明要产生 drift");
+
+  // 撤回声明 → drift 要把字段改成 false，由 updateJob 删键
+  const cleared = materializedSpec({ fleet, member: { ...member, noSupersede: false } });
+  const changes = specDrift({ ...task, noSupersede: true }, cleared);
+  assert.equal(changes.noSupersede, false, "撤回也要产生 drift，否则会永久豁免");
+});

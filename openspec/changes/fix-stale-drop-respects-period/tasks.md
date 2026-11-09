@@ -3,6 +3,8 @@
 - [x] 1.1 在 `task-engine.js` 增加「排期周期毫秒」的解析（从 `t.interval` 的 unit/number；覆盖 `interval` 为 null / 非法 / 未知 unit 三种情况，后者返回 null 表示判不出）——验证：新增单测直接断言解析结果表（分钟/小时/天/每 40 天/缺失/非法各一条）
 - [x] 1.2 `dropIfStaleQueued` 增加周期感知：`periodMs === null` 时保持既有丢弃；`periodMs < 长周期下限` 时丢弃；`periodMs >= 下限`（默认 6 小时，`QUEUE_STALE_EXEMPT_MIN_PERIOD_MS`）时豁免——验证：针对同一函数的三态单测（判不出→丢、小时级→丢、日更→留），并有一条断言「下限 MUST NOT 由上限度派生」的反例（下限设成 Infinity 时豁免为空）
 
+- [x] 1.3 下限从环境读取 SHALL 在每次调用时解析（与 `queueMaxAgeMs` 同形），MUST NOT 在模块加载时冻结——冻结会让后续 env 变更与测试内的重指向全部失效；开关名 `QUEUE_STALE_EXEMPT_MIN_PERIOD_MS` 已登记进 `.env.example` 与 `DEPLOY.md` 的逃生阀表——验证：`staleExemptMinPeriodMs` 的用例断言"改 env 后无需重启即生效"，且 `grep -qx QUEUE_STALE_EXEMPT_MIN_PERIOD_MS .env.example` 命中
+
 ## 2. 文案与两条路径一致
 
 - [x] 2.1 丢弃分支的 error 文案区分两种情况：周期 ≤ 上限时保留「由下一次排期接替」；豁免分支不产生丢弃文案（因为不丢弃）——验证：断言丢弃文案含等待分钟数与上限，且不含对长周期不成立的表述

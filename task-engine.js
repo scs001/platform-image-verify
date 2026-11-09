@@ -1051,17 +1051,22 @@ function schedulePeriodMs(t) {
 // — so "period > bound" would exempt the entire queue and silence the policy
 // while looking like it still worked. (Found exactly this way: the first test
 // run exempted the hourly case.)
-const STALE_DROP_MIN_PERIOD_MS = (() => {
+//
+// Read per call, like queueMaxAgeMs above — freezing it at module load is the
+// snapshot trap this file has been bitten by before (a value read once at
+// import time stays stale through every later env change and every test that
+// repoints the store).
+function staleExemptMinPeriodMs() {
   const raw = Number(process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS);
   return Number.isFinite(raw) && raw > 0 ? raw : 6 * 3_600_000;
-})();
+}
 
 // Is this queued round exempt from the age bound because losing it would cost
 // more than the queueing pressure it relieves? Shared by the drop decision AND
 // by the health snapshot: an exempt round must not count as evidence that the
 // queue is stuck, or one waiting daily round would flip a healthy-but-idle cell
 // to 503.
-function isAgeExemptQueued(t, periodFloorMs = STALE_DROP_MIN_PERIOD_MS) {
+function isAgeExemptQueued(t, periodFloorMs = staleExemptMinPeriodMs()) {
   if (!t) return false;
   if (t.trigger !== "schedule" || t.queuedBy === "human") return false;
   const periodMs = schedulePeriodMs(t);
@@ -1812,7 +1817,6 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   // cell whose only queued round is exempt would otherwise look unreachable.
   // Naming the count keeps both facts readable instead of sacrificing one.
   let queuedExempt = 0;
-  const maxAgeMs = queueMaxAgeMs();
 
   for (const t of tasks.values()) {
     if (t.state === "queued") {
@@ -1973,6 +1977,7 @@ export {
   // exempt predicate is the spec's "丢弃必须有接替者" rule in executable form.
   schedulePeriodMs,
   isAgeExemptQueued,
+  staleExemptMinPeriodMs,
   // Budget resolver passthrough (fix-task-queue-deadlock D3): the readiness
   // probe asks the engine for each running task's own budget so "running past
   // budget+grace" is judged by the same number the turn was given — one

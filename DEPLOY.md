@@ -442,6 +442,11 @@ process start, not per request.
 | An operator's run-now sits in the queue for minutes | `QUEUE_HUMAN_PRIORITY` | `=1` makes human-fired tasks outrank cadence fires in the pool. **Not set in production today, so dispatch is FIFO.** Note the reserved extra slot remains human-*wake*-only, so a run-now'd cadence task still needs a normal slot to free — ordering is not a capacity grant (`fix-operator-ignition-priority`) |
 | "Why did that task never enter the pool?" | `WORKER_POOL_DEBUG` | `=1` logs every dispatcher claim/fallback decision. Default OFF. Set it *before* forming a theory — without it the decisions are entirely untraced |
 | `/api/gateway/status` reports a cell `near`/`over` on disk | `CELL_DISK_SOFT_MB` / `CELL_DISK_HARD_MB` | Defaults 512 / 2048 MiB, sized from a 1051 MiB real cell on a 30 GiB node. This only *reports* — refusing writes at the hard line is still open (`budget-cell-disk-usage` 2.2), so the node-side fix is the kubelet reservation in that change's §3 |
+| A daily/weekly round silently never ran | `QUEUE_STALE_EXEMPT_MIN_PERIOD_MS` | Rounds whose period reaches this floor (default 6h) are **never** age-dropped — losing one costs a whole period. Set it lower to let more rounds be dropped, higher to protect more. Independent of `QUEUE_MAX_AGE_MS` on purpose (see `.env.example`) |
+
+`/readyz` reads `oldestQueuedMs: null` in two different situations — no cell
+answered, **or** every queued round is exempt from dropping. Use `queuedExempt`
+(from the same payload) to tell them apart before concluding a cell is dead.
 
 If a cell is `over` and the node is already oscillating, do not wait for the
 write-refusal layer: add the node's `ephemeral-storage` reservation and raise

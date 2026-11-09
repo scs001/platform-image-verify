@@ -358,6 +358,24 @@ test("isAgeExemptQueued: exempt iff the period is long enough to matter", () => 
   assert.equal(isAgeExemptQueued({ ...day, interval: undefined }), false, "unknown period keeps the old rule");
 });
 
+test("staleExemptMinPeriodMs: the floor is read per call, and is independently set", () => {
+  const { staleExemptMinPeriodMs, isAgeExemptQueued } = engine;
+  const saved = process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+  try {
+    delete process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+    assert.equal(staleExemptMinPeriodMs(), 6 * 3_600_000, "default 6h");
+    process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = String(30 * 60_000);
+    assert.equal(staleExemptMinPeriodMs(), 30 * 60_000, "the knob takes effect without a restart");
+    // And it really changes the decision: a 1h round is now exempt too.
+    assert.equal(isAgeExemptQueued({ trigger: "schedule", interval: { number: 1, unit: "hour" } }), true);
+    process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = "not-a-number";
+    assert.equal(staleExemptMinPeriodMs(), 6 * 3_600_000, "garbage falls back to the default");
+  } finally {
+    if (saved === undefined) delete process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS;
+    else process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS = saved;
+  }
+});
+
 test("a daily round is NOT swept while an hourly one is", async () => {
   await boot(() => Promise.resolve({ ok: true }));
   process.env.QUEUE_MAX_AGE_MS = "600000";

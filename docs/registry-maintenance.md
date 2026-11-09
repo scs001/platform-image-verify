@@ -8339,6 +8339,13 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 换 `sha-baf1e75` 后被 ephemeral-storage 驱逐。结论：这类"启动期组合"验证本地起服务就够了，
 只有涉及镜像内进程/资源的行为才需要 pod。）
 
+**删行为什么安全**：`platform.bundle.json` 的 `permissions` 整块为空（`mcp:actions-mcp` 无 allow/deny
+策略），所以删掉这行**不丢任何工具白/黑名单**；row 的 `locked` 也是默认 false。
+唯一被跳过的情形是运维手加的同名行（`origin==="user"`），那种一律不删。
+
+**收益口径**：每 dsh 少一个 ≈77Mi 进程（A/B 实测 79008KiB / 78992KiB）。cap=0 的三个 cell 合计
+≈231Mi；开 worker 槽时同样受益——即「一个槽的净增量」从 ≈430Mi 降到 ≈350Mi。
+
 **顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
 就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、
 用完即删。

@@ -118,6 +118,41 @@ test("three role buckets each attribute one process to its owning cell", () => {
   }
 });
 
+test("each cell row carries its satellite count and bytes (share-mcp-satellites 4.1)", () => {
+  const f = makeFixture();
+  try {
+    const cellA = path.join(f.cellsRoot, "aaaaaaaaaaaaaaaa");
+    const cellB = path.join(f.cellsRoot, "bbbbbbbbbbbbbbbb");
+    mkdirSync(path.join(cellA, "workspace"), { recursive: true });
+    mkdirSync(path.join(cellB, "workspace"), { recursive: true });
+    // Cell A: server + dsh + three satellites hanging off the dsh (what one
+    // dsh generation really looks like).
+    f.addProc({ rssPages: 1000, args: ["node", "/app/server.js"], cwd: path.join(cellA, "runtime") });
+    const dshA = f.addProc({
+      rssPages: 2000,
+      args: ["node", "/opt/dsh/cli.js", "--mcp-patch", path.join(cellA, "dsh", "mcp.patch.yml")],
+      cwd: path.join(cellA, "workspace"),
+    });
+    for (const script of ["fleet-mcp.js", "cron-mcp.js", "delegation-mcp.js"]) {
+      f.addProc({ rssPages: 100, args: ["node", `server/${script}`], cwd: path.join(cellA, "workspace"), ppid: dshA });
+    }
+    // Cell B: a bare cell with no satellites — the summary must say 0, not
+    // omit the field (a shape that changes with traffic is unreadable).
+    f.addProc({ rssPages: 500, args: ["node", "/app/server.js"], cwd: path.join(cellB, "runtime") });
+
+    const snap = groupScan(scanProcesses({ procRoot: f.procRoot, cellsRoot: f.cellsRoot }));
+    const a = snap.cells.find((c) => c.cellId === "aaaaaaaaaaaaaaaa");
+    const b = snap.cells.find((c) => c.cellId === "bbbbbbbbbbbbbbbb");
+    assert.deepEqual(a.satellites, { count: 3, totalBytes: 300 * PAGE }, "satellite count and bytes on the cell row");
+    assert.equal(a.totalBytes, (1000 + 2000 + 300) * PAGE, "the cell total still covers every process");
+    assert.deepEqual(b.satellites, { count: 0, totalBytes: 0 }, "a cell with no satellites reports zero");
+    // order inside the row is unaffected (RSS desc), so existing readers keep working
+    assert.equal(a.processes[0].role, "dsh-runtime");
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test("ungrouped remainder stays visible, gateway bucket separate", () => {
   const f = makeFixture();
   try {

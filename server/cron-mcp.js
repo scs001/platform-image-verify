@@ -19,6 +19,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { shapeCronList, CRON_LIST_LIMIT, CRON_LIST_MAX, CRON_SCOPES } from "./cron-list-view.js";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else.
@@ -122,8 +123,19 @@ const TOOLS = [
   },
   {
     name: "cron_list",
-    description: "List all scheduled tasks with id, schedule, timezone, status, and last outcome. Cluster tasks show cluster name and agent count.",
-    inputSchema: { type: "object", properties: {} },
+    description:
+      "List scheduled tasks (id, schedule, timezone, status, last outcome; cluster tasks also show cluster name and agent count). " +
+      "SCOPED by default to the operator's own tasks: a cell's fleet posts each materialize a cadence task, which belong to the fleet " +
+      "surface (fleet_list / fleet_spec_read) — pass scope='fleet' to see just those, or 'all' for an audit. Paged (default " +
+      `${CRON_LIST_LIMIT}, cap ${CRON_LIST_MAX}); the header always states the totals and what is not shown.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: { type: "string", enum: CRON_SCOPES, description: "user (default) | fleet | all." },
+        limit: { type: "number", description: `Tasks per page (default ${CRON_LIST_LIMIT}, cap ${CRON_LIST_MAX}).` },
+        offset: { type: "number", description: "Page offset (the header prints the next one)." },
+      },
+    },
   },
   {
     name: "cron_update",
@@ -241,11 +253,19 @@ async function toolCreate({ cron, when, prompt, tz, name, clusterId, executionPo
   return textOut(output);
 }
 
-async function toolList() {
+async function toolList(args = {}) {
   const { jobs } = await call("GET", "/api/cron");
   if (!jobs.length) return textOut("No scheduled tasks.");
+  // Scoped + paged (fix-cron-list-scope): one cell held 816 tasks, 658 of them
+  // fleet cadences — 112KB per call, and four fifths of it was noise for
+  // "what are my scheduled tasks". See server/cron-list-view.js.
+  const view = shapeCronList(jobs, { scope: args.scope, limit: args.limit, offset: args.offset });
+  if (!view.jobs.length) {
+    return textOut(`${view.header}\n(no task in this page — scope=${args.scope ?? "user"}${view.total ? `, ${view.total} exist` : ""})`);
+  }
   return textOut(
-    jobs
+    `${view.header}\n` +
+    view.jobs
       .map((j) => {
         const schedule = j.interval
           ? `every ${j.interval.number} ${j.interval.unit}(s)`
@@ -307,7 +327,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     switch (name) {
       case "cron_create": return await toolCreate(args);
-      case "cron_list": return await toolList();
+      case "cron_list": return await toolList(args);
       case "cron_update": return await toolUpdate(args);
       case "cron_pause": return await toolPause(args);
       case "cron_delete": return await toolDelete(args);

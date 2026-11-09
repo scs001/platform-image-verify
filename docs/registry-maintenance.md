@@ -7917,3 +7917,245 @@ manifest 与 layer 都正常（316,650 字节），只有 config blob 是空壳�
 **四、仍未解决**：`fd-mcp-env`／`fd-db-secret`／`edu-catalog-env` 等都是**带外 secret**，
 口令再轮换还会漏。建议把「口令轮换后 9 个键全部更新」写进轮换清单，或让这些服务改为
 引用单一 `fd-db-secret`（secretKeyRef）而不是各自抄一份 DSN。
+
+### §15.143 续三十一：351,740 条错挂观测已迁隔离表，守卫改为零容忍（11-08）
+
+**决定**：迁到隔离表（业主授权「你觉得应该怎么做，我允许」）。理由：删了不可逆且那批数据是别人家的
+（基金单位净值、港股/ETF 行情），留着又等于让主表长期躺着一批假数据；隔离表两头都占。
+
+**执行**（`scripts/quarantine_misattached_observations.py`，单事务：先复制、再删除、断言三者相等）：
+
+```
+batch q20261108T141401Z: copied 351740, deleted 351740, held 351740
+semantic_observations: 7,159,529 -> 6,807,789
+```
+
+| 行声明 → 实体实际 | 行数 | 这批到底是什么 |
+|---|---|---|
+| stock → person | 333,975 | 基金单位净值（0.89~1.32 日频），经理 id 当成了代码 |
+| stock → industry | 8,500 | 9 个港股码 + 3 个 ETF 码的行情/财报，库里无任何实体以这些代码为身份 |
+| country → city | 6,302 | gdp/inflation/population 等国家指标 |
+| fund → stock | 2,027 | `return.6m/3m/1w/1y/3y/since_inception` 挂在**普通 A 股药企**（中关村/东北制药/重药控股…），不是「ETF 建成 stock」那种合法形态 |
+| stock → fund | 936 | QQQ 上的 stock 财报 |
+
+**可逆**：`--restore --batch q20261108T141401Z` 原样搬回（同一事务）。等哪天有了基金/港股映射，
+就地改归位再撤回即可。
+
+**守卫改为零容忍**：`check_observation_entity_class.py` 的 `BASELINE` 清空——任何「行声明类 ≠
+实体类」直接红。反向证伪已做：从隔离表借一行插回主表 → `exit 1` + `NEW stock on person 1 rows`；
+删掉后 `exit 0`。**这套机制的价值在于：以后哪个写入方绕过 entities join，会当场被抓住，
+而不是再攒出三十万行才被发现。**
+
+**顺带**：`test_observation_entity_class_guard_tolerates_nothing` 钉住「允许清单必须为空」，
+防止有人悄悄把某个类再加回容忍名单。
+
+**遗留（不变）**：11 条 `entity_id` 悬空行仍在主表，属另一类缺陷（实体行本身丢了），单列报告、不判死。
+
+### §15.144 续三十二：隔离搬迁丢了一行——是我自己的测试脚本 bug（11-08）
+
+- **事实**：`semantic_observations_quarantine` 现在是 **351,739** 行，不是 351,740。
+  差的那一行 `id=155971319`（一条原本就错挂、已经读不出来的基金净值观测）**两边都没有了**：
+  主表 6,807,789 行、错挂 0（守卫 exit 0），隔离表 351,739。`semantic_observations_all`
+  查该 id 也是 0，**无法恢复**。
+- **怎么丢的**：为了证明 `--restore` 真的可逆，我把一条隔离行的 `batch_id` 临时改成
+  `zz-selftest` 再 restore——restore 本身完全正确（`re-inserted 1, removed 1 from
+  quarantine`，该行确实回到主表）。坏在**我那段一次性清理脚本**：
+  ```python
+  cur.execute("INSERT INTO ..._quarantine ... SELECT ... WHERE id=%s", (row_id,)) if still_q else None
+  cur.execute("DELETE FROM semantic_observations WHERE id=%s", (row_id,))
+  ```
+  restore 已把它从隔离表删掉 → `still_q == 0` → 回插那句被跳过 → 紧接着的 DELETE 把它从
+  主表也删了。一个三元表达式的条件被我写反了方向（应该是 `if back else None`，即"主表里有才
+  需要回插"，我写成了"隔离表里有才回插"）。
+- **影响评估**：1 行，占隔离总量 0.0003%；该行属于「本来就错挂、0.5.52 起读不出来」的那批，
+  不服务任何查询；主表行数与搬迁结果一致（搬迁后 6,807,789，现在仍 6,807,789），
+  所以没有影响任何答案。**但它是数据丢失，不能按"成功了"记。**
+- **教训（写进流程）**：一次性验证脚本里**不要用条件表达式做补偿动作**——补偿要么无条件执行、
+  要么先用 `SELECT` 断言再走分支；破坏性收尾前先打印"准备恢复什么/删除什么"。这次是我自己
+  的脚本，不是产品代码，所以 `quarantine_misattached_observations.py` 的 `--restore` 路径本身
+  是对的（已实证）。以后再验证可逆性，用**造出来的假行**（新 id），不要动真数据。
+
+### §15.144 续三十二（渠）：MCP 卫星共享——上产但**未生效**（cap=0）+ 4.1 读面落成（真机 14/13/13）
+
+change `share-mcp-satellites-per-cell`（镜像 `sha-5d79069` / digest `sha256:5c174f7e`，源 gitee `004cbdb2c`）：
+每 cell 一份 MCP 卫星宿主，9 个「只读 cell env」卫星（fleet/cron/delegation/bench-proposal/
+fleet-architect/blueprint-author/pack-author/skill-evolution/persona-evolution）改为
+streamable-http 条目、该 cell 所有 dsh 世代按 url 接入；成员级（library/websearch/fd-memory）
+与会话级 `actions` 按设计保持 per-runtime；灰度 `MCP_SATELLITE_HOST_CELLS`，失败 fail-open 回落 stdio。
+
+- **实测：正确地没生效。** 三个 cell 都打 `[satellite-host] not sharing satellite processes
+  (worker pool off)`，灰度 cell 的 patch 里 `fleet … transport: stdio`。根因不是代码：
+  **容器 env `TASK_WORKER_MAX=0`**，池关 → 每 cell 只有一个 dsh → **没有重复卫星可省**。
+  本变更全部收益（每多一个 worker 槽 ≈560Mi 标称 / ≈270Mi 实扣）挂在 `TASK_WORKER_MAX>0` 上；
+  该开关属 worker-pool 线，改前必须与其对齐窗口（见 memory `worker-pool` 相关条目）。
+- **4.1 读面已落**：`lib/proc-memory.js` 的 `groupScan` 给每个 cell 行加
+  `satellites: { count, totalBytes }`（只数 `role=mcp-satellite`；无卫星报 0 而非缺字段——
+  形状不随流量变），同时是泄漏探测器：某 dsh 若又自己起一套，count 翻倍而 cell 数不变。
+- **真机取证**（2026-11-08，`fd-prod/platform-5f47f47dbf-42chj`，镜像 `sha-6f121f5`，
+  即尚未含该字段的旧镜像；pod 内直跑 `createProcMemorySampler().sample()`）：
+
+  | cell | total | 卫星数 | 卫星内存 |
+  |---|---|---|---|
+  | `1da519d4…` | 1660Mi | 14 | 1120Mi |
+  | `3fdc7b8e…` | 1586Mi | 13 | 1038Mi |
+  | `2b043ce0…` | 1438Mi | 13 | 997Mi |
+
+  全 pod `mcp-satellite: 40`、`cell-server: 3`、`dsh-runtime: 3`、`browser-lane: 2`、
+  `gateway: 1`、`ungrouped: 4`。每 cell 卫星吃掉 997–1120Mi ≈ cell 总量 65–69%。
+
+- **验证方式（待批准，约 10 分钟）**：`TASK_WORKER_MAX=1` + 灰度只留 `aloatree@gmail.com` → 滚 →
+  看三项（该 cell 卫星 `2×13 → 1×13`、pod RSS 降 ≈270Mi、24 个工具与一轮对话正常）→ 立刻改回 `0`。
+- **顺带观察（不属本线）**：取证时撞上 `fd-prod/platform` 因 `compute-quota`（`limits.memory 38Gi`
+  满）一度 `FailedCreate` 建不出 pod，随后被调内存上限的那条线恢复（stamp
+  `2026-11-08T18:40Z-memlimit-7gi`）。
+- **订正（同日）**：我一度判断「灰度键被那次滚动覆盖」——**错**。`MCP_SATELLITE_HOST_CELLS`
+  住在 ConfigMap `platform-config`（部署用 `envFrom` 注入），不在 deployment 的内联 env 里；
+  2026-11-08 在 pod 内实测 `CELLS=aloatree@gmail.com`、`CAP=0`，即灰度面完整、只是因为池关没启用。
+- **首次启用的残余风险已实测下降**：url 入口不是新路。现网 cell 的 mcp.patch.yml 里已有
+  **41 条 `transport: streamable-http`**（facet-market / fd-erp-ledger / airegistry-tools 等），
+  与本变更经 `toMcpClientEntry` 生成的条目同一构造、同一组字段
+  （`serverName` / `failOnStartupError: false` / `transport` / `url`）。即「dsh 按 url 接 MCP」
+  是**已在产运行**的既有形态，cap=1 窗口要验的是共享宿主的收益，不是新协议能否跑通。
+  单测已把 `failOnStartupError: false` 与 `serverName` 钉住（宿主挂了只灰掉工具，不拦 dsh 启动）。
+
+
+
+### §15.145 续三十三（渠）：卫星共享 A/B 真机跑通（12→9 颗、909→628Mi）+ 抓到一个"多起一份"缺陷
+
+**在哪做的**：不占 fd-prod 配额（它 38Gi 已满）。`default` 命名空间（cheap-ts，12Gi 配额 0 使用）
+起一次性 pod，用生产镜像 `sha-6f121f5` + **线上真实清单**（ConfigMap `platform-mcp-config`，
+13 个服务器）+ 真 dsh（`node /app/node_modules/@deepseek-ai/dsh/lib/bin.js --profile platform
+--patch …`，stdin 必须吊住否则立刻退）。镜像里**没有 `ps`**，用 `/proc/*/cmdline` + `VmRSS` 计。
+
+| 形态 | dsh | 卫星进程 | 卫星 RSS |
+|---|---|---|---|
+| 不共享 | 2 | 12 | 909Mi |
+| 共享一份宿主 | 2 | 9 | 628Mi |
+
+`satellites per dsh` 6.0 → 4.5；第二个 dsh 省 ≈281Mi（≈225Mi 是 fleet/cron/delegation 被合掉）。
+**注意口径**：真实清单里 `bench-proposal` 带 `envRefs`（BENCH_URL/BENCH_CONSUMER_TOKEN/
+BENCH_PROPOSAL_DOMAIN），被 D4 守卫当成员级留下——所以"可共享 9 个"是**上限**，本舰队实际共享 3 个。
+
+**A/B 抓到的缺陷（已修）**：宿主取 spec 用"补丁里还带 command 的可共享名"，补丁改写用
+"没凭据/没 envRefs"——两套判据，于是被改写拒绝的 bench-proposal 仍会进宿主的 spawn 列表，
+结果是**宿主一份 + 每个 dsh 一份**，比不共享更差。修法：`isShareableSatellite()` 单一判据，
+`writeMcpPatch` 每次落 `mcp.shared.json` 权威清单，宿主只认它（无 sidecar 回落声明集，
+老 profile 目录升级不退化）。真环境复核：sidecar 恰为 `fleet,cron,delegation`，宿主 specs 一致。
+回归用例：`test-mcp-satellite-wiring.mjs`「a satellite the rewrite refused is not spawned by the host」。
+
+**没解决的**：fd-prod 仍不能验（`TASK_WORKER_MAX=0` + `4Gi`，容量决定）；scratch 用的是
+"两个 dsh 手起"而非 worker 池真实抢占，池侧集成仍只有单测 + 接线日志。
+### §15.145 续三十三：ship-spool 的 429 真因是「批量业务打了交互车道」（11-08）
+
+- **不是上游没额度，是路由走错**。sub2api 有两车道：
+  | 组 | 账号 | 并发 | 用在 |
+  |---|---|---|---|
+  | `embedding-interactive`(8) | 32 openrouter-new(Copy) / 48 nebius-a | 48 / 24 | 交互查询 |
+  | `embedding-bulk`(12) | 47 nebius-embedding-bulk | 24 | 批量入库 |
+  实测日志：`Qwen/Qwen3-Embedding-8B` 的 216 次请求全压在 **32 与 48**（各 102/114），
+  其中 **43 次 429**；而 **47 号从 2026-10-29 起十天没被用过**——批量 loader 一直拿
+  交互车道的 key（`sk-020…` = key 96 `embedding-internal`，组 8）在跑。
+- **处置**：新建 `api_keys` 记录 166 `fd-text-core-embedding-bulk`（组 12，无限流窗口），
+  端到端验通（`POST /v1/embeddings` → `200`、`dim 4096`，请求落到账号 47），
+  再把 `fd-prod/fd-text-core-env:FDTEXT_EMBEDDING_API_KEY` 换成它（0600 补丁文件、用完即删、
+  明文不入任何仓）。**现有 Pod 不热载 env，下一轮 Job 才生效**——已验证：
+  切后那一轮 `status=429` **0 次**（切前窗口 43 次），47 号 `last_used_at` 开始滚动。
+  剩下的是上游 `503 Service temporarily unavailable`（偶发，属 `is_retryable` 覆盖范围）。
+- **仍待生效的一半**：`fd-text-core` 的退出码修复（`7df5649`，只在永久失败才红）**已经推 gitee
+  但没上产**——这条线现在有另一个会话在推（镜像 `sha-e0ae9a8` 17:57、`sha-3a4ec40` 21:27 起反复），
+  两个提交都不在 gitee 历史里；本仓 GHA `image` 从来没成功过（4~5 秒失败=无 runner），
+  cheap-3 的构建脚本还是 10-11 的旧版。**从 gitee main 自建镜像会丢掉对方未入库的改动**，
+  所以不构建、不滚 CronJob，等那条线出片时自然带走。
+- **口径**：容量上限没变（47 与 32 是同一上游 key/代理 11 的克隆，共享上游配额），
+  这次改的是**隔离**——批量不再挤交互，交互延迟与 429 都会改善；真要提吞吐得加新上游账号。
+
+### §15.146 续三十四：open-data 观测表的错配账面清零（悬空 11 条也进隔离）（11-08）
+
+- **最后的小欠账**：主表还有 11 条 `entity_id` **根本没有实体**（26106/26718/26719/26851，
+  都是 `price.close`，2026-09-08~14 抓、09-16 写入；值 1.184/360.06/4.88/4.8/353.99/16.57/
+  355.55/4.71/349.11/346.52）。这是「行指向不存在的实体」——与类型错挂同族但不同因。
+- 处置：`quarantine_misattached_observations.py` 加 `--dangling`（LEFT JOIN … `e.id IS NULL`，
+  同一套「复制→删除→断言相等」单事务 + batch/restore 机制，实际类记 `<missing>`）：
+  ```
+  batch q20261108T150712Z: copied 11, deleted 11, held 11
+  ```
+  守卫也把悬空行从「只报告」改成「判红」，并做了插行证伪：插一条
+  `entity_id=999999999` → `exit 1` + `VIOLATION 1 rows carry an entity_id that has no entity`；
+  删掉 → `exit 0`。
+- **现在的账**：`semantic_observations` 680.9 万行，**类型错挂 0、悬空 0**；
+  隔离表两个 batch（`q20261108T141401Z` 351,739 + `q20261108T150712Z` 11），
+  两者都可 `--restore` 撤回。
+- **口径**：两次测量之间主表从 6,807,789 变成 6,808,625（+836，爬虫 Job 正常写入）——
+  说明这张表是活的，守卫判的是**当下状态**，不是冻结快照。以后看到数字漂移先别当异常。
+
+### §15.147 续三十五：specs 门禁从 19/23 提到 20/23，剩下 3 个是空壳（未擅动）（11-08）
+
+- `openspec validate --all --strict` 之前长期 19 passed / 4 failed。其中
+  `protocol-migration-generator` 是**格式问题**：8 月的提案用的是 1.4 之前的写法
+  （`## Overview` / `**REQUIREMENT:**` / `**Scenario:**` + 围栏 WHEN/THEN），解析器读不出来。
+  已**机械转换**：8 条需求、8 个场景、步骤文字全部保留，只改形状
+  （`## ADDED Requirements` / `### Requirement: <短标题>` / `#### Scenario:` / WHEN-THEN-AND 列表），
+  并把 5 条「规范句写进标题」的挪到正文（校验器只认正文里的 SHALL/MUST，措辞未改）。
+  现该 change `--strict` 绿。
+- **剩下 3 个没动**，因为它们没有内容可修，只有壳：
+  | change | 目录里只有 | 创建提交 |
+  |---|---|---|
+  | `add-shard-aware-coverage` | `.openspec.yaml` | `5f1e940` 8-30（该功能当时已发布） |
+  | `cross-project-manifest-updates` | `.openspec.yaml` | `aed2e54` 8-04（v0.4.0 发布提交） |
+  | `full-test-fd-open-data-mcp` | `e2e_test_report.json` | `31293bc` 8-02 |
+  三者都**没有 proposal、没有 tasks、没有 delta**，主题工作也已在历史提交里落地。
+  把它们标 `skip_specs: true` 等于替别人断言「本 change 不改 spec」——没有 proposal 可读，
+  这个断言我造不出来；直接删又是替别人销账。**留给出品方决定"删掉还是补全"**，
+  这条门禁继续红是**如实**的：它指向的是三个未完成/未清理的 change，不是解析错误。
+
+### §15.148 续三十六：spool 吞吐的真瓶颈是「一次请求塞两千条输入」（11-08）
+
+- **调优先落地并验证**：`fd-info-ship-spool` 的 `FDTEXT_EMBEDDING_TIMEOUT` 45→**25s**、
+  `MAX_ATTEMPTS` 3→**2**（真源 `fd-infra-deploy/all-services/prod/fd-info.yaml`，`e07647c`，
+  Argo 硬刷新后已实测生效）。依据是成功调用的耗时分布 **n=127, p50 2.96s / p90 10.81s /
+  max 19.81s**，而同一窗口该模型 200/429/503 = 120/95/99 —— 45s×3 让一次失败烧 135s，
+  540s 预算被重试吃光。
+- **效果（真吞吐，不看块数看时间窗）**：近 15 分钟嵌 **520** 块、近 1 小时 **1,749** 块、
+  近 3 小时 **4,866** 块。pending 3,478→3,328、缺向量 5,405→5,389（下降慢是因为新文档
+  仍在入库，到达≈吞吐）。claim 回收正常：`state='claimed'` 最老 1.0 分钟，
+  **超 5 分钟的 claim = 0**，不存在饿死（"pending older than some finished task: 0"）。
+- **真根因**：待嵌文档**平均每篇 248 个块**（p90 487、max 567），而 `run_once` 把一批
+  10 篇的全部块拼成**一次 HTTP 请求**——日志 `claimed=10 embedded=8 chunks=954 failed=2`
+  就是一次近千条输入；那些文档此后每轮都在队头重试并 503（现存 failed 12 条里
+  10 条是 503、2 条 429），最老 pending 因此卡在 8.5h 清不掉，而别处吞吐看着正常。
+- **代码修**（`fd-text-core` `ef6245b`，398 测试绿）：新增
+  `_embed_all()`，按 `EMBED_INPUTS_PER_CALL`（默认 96，可用 `FDTEXT_EMBEDDING_MAX_INPUTS`
+  覆盖）切片调用、按序拼接向量；跨文档批量与逐篇兜底两条路径都走它。切片失败仍抛错，
+  保留上层「退回逐篇归因」的行为，不会静默截断。测试钉三件事：250 条输入 → 96/96/58、
+  向量与文本按位置一一对应、失败切片必须抛而不是返回短列表。
+- **仍未生效**：`ef6245b` 与 `7df5649` 都要等该线出片（并发出片线在推，GHA 从未成功过，
+  本仓自建会丢别人的未提交改动）。**在旧镜像上，只能靠 25s×2 缓解，无法根治请求过大。**
+
+### §15.149 续三十七：出片正道找到了——私有仓 GHA 额度阻断，公开快照仓可出（11-08/09）
+
+- **我先错判了一次**：看到 `fd-text-core` 的镜像 tag `sha-e0ae9a8`/`sha-3a4ec40` 不在 gitee 历史里，
+  就断定「有并行会话占着这条线、自建会丢别人的改动」。实际这些 tag 是**构建提交**，
+  清单注释写着 `sha-e0ae9a8（源 37f1bc1）`，而 `37f1bc1` 就在 gitee main 上。
+  `sha-3a4ec40` 是 10-11 的旧镜像，relay 每轮重扫所以日志里反复出现——不是有人在推。
+- **真正卡点**：`scs001/fd-text-core`（镜像源仓）是**私有仓**，Actions 被账单/额度阻断——
+  `image` 走路 4~5 秒即败，`gh api …/jobs` 显示 `build-push` 的 **steps=0**
+  （作业起来了但一步都没执行），最新一次成功还是 10-22。
+- **正道（记忆里的「快照仓」）**：`scs001/fd-text-core-images` 是**公开仓**，内含源码镜像 + 同名
+  image 工作流（公开仓 Actions 免费）。把 gitee main 的源码 rsync 进去 → 推 → 自动出片。
+  本次两次构建均 **success**（1m12s / 49s），tag 即快照仓提交：`sha-eee7aca`、`sha-d5590d0`。
+  该快照仓此前停在 10-22（今天的生产镜像是手工本地构建的），顺手一并拉回最新。
+- **三笔修复全部上产并实测**：
+  | 修复 | 内容 |
+  |---|---|
+  | `7df5649` | 限流轮不算失败：失败分永久/瞬时，`if failed - retryable: return 1` |
+  | `ef6245b` | 请求切片：每篇均 248 块×10 篇 ≈ 2,500 条输入 → 按 96 条切片 |
+  | `da27851` | 自检探针 503 不再打死整轮：`SelfCheckUnavailable` 与「余弦<阈值」分开 |
+  在产轮次实测：`[embed] claimed=10 embedded=9 chunks=0 failed=1` +
+  `[done] … 失败 1（其中可重试 1）` —— 退出码修复生效；本轮**唯一**的失败原因是它自己的
+  积压门：`[warn] 嵌入积压 3096 条，最老 10.0h > 阈值 6.0h`。
+  也就是说**红现在是诚实的、只关于积压，不再是代码缺陷**。
+- **容量仍是硬约束**：32 与 47 的 `credentials` 哈希相同（同一上游账号），48 是另一个，
+  49/50/51 是二级网关（又是另一组凭据）。真正的扩容量需要把 49-51 或新账号接进
+  `embedding-bulk`(组12)——那是网关侧的决定，我不擅自改路由。
+- **口径**：`fd-infra-deploy` 的 Argo 读 **gitee** main；本地 `gitee` 远端的 pushurl 指向 github，
+  所以「push 成功」不等于 Argo 能看见——必须先 `fetch gitee && rebase` 再推（本次踩了一次）。

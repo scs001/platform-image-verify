@@ -210,6 +210,8 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**P0′-1 第四批（2026-11-08，镜像 sha-7b92fa7）**：`cron_list` —— **单次最大**（12 次共 1.3MB，均 112KB/次）。根因不是格式而是构成：一个 cell 817 个任务里 **659 个是舰队物化的节奏任务**（85%）。现按 scope（user 默认/fleet/all）分域、分页默认 30 上限 200、头部永远报全量账目；未知 scope 回落最窄。实弹：同一 cell 默认页 30 行、输出 ~5KB。
+
 **P0′-1 第三批（2026-11-08，镜像 sha-6f121f5）**：`fleet_list` —— 53 次调用 × **单次 31.5KB**（共 1.7MB），而每行只 6 个短字段：体积全在 `JSON.stringify(…,null,2)` 的缩进。改紧凑 + 六字段投影，**名册仍完整下发**（漏项=谎报不存在）；200 行病态上限并回带 total/truncated。剩余最大单次：`cron_list` **112KB/次**（12 次 1.3MB）。
 
 **P0′-1 第二批（2026-11-08，镜像 sha-00b4640 / fd-memory sha-28db31e）**：按工具归账后修自家第二大与第三大输出——`fleet_turns_read`（100 条全字段美化缩进 → 诊断字段 + 紧凑 JSON + 默认 20 条 + truncated）与 `memory_overview`（旧判据只看分区数 ≥50 → 分区 25 / 每区标题 3 双维度上限，truncated 如实）。两处均保留原视图、只减少字节并说出「这是页不是全部」。自家工具剩余：`fleet_list`(1.7MB)、`cron_list`(1.3MB)、`list_concepts`(1.1MB)。

@@ -62,7 +62,7 @@ async function withMock(run) {
 }
 
 test("chatMemoryBlockFor 空 query：digest 块即开场卡原料（事件契约的 block 源）", async () => {
-  await withMock(async (base, calls, env) => {
+  await withMock(async (_base, calls, env) => {
     const { block } = await chatMemoryBlockFor("u@x", "", env);
     assert.ok(block.includes("【工作记忆】此前会话的沉淀，供参考："));
     assert.ok(block.includes("（来自 claude-code）"), "harness 徽标语义直出");

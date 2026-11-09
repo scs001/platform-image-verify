@@ -696,6 +696,20 @@ export const SHARED_SATELLITE_SERVERS = Object.freeze([
   "persona-evolution",
 ]);
 
+// Can this satellite be served once per CELL? Only if nothing in its config is
+// per-tenant: an explicit credential hook, a credential ref, or any envRef
+// (those resolve to a user's token/collection). Kept as one exported predicate
+// because two call sites must never disagree — the patch rewrite below and the
+// host's spawn list (mcp.shared.json). A disagreement shows up as the host
+// spawning a copy that each dsh ALSO spawns, i.e. strictly worse than no
+// sharing at all.
+export function isShareableSatellite(name, config) {
+  if (!SHARED_SATELLITE_SERVERS.includes(name)) return false;
+  if (config?.credentialEnv || config?.credentialRef || config?.credential) return false;
+  if (Array.isArray(config?.envRefs) && config.envRefs.length) return false;
+  return true;
+}
+
 // Gray-rollout switch for the shared browser lane (slim-browser-lane-footprint):
 // `BROWSER_SHARED_CELLS` is a comma/space list of owner emails, or "*" for all.
 // Unset/empty = everyone (the normal steady state after the rollout completes).
@@ -1132,12 +1146,19 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // own copy. Same shape as the shared browser lane — url entry, no command.
   // Safety: anything carrying credentials or envRefs is skipped even if it were
   // mis-listed above, because those are per-tenant by definition.
+  // One predicate, TWO consumers: this rewrite, and the host's spec list
+  // (server/mcp-satellite-wiring.js reads the authoritative set from
+  // mcp.shared.json next to the patch). They drifted once and the 2026-11-09
+  // live A/B caught it: the host was handed every shareable name the patch
+  // still had a command for, so an envRefs-bearing satellite (bench-proposal in
+  // the real fleet) would be spawned by the host AND by every dsh — exactly the
+  // duplicate this change exists to remove.
+  const sharedSatelliteNames = Object.entries(servers)
+    .filter(([name, config]) => isShareableSatellite(name, config))
+    .map(([name]) => name);
   const satelliteHostUrl = (process.env.MCP_SATELLITE_HOST_URL || "").trim().replace(/\/+$/, "");
   if (satelliteHostUrl) {
-    for (const [name, config] of Object.entries(servers)) {
-      if (!SHARED_SATELLITE_SERVERS.includes(name)) continue;
-      if (config?.credentialEnv || config?.credentialRef || config?.credential) continue;
-      if (Array.isArray(config?.envRefs) && config.envRefs.length) continue;
+    for (const name of sharedSatelliteNames) {
       servers[name] = { url: `${satelliteHostUrl}/${name}/mcp` };
       console.log(`[dsh-profile] MCP "${name}": shared per-cell satellite host (${satelliteHostUrl}/${name}/mcp)`);
     }
@@ -1426,6 +1447,19 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // credential values (Authorization headers, per-cell env) and is readable
   // by the cell owner alone (add-mcp-credential-hygiene D4).
   atomicWriteTextSync(patchPath, yaml.dump([{ insert: entries }]));
+  // The host's spawn list, written next to the patch (share-mcp-satellites
+  // 2.4 / the 2026-11-09 A/B defect): this file — not a re-derivation from the
+  // patch — is what the satellite host obeys. It is emitted on EVERY write,
+  // including the boot write that happens before MCP_SATELLITE_HOST_URL is set,
+  // because "who is shareable" does not depend on whether a host exists yet.
+  try {
+    atomicWriteTextSync(
+      join(dirname(patchPath), "mcp.shared.json"),
+      JSON.stringify({ sharedSatelliteNames }, null, 2),
+    );
+  } catch (err) {
+    console.warn(`[dsh-profile] could not write mcp.shared.json: ${err?.message || err}`);
+  }
   console.log(
     `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${patchPath}`,
   );

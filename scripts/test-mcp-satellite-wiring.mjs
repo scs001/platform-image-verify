@@ -78,6 +78,28 @@ test("specs are read from the composed patch, and only for the shareable set", (
   }
 });
 
+test("a satellite the rewrite refused is not spawned by the host (2026-11-09 A/B)", () => {
+  // bench-proposal in the real fleet keeps its stdio entry because it carries
+  // envRefs. From the patch alone it still LOOKS shareable (a shareable name
+  // with a command), so the old derivation handed it to the host — which then
+  // ran a copy every dsh also spawned. The authority is mcp.shared.json.
+  const { file, dir } = writePatch([
+    stdio("fleet", "server/fleet-mcp.js"),
+    stdio("bench-proposal", "server/bench-proposal-mcp.js"),
+  ]);
+  try {
+    writeFileSync(join(dir, "mcp.shared.json"), JSON.stringify({ sharedSatelliteNames: ["fleet"] }));
+    assert.deepEqual(satelliteSpecsFromPatch(file).map((s) => s.name), ["fleet"]);
+
+    // No sidecar (a profile dir written by an older image): declared-list
+    // behaviour, so an upgrade does not silently stop sharing.
+    rmSync(join(dir, "mcp.shared.json"));
+    assert.deepEqual(satelliteSpecsFromPatch(file).map((s) => s.name).sort(), ["bench-proposal", "fleet"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a patch with nothing shareable declines cleanly", async () => {
   const { file, dir } = writePatch([stdio("library", "server/library-mcp.js")]);
   try {

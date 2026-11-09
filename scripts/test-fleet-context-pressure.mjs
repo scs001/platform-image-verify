@@ -28,7 +28,8 @@ process.env.DSH_HOME = path.join(tmpRoot, "dsh");
 fs.mkdirSync(process.env.DSH_HOME, { recursive: true });
 fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
 
-const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport } = await import("../server/cron-runner.js");
+const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport, attachCronRunner } = await import("../server/cron-runner.js");
+const attachCronRunnerForTest = (ctx) => attachCronRunner(ctx, { runPersona: async () => ({ ok: true }), runA2a: async () => ({ ok: true }), listAgents: () => [] });
 
 test.after(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -48,10 +49,16 @@ test("collector counts compaction/start and reports it on idle", async () => {
   push({ method: "session.event", params: { event: { type: "compaction/summary" } } });
   push({ method: "session.event", params: { event: { type: "compaction/start" } } });
   push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "部分结论" }] } } } } });
+  // The report must land BEFORE the idle that settles the turn — the collector
+  // is deregistered on settlement, so anything after it is dropped (this is
+  // exactly the ordering mistake a real turn cannot make).
+  push({ method: "session.event", params: { event: { type: "tool/call", data: { callId: "c9", name: "mcp__fleet__report_status", arguments: "{}" } } } });
+  push({ method: "session.event", params: { event: { type: "tool/result", data: { message: { source: { callId: "c9" }, content: [{ type: "text", text: "ok" }] } } } } });
   push({ method: "session.status", params: { status: "idle" } });
   const out = await p;
   assert.equal(out.compactions, 2, "two starts counted; summaries are not");
   assert.equal(out.text, "部分结论");
+  assert.equal(out.reported, true, "a completed report_status call is observed as filed");
 });
 
 test("timeout attribution names context pressure only past the threshold", () => {
@@ -61,10 +68,15 @@ test("timeout attribution names context pressure only past the threshold", () =>
   assert.equal(plain.detail.contextPressure, undefined);
   assert.equal(plain.detail.compactions, 1, "the count still rides for diagnosis");
 
-  const storm = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: false });
+  const storm = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: false, reported: false });
   assert.equal(storm.detail.contextPressure, true);
   assert.match(storm.message, /context pressure \(3 compactions\)/);
   assert.equal(storm.detail.hasOutput, false);
+  assert.equal(storm.detail.reported, false, "the report fact rides the attribution");
+
+  const filed = timeoutError(tools, Date.now() - 60_000, Date.now(), { compactions: 3, hasOutput: true, reported: true });
+  assert.equal(filed.detail.reported, true);
+  assert.equal(shouldSalvageReport(filed.detail, { isFleet: true }), false, "a timeout after filing needs no salvage");
 });
 
 test("wrap-up asks the same session for the report, tool-free and bounded", async () => {
@@ -82,7 +94,8 @@ test("wrap-up asks the same session for the report, tool-free and bounded", asyn
   assert.equal(prompts.length, 1, "exactly one follow-up");
   assert.equal(prompts[0].sessionId, "child-1", "same child session — it still has the work in context");
   assert.match(prompts[0].text, /report_status/);
-  assert.match(prompts[0].text, /不要调用任何其他工具/, "the follow-up refuses tools");
+  assert.match(prompts[0].text, /不要调用其他工具/, "the follow-up refuses other tools");
+  assert.match(prompts[0].text, /不要解释|不要继续分析/, "and refuses prose — one call, then done");
   assert.equal(out.text, "已交报数");
 });
 
@@ -95,12 +108,15 @@ test("wrap-up never becomes the outcome: a failing follow-up returns null", asyn
 });
 
 test("判据：压力 + 空产出 + 舰队任务，三者同时成立才补收尾", () => {
-  const pressure = { kind: "turn_budget_exceeded", compactions: 3, contextPressure: true, hasOutput: false };
+  const pressure = { kind: "turn_budget_exceeded", compactions: 3, contextPressure: true, reported: false, hasOutput: false };
   assert.equal(shouldSalvageReport(pressure, { isFleet: true }), true, "the round this lane exists for");
-  assert.equal(shouldSalvageReport({ ...pressure, hasOutput: true }, { isFleet: true }), false, "a round that said something is not empty");
+  assert.equal(shouldSalvageReport({ ...pressure, reported: true }, { isFleet: true }), false, "a round that already filed its report needs nothing");
+  // The live correction: five pressure-killed rounds HAD text and still filed
+  // nothing. Output is not the test — the report is.
+  assert.equal(shouldSalvageReport({ ...pressure, hasOutput: true, reported: false }, { isFleet: true }), true, "text without a report still needs the lane");
   assert.equal(shouldSalvageReport(pressure, { isFleet: false }), false, "fleet-only");
   assert.equal(shouldSalvageReport(pressure, { isFleet: true, interrupted: true }), false, "a runtime abort is not the round's fault");
-  assert.equal(shouldSalvageReport({ kind: "turn_budget_exceeded", compactions: 1, hasOutput: false }, { isFleet: true }), false, "one compaction is not a storm");
+  assert.equal(shouldSalvageReport({ kind: "turn_budget_exceeded", compactions: 1, reported: false }, { isFleet: true }), false, "one compaction is not a storm");
   assert.equal(shouldSalvageReport(null, { isFleet: true }), false);
 });
 
@@ -128,4 +144,58 @@ test("端到端（缝级）：真超时产生 pressure 归因，随后收尾把�
   };
   const salvaged = await runWrapUpReport(ctx, { childSessionId: "child-e2e", mirrorSessionId: "mirror-e2e" });
   assert.equal(salvaged.text, "补交：本周 3 篇");
+});
+
+// ── the overflow shape (fix-fleet-output-salvage D3) ────────────────────────
+const { contextPressureDetail, OVERFLOW_RE, attributeFailureAndSalvage } = await import("../server/cron-runner.js");
+
+test("overflow 也归压力类，且与超时共用判据", () => {
+  // The live error the runtime emits when the working set stops fitting.
+  const err = 'pi-ai detected context overflow for model "deepseek-v4.1-flash"';
+  const d = contextPressureDetail(err, { compactions: 0, reported: false });
+  assert.equal(d.contextPressure, true, "an overflow is pressure, not an unknown failure");
+  assert.equal(d.kind, "context_overflow");
+  assert.equal(d.overflow, true);
+  assert.equal(shouldSalvageReport(d, { isFleet: true }), true, "and it earns the salvage lane");
+  assert.equal(shouldSalvageReport({ ...d, reported: true }, { isFleet: true }), false, "unless it already reported");
+
+  // Not every failure is pressure.
+  assert.equal(contextPressureDetail("502: upstream service temporarily unavailable"), null);
+  assert.equal(contextPressureDetail("budget_exhausted: all candidate models over daily budget"), null);
+  assert.equal(contextPressureDetail("turn timed out", { compactions: 1 }), null, "one compaction is not a storm");
+  assert.equal(contextPressureDetail("turn timed out", { compactions: 3 }).kind, "turn_budget_exceeded");
+
+  assert.ok(OVERFLOW_RE.test(err));
+});
+
+test("接线：overflow 失败走收尾补数（与超时同一条组合）", async () => {
+  const ctx = makeCtx();
+  let wrapUps = 0;
+  ctx.dshBridge = {
+    prompt: async (sessionId, blocks) => {
+      assert.match(blocks[0].text, /report_status/);
+      wrapUps += 1;
+      const push = ctx.sessionCollectors.get(sessionId);
+      push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "补交" }] } } } } });
+      push({ method: "session.status", params: { status: "idle" } });
+    },
+  };
+  const detail = await attributeFailureAndSalvage(ctx, {
+    error: 'pi-ai detected context overflow for model "m"',
+    childSessionId: "child-ovf",
+    mirrorSessionId: "mirror-ovf",
+    isFleet: true,
+  });
+  assert.equal(detail.contextPressure, true);
+  assert.equal(detail.kind, "context_overflow");
+  assert.equal(wrapUps, 1, "the salvage lane ran on the overflow path");
+  assert.deepEqual(detail.wrapUp, { ok: true, chars: 2 });
+
+  // Non-pressure failures are left exactly as they were.
+  assert.equal(await attributeFailureAndSalvage(ctx, { error: "502 upstream unavailable", isFleet: true }), null);
+  // A fleet round that already reported needs nothing.
+  const quiet = await attributeFailureAndSalvage(ctx, {
+    error: 'context overflow', reported: true, childSessionId: "child-x", isFleet: true,
+  });
+  assert.equal(quiet.wrapUp, undefined);
 });

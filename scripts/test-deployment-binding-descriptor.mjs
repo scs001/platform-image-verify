@@ -106,7 +106,8 @@ async function deployLike({ email = OWNER } = {}) {
   const rows = {};
   for (const granted of minted.granted) {
     secretRefs[granted.name] = `sec_${PACK}_${granted.agentId}_${granted.name}`;
-    (rows[granted.agentId] ??= []).push({
+    rows[granted.agentId] ??= [];
+    rows[granted.agentId].push({
       serverName: `connector:${PACK}:${granted.bindingKey}`,
       url: `${CONNECTOR}/mcp`,
       secretName: granted.name,
@@ -137,7 +138,7 @@ test("a minted binding lands in the descriptor AND in the map the runner fetches
   db.setConnectorCredentialActive(OWNER, "default");
   seedSatisfied();
 
-  const { minted, stored, descriptor, secretRefs, rows } = await deployLike();
+  const { minted, stored, descriptor, secretRefs } = await deployLike();
   assert.equal(minted.granted.length, 1, JSON.stringify(minted.failed));
 
   // Stored platform-side, deployer on record, token absent from the payload.

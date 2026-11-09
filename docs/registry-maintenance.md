@@ -8528,3 +8528,12 @@ secret → 建 Application（`automated` 先关，`kubectl diff` 确认为空后
 **结论**：这类"同程序多份 / 悬空引用"的浪费到此摸完，除已修的 `actions` 外没有第二处可省。
 剩余的服务缺失全部有解释（凭据未连 / 市场未装），要收窄请看 `/api/monitoring` 与 pack 安装报告，
 不要去改组合逻辑。
+
+**回归面（五种部署形态全覆盖，均实测）**：
+| 形态 | 期望 | 实测 |
+|---|---|---|
+| 托管 cell（mcp.json + bundle） | 删 bundle 重复，留 `actions` | 生产日志 `removed duplicate bundled "actions-mcp"`，补丁 1 条 `actions` |
+| 老库已含重复行 | 启动自愈 | 本地造库 → `removed duplicate bundled` |
+| 运维手加同名行 | 不删 | `skipping the duplicate`，行保留 |
+| `actions` 被禁用 | bundle 那份补上 | 补丁只剩 `actions-mcp` |
+| 打包/桌面（无 mcp.json） | 去重不触发，`actions-mcp` 照常种 | 日志 `(none)`，补丁里 `actions-mcp` 在 |

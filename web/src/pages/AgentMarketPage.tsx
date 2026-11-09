@@ -114,7 +114,9 @@ export function AgentMarketPage() {
 
   return (
     <div className="flex h-full flex-col bg-background" data-testid="agent-market-page">
-      <div className="border-b border-border px-6 py-3">
+      {/* pl-12 below md: the shell's floating drawer toggle occupies that
+          gutter; without it the button covers the first glyph of the title. */}
+      <div className="border-b border-border px-6 py-3 pl-12 md:pl-6">
         <h1 className="text-base font-semibold" data-testid="agent-market-title">
           {t("nav.agents")}
         </h1>

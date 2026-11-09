@@ -320,8 +320,24 @@ export default function App() {
           <Sidebar send={send} onCollapse={toggleNavCollapsed} />
         </div>
       )}
-      {/* Below md: the same rail as an overlay drawer (toggle lives in the
-          chat header). Backdrop click dismisses. */}
+      {/* Below md, every surface that is NOT chat needs its own way into the
+          drawer: the chat header carries the toggle, but the market / tuning /
+          channels pages had none at all, so a narrow window stranded the user
+          on whatever page they were on (measured 2026-11-09 at 640px: sidebar
+          gone, no affordance). One shell-level control covers them all. */}
+      {!navOpen && !location.pathname.startsWith("/chat") && (
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label={t("nav.openMenu")}
+          title={t("nav.openMenu")}
+          data-testid="nav-drawer-open"
+          className="fixed left-2 top-2.5 z-30 rounded-md border border-border bg-card p-1.5 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <PanelLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+      {/* Below md: the same rail as an overlay drawer. Backdrop click dismisses. */}
       {navOpen && (
         <>
           <div
@@ -329,7 +345,10 @@ export default function App() {
             onClick={() => setNavOpen(false)}
             aria-hidden="true"
           />
-          <div className="fixed inset-y-0 left-0 z-50 w-[240px] md:hidden">
+          <div
+            className="fixed inset-y-0 left-0 z-50 w-[240px] md:hidden"
+            data-testid="nav-drawer"
+          >
             <Sidebar send={send} onNavigate={() => setNavOpen(false)} />
           </div>
         </>

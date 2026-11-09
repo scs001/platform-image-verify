@@ -30,7 +30,11 @@ export function PageShell({
 }: PageShellProps) {
   return (
     <div className={cn("flex h-full flex-col overflow-hidden", className)} {...props}>
-      <header className="flex shrink-0 items-start justify-between gap-4 px-4 pb-3 pt-4 md:px-6">
+      {/* Below md a floating drawer toggle sits at the top-left (App shell), so
+          the header reserves that gutter — otherwise the button covers the first
+          glyph of every page title (measured 2026-11-09 at 640px: 「素材市场」
+          lost its 材). Desktop keeps the normal padding. */}
+      <header className="flex shrink-0 items-start justify-between gap-4 px-4 pb-3 pl-12 pt-4 md:px-6 md:pl-6">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold leading-7 text-foreground">{title}</h1>
           {subtitle != null && <p className="mt-1 text-sm leading-5 text-muted-foreground">{subtitle}</p>}

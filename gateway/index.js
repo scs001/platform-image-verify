@@ -516,9 +516,21 @@ app.get("/readyz", async (_req, res) => {
   const queued = known.reduce((n, c) => n + (c.queued ?? 0), 0);
   const oldestQueuedMs = known.reduce((m, c) => Math.max(m, c.oldestQueuedMs ?? 0), 0) || null;
   const degradedCells = known.filter((c) => c.degraded).map((c) => c.cell);
-  const ready = degradedCells.length === 0;
+  // `?probe=alive`：给 k8s 探针用的**存活**判据，与"堵着"分开。
+  //
+  // 为什么需要它（2026-11-09 实测）：默认的 ready 语义是「有任何 cell 报 degraded
+  // 就 503」，而 degraded 由积压驱动。那天平台因为一条长回合排在 5 个人点轮前面，
+  // `/readyz` 连续 503 了约 40 分钟——**期间平台服务完全正常**。把这个 503 直接
+  // 接成 readinessProbe，等于在最不该摘流量的时候把整个平台摘出 Service。
+  //
+  // 所以探针该问的是"这一层还活着吗"：至少有**一个** cell 答上来就算活；
+  // 全都答不上（registry 空、或全部超时）才是 dead。积压仍留在默认响应里给人和
+  // 告警读，不参与摘流量。
+  const aliveOnly = String(_req.query?.probe || "") === "alive";
+  const ready = aliveOnly ? known.length > 0 || running.length === 0 : degradedCells.length === 0;
   res.status(ready ? 200 : 503).json({
     ready,
+    ...(aliveOnly ? { probe: "alive" } : {}),
     cells: running.length,
     answered: known.length,
     unknown: summarized.filter((c) => c.unknown).map(({ cell, unknown }) => ({ cell, reason: unknown })),

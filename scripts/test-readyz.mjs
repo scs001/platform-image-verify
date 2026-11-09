@@ -23,13 +23,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 // 复刻 /readyz 的聚合逻辑（与 gateway/index.js 中实现同构）。
 // 之所以抽成纯函数：路由里那段不可单测（依赖 express + registry + fetch）。
-function summarize(cells, answers) {
+function summarize(cells, answers, { aliveOnly = false } = {}) {
   const known = answers.filter((c) => !c.unknown);
   const queued = known.reduce((n, c) => n + (c.queued ?? 0), 0);
   const oldestQueuedMs = known.reduce((m, c) => Math.max(m, c.oldestQueuedMs ?? 0), 0) || null;
   const degradedCells = known.filter((c) => c.degraded).map((c) => c.cell);
   return {
-    ready: degradedCells.length === 0,
+    // ?probe=alive：只问"这一层还活着吗"（至少一个 cell 答上来），
+    // 与"堵着"分开——积压驱动的 503 不该把整个平台摘出 Service。
+    ready: aliveOnly ? known.length > 0 || cells.length === 0 : degradedCells.length === 0,
     cells: cells.length,
     answered: known.length,
     unknown: answers.filter((c) => c.unknown).map(({ cell, unknown }) => ({ cell, reason: unknown })),
@@ -86,6 +88,21 @@ function summarize(cells, answers) {
   assert.equal(r.oldestQueuedMs, null);
 }
 
+// 6. probe=alive：积压报 degraded 也不算不活（2026-11-09 实测 40 分钟 503 的教训）
+{
+  const cells = [{ userId: "a" }];
+  const answers = [{ cell: "a", queued: 12, oldestQueuedMs: 8_880_000, degraded: true }];
+  assert.equal(summarize(cells, answers).ready, false, "默认语义：degraded → 503（给人/告警）");
+  assert.equal(summarize(cells, answers, { aliveOnly: true }).ready, true,
+    "探针语义：有人答上来就是活着，积压不该摘流量");
+}
+
+// 7. probe=alive：全都答不上来才是 dead
+{
+  assert.equal(summarize([{ userId: "a" }], [{ cell: "a", unknown: "timeout" }], { aliveOnly: true }).ready, false);
+  assert.equal(summarize([], [], { aliveOnly: true }).ready, true, "空部署仍算活（沿用默认的 fail-open）");
+}
+
 console.log("readyz: all assertions passed");
 
 // ── 路由必须可达（2026-11-09 线上实测暴露）──────────────────────────────
@@ -101,4 +118,13 @@ console.log("readyz: all assertions passed");
   assert.ok(/healthz\$/.test(line), "fallback should still pass /healthz through");
   assert.ok(/readyz\$/.test(line), "fallback MUST pass /readyz through, else the probe endpoint is dead");
   console.log("readyz: SPA fallback excludes /readyz");
+
+  // ?probe=alive 必须真的存在于实现里。上面的复刻测试测的是"我写的复刻"，
+  // 实现要是没这段，复刻全绿也毫无意义——同构断言就是防这个。
+  assert.ok(
+    /probe\s*===\s*["']alive["']/.test(src) || /query\?\.probe/.test(src),
+    "gateway/index.js must implement ?probe=alive, else the liveness semantics are fiction",
+  );
+  assert.ok(/aliveOnly\s*\?/.test(src), "the alive branch must actually decide `ready`");
+  console.log("readyz: ?probe=alive exists in the implementation");
 }

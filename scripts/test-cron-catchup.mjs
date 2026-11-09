@@ -239,6 +239,30 @@ test("boot 暂停任务窗外丢轮：不告警（不跑是所有者的本意）
   assert.equal(events.filter((e) => e.type === "cron_missed_alert").length, 0);
 });
 
+test("boot 暂停任务的缺口不计数、不写历史行（不是饥饿，是本意）", async () => {
+  // 线上实测（2026-11-09）：一个 10-25 起就暂停的 `17 * * * *` 任务，每次 cell
+  // 重启都记一笔缺口，24h 内积到 2700 次（27 行 × MAX_MISSED_PER_LOAD），
+  // 被读成"排队饥饿恶化"。暂停即无义务——连计数都不该发生。
+  const { events } = await bootCron([
+    jobRecord({ cron: "17 * * * *", lastRun: daysAgo(5), paused: true, status: "paused" }),
+  ]);
+  const task = engine.getTask("job_1");
+  assert.equal(events.filter((e) => e.type === "cron_missed_alert").length, 0);
+  assert.equal(task.missed ?? 0, 0, "a paused task accrues no missed count");
+  assert.equal(
+    (task.history || []).filter((h) => h.kind === "missed" || h.missed).length,
+    0,
+    "and writes no missed history row",
+  );
+});
+
+test("恢复不停机的任务仍然计数（暂停不吞掉真正欠下的轮次）", async () => {
+  // 反向守卫：不能因为加了 !paused 就把正常任务一起静音。
+  await bootCron([jobRecord({ cron: "0 * * * *", lastRun: daysAgo(3) })]);
+  const task = engine.getTask("job_1");
+  assert.ok((task.missed ?? 0) > 0, `an unpaused task must still accrue, got ${task.missed}`);
+});
+
 test("boot kill switch：窗外丢轮仍告警，reason 区分为 catch-up-disabled", async () => {
   process.env.PLATFORM_CRON_CATCHUP = "0";
   try {

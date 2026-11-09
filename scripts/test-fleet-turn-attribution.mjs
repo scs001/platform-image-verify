@@ -188,6 +188,32 @@ test("shapeTurnOutcome: skipped is its own status, errorKind null, detail rides"
   assert.equal(shapeTurnOutcome({ ok: true }).detail, null, "no detail → honest null");
 });
 
+// ── shapeTurnOutcome: 空壳 ok 不算成功 ───────────────────────────────────────
+
+test("shapeTurnOutcome: an explicitly hollow ok settles as interrupted", () => {
+  // harden-fleet-tool-face-and-queue 3.5 / ledger E21's third shape. Live
+  // 2026-11-09: three rounds came back status=ok with model=null,
+  // traceTurnId=null, no usage and no new report — a restart mid-turn, the
+  // executor's success path returning an empty {ok:true}. The signal is
+  // EXPLICIT (`hollow`) because `no usage` alone has its own contract
+  // (context-budget: no basis → no verdict → status stays ok).
+  const hollow = shapeTurnOutcome({ ok: true, hollow: true });
+  assert.equal(hollow.status, "interrupted", "空壳不能记成功");
+  assert.match(String(hollow.error), /no usage and no attribution/);
+  assert.equal(hollow.usage, null);
+
+  // Any ONE real trace of execution makes it a genuine success again.
+  const withUsage = shapeTurnOutcome({ ok: true, hollow: true, usage: { input: 12, output: 3 } });
+  assert.equal(withUsage.status, "ok", "有 usage 就不是空壳");
+  const withoutSignal = shapeTurnOutcome({ ok: true });
+  assert.equal(withoutSignal.status, "ok", "无显式空壳信号时维持既有契约");
+  const withAttribution = shapeTurnOutcome({ ok: true, hollow: true }, { hasAttribution: true });
+  assert.equal(withAttribution.status, "ok");
+
+  // A real failure is untouched by this guard.
+  assert.equal(shapeTurnOutcome({ ok: false, error: "502 upstream" }).status, "failed");
+});
+
 // ── failureStreak ignores skipped ────────────────────────────────────────────
 
 test("failureStreak: a skipped round is transparent (neither counts nor breaks the run)", async () => {

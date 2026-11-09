@@ -965,7 +965,8 @@
       "connections": "连接",
       "plugins": "插件",
       "delegation": "拍板委托",
-      "pairing": "配对与绑定"
+      "pairing": "配对与绑定",
+      "mandate": "委托状"
     },
     "groups": {
       "basics": "常规",
@@ -1334,6 +1335,49 @@
         "health": "健康",
         "trace": "逐回合追踪"
       }
+    },
+    "mandate": {
+      "title": "委托状",
+      "hint": "按域决定代理能自主到什么程度：只看/起草/先做后报/自主。未配置的域一律只给建议，不获得任何执行额度。",
+      "domain": {
+        "ops": "团队运营",
+        "external-comms": "对外沟通",
+        "advancement": "事项推进",
+        "research": "研究产出"
+      },
+      "mode": "决策模式",
+      "modeAdvise": "只给建议",
+      "modeDraft": "起草，待我放行",
+      "modeNotify": "先做，事后通报",
+      "modeSilent": "自主，仅进日报",
+      "quota": "每日条数上限",
+      "expiry": "有效期至",
+      "revokeWindow": "撤销窗口（分钟）",
+      "readScope": "可读取的范围",
+      "discloseScope": "可对外说的范围",
+      "scopeHint": "能读不等于能说：两个范围各自判定。",
+      "level": {
+        "public": "公开",
+        "internal": "内部",
+        "confidential": "机密",
+        "hr": "人事",
+        "finance": "财务"
+      },
+      "save": "保存",
+      "saved": "已保存",
+      "ledger": "最近的代理动作",
+      "ledgerEmpty": "还没有由委托状驱动的动作。",
+      "ledgerDomain": "域",
+      "ledgerMode": "模式",
+      "ledgerReversible": "可撤销至",
+      "ledgerIrreversible": "不可撤销",
+      "ledgerRevoked": "已撤销",
+      "revoke": "撤销",
+      "revoked": "已撤销",
+      "revokeClosed": "撤销窗口已关闭",
+      "violations": "今日被拦下",
+      "violationsNone": "今日没有被拦下的尝试。",
+      "noDowngrade": "该动作为对外发布或破坏性，只能建议或起草。"
     }
   },
   "bindings": {

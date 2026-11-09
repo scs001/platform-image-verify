@@ -894,6 +894,11 @@ export function registerMiscRoutes(ctx) {
         oldestQueuedMs: queue.oldestQueuedMs ?? null,
         oldestRunningMs: queue.oldestRunningMs ?? null,
         overBudget: queue.overBudget ?? 0,
+        // Rounds waiting by design because dropping them would lose a whole
+        // period (fix-stale-drop-respects-period). Without this field,
+        // `oldestQueuedMs: null` with `queued > 0` is ambiguous to an operator:
+        // it can mean "only exempt rounds are queued" or "no cell answered".
+        queuedExempt: queue.queuedExempt ?? 0,
         degraded: queue.degraded === true,
       });
     } catch (e) {

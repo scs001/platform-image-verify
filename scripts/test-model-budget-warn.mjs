@@ -87,3 +87,20 @@ test("a broken warning path never blocks the turn (degrade open)", () => {
   assert.equal(verdict.allowed, true, "warning failure must not block the turn");
   db.close();
 });
+
+// ── 日报必须看得见趋势（4.2 附）──────────────────────────────────────
+//
+// 上限抬到 200 亿后，"利用率≥80%" 那条 hot 判据永远够不到，日报会退化成
+// "模型数 + 空数组"。所以日报必须**无条件**给出当日用量 Top，不依赖阈值。
+test("the daily report carries the usage leaders even when nothing is near the cap", async () => {
+  const { db, engine } = built(tmpFile());
+  engine.consumeBudget("heavy", 500);
+  engine.consumeBudget("light", 10);
+  const r = engine.report({ sinceDays: 1 });
+
+  const top = [...r.models].filter((x) => x.used > 0).sort((a, b) => b.used - a.used).slice(0, 3);
+  assert.equal(top[0].model, "heavy", "the leader must be the model that actually spent tokens");
+  assert.ok(top[0].used >= 500);
+  assert.ok(top.every((x) => (x.utilization ?? 0) < 0.9), "leaders here are nowhere near the cap");
+  db.close();
+});

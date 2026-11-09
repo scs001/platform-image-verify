@@ -101,6 +101,9 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
   // unreachable. The registry↔definitions agreement is now a unit-tested
   // invariant (packages/core test).
   { container: "settings", slug: "delegation", i18nKey: "settings.sections.delegation", testId: "settings-section-delegation" },
+  // 委托状 (add-personal-mandate 6.1): the authority matrix. Registered in both
+  // lists from the start — the `delegation` bug above is why this test exists.
+  { container: "settings", slug: "mandate", i18nKey: "settings.sections.mandate", testId: "settings-section-mandate" },
   { container: "settings", slug: "branding", i18nKey: "settings.sections.branding", testId: "settings-section-branding", predicates: { adminOnly: true } },
   // 运行状态 (restructure-yizuo-ia): `diagnostics` folded in as a tab — the
   // per-turn trace is part of "what is happening right now", not a sibling

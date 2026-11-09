@@ -131,7 +131,7 @@ export function normalizeUsage(u) {
 
 // The outcome → event-field shaping (status/errorKind/error/model/usage),
 // pure, shared with the ledger.
-export function shapeTurnOutcome(outcome, { model = null, contextBudget = null } = {}) {
+export function shapeTurnOutcome(outcome, { model = null, contextBudget = null, hasAttribution = false } = {}) {
   const ok = outcome?.ok === true;
   const interrupted = outcome?.interrupted === true;
   // fix-fleet-turn-attribution D4: a platform-skipped round (lane breaker
@@ -148,14 +148,38 @@ export function shapeTurnOutcome(outcome, { model = null, contextBudget = null }
   // (timeout shape, degradedTo) rides the row verbatim — the recorder adds
   // nothing it did not observe.
   const detail = outcome?.detail && typeof outcome.detail === "object" ? outcome.detail : null;
+  // An "ok" with nothing behind it is not a success (harden-fleet-tool-face-and-
+  // queue 3.5 / ledger E21's third shape). Live 2026-11-09: three turns came
+  // back `status=ok` with `model=null`, `traceTurnId=null`, no usage and no new
+  // report — the platform restarted mid-turn, the executor's success path
+  // returned an empty `{ok:true}` and the row claimed a round that never ran.
+  // A round that produced no usage, no attribution detail and no ledger handle
+  // cannot be distinguished from "never started", so it settles as interrupted
+  // (re-runnable, honest) rather than ok (which advances presence and hides it).
+  // Narrow on purpose: `contextBudget` has its own contract (no usage → no
+  // verdict, status stays ok — add-agent-config-dims), so the hollow check
+  // only fires when the execution seam EXPLICITLY says the round never ran.
+  const hollowOk = ok && outcome?.hollow === true && !usage && !hasAttribution;
   return {
-    status: skipped ? "skipped" : overBudget ? "failed" : ok ? "ok" : interrupted ? "interrupted" : "failed",
+    status: skipped
+      ? "skipped"
+      : overBudget
+        ? "failed"
+        : hollowOk
+          ? "interrupted"
+          : ok
+            ? "ok"
+            : interrupted
+              ? "interrupted"
+              : "failed",
     errorKind: skipped ? null : overBudget ? "context_budget" : ok ? null : classifyErrorKind(outcome?.error),
     error: overBudget
       ? `context budget exceeded: spent ${spent} tokens, budget ${contextBudget}`
-      : ok
-        ? null
-        : String(outcome?.error ?? "execution failed").slice(0, 500),
+      : hollowOk
+        ? "turn produced no usage and no attribution — treated as interrupted (the platform restarted mid-turn)"
+        : ok
+          ? null
+          : String(outcome?.error ?? "execution failed").slice(0, 500),
     model: model ?? outcome?.usage?.model ?? null,
     usage,
     detail,
@@ -177,7 +201,11 @@ export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = 
     : resolveTurnPost(db, request, rosterPresetId);
   if (!post?.fleetId || !post?.memberId) return null;
 
-  const shaped = shapeTurnOutcome(outcome, { model, contextBudget });
+  // `ledgerTurn` is the run-ledger handle: when the run lane opened this turn,
+  // the row gets a real turnId/trace key. Its absence on an otherwise "ok"
+  // outcome is exactly the hollow-turn shape the guard below settles as
+  // interrupted.
+  const shaped = shapeTurnOutcome(outcome, { model, contextBudget, hasAttribution: Boolean(ledgerTurn) });
   return db.appendTurnEvent({
     fleetId: post.fleetId,
     memberId: post.memberId,

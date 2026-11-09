@@ -389,8 +389,20 @@ export function attachModelBudgetReset({ engine, captureFact = null, intervalMs 
         if (d !== lastReportDay) {
           lastReportDay = d;
           const r = engine.report({ sinceDays: 1 });
+          // `hot` 原判据是"有耗尽事件 或 利用率≥80%"。上限被抬到 200 亿后前一条几乎
+          // 永不成立、后一条也够不到，日报于是变成"模型数 + 空数组"，看不出趋势。
+          // 补一条**用量 Top**：日报永远给出当日用最多的几个，不依赖是否接近上限。
           const hot = r.models.filter((x) => (r.exhaustedEvents[x.tier] ?? 0) > 0 || (x.utilization ?? 0) >= 0.8);
-          console.log(`[model-budget] daily report ${d}: models=${r.models.length} exhausted=${JSON.stringify(r.exhaustedEvents)} hot=[${hot.map((x) => `${x.model}/${x.tier}/${(x.utilization * 100).toFixed(0)}%`).join(", ")}]`);
+          const top = [...r.models]
+            .filter((x) => x.used > 0)
+            .sort((a, b) => b.used - a.used)
+            .slice(0, 3)
+            .map((x) => `${x.model}/${x.tier}=${x.used}(${((x.utilization ?? 0) * 100).toFixed(2)}%)`);
+          let warnings = [];
+          try {
+            warnings = engine.warningLog({ limit: 20 });
+          } catch { /* 预警读面坏了不影响日报 */ }
+          console.log(`[model-budget] daily report ${d}: models=${r.models.length} exhausted=${JSON.stringify(r.exhaustedEvents)} hot=[${hot.map((x) => `${x.model}/${x.tier}/${(x.utilization * 100).toFixed(0)}%`).join(", ")}] top=[${top.join(", ")}] warnings=${warnings.length}`);
           if (typeof captureFact === "function") {
             try {
               captureFact(r, hot);

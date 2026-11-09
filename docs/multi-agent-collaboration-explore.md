@@ -210,6 +210,10 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**内联预算已落地并验证（2026-11-09，镜像 sha-fe97d6c）**：找到旋钮后（`spill-policy.maxInlineTokens: 12500`≈40KB）改为 **4000**（≈13KB），落在 `writeLlmProfile` 追加的 `spill-policy` 行（`DSH_MAX_INLINE_TOKENS` 可调，回滚设 12500）。**产线验证**：活跃 cell 的 `profiles/platform/cordis.patch.yml` 实读 `maxInlineTokens: 4000`（每 cell 恰好一行，旧值被替换而非重复）。
+
+**同轮测试暴露一条不属于本刀的回归（已定性，未处置）**：pool 从 1 提到 3 后出现 `session "…" is already owned by …` 失败。因果判据：该错误**首次出现 11:48Z**，累计 6 条（11Z:1 / 12Z:5），而我的内联预算镜像 12:33Z 才上线——**早于本刀**，属并发会话把 worker 上限提到 3 之后的会话归属冲突（多条 worker 抢同一会话）。该批回合连 trace 都未建立。本刀不认领此问题；留给 pool 那一线处置。
+
 **`context_overflow` 的成分分析（2026-11-09，trace 实测，平台注入非主因）**：对三条 overflow 回合按事件类型量体积——
 
 | 回合 | 总事件 | 总量 | 最大三条 |

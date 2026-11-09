@@ -1762,6 +1762,16 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       if (job.carrierFallback) {
         out = { ...out, detail: { ...(out?.detail ?? {}), carrierFallback: job.carrierFallback } };
       }
+      // Hollow-success guard (harden-fleet-tool-face-and-queue 3.5 / ledger E21):
+      // live 2026-11-09, three rounds settled `ok` with no usage, no model and
+      // no trace — the platform restarted mid-turn and the executor's success
+      // path handed back an empty `{ok:true}`. Such a round produced NOTHING:
+      // no tokens, no text, no tool call. Flag it so settlement records
+      // `interrupted` (re-runnable, honest) instead of a success that advances
+      // presence and hides the loss.
+      if (out?.ok === true && !out.usage && !out.text && !out.toolCalls) {
+        out = { ...out, hollow: true };
+      }
     }
 
     try {

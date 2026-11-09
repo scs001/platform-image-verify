@@ -218,7 +218,9 @@ test("arm：舰队回合在压缩风暴超过阈值时原生取消并结算为�
   // The floor is injectable so the POLICY is under test, not a 60s wait.
   const p = collectTurn(ctx, "child-es", 30000, new Map(), collectors, "mirror-es", { earlyStop: true, earlyStopAfterMs: 0 });
   const push = collectors.get("child-es");
-  // Six compactions, first one after the minimum elapsed window.
+  // Four compactions — the hard line (EARLY_STOP_COMPACTIONS). The doc comment
+  // said "six" when the threshold was still 6; the value was lowered after a
+  // FIVE-compaction round also burned the full 600s and landed nothing.
   for (let i = 0; i < 4; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
   const err = await p.then(() => null, (e) => e);
   assert.ok(err, "the turn settles without waiting out the budget");

@@ -703,6 +703,7 @@ function enqueueExecution(id, opts = {}) {
       t.history ||= [];
       const anchor = queueAnchorMs(t);
       t.history.push({
+        kind: HISTORY_KIND.QUEUED_UPGRADE,
         time: new Date().toISOString(),
         duration: 0,
         state: "queued",
@@ -921,6 +922,7 @@ function supersedeQueuedForPost(t) {
     other.lastRun = other.lastRun ?? null;
     other.history ||= [];
     other.history.push({
+      kind: HISTORY_KIND.SUPERSEDED,
       time: new Date().toISOString(),
       duration: 0,
       state: "skipped",
@@ -931,6 +933,64 @@ function supersedeQueuedForPost(t) {
     superseded.push(other.id);
   }
   return superseded;
+}
+
+// ── history 条目的类型（harden-fleet-execution-economics 1.4）────────────
+//
+// 为什么需要显式类型：同一天里，同一个形状 (`success: null`) 被我误读成"失败"三次——
+//   ① `{success:null, missed:1}` 是**到期没跑**（不是失败）；
+//   ② `{success:null, note:"…"}` 是**元数据行**（状态升级/校准留痕，不是一次执行）；
+//   ③ 真失败是 `{success:false, state:"failed"}`。
+// 统计脚本各自写 `cls()` 猜，于是每猜一次就错一次。类型必须由**写入方**声明，
+// 读方按 `kind` 分流；旧数据没有 `kind` 时按形状回退推断（见 classifyHistoryEntry）。
+const HISTORY_KIND = {
+  EXECUTION: "execution",       // 真跑过：state ∈ done/failed/interrupted/skipped
+  MISSED: "missed",             // 到期未执行（从未开始）
+  SUPERSEDED: "superseded",     // 被同岗位新一轮顶替
+  QUEUED_UPGRADE: "queued-upgrade", // 入队时把 staleness 豁免升级为 human
+  META: "meta",                 // 其它元数据（不得计入任何执行统计）
+};
+
+// 读方唯一入口。**新写入的条目靠 kind；旧条目靠形状回退**——两条路都在这里，
+// 别在调用方再写一遍 if。
+function classifyHistoryEntry(h) {
+  if (!h || typeof h !== "object") return HISTORY_KIND.META;
+  if (h.kind && Object.values(HISTORY_KIND).includes(h.kind)) return h.kind;
+  if (h.supersededBy) return HISTORY_KIND.SUPERSEDED;
+  if (h.state === "queued") return HISTORY_KIND.QUEUED_UPGRADE;
+  if (h.success === null && h.missed) return HISTORY_KIND.MISSED;
+  // 有 state 才是真执行；没有 state 的（只有 note/时间戳）一律当元数据，
+  // 绝不能落进"失败"桶——今天 75 条校准留痕就是这么把 38.3% 变成 62.1% 的。
+  if (h.state === "done" || h.state === "failed" || h.state === "interrupted"
+      || h.state === "skipped") {
+    return HISTORY_KIND.EXECUTION;
+  }
+  return HISTORY_KIND.META;
+}
+
+// 汇总一条记录的 history。执行类只在 EXECUTION 里分流，missed/meta 单独计数，
+// 这样"失败率"的分母永远只含真执行过的回合。
+function summarizeHistory(entries) {
+  const out = { done: 0, failed: 0, skipped: 0, interrupted: 0, missed: 0, superseded: 0, meta: 0 };
+  for (const h of entries || []) {
+    switch (classifyHistoryEntry(h)) {
+      case HISTORY_KIND.MISSED: out.missed += 1; break;
+      case HISTORY_KIND.SUPERSEDED: out.superseded += 1; break;
+      case HISTORY_KIND.QUEUED_UPGRADE:
+      case HISTORY_KIND.META: out.meta += 1; break;
+      default: {
+        const st = h?.state;
+        if (st === "done") out.done += 1;
+        else if (st === "failed") out.failed += 1;
+        else if (st === "skipped") out.skipped += 1;
+        else if (st === "interrupted") out.interrupted += 1;
+        else out.meta += 1;
+      }
+    }
+  }
+  out.executed = out.done + out.failed + out.skipped + out.interrupted;
+  out.failureRate = out.executed > 0 ? out.failed / out.executed : null;
+  return out;
 }
 
 function queueAnchorMs(t) {
@@ -958,6 +1018,56 @@ function queueMaxAgeMs() {
 // — human wakes and manual turns kept jumping ahead, so it never reached the
 // front and was never dropped. Worse, it kept `queueHealth().degraded` true,
 // which makes `/api/ready` answer 503 forever on a healthy cell.
+//
+// Period awareness (fix-stale-drop-respects-period): the bound alone treats
+// "waited 10 minutes" as "the round is worthless", but that is only true when
+// another occurrence is coming soon. Dropping a DAILY round discards the whole
+// day: `skipped` neither retries nor counts as `missed`, and the error text
+// ("the next cadence fire supersedes it") is simply false for it. So a round
+// whose period exceeds the bound is exempt — dropping must always have a
+// successor inside the window.
+const INTERVAL_UNIT_MS = { minute: 60_000, hour: 3_600_000, day: 86_400_000, week: 604_800_000 };
+
+// The task's cadence period in ms, or null when it cannot be established.
+// Cron-expression tasks return null on purpose: task-engine has no cron parser,
+// and guessing would silently widen the policy on wrong data (see design D2 —
+// unknown keeps the existing behaviour rather than disabling the bound).
+function schedulePeriodMs(t) {
+  const interval = t?.interval;
+  if (!interval || typeof interval !== "object") return null;
+  const step = INTERVAL_UNIT_MS[interval.unit];
+  if (!Number.isFinite(step)) return null;
+  const n = Number(interval.number);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return n * step;
+}
+
+// Below this period a dropped round is cheap: the next occurrence is at most
+// this far away. At or above it, dropping loses a meaningful slice of a day.
+//
+// Deliberately NOT compared against QUEUE_MAX_AGE_MS. That bound is a patience
+// limit ("how long may a fire wait before it is stale"), not a cycle length;
+// production runs it at 10 minutes, and every real cadence is longer than that
+// — so "period > bound" would exempt the entire queue and silence the policy
+// while looking like it still worked. (Found exactly this way: the first test
+// run exempted the hourly case.)
+const STALE_DROP_MIN_PERIOD_MS = (() => {
+  const raw = Number(process.env.QUEUE_STALE_EXEMPT_MIN_PERIOD_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 6 * 3_600_000;
+})();
+
+// Is this queued round exempt from the age bound because losing it would cost
+// more than the queueing pressure it relieves? Shared by the drop decision AND
+// by the health snapshot: an exempt round must not count as evidence that the
+// queue is stuck, or one waiting daily round would flip a healthy-but-idle cell
+// to 503.
+function isAgeExemptQueued(t, periodFloorMs = STALE_DROP_MIN_PERIOD_MS) {
+  if (!t) return false;
+  if (t.trigger !== "schedule" || t.queuedBy === "human") return false;
+  const periodMs = schedulePeriodMs(t);
+  return periodMs !== null && periodMs >= periodFloorMs;
+}
+
 function dropIfStaleQueued(t, nowMs) {
   if (!t || t.state !== "queued") return false;
   const maxAgeMs = queueMaxAgeMs();
@@ -966,6 +1076,9 @@ function dropIfStaleQueued(t, nowMs) {
   // a `run now` on a cadence task — the trigger reads "schedule" for both, so the
   // REQUESTOR decides (`queuedBy`), not the shape.
   if (t.trigger !== "schedule" || t.queuedBy === "human") return false;
+  // A long-period round has no cheap successor: dropping it would lose a large
+  // part of the day, so it waits instead of being discarded.
+  if (isAgeExemptQueued(t)) return false;
   const anchor = queueAnchorMs(t);
   if (!Number.isFinite(anchor) || nowMs - anchor <= maxAgeMs) return false;
   const waitedMin = Math.round((nowMs - anchor) / 60_000);
@@ -1450,6 +1563,7 @@ function finishExecution(t, startTime, result) {
   const attempt = Number.isInteger(t.attempt) && t.attempt >= 1 ? t.attempt : 1;
 
   t.history.push({
+    kind: HISTORY_KIND.EXECUTION,
     time: startTime,
     duration: Date.now() - new Date(startTime).getTime(),
     state: t.state,
@@ -1528,7 +1642,7 @@ function recordFailedFire(id, message) {
   t.state = "failed";
   t.error = message;
   t.promptOverride = null;
-  t.history.push({ time: now, duration: 0, state: "failed", success: false, error: message });
+  t.history.push({ kind: HISTORY_KIND.EXECUTION, time: now, duration: 0, state: "failed", success: false, error: message });
   for (const hook of onFinishedHooks) {
     try {
       hook(t);
@@ -1692,6 +1806,7 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   let oldestQueuedMs = null;
   let oldestRunningMs = null;
   let overBudget = 0;
+  const maxAgeMs = queueMaxAgeMs();
 
   for (const t of tasks.values()) {
     if (t.state === "queued") {
@@ -1699,7 +1814,16 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
       const anchor = queueAnchorMs(t);
       if (anchor !== null) {
         const waited = Math.max(0, now - anchor);
-        if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
+        // Age-exempt rounds (fix-stale-drop-respects-period) are excluded on
+        // purpose: they will never be dropped, so they must not act as evidence
+        // that the queue is stuck. Counting them here means one waiting DAILY
+        // round — with the cell otherwise idle — drives `queuedTooLong` true,
+        // `stalled` true, `degraded` true, and `/api/ready` answers 503 for a
+        // perfectly healthy cell. Losing a day's round is bad; broadcasting the
+        // platform as not-ready is worse.
+        if (!isAgeExemptQueued(t)) {
+          if (oldestQueuedMs === null || waited > oldestQueuedMs) oldestQueuedMs = waited;
+        }
       }
     } else if (t.state === "running") {
       running += 1;
@@ -1815,6 +1939,10 @@ export {
   fairNoteDispatch as __fairNoteDispatchForTest,
   fleetKey as __fleetKeyForTest,
   beginExecution,
+  // history 条目的类型与汇总（1.4）：读方唯一入口，别再各写一份 cls()。
+  HISTORY_KIND,
+  classifyHistoryEntry,
+  summarizeHistory,
   // Exported for the worker pool's watchdog: it settles a turn through the same
   // path the turn itself uses, so history/state semantics stay in one place.
   // (A local-only branch already exported this; the release base did not, which
@@ -1828,6 +1956,11 @@ export {
   getDashboardState,
   stats,
   queueHealth,
+  // Period awareness (fix-stale-drop-respects-period): exported so the policy
+  // can be pinned directly rather than inferred from queue behaviour — the
+  // exempt predicate is the spec's "丢弃必须有接替者" rule in executable form.
+  schedulePeriodMs,
+  isAgeExemptQueued,
   // Budget resolver passthrough (fix-task-queue-deadlock D3): the readiness
   // probe asks the engine for each running task's own budget so "running past
   // budget+grace" is judged by the same number the turn was given — one

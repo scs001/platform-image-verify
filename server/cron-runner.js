@@ -597,6 +597,19 @@ async function parkPersonaForTurn(ctx, preset, childSessionId) {
   }
   try {
     await bridge.setPreset({ sessionId: childSessionId, presetId: preset });
+    // Park the SKILLS scope too (ledger E24 remainder). Parking only the preset
+    // left `skills.patch.yml` at "full" — every turn in this cell carried all 23
+    // pack roots (58 skill bodies, ~8KB of `<available_skills>`) no matter which
+    // post ran, and that fixed overhead is a large share of the compaction
+    // storms (`context pressure (4-6 compactions)`, live 2026-11-09/10). The
+    // writer derives a focused list from the preset; a failure here must not
+    // fail the turn — the round still runs, just with the wider list.
+    try {
+      const dshProfile = await import("../dsh-profile.js");
+      await dshProfile.writeSkillsPatch({ agentPreset: preset });
+    } catch (e) {
+      console.warn(`[cron] focused skills patch for ${preset} failed (turn continues on the current list): ${e?.message || e}`);
+    }
     return { legacy: null };
   } catch (err) {
     const cls = classifyPresetSetError(err);

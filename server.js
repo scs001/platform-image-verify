@@ -968,7 +968,15 @@ async function initDshAgent() {
     isStreaming: () =>
       Boolean(ctx.isStreaming) ||
       (ctx.taskTurnRegistry?.size ?? 0) > 0 ||
-      (ctx.sessionCollectors?.size ?? 0) > 0,
+      (ctx.sessionCollectors?.size ?? 0) > 0 ||
+      // Worker slots count too (ledger E28/E30, live 2026-11-09/10): they were
+      // left out on purpose because they own their bridges — but the CREDENTIAL
+      // restart rebuilds the shared child, and a worker turn that has claimed a
+      // slot or is mid-prompt dies with it. Measured: `spawned worker-1 for
+      // persona hotel-watch-scout` then `credential change: runtime child
+      // restarted` 6s later, and the row still said ok. A busy pool must defer
+      // the restart to the turn boundary exactly like the serial lanes do.
+      (ctx.workerPool?.poolStats?.()?.busy ?? 0) > 0,
     restart: ({ mcpPatchPath }) => ctx.dshBridge.restart({ mcpPatchPath }),
     maxDeferredMs: 15 * 60 * 1000,
   });

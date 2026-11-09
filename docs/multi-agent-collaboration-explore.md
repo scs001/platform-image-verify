@@ -210,6 +210,8 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**留痕立刻破案（2026-11-09，产线实证）**：`salvageSkipped={"isFleet":true,"interrupted":false,"pressure":true,"reported":true}` —— 那条 12 次压缩后超时的回合**已经交过报数**，所以收尾车道按设计拒绝补第二次（否则写重复报数）。此前两次「原因已点名却没收尾」的怀疑，答案大概率一直是这个——**实现没有 bug，判据是对的**。这条也验证了留痕字段的价值：一个字段省掉了一整轮从外部猜。
+
 **P0′-1 第五批 + 产线观测（2026-11-09）**：
 - **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。
 - **收尾判据改按报数**：上线后头 6 条压力回合里 5 条有文本却零报数，旧判据（有文本就不补）恰在最需要时不动作；现以「已完成的 `report_status` 调用」为准，窗口 90s→240s，prompt 更硬。

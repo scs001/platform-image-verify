@@ -415,6 +415,28 @@ fd-prod **keeps `TASK_WORKER_MAX=0`** until node capacity allows (the node's
 4GB OOM history — each worker is one more dsh child). The local/demo machine
 sets `TASK_WORKER_MAX=3` in `.env` for the parallel fan-out picture.
 
+### Incident escape hatches — the knobs you need *while* the incident is live
+
+These five have a default that is already in force, so the only way to find the
+off switch is this table. Four of them shipped on 2026-11-09 documented only in
+source comments; `169 of 233` env reads still have no entry in `.env.example`.
+Turn them on/off in the platform `.env` (local/docker) or the `platform-config`
+ConfigMap (in-cluster, `fd-infra-deploy`) **and roll the pod** — they are read at
+process start, not per request.
+
+| Symptom | Knob | Action |
+|---|---|---|
+| Fleet turns cancelled "too early" (context pressure收口) | `FLEET_EARLY_STOP` | `=0` disables the whole early-stop policy, restoring the full turn budget. Default ON (cancels at >= 6 compactions past >= 60s) — it exists because one doomed turn held the cell's serial slot for 600s and pushed `oldestQueuedMs` to 17-25 min |
+| An operator's run-now sits in the queue for minutes | `QUEUE_HUMAN_PRIORITY` | `=1` makes human-fired tasks outrank cadence fires in the pool. Default OFF. Note the reserved extra slot remains human-*wake*-only, so a run-now'd cadence task still needs a normal slot to free |
+| "Why did that task never enter the pool?" | `WORKER_POOL_DEBUG` | `=1` logs every dispatcher claim/fallback decision. Default OFF. Set it *before* forming a theory — without it the decisions are entirely untraced |
+| `/api/gateway/status` reports a cell `near`/`over` on disk | `CELL_DISK_SOFT_MB` / `CELL_DISK_HARD_MB` | Defaults 512 / 2048 MiB, sized from a 1051 MiB real cell on a 30 GiB node. This only *reports* — refusing writes at the hard line is still open (`budget-cell-disk-usage` 2.2), so the node-side fix is the kubelet reservation in that change's §3 |
+
+If a cell is `over` and the node is already oscillating, do not wait for the
+write-refusal layer: add the node's `ephemeral-storage` reservation and raise
+`evictionHard` first (`budget-cell-disk-usage` task 3.1), then have the tenant
+export and clear. **The platform never deletes workspace content** — it is the
+user's real output.
+
 ### Mission Control console (MC bridge) — mission-control-bridge
 
 The 指挥层 operator console: a self-hosted [Mission Control](https://github.com/builderz-labs/mission-control)

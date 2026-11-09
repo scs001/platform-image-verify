@@ -29,11 +29,17 @@ type Tab = "installed" | "market";
 // cards lived there); it now lands on the connections section directly. The
 // external deep link (?tab=external, from the retired third tab) resolves
 // into the market tab's external zone.
+// The INSTALLED/MARKET switch is `sub=`. It used to be `tab=`, which the
+// materials market now owns for the species tabs (unify-material-market) — two
+// meanings on one parameter sent `?tab=tools` into the shelf's own router.
+// `tab=market|external` is still honoured as a legacy spelling, because old
+// links from the Settings era are still in the wild.
 function initialTab(): { tab: Tab; anchor: string | null } {
   try {
-    const tab = new URL(window.location.href).searchParams.get("tab");
-    if (tab === "external") return { tab: "market", anchor: "market-external" };
-    if (tab === "market") return { tab: "market", anchor: null };
+    const params = new URL(window.location.href).searchParams;
+    const sub = params.get("sub") ?? params.get("tab");
+    if (sub === "external") return { tab: "market", anchor: "market-external" };
+    if (sub === "market") return { tab: "market", anchor: null };
   } catch {
     /* default below */
   }

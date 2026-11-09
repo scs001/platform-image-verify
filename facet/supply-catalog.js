@@ -35,8 +35,12 @@ const FIVE_LOCALES = ["zh", "en", "ja", "es", "fr"];
 
 // The species enumeration (supply-catalog spec): a new species extends this
 // with a version bump, never by overloading an existing value.
-export const SUPPLY_SPECIES = ["pack", "skill", "mcp", "facade", "data-anchor"];
-export const SUPPLY_SPECIES_VERSION = 1;
+// v2 (unify-material-market): dsh plugins join the catalogue as their own
+// species — a plugin is a material a deployment may supply, distinct from the
+// pack that happens to carry one. The operator's curated plugin catalogue and
+// the 申请供应 request flow both key off this value.
+export const SUPPLY_SPECIES = ["pack", "skill", "mcp", "facade", "data-anchor", "plugin"];
+export const SUPPLY_SPECIES_VERSION = 2;
 
 // The public route slug of a deployed agent — mirrors the serving plane's own
 // derivation (fd-wanxing services/wanxing-facade/core.js slugFor) so facet can

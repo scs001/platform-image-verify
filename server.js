@@ -105,6 +105,7 @@ import { registerBindingMintRoutes } from "./server/routes/binding-mint.js";
 import { createTrialExecRoutes } from "./server/routes/trial-exec.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
 import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
+import { registerPluginSupplyRoutes } from "./server/routes/plugin-supply.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
@@ -450,6 +451,12 @@ registerOverlayRoutes(ctx);
 // Custom presets (add-custom-presets): the 自建预设 roster CRUD — same
 // placement rule; rides the serialized runtime-mutation path like packs.
 registerCustomPresetRoutes(ctx);
+// 素材市场 · 插件页签 (unify-material-market: dsh-plugin-supply MODIFIED,
+// plugin-supply-request ADDED): the curated catalogue read plus the 申请供应
+// request row. The catalogue is operator-authored data; the roster comes from
+// the live dsh inventory. A request writes one JSON row and never installs,
+// downloads, or executes a plugin package — supply stays build-time only.
+registerPluginSupplyRoutes(ctx);
 // Pack marketplace MARKET plane (add-pack-marketplace): browse/publish/
 // subscribe records. In the multi-cell gateway topology gateway/index.js
 // serves these; a single-process deployment (fd-prod) has no gateway process,

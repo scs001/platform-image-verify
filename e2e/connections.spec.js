@@ -99,7 +99,10 @@ test.describe("connections section", () => {
 
   test("market tab is a pure shelf — no connect cards", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/settings/mcp?tab=market");
+    // unify-material-market: the tools shelf is the market's 工具 tab now, and
+    // /settings/mcp redirects there (the modal never opens for it).
+    await page.goto("/agents?tab=tools&sub=market");
+    await expect(page.getByTestId("agent-market-tab-tools")).toHaveAttribute("data-active", "true");
     await expect(page.getByTestId("mcp-market-section")).toBeVisible();
     await expect(page.getByTestId("registry-connect-panel")).toHaveCount(0);
     await expect(page.getByTestId("connector-connect-panel")).toHaveCount(0);

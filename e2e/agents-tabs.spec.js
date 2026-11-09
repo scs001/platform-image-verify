@@ -37,7 +37,8 @@ test.describe("agent market facade (/agents after the supply migration)", () => 
     await pinLocaleEn(page);
     await page.goto("/agents");
     await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("agent-market-title")).toHaveText("Agent Market");
+    // unify-material-market: the surface now carries four capability species.
+    await expect(page.getByTestId("agent-market-title")).toHaveText("Materials");
     for (const id of RETIRED_HUB_TESTIDS) {
       await expect(page.getByTestId(id), `retired hub testid ${id}`).toHaveCount(0);
     }
@@ -218,7 +219,8 @@ test.describe("packs install face", () => {
     await page.goto("/packs?deployCastPack=cast_probe_pack");
     await expect(page).toHaveURL(/\/agents\?deployCastPack=cast_probe_pack$/);
     await expect(page.getByTestId("agent-market-page")).toBeVisible();
-    await expect(page.getByTestId("agent-market-tabs")).toContainText("Market");
+    // unify-material-market: the pack browse tab is now labelled 智能体/Agents.
+    await expect(page.getByTestId("agent-market-tab-agents")).toHaveAttribute("data-active", "true");
     // Not the chat catch-all: no composer.
     await expect(page.locator("textarea[data-testid='composer-input']")).toHaveCount(0);
   });

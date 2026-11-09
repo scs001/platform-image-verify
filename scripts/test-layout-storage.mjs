@@ -101,7 +101,7 @@ test("resolveForUser: a role with no preset entry keeps the deployment default",
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "screenplay", secondary: [] } });
   assert.deepEqual(layout.nav, FACTORY_NAV);
   assert.deepEqual(layout.settings, ALL_SETTINGS);
-  assert.deepEqual(layout.agentsTabs, ["market", "mine"]); // the two market tabs (restructure-yizuo-ia)
+  assert.deepEqual(layout.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]); // the five material tabs
 });
 
 test("resolveForUser: user tweaks apply on top of the role layer", () => {
@@ -112,7 +112,7 @@ test("resolveForUser: user tweaks apply on top of the role layer", () => {
   assert.deepEqual(layout.nav, ["chat", "agents"]);
   // Containers the user did not speak to keep their full set (the factory
   // default — 市场 + 我的, the retired hub slugs stay alias-only).
-  assert.deepEqual(layout.agentsTabs, ["market", "mine"]);
+  assert.deepEqual(layout.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
 });
 
 test("facts filter admin sections and marketplace tabs server-side", () => {
@@ -125,9 +125,9 @@ test("facts filter admin sections and marketplace tabs server-side", () => {
   });
   assert.equal(layout.settings.includes("roles"), false);
   assert.equal(layout.settings.includes("branding"), false);
-  // restructure-yizuo-ia: the pack-marketplace predicate gates the 市场 TAB,
-  // so a market-less deployment keeps 我的 (installed packs + drafts are local).
-  assert.deepEqual(layout.agentsTabs, ["mine"]);
+  // unify-material-market: no tab is marketplace-gated; the 智能体 front page
+  // degrades in place when a deployment has no market.
+  assert.deepEqual(layout.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
 });
 
 // ── User tweaks ─────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ test("/api/config ships the resolved layout for the requesting user", async () =
     "pairing",
     "connections",
   ]);
-  // PACK_MARKETPLACE is off in this harness, so the 市场 tab is dropped by the
-  // predicate and 我的 survives alone (installed packs + drafts are local).
-  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["mine"]);
+  // PACK_MARKETPLACE is off in this harness and the tab set is unchanged — the
+  // front page carries the degraded state instead of disappearing.
+  assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
 });

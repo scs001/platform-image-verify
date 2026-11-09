@@ -18,13 +18,11 @@
 import { lazy } from "react";
 import {
   Activity,
-  Blocks,
   Cable,
   LayoutPanelLeft,
   MonitorSmartphone,
   Scale,
   Paintbrush,
-  Plug,
   SlidersHorizontal,
   Sparkles,
   UserRound,
@@ -53,12 +51,6 @@ const BrandingSection = lazy(() =>
 const ModelsPage = lazy(() => import("@/pages/ModelsPage").then((m) => ({ default: m.ModelsPage })));
 const ConnectionsSection = lazy(() =>
   import("@/components/settings/ConnectionsSection").then((m) => ({ default: m.ConnectionsSection })),
-);
-const ExtensionsPage = lazy(() =>
-  import("@/pages/ExtensionsPage").then((m) => ({ default: m.ExtensionsPage })),
-);
-const PluginsSection = lazy(() =>
-  import("@/components/settings/PluginsSection").then((m) => ({ default: m.PluginsSection })),
 );
 const RolesSection = lazy(() =>
   import("@/components/settings/RolesSection").then((m) => ({ default: m.RolesSection })),
@@ -142,32 +134,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     testId: "settings-section-connections",
     icon: Cable,
     Component: ConnectionsSection as SettingsSectionComponent,
-  },
-  {
-    // Merged Tools & Skills section: one surface, two sub-views. The
-    // canonical `mcp` slug opens the tools view; the legacy `skills` slug
-    // opens the skills view. Both keep every existing deep link alive.
-    slug: "mcp",
-    aliases: ["skills"],
-    aliasProps: { skills: { type: "skills" } },
-    group: "capabilities",
-    labelKey: "settings.sections.mcp",
-    testId: "settings-section-mcp",
-    icon: Plug,
-    Component: ExtensionsPage as SettingsSectionComponent,
-    props: { type: "mcp" },
-  },
-  {
-    // dsh plugin supply (add-dsh-plugin-supply): the deployment-whitelisted
-    // bundle roster with one enable/disable toggle per row. Read-only
-    // inventory by design — bundles are supplied by the deployment (matrix
-    // bake + template bundle declaration), never installed at runtime.
-    slug: "plugins",
-    group: "capabilities",
-    labelKey: "settings.sections.plugins",
-    testId: "settings-section-plugins",
-    icon: Blocks,
-    Component: PluginsSection as SettingsSectionComponent,
   },
   {
     slug: "models",

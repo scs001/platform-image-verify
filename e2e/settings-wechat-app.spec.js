@@ -33,8 +33,11 @@ const BIND_LABEL = "Pairing & binding";
 // order of the declared ones rather than the whole list.
 // simplify-ia-non-technical regrouped Settings (Basics → Capabilities →
 // Management) and merged skills into mcp; restructure-yizuo-ia merged the two
-// pairing sections into `pairing` and folded diagnostics into `status`.
-const CANONICAL = ["general", "pairing", "mcp", "models", "status"];
+// pairing sections into `pairing` and folded diagnostics into `status`;
+// unify-material-market moved the tools/skills/plugins shelves to the market.
+// unify-material-market: tools (mcp) and plugins left Settings for the
+// materials market, so the modal's declared order no longer names them.
+const CANONICAL = ["general", "pairing", "models", "status"];
 
 function freePort() {
   return new Promise((resolve) => {
@@ -199,6 +202,10 @@ test.describe("settings → WeChat App", () => {
   test("the modal lists the declared sections in order and routes as before", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto(`${BASE}/settings/wechat-app`);
+    // Wait for the rail before reading it: the eval used to race the boot, and
+    // an empty rail read as "no sections" rather than "not mounted yet".
+    await expect(page.getByTestId("settings-nav")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("settings-section-general")).toBeVisible();
 
     const order = await page.$$eval('[data-testid^="settings-section-"]', (els) =>
       els.map((el) => el.getAttribute("data-testid")),

@@ -47,7 +47,12 @@
       ```
       让驱逐发生在还有余量时、且先软后硬，而不是贴着 1.5G 反复抖。
       注意：**预留会降低 allocatable**，该节点已有 pod 的 request 需复核（当前 requests 很低，影响可忽略）。
-- [ ] 3.2 改完复核：`kubectl get node … -o json | jq '.status.allocatable'` 应小于 capacity；
-      观察 24h 内 `DiskPressure` 不再翻转、无 pod 被驱逐。
+- [ ] 3.2 改完复核——**判据已修正**：原写"`allocatable` 应小于 capacity"是无效判据，因为该差值今天
+      就已存在（实测 2026-11-09：capacity 31390700Ki=32,144,076,800 B，allocatable 30,536,872,937 B，
+      差 1.497 GiB，恰好等于 `evictionHard nodefs.available<5%` 扣掉的量，与 allocatable 仅差 23 B 取整）。
+      正确判据二选一：
+      ① 比较「capacity − 5% 驱逐阈值」与真实 allocatable 的**残差**：改前 ≈ 0，改后应 ≈ 3 GiB（2Gi+1Gi 预留）；
+      ② 直接读节点 `/etc/rancher/k3s/config.yaml` 的 `kubelet-arg`，确认三条预留行存在。
+      另需观察 24h 内 `DiskPressure` 不再翻转、无 pod 被驱逐。
 - [ ] 3.3 该节点还托管 facet（hostPath 钉死），建议后续把 facet 迁到独立节点或改用 PV，
       避免"节点磁盘问题 → 市场面停机"这种耦合。

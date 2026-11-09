@@ -210,6 +210,13 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**worker 会话轮转修复 + 两项实证（2026-11-09，镜像 sha-21159b6）**：
+- 根因：主链自 `fix-fleet-round-discipline` 起每轮轮转子会话 id，而 **pool 路径一直用镜像 id prompt**——worker 回合重读自己累积的历史；cap 提到 3 后同一 id 被两处持有 → `session "…" is already owned by …`。
+- 修法：`runOnWorker` 改用 `roundChildSessionId`（与主链同一推导）；镜像 id 保留转写/侧栏；`worker.currentSession` 改指向 child id（`pumpFor` 与槽位看门狗按它查 collector/abort，不改会静默断开——测试抓到过）。
+- **实证 A（会话冲突）**：该错误累计 7 条，全部落在 11:48–**14:08Z**；修复镜像 **14:12:55Z** 上线 → **之后 0 条**。
+- **实证 B（内联预算）**：单条 `tool/result` **40KB→11KB**、`assistant/message` **43KB→12KB**，`maxInlineTokens: 4000`（≈13KB）精确生效。
+- **实证 C（通过率）**：修复后首轮 5 回合 **5 ok / 0 failed（100%）**——今晚第一次零失败轮次（样本仍小）。
+
 **内联预算已落地并验证（2026-11-09，镜像 sha-fe97d6c）**：找到旋钮后（`spill-policy.maxInlineTokens: 12500`≈40KB）改为 **4000**（≈13KB），落在 `writeLlmProfile` 追加的 `spill-policy` 行（`DSH_MAX_INLINE_TOKENS` 可调，回滚设 12500）。**产线验证**：活跃 cell 的 `profiles/platform/cordis.patch.yml` 实读 `maxInlineTokens: 4000`（每 cell 恰好一行，旧值被替换而非重复）。
 
 **同轮测试暴露一条不属于本刀的回归（已定性，未处置）**：pool 从 1 提到 3 后出现 `session "…" is already owned by …` 失败。因果判据：该错误**首次出现 11:48Z**，累计 6 条（11Z:1 / 12Z:5），而我的内联预算镜像 12:33Z 才上线——**早于本刀**，属并发会话把 worker 上限提到 3 之后的会话归属冲突（多条 worker 抢同一会话）。该批回合连 trace 都未建立。本刀不认领此问题；留给 pool 那一线处置。

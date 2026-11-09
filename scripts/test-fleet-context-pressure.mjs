@@ -232,6 +232,57 @@ test("arm：舰队回合在压缩风暴超过阈值时原生取消并结算为�
   assert.equal(shouldSalvageReport(err.detail, { isFleet: true }), true, "and the salvage lane still applies");
 });
 
+test("首 60 秒内的压缩风暴不会绕过闸门（线上 8 例的形状）", async () => {
+  // 原实现的判定只在 compaction/start 里做，且要求「计数到阈值」与「已跑够下限」
+  // 在**同一个事件**上同时成立。于是开场风暴（阈值内的压缩全发生在下限之前，
+  // 之后再没有压缩事件）永远判不中，回合一路跑到预算耗尽。
+  // 线上 2026-11-09：48 次压力超时里 44 次压缩数已过阈值却没早停，n=4 的全是这个形状。
+  const ctx = makeCtx();
+  let cancelled = [];
+  ctx.dshBridge = { cancelSession: async (sid) => { cancelled.push(sid); } };
+  const collectors = new Map();
+  // 下限非 0 —— 上一版测试全部注入 0，正好把这个缺陷遮住了。
+  // 预算给 2s：闸门坏了就用"跑满预算"失败，2 秒内见红，而不是等 30s。
+  const p = collectTurn(ctx, "child-burst", 2000, new Map(), collectors, "mirror-burst",
+    { earlyStop: true, earlyStopAfterMs: 120 });
+  const push = collectors.get("child-burst");
+  // 4 次压缩立刻发生（全部早于 120ms 的下限），之后**没有任何事件**。
+  for (let i = 0; i < 4; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
+
+  let settled = false;
+  p.then(() => { settled = true; }, () => { settled = true; });
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(settled, false, "还没到时间下限，不许提前判死");
+
+  const err = await p.then(() => null, (e) => e);
+  assert.ok(err, "下限到点后必须复判并结算");
+  assert.equal(err.earlyStop, true);
+  assert.equal(err.detail.compactions, 4);
+  assert.match(err.message, /stopped early — context pressure \(4 compactions\)/);
+  assert.deepEqual(cancelled, ["child-burst"]);
+});
+
+test("风暴之下（未达阈值）不会因为定时器而提前停", async () => {
+  // 反向守卫：到点复判只在计数已达阈值时才存在，3 次压缩照旧跑满预算。
+  const ctx = makeCtx();
+  let cancelled = 0;
+  ctx.dshBridge = { cancelSession: async () => { cancelled++; } };
+  const collectors = new Map();
+  const p = collectTurn(ctx, "child-under", 30000, new Map(), collectors, "mirror-under",
+    { earlyStop: true, earlyStopAfterMs: 30 });
+  const push = collectors.get("child-under");
+  for (let i = 0; i < 3; i++) push({ method: "session.event", params: { event: { type: "compaction/start" } } });
+  await new Promise((r) => setTimeout(r, 90));
+  let settled = false;
+  p.then(() => { settled = true; }, () => { settled = true; });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(settled, false, "below the hard line the round keeps its budget");
+  assert.equal(cancelled, 0);
+  push({ method: "session.status", params: { status: "idle" } });
+  const out = await p;
+  assert.equal(out.compactions, 3);
+});
+
 test("非舰队回合不提前停（人类/普通定时保留完整预算）", async () => {
   const ctx = makeCtx();
   let cancelled = 0;

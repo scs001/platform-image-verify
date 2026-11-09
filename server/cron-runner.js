@@ -226,8 +226,11 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     let error = null;
     let usage = null;
     const toolBlocks = [];
+    // 早停的"到点复判"定时器（见 maybeEarlyStop）。
+    let earlyStopTimer = null;
     const settle = (fn, arg) => {
       clearTimeout(timer);
+      if (earlyStopTimer) clearTimeout(earlyStopTimer);
       collectors.delete(sessionId);
       activeTurns.delete(sessionId);
       // This lane's turn just closed — the shared child may be free now
@@ -259,6 +262,38 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       () => settle(reject, timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported })),
       timeoutMs,
     );
+    // 早停判定（唯一入口）。
+    //
+    // 原实现只在 `compaction/start` 事件里判，且要求「计数到阈值」与「已跑够
+    // 时间下限」在同一事件上同时成立。**开场压缩风暴**会把这条闸门整个绕过去：
+    // 前 60 秒内连压 4 次、之后不再压缩 —— 4 次判定时 elapsed 都 <60s，
+    // 之后再也没有 compaction 事件可供判定，回合于是跑到预算耗尽。
+    //
+    // 线上证据（2026-11-09，4 个 cell 的 4493 行 history）：
+    //   • 48 次「turn timed out — context pressure」，只有 3 次早停；
+    //   • 44 次压缩数已达阈值却没早停，其中 n=4 的 8 次全是这个形状；
+    //   • 同一条任务（job_1794128300056_hwmvbw）既早停过、也超时过 ——
+    //     差别不在任务本身，而在压缩是否恰好跨越了时间下限。
+    // 修法：撞到阈值时若还没到下限，挂一个一次性定时器在到点时复判。
+    const maybeEarlyStop = () => {
+      if (!earlyStop || !earlyStopEnabled()) return false;
+      if (compactions < EARLY_STOP_COMPACTIONS) return false;
+      const elapsed = Date.now() - startedAtMs;
+      if (elapsed < earlyStopAfterMs) {
+        if (!earlyStopTimer) {
+          earlyStopTimer = setTimeout(maybeEarlyStop, earlyStopAfterMs - elapsed + 5);
+          earlyStopTimer.unref?.();
+        }
+        return false;
+      }
+      try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
+      const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
+      err.message = `turn stopped early — context pressure (${compactions} compactions)`;
+      err.earlyStop = true;
+      settle(reject, err);
+      return true;
+    };
+
     activeTurns.set(sessionId, (reason) => {
       // A bridge abort (runtime restart mid-turn) is an interruption, not a
       // failure: the engine marks the execution `interrupted` instead of
@@ -308,18 +343,7 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         // finish, and the serial slot is the cell's only executor. Cancel it
         // natively and settle as pressure (the salvage lane then tries for the
         // report) instead of holding everyone else's queue for another N seconds.
-        if (
-          earlyStop
-          && earlyStopEnabled()
-          && compactions >= EARLY_STOP_COMPACTIONS
-          && Date.now() - startedAtMs >= earlyStopAfterMs
-        ) {
-          try { ctx.dshBridge?.cancelSession?.(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
-          const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
-          err.message = `turn stopped early — context pressure (${compactions} compactions)`;
-          err.earlyStop = true;
-          return settle(reject, err);
-        }
+        maybeEarlyStop();
       }
       if (ev.type === "assistant/message") {
         // Turn metering: the FIRST assistant event is the time-to-first-token
@@ -618,11 +642,28 @@ export async function applyPostEffort(ctx, plan) {
 // selection time only: resolution already roster-filtered the candidates, the
 // loop walks past a hop only if the roster drifted between the read and the
 // switch. No candidates at all → honest failure, no invented model.
-async function normalizeModelForJob(ctx, preset) {
+async function normalizeModelForJob(ctx, preset, job = null) {
   const plan = (await ctx.resolveFleetModel?.(preset)) ?? null;
   // Not a fleet post (plain cron task or a persona holding no post): the turn
   // runs on the current model, byte-for-byte the pre-change behavior.
-  if (!plan) return { ok: true };
+  //
+  // BUT a job that DOES carry fleet attribution must not take this door: with
+  // no plan there is no model normalization at all, and the call returned
+  // `{ok:true}` — which is how three rounds settled `status=ok` with
+  // `model=null`, no usage and no trace (ledger E28, live 2026-11-09: the
+  // catalog fetch was failing, `resolveFleetModel` came back null, the turn was
+  // "successful" without ever running). Losing the post's model resolution is a
+  // failure of this round, not a licence to skip it.
+  if (!plan) {
+    const fleet = job ? fleetTagOf(job) : null;
+    if (fleet) {
+      return {
+        ok: false,
+        error: "post model resolution unavailable (catalog/model roster unreachable) — the round would run on an unspecified model",
+      };
+    }
+    return { ok: true };
+  }
   const notices = [...plan.notices];
   let landed = null;
   // fix-fleet-model-drift: a post with an explicit chain cannot trust the
@@ -952,7 +993,7 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
     // the two switches short-circuit independently, so a same-persona model
     // change is never swallowed, and switchModelTo's live path flips the model
     // without a second restart when the bridge declares model/set.
-    modeled = await normalizeModelForJob(ctx, job.preset);
+    modeled = await normalizeModelForJob(ctx, job.preset, job);
     if (!modeled.ok) {
       releaseReservation?.();
       return withPresetPath(modeled, presetPath);

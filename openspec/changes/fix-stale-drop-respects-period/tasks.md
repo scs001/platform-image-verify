@@ -21,9 +21,9 @@
 
 ## 4. 收口
 
-- [ ] 4.1 `openspec validate fix-stale-drop-respects-period --strict` 通过——验证：命令返回 valid
+- [x] 4.1 `openspec validate fix-stale-drop-respects-period --strict` 通过——验证：命令返回 valid
 - [ ] 4.2 归档——验证：`openspec archive fix-stale-drop-respects-period --yes --strict` 成功，`openspec/specs/cell-execution-queue/spec.md` 中该需求已含周期感知条款
-- [ ] 4.3 在 `fix-operator-ignition-priority` 的 design Open Questions 里补一句：点火优先的上线前置是本 change 已生效——验证：两处文档互相指向
+- [x] 4.3 在 `fix-operator-ignition-priority` 的 design Open Questions 里补一句：点火优先的上线前置是本 change 已生效——验证：两处文档互相指向
 
 ## 4b. 已知副本（记录，不阻塞）
 

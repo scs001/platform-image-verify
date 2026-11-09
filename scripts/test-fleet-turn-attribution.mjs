@@ -169,6 +169,22 @@ test("breaker: the kill switch keeps every lane closed", () => {
   }
 });
 
+test("runPersonaTurn: a fleet post with no model plan fails instead of reporting ok", async () => {
+  // Ledger E28 (live 2026-11-09): the catalog fetch was failing, resolveFleetModel
+  // returned null, normalizeModelForJob took its "not a fleet post" door and
+  // answered {ok:true} — the round settled status=ok with model=null, no usage
+  // and no trace, i.e. a success that never ran. A job that carries fleet
+  // attribution must not use that door.
+  const prompts = [];
+  const ctx = attrCtx({ prompts });
+  ctx.resolveFleetModel = () => null; // catalog/model roster unreachable
+  const { runPersonaTurn } = await import("../server/cron-runner.js");
+  const out = await runPersonaTurn(ctx, fleetJob(), 5_000, new Map(), { startedAt: Date.now() });
+  assert.equal(out.ok, false);
+  assert.match(String(out.error), /model resolution unavailable/);
+  assert.equal(prompts.length, 0, "never prompted on an unspecified model");
+});
+
 // ── shapeTurnOutcome: skipped + detail ───────────────────────────────────────
 
 test("shapeTurnOutcome: skipped is its own status, errorKind null, detail rides", () => {

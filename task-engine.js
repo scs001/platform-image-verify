@@ -1127,6 +1127,12 @@ export function sweepStaleQueuedFires(nowMs = Date.now()) {
   if (inFlightExecutionId) onChain.add(inFlightExecutionId);
   for (const t of tasks.values()) {
     if (t.state !== "queued" || onChain.has(t.id) || scheduleSideBlocked(t)) continue;
+    // 池已经接了的（在它的 waiting 里）同样算"在链上"。
+    // 不加这一条，sweep 每遍都会把同一个 id 再推一次 waiting：线上实测
+    // cell 3fdc 每 30 秒打印一轮 5 条 "off the chain"，排队的轮 30 分钟
+    // 没起步、`/readyz` 一直 503，而 `waiting` 还在无限增长
+    // （2026-11-09，5 个 id × 每 30 秒）。判据必须与派发方共用一套认领语义。
+    if (slotDispatcherFn?.claims?.(t.id)) continue;
     console.warn(`[task-engine] ${t.id} is queued but off the chain — re-dispatching (sweep)`);
     dispatch(t.id);
   }

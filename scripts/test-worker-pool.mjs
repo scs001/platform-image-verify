@@ -32,10 +32,6 @@ class FakeBridge {
     this.persona = params.agentPreset;
     this.closed = false;
     this.prompts = [];
-    // Early stop calls this natively (fix-worker-early-stop); a fake without it
-    // would make the pool's optional-chain call a silent no-op and the test
-    // would pass for the wrong reason.
-    this.cancelCalls = [];
     FakeBridge.byPersona.set(this.persona, this);
   }
   async start() {
@@ -62,9 +58,6 @@ class FakeBridge {
   }
   emit(notif) {
     this.params.onEvent(notif);
-  }
-  async cancelSession(sessionId) {
-    this.cancelCalls.push(sessionId);
   }
   close() {
     this.closed = true;
@@ -717,4 +710,58 @@ test("QUEUE_HUMAN_PRIORITY=1 does not widen the human-only extra slot", async ()
     engine.setSlotDispatcher(null);
     clearRecords("hum2");
   }
+});
+
+// ── 认领语义必须与引擎的 orphan sweep 共用（2026-11-09 线上循环告警）──────────
+//
+// 症状（cell 3fdc 实测）：池的 dispatcher 把任务收进自己的 `waiting` 后**返回 true**
+// （= 我接了），引擎据此认为"已在链上"。但引擎的 onChain 只认
+// `pendingExecutions` + `inFlightExecutionId`，看不到池里的 waiting ——
+// 于是负责补漏的 sweep 每 30 秒判一次"queued but off the chain"，把同一个 id
+// 再推一遍 waiting。线上 log 就是这个形状：5 个 id、每 30 秒一轮、永不停止；
+// 排队的轮 30 分钟没起步，`/readyz` 一直 503。
+//
+// 测试用假 dispatcher 直接打在这个缝上：认领了就不许再被重派，没认领必须被重派
+// （后半句防"恒绿"——只验前者的话，把守卫删掉测试照样过）。
+test("池认领（返回 true 但不执行）的任务不再被 sweep 重派；未认领的仍会被重派", async () => {
+  await bootEngine();
+  const claimedIds = new Set();
+  const fakeDispatcher = (task) => {
+    claimedIds.add(task.id); // 收了，但不跑 —— 正是池在 waiting 里的形状
+    return true;
+  };
+  fakeDispatcher.claims = (id) => claimedIds.has(id);
+  engine.setSlotDispatcher(fakeDispatcher);
+
+  const claimed = engine.createManualTask({ prompt: "claimed", persona: "code", initiator: "s1" });
+  await settle();
+  assert.equal(engine.getTask(claimed.id).state, "queued", "被认领但没跑：仍在 queued");
+
+  const warns = [];
+  const orig = console.warn;
+  console.warn = (...args) => warns.push(args.join(" "));
+  try {
+    for (let i = 0; i < 3; i++) engine.sweepStaleQueuedFires(Date.now());
+  } finally {
+    console.warn = orig;
+  }
+  const forClaimed = warns.filter((w) => w.includes(claimed.id));
+  assert.equal(forClaimed.length, 0, `池已认领的任务不得被反复重派：${forClaimed[0] ?? ""}`);
+
+  // 反证：认领集合里没有它 → 必须被重派（否则上面的断言毫无意义）
+  claimedIds.delete(claimed.id);
+  const warns2 = [];
+  console.warn = (...args) => warns2.push(args.join(" "));
+  try {
+    engine.sweepStaleQueuedFires(Date.now());
+  } finally {
+    console.warn = orig;
+  }
+  assert.ok(
+    warns2.some((w) => w.includes(claimed.id) && w.includes("off the chain")),
+    "未认领的排队轮必须被 sweep 捡回来，否则队列会永久停住",
+  );
+
+  engine.setSlotDispatcher(null);
+  await settle();
 });

@@ -228,7 +228,19 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       worker.currentSession = null;
     }
     if (result.error) return settle({ ok: false, error: result.error });
-    return settle({ ok: true, usage: result.usage ?? null });
+    // Carry the WHOLE collected result, not just usage (ledger E28/E27): the
+    // settlement seam judges "did this round actually produce anything" from
+    // usage + text + tool calls, and E21's first cut dropped text/toolBlocks —
+    // so a worker round that DID answer still looked empty and settled as a
+    // hollow success. The same hollow flag the serial seam sets applies here.
+    const produced = Boolean(result?.text) || Boolean(result?.toolBlocks?.length) || Boolean(result?.usage);
+    return settle({
+      ok: true,
+      usage: result.usage ?? null,
+      text: result.text ?? null,
+      ...(Array.isArray(result.toolBlocks) ? { toolBlocks: result.toolBlocks } : {}),
+      ...(produced ? {} : { hollow: true }),
+    });
   }
 
   // Slot watchdog — the pool's counterpart to the serial chain's

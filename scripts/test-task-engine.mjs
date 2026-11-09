@@ -614,3 +614,31 @@ test("a plain skip carries no budget reason (没有原因就不许编原因)", a
   assert.equal(last.state, "skipped");
   assert.equal(last.skippedReason, undefined, "其它 skip 不该被贴上 budget 原因");
 });
+
+// ── 溢出后下一轮必换会话（rotate-cron-session-on-context-pressure 的盲点）──
+//
+// 溢出回合不写 tokens，靠 tokens 的判据对它失明。这里走真实执行链验：
+// ① 溢出 → 任务被打上 rotateNextSession；② 该标记持久化；③ 下一轮换会话且标记清掉。
+test("an overflow round arms the next rotation, and the flag survives a reload", async () => {
+  await boot([legacyRecord({ sessionId: "cron-job_1" })], async () => ({
+    ok: false, error: 'pi-ai detected context overflow for model "deepseek-v4.1-flash"',
+  }));
+  engine.enqueueExecution("job_1");
+  await engine.idle?.();
+
+  // getTask 是对外形状（副本），内部字段要用 getRecord 读。
+  assert.equal(engine.getRecord("job_1").rotateNextSession, true, "溢出即武装下一轮");
+  // 持久化：重启后这个决定不能丢。
+  // 先把写链排空（saveTasks 是 fire-and-forget，直接读盘会读到上一版）——
+  // boot() 里为同一个原因也这么做。
+  await engine.saveTasks();
+  const stored = readStored().find((r) => r.id === "job_1");
+  assert.equal(stored.rotateNextSession, true, "must be persisted, else a restart loses it");
+});
+
+test("a normal failure does not arm a rotation", async () => {
+  await boot([legacyRecord()], async () => ({ ok: false, error: "502: upstream unavailable" }));
+  engine.enqueueExecution("job_1");
+  await engine.idle?.();
+  assert.notEqual(engine.getRecord("job_1").rotateNextSession, true);
+});

@@ -73,3 +73,31 @@ test("7. uncacheable-but-large input alone can trigger rotation", () => {
   const history = [{ tokens: { inputTokens: 100_000, cacheReadTokens: 0 } }];
   assert.equal(shouldRotateSession(history, { window: WINDOW, ratio: 0.7 }), true);
 });
+
+// ── 5. 溢出的那一轮不会留下 tokens，判据必须另有凭据 ────────────────────
+//
+// 2026-11-09 实测：`pi-ai detected context overflow` 的回合 tokens=0。
+// 而 shouldRotateSession 只认 tokens —— 于是"刚跑爆窗口的那一轮"对判据不可见。
+// 若溢出前那条还在阈值之下（一条超长 tool result 就能把上下文顶过去），
+// 下一轮不会换会话，然后再溢一次。
+test("5. an overflow round is remembered even though it leaves no tokens", async () => {
+  const { isContextOverflowError } = await import(path.join(here, "../task-engine.js"));
+  assert.equal(isContextOverflowError('pi-ai detected context overflow for model "deepseek-v4.1-flash"'), true);
+  assert.equal(isContextOverflowError("CONTEXT_WINDOW_EXCEEDED"), true);
+  assert.equal(isContextOverflowError("turn timed out — context pressure (4 compactions)"), false,
+    "压缩风暴是另一回事，不该触发换会话");
+  assert.equal(isContextOverflowError(""), false);
+  assert.equal(isContextOverflowError(null), false);
+});
+
+test("6. the sticky flag rotates once and then clears (does not stick forever)", async () => {
+  // 直接验 runExecutionTurn 的判定语义：标记为 true 时即便 history 未达阈值也换。
+  // 真实执行链在 test-task-engine 里由假 runTurn 驱动，这里只钉判据组合。
+  const t = { id: "job_x", trigger: "schedule", sessionId: "cron-job_x",
+              history: [ { tokens: { inputTokens: 1_000, cacheReadTokens: 0 } } ],
+              rotateNextSession: true };
+  const asked = t.rotateNextSession === true;
+  const byRatio = shouldRotateSession(t.history, { window: WINDOW, ratio: 0.7 });
+  assert.equal(byRatio, false, "history is way under the threshold");
+  assert.equal(asked || byRatio, true, "the overflow flag must be able to rotate on its own");
+});

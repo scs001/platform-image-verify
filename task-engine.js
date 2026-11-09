@@ -114,6 +114,21 @@ const SESSION_CONTEXT_WINDOW = Number(process.env.CRON_CONTEXT_WINDOW || 128_000
 // this task's session at/over the rotate threshold? Only the newest metered
 // entry counts — an old spike that a rotation already cleared must not rotate
 // again forever.
+// 上下文溢出（rotate-cron-session-on-context-pressure 的盲点修复）。
+//
+// 为什么需要它：`shouldRotateSession` 只从历史行的 `tokens` 取数，而**把窗口跑爆
+// 的那一轮恰恰不会留下 tokens**（2026-11-09 实测：该类行 tokens=0）。于是判据对
+// "刚刚溢出的那一刻"失明——如果溢出前那条还在阈值之下（比如一条超长 tool result
+// 直接把上下文顶过去），下一轮就不会轮换，再溢一次。
+//
+// 判据来自 provider 的文案（`@deepseek-ai/dsh-llm` 的 isContextWindowExceededError
+// 就是从 detail 里识别，不是本地预检），所以我们只需识别它已经识别过的那几种措辞。
+const CONTEXT_OVERFLOW_RE = /CONTEXT_WINDOW_EXCEEDED|context overflow|context window exceeded|maximum context length|too large for (?:this|the) model/i;
+
+export function isContextOverflowError(text) {
+  return CONTEXT_OVERFLOW_RE.test(String(text || ""));
+}
+
 export function shouldRotateSession(
   history = [],
   { window = SESSION_CONTEXT_WINDOW, ratio = SESSION_ROTATE_RATIO } = {},
@@ -231,6 +246,9 @@ function saveTasks() {
       missed: t.missed ?? 0,
       // 停机缺口水位（2026-11-09）：不持久化它，重启后同一批触发点会被重复计数。
       lastMissedCountedUntil: t.lastMissedCountedUntil ?? null,
+      // 溢出后"下一轮必换会话"的标记：必须持久化，否则重启就把这个决定丢了
+      // （与 lastMissedCountedUntil 同一条纪律：内存里有、盘上没有＝重启后行为漂移）。
+      rotateNextSession: t.rotateNextSession === true,
       history: t.history,
     }));
     await atomicWriteJson(JOBS_FILE, serializable);
@@ -1485,12 +1503,14 @@ async function runExecutionTurn(t, turnFn) {
   // over the threshold, THIS round starts on a fresh session instead of
   // inheriting the near-window context. Rotation is per fire and sticky — the
   // new id is what the runner reads (`job.sessionId || cron-<id>`).
-  if (t.trigger === "schedule" && shouldRotateSession(t.history)) {
+  const overflowAsked = t.rotateNextSession === true;
+  if (t.trigger === "schedule" && (overflowAsked || shouldRotateSession(t.history))) {
     const previous = t.sessionId ?? null;
     t.sessionId = nextCronSessionId(t.id);
     t.sessionRotatedAt = Date.now();
     t.sessionRotatedFrom = previous;
     t.sessionRotatedThisTurn = true;
+    t.rotateNextSession = false; // 用掉即清：留 true 会让之后每一轮都换会话
   } else {
     t.sessionRotatedThisTurn = false;
   }
@@ -1593,6 +1613,10 @@ function finishExecution(t, startTime, result) {
   // automatic retry). Recorded on the history entry so every attempt of a
   // retried task is individually visible.
   const attempt = Number.isInteger(t.attempt) && t.attempt >= 1 ? t.attempt : 1;
+
+  // 溢出 → 下一轮必换会话（sticky，且要持久化：重启后仍然有效）。
+  // 不在这里直接换 id，是因为换会话属于"开跑前"的决定（同 shouldRotateSession 的位置）。
+  if (!ok && isContextOverflowError(t.error)) t.rotateNextSession = true;
 
   t.history.push({
     kind: HISTORY_KIND.EXECUTION,

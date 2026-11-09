@@ -23,20 +23,27 @@ import { useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Blocks, ExternalLink } from "lucide-react";
+import { EmptyState } from "@/components/ui/states-kit";
+import { Button } from "@/components/ui/button";
 import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
 import { PackMarketView } from "@/components/packs/PackMarketView";
+import { ExtensionsPage } from "@/pages/ExtensionsPage";
+import { PluginCatalogView } from "@/components/plugins/PluginCatalogView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
 import { studioHref } from "@/lib/studio-origin";
 import { cn } from "@/lib/utils";
 
-type Tab = "market" | "mine";
+type Tab = "agents" | "tools" | "skills" | "plugins" | "mine";
 
-const ALL_TABS: Tab[] = ["market", "mine"];
+const ALL_TABS: Tab[] = ["agents", "tools", "skills", "plugins", "mine"];
 const TAB_LABEL: Record<Tab, string> = {
-  market: "agents.tab.market",
+  agents: "agents.tab.agents",
+  tools: "agents.tab.tools",
+  skills: "agents.tab.skills",
+  plugins: "agents.tab.plugins",
   mine: "agents.tab.mine",
 };
 
@@ -44,11 +51,11 @@ const TAB_LABEL: Record<Tab, string> = {
 // the URL is read before any layout round-trip; the aliases themselves live in
 // @platform/core (SURFACE_SLUG_ALIASES) so presets normalize identically.
 const LEGACY_TAB: Record<string, Tab> = {
-  agents: "mine",
   creations: "mine",
-  supply: "market",
-  apps: "market",
-  build: "market",
+  market: "agents",
+  supply: "agents",
+  apps: "agents",
+  build: "agents",
 };
 
 export function AgentMarketPage() {
@@ -65,15 +72,14 @@ export function AgentMarketPage() {
     const resolved = resolvedLayout?.agentsTabs;
     const raw = resolved ?? ALL_TABS;
     const visible = raw.filter((slug): slug is Tab => (ALL_TABS as string[]).includes(slug));
-    const gated = packMarketplace === false ? visible.filter((slug) => slug !== "market") : visible;
-    return gated.length ? gated : ["mine"];
+    return visible.length ? visible : ["agents"];
   }, [resolvedLayout, packMarketplace]);
 
   const requested = searchParams.get("tab") ?? "";
   const active: Tab = useMemo(() => {
     const candidate = LEGACY_TAB[requested] ?? requested;
     const normalized = (ALL_TABS as string[]).includes(candidate) ? (candidate as Tab) : null;
-    return normalized && tabs.includes(normalized) ? normalized : (tabs[0] ?? "mine");
+    return normalized && tabs.includes(normalized) ? normalized : (tabs[0] ?? "agents");
   }, [requested, tabs]);
 
   // Keep the URL truthful: a legacy slug or a hidden tab normalizes to the tab
@@ -138,8 +144,23 @@ export function AgentMarketPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        {active === "market" && (
-          <div data-testid="agent-market-panel-market">
+        {active === "agents" && packMarketplace === false && (
+          <EmptyState
+            icon={<Blocks className="h-5 w-5" />}
+            title={t("market.agents.unavailableTitle")}
+            hint={t("market.agents.unavailableBody")}
+            action={
+              tabs.includes("mine") ? (
+                <Button variant="outline" size="sm" onClick={() => selectTab("mine")}>
+                  {t("agents.tab.mine")}
+                </Button>
+              ) : null
+            }
+          />
+        )}
+
+        {active === "agents" && packMarketplace !== false && (
+          <div data-testid="agent-market-panel-agents">
             {/* The marketplace is INTERNAL (drop-external-market-door): its
                 catalogue is this deployment's own market plane, so a button
                 leaving the product for "the market" would present the same
@@ -172,6 +193,20 @@ export function AgentMarketPage() {
           </div>
         )}
 
+        {(active === "tools" || active === "skills") && (
+          <div data-testid={`agent-market-panel-${active}`}>
+            {/* The Settings modal used to host this pair; the container moved,
+                the views and every testid inside them did not. */}
+            <ExtensionsPage type={active === "tools" ? "mcp" : "skills"} />
+          </div>
+        )}
+
+        {active === "plugins" && (
+          <div data-testid="agent-market-panel-plugins">
+            <PluginCatalogView />
+          </div>
+        )}
+
         {active === "mine" && (
           <div className="flex flex-col gap-8" data-testid="agent-market-panel-mine">
             <section data-testid="agent-market-mine-installed">
@@ -184,7 +219,7 @@ export function AgentMarketPage() {
               <h2 className="mb-3 text-sm font-medium text-muted-foreground">
                 {t("packs.mineSections.creations")}
               </h2>
-              <PackDraftsView onPublished={() => tabs.includes("market") && selectTab("market")} />
+              <PackDraftsView onPublished={() => tabs.includes("agents") && selectTab("agents")} />
             </section>
           </div>
         )}

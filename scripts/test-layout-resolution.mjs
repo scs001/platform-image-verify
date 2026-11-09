@@ -35,14 +35,14 @@ const FACTORY_NAV = ALL_NAV.filter((slug) => slug !== "blueprints");
 
 // ── Factory baseline ────────────────────────────────────────────────────────
 
-test("factory preset baseline: nav/settings full; agentsTabs are the two market tabs", () => {
+test("factory preset baseline: nav/settings full; agentsTabs are the five material tabs", () => {
   const p = FACTORY_PRESETS[FACTORY_PRESET_SLUG];
   assert.deepEqual(p.nav, FACTORY_NAV);
   assert.deepEqual(p.settings, ALL_SETTINGS);
   // restructure-yizuo-ia: `/agents` is the single pack doorway with exactly
   // 市场/我的. The retired hub slugs (build/supply/creations/tuning/apps) stay
   // resolvable via SURFACE_SLUG_ALIASES but render no tab.
-  assert.deepEqual(p.agentsTabs, ["market", "mine"]);
+  assert.deepEqual(p.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
   assert.equal(ALL_TABS.includes("apps"), false);
 });
 
@@ -56,7 +56,10 @@ test("stored presets referencing legacy agentsTabs slugs degrade safely", () => 
     deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
     user: { preset: { version: 1, agentsTabs: ["agents", "market", "apps"] } },
   });
-  assert.deepEqual(r.agentsTabs, ["mine", "market"]);
+  // unify-material-market: `agents` is the canonical pack tab again (a real
+  // registry slug beats a same-named alias), and `market`/`apps` normalize onto
+  // it. The user's list therefore narrows to that single survivor.
+  assert.deepEqual(r.agentsTabs, ["agents"]);
 });
 
 test("no layers resolves to the registry order", () => {
@@ -90,16 +93,15 @@ test("a preset cannot conjure the fleet into a browser", () => {
   assert.equal(r.nav.includes("fleet"), false);
 });
 
-test("the market tab is gated by the pack-marketplace predicate; 我的 is not", () => {
-  // restructure-yizuo-ia: the marketplace gate moved from the whole page to
-  // the 市场 tab — installed packs and creator drafts are local state, so 我的
-  // must survive a market-less deployment.
-  const market = AGENTS_TAB_SURFACES.find((s) => s.slug === "market");
-  const mine = AGENTS_TAB_SURFACES.find((s) => s.slug === "mine");
-  assert.equal(predicateAllows(market, { packMarketplace: false }), false);
-  assert.equal(predicateAllows(mine, { packMarketplace: false }), true);
+test("no tab is marketplace-gated any more: the front page degrades honestly", () => {
+  // unify-material-market: the 智能体 tab is the market's FRONT PAGE, so it must
+  // exist even where no marketplace is wired — the panel renders the honest
+  // "this deployment carries no marketplace" state instead of vanishing (a
+  // vanished first tab opened the surface on 工具 and read as a removed market).
+  const front = AGENTS_TAB_SURFACES.find((s) => s.slug === "agents");
+  assert.equal(predicateAllows(front, { packMarketplace: false }), true);
   const r = resolveLayout({}, { packMarketplace: false });
-  assert.deepEqual(r.agentsTabs, ["mine"]);
+  assert.deepEqual(r.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
 });
 
 test("admin-only section needs an affirmative admin answer when auth is on", () => {
@@ -164,7 +166,7 @@ test("an admin with a business role resolves to the deployment default", () => {
   const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
   assert.deepEqual(admin.nav, FACTORY_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
   assert.deepEqual(admin.settings, ALL_SETTINGS);
-  assert.deepEqual(admin.agentsTabs, ["market", "mine"]); // the two market tabs
+  assert.deepEqual(admin.agentsTabs, ["agents", "tools", "skills", "plugins", "mine"]);
   // The same input for a non-admin still narrows to the simple skeleton.
   const user = resolveLayout(layers, { authOn: true, isAdmin: false });
   assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);

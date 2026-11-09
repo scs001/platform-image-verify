@@ -1016,9 +1016,23 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       // finish) but the fleet gets the data it was going to get anyway.
       // Never on an interruption (a restart is not the round's fault) and never
       // when the round already said something (that text IS the round's answer).
-      if (shouldSalvageReport(detail, { interrupted: e.interrupted === true, isFleet: Boolean(job.sourceTag?.fleetId) })) {
+      // Record WHY the lane did or did not run (fix-fleet-output-salvage D4):
+      // twice tonight a production round showed the cause attributed and still
+      // no wrap-up, and every candidate explanation had to be guessed at from
+      // the outside. This is one small object on a turn that already failed.
+      const salvageFacts = {
+        isFleet: Boolean(job?.sourceTag?.fleetId),
+        interrupted: e.interrupted === true,
+        pressure: detail?.contextPressure === true,
+        reported: detail?.reported === true,
+      };
+      if (shouldSalvageReport(detail, { interrupted: salvageFacts.interrupted, isFleet: salvageFacts.isFleet })) {
+        if (detail) detail.salvageFacts = salvageFacts;
         const salvage = await runWrapUpReport(ctx, { childSessionId, mirrorSessionId: sessionId });
         detail = { ...detail, wrapUp: { ok: Boolean(salvage?.text), chars: (salvage?.text ?? "").length } };
+      } else if (detail?.contextPressure === true) {
+        // Pressure but no lane: say which of the four conditions failed.
+        detail = { ...detail, salvageSkipped: salvageFacts };
       }
       return { ok: false, error: e.message, interrupted: e.interrupted === true, detail, metering };
     }

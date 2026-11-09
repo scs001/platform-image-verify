@@ -105,6 +105,7 @@ import { registerBindingMintRoutes } from "./server/routes/binding-mint.js";
 import { createTrialExecRoutes } from "./server/routes/trial-exec.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
 import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
+import { registerPluginSupplyRoutes } from "./server/routes/plugin-supply.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
@@ -450,6 +451,12 @@ registerOverlayRoutes(ctx);
 // Custom presets (add-custom-presets): the 自建预设 roster CRUD — same
 // placement rule; rides the serialized runtime-mutation path like packs.
 registerCustomPresetRoutes(ctx);
+// 素材市场 · 插件页签 (unify-material-market: dsh-plugin-supply MODIFIED,
+// plugin-supply-request ADDED): the curated catalogue read plus the 申请供应
+// request row. The catalogue is operator-authored data; the roster comes from
+// the live dsh inventory. A request writes one JSON row and never installs,
+// downloads, or executes a plugin package — supply stays build-time only.
+registerPluginSupplyRoutes(ctx);
 // Pack marketplace MARKET plane (add-pack-marketplace): browse/publish/
 // subscribe records. In the multi-cell gateway topology gateway/index.js
 // serves these; a single-process deployment (fd-prod) has no gateway process,
@@ -1829,6 +1836,30 @@ engine.setMandateGate((task) => {
     return { ok: true };
   }
 });
+// Fleet fairness (split-meta-team-queue-capacity D3): the engine must not own
+// the question "which fleets are internal meta teams" — that list changes as
+// teams come and go, and hard-coding names in the queue would rot. The fleet
+// record is the authority here; the resolver below reads it, and a broken read
+// degrades to "normal fleet" (never throws, never blocks dispatch).
+//
+// Source of truth: a fleet is meta when its own record says so. Until the UI
+// grows that field, `FLEET_META_IDS` (comma-separated fleet ids) is the
+// bootstrap — explicitly configuration, not code.
+engine.setMetaFleetResolver((fleetId) => {
+  if (!fleetId) return false;
+  const configured = String(process.env.FLEET_META_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (configured.includes(fleetId)) return true;
+  try {
+    const fleet = getFleetDatabase().getFleet(fleetId);
+    return fleet?.internal === true || fleet?.meta === true;
+  } catch {
+    return false;
+  }
+});
+
 // Inbound disposition seam for bots.js guard drops (size/rate) — fire-and-
 // forget, failure never touches the chat path.
 ctx.recordSignalDisposition = (botId, entry) => {

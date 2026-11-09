@@ -67,7 +67,7 @@ const BROWSER_NAV = ALL_NAV.filter((slug) => slug !== "fleet");
 // non-admin resolver, and `pairing` replaced devices + wechat-app while
 // `diagnostics` folded into `status`.
 const ALL_SETTINGS = [
-  "general", "account", "pairing", "connections", "mcp", "plugins",
+  "general", "account", "pairing", "connections",
   "models", "delegation", "status",
 ];
 
@@ -187,7 +187,7 @@ test.describe("workbench layout (logto mode)", () => {
     // gates the 市场 TAB (not the page), and this harness runs without
     // PACK_MARKETPLACE, so 我的 survives alone — installed packs and creator
     // drafts are local state.
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["mine"]);
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents", "tools", "skills", "plugins", "mine"]);
   });
 
   test("the sidebar renders exactly the resolved tab set (baseline)", async ({ page, context }) => {
@@ -232,7 +232,7 @@ test.describe("workbench layout (logto mode)", () => {
       "pairing",
       "connections",
     ]);
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["mine"]);
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents", "tools", "skills", "plugins", "mine"]);
   });
 
   test("the sidebar reflects the narrowed layout on the next load", async ({ page, context }) => {

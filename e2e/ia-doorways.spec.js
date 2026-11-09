@@ -26,18 +26,16 @@ test.describe("every work surface has a door", () => {
     await expect(page).toHaveURL(/\/tuning$/);
   });
 
-  test("the build family carries the capability Settings shortcuts", async ({ page }) => {
+  test("capability settings shortcuts are retired; models stays a Settings section", async ({ page }) => {
+    // unify-material-market: the three rows looked like navigation but opened the
+    // Settings modal — and after the market grew tabs they had nothing left to
+    // point at beyond 模型, which is a plain Settings section. No rows exist now.
     await pinLocaleEn(page);
     await page.goto("/chat");
-    const shortcuts = page.getByTestId("nav-family-build-shortcuts");
-    await expect(shortcuts).toBeVisible({ timeout: 15000 });
-    await expect(shortcuts.getByTestId("nav-shortcut-mcp")).toBeVisible();
-    await expect(shortcuts.getByTestId("nav-shortcut-plugins")).toBeVisible();
-    await expect(shortcuts.getByTestId("nav-shortcut-models")).toBeVisible();
-    // Shortcuts open the modal over the current view — they are not tabs.
-    await shortcuts.getByTestId("nav-shortcut-models").click();
+    await expect(page.getByTestId("nav-family-build-shortcuts")).toHaveCount(0);
+    // 模型 is still reachable as configuration.
+    await page.goto("/settings/models");
     await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "models");
-    await expect(page).toHaveURL(/\/settings\/models$/);
   });
 
   test("delegation is finally listed in Settings", async ({ page }) => {
@@ -63,11 +61,12 @@ test.describe("every work surface has a door", () => {
     await expect(page).toHaveURL(/\/channels$/);
   });
 
-  test("the market surface has exactly market + mine tabs", async ({ page }) => {
+  test("the market surface carries the four capability species plus mine", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/agents");
-    await expect(page.getByTestId("agent-market-tab-market")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("agent-market-tab-mine")).toBeVisible();
+    for (const slug of ["agents", "tools", "skills", "plugins", "mine"]) {
+      await expect(page.getByTestId(`agent-market-tab-${slug}`)).toBeVisible({ timeout: 15000 });
+    }
     // The retired four-zone hub's tabs stay gone.
     for (const slug of ["build", "supply", "creations", "tuning", "apps"]) {
       await expect(page.getByTestId(`agents-tab-${slug}`)).toHaveCount(0);
@@ -92,8 +91,13 @@ test.describe("legacy pack deep links still land", () => {
 
   test("a retired tab slug resolves instead of erroring", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/agents?tab=agents");
+    // `market` was the pack browse tab before the surface grew species tabs;
+    // it normalizes onto `agents` rather than dead-ending.
+    await page.goto("/agents?tab=market");
     await expect(page.getByTestId("agent-market-page")).toBeVisible();
+    await expect(page.getByTestId("agent-market-tab-agents")).toHaveAttribute("data-active", "true");
+    // and the retired 专家 slug still lands on 我的
+    await page.goto("/agents?tab=creations");
     await expect(page.getByTestId("agent-market-tab-mine")).toHaveAttribute("data-active", "true");
   });
 });

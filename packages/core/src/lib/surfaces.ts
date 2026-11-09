@@ -90,11 +90,9 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
   // through SURFACE_SLUG_ALIASES and preselect their tab.
   { container: "settings", slug: "pairing", i18nKey: "settings.sections.pairing", testId: "settings-section-pairing" },
   { container: "settings", slug: "connections", i18nKey: "settings.sections.connections", testId: "settings-section-connections" },
-  { container: "settings", slug: "mcp", i18nKey: "settings.sections.mcp", testId: "settings-section-mcp" },
-  // dsh plugin supply (add-dsh-plugin-supply): the whitelisted bundle roster.
-  // Lives in the registry so the factory layout preset carries it — the
-  // Settings nav renders ONLY server-resolved slugs.
-  { container: "settings", slug: "plugins", i18nKey: "settings.sections.plugins", testId: "settings-section-plugins" },
+  // unify-material-market: `mcp` (tools + skills management) and `plugins` left
+  // the Settings container for the materials market's tabs. `models` stays —
+  // choosing a provider and holding its key is configuration, not acquisition.
   { container: "settings", slug: "models", i18nKey: "settings.sections.models", testId: "settings-section-models" },
   { container: "settings", slug: "roles", i18nKey: "settings.sections.roles", testId: "settings-section-roles", predicates: { adminOnly: true } },
   { container: "settings", slug: "layout", i18nKey: "settings.sections.layout", testId: "settings-section-layout", predicates: { adminOnly: true } },
@@ -111,12 +109,25 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
 ];
 
 export const AGENTS_TAB_SURFACES: RegistryEntry[] = [
-  // restructure-yizuo-ia: `/agents` is the 智能体市场 surface and the product's
-  // ONLY in-product pack doorway. The retired four-zone hub slugs
-  // (build/supply/creations/tuning/apps) render no tab; they stay resolvable
-  // through SURFACE_SLUG_ALIASES so stored presets and legacy ?tab= deep links
-  // keep landing on their content. `tuning` graduated to a nav surface.
-  { container: "agentsTabs", slug: "market", i18nKey: "agents.tab.market", testId: "agents-tab-market", predicates: { packMarketplace: true } },
+  // unify-material-market: `/agents` (slug kept — public API) is the MATERIALS
+  // market: one front-of-house surface for the four capability species plus
+  // 我的. Agent / MCP / skill / plugin marketplaces are daily-use surfaces, so
+  // they live here rather than behind the Settings gear; 模型 stays Settings
+  // because picking a provider is configuration, not acquisition.
+  //
+  // Retired hub slugs (build/supply/creations/apps) and the old `market` browse
+  // tab all resolve through SURFACE_SLUG_ALIASES, so stored presets and legacy
+  // ?tab= deep links keep landing on their content.
+  // The 智能体 tab is the market's FRONT PAGE, so it always exists: a deployment
+  // without a marketplace renders its honest "this deployment carries no
+  // marketplace" state there. Vanishing the first tab left the surface opening
+  // on 工具 and the page reading as if the market had been removed.
+  { container: "agentsTabs", slug: "agents", i18nKey: "agents.tab.agents", testId: "agents-tab-agents" },
+  { container: "agentsTabs", slug: "tools", i18nKey: "agents.tab.tools", testId: "agents-tab-tools" },
+  { container: "agentsTabs", slug: "skills", i18nKey: "agents.tab.skills", testId: "agents-tab-skills" },
+  // Plugins are always listed: the catalogue ships with the deployment even
+  // when nothing is supplied, and an empty catalogue renders its explanation.
+  { container: "agentsTabs", slug: "plugins", i18nKey: "agents.tab.plugins", testId: "agents-tab-plugins" },
   { container: "agentsTabs", slug: "mine", i18nKey: "agents.tab.mine", testId: "agents-tab-mine" },
 ];
 
@@ -179,18 +190,24 @@ export const SURFACE_SLUG_ALIASES: Partial<Record<SurfaceContainer, Record<strin
     // this container; the route layer redirects /settings/channels → /channels.
   },
   agentsTabs: {
-    // The hub's四个分区 retired: 专家(agents)/创作(creations) → 我的,
-    // 供给/市场(supply/market) → 市场, 应用(apps) → 市场 (its entries live in
-    // the app center), build → 市场 (the external studio entry rides the market).
-    agents: "mine",
+    // unify-material-market: the pack browse tab is now `agents` (canonical),
+    // so `agents` is NO alias any more. 创作(creations) → 我的; the browse-ish
+    // retired slugs (market/supply/apps/build) → 智能体.
     creations: "mine",
-    supply: "market",
-    apps: "market",
-    build: "market",
+    market: "agents",
+    supply: "agents",
+    apps: "agents",
+    build: "agents",
   },
 };
 
 export function canonicalSlug(container: SurfaceContainer, slug: string): string {
+  // A REAL registry slug always wins over an alias of the same name. Without
+  // this guard, adding a canonical slug that used to be a legacy alias makes
+  // the alias eat it: `agentsTabs` gained the canonical `agents` tab while the
+  // retired 专家 alias `agents → mine` still existed, so every preset naming
+  // `agents` silently resolved to `mine` and the tab vanished from resolution.
+  if (registryFor(container).some((e) => e.slug === slug)) return slug;
   return SURFACE_SLUG_ALIASES[container]?.[slug] ?? slug;
 }
 
@@ -258,7 +275,7 @@ export const FACTORY_PRESETS: PresetCatalog = {
     settings: SETTINGS_SURFACES.map((s) => s.slug),
     // restructure-yizuo-ia: `/agents` is the single pack doorway with exactly
     // two tabs (the retired hub's four slugs stay resolvable via aliases).
-    agentsTabs: ["market", "mine"],
+    agentsTabs: ["agents", "tools", "skills", "plugins", "mine"],
   },
   simple: {
     version: 1,
@@ -274,7 +291,7 @@ export const FACTORY_PRESETS: PresetCatalog = {
     // the section invisible — and every connect deep link fell back to
     // General — for exactly the users those recipes provision (2026-10-18).
     settings: ["general", "account", "pairing", "connections"],
-    agentsTabs: ["market", "mine"],
+    agentsTabs: ["agents", "tools", "skills", "plugins", "mine"],
   },
 };
 

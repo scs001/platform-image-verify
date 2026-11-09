@@ -90,9 +90,10 @@ test.describe("settings modal", () => {
   test("switching sections updates the URL and the back button walks it", async ({ page }) => {
     await openSettings(page, "general");
 
-    await page.getByTestId("settings-section-mcp").click();
-    await expect(page).toHaveURL(/\/settings\/mcp$/);
-    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "mcp");
+    // `models` is a section that still exists (tools/skills left for the market).
+    await page.getByTestId("settings-section-models").click();
+    await expect(page).toHaveURL(/\/settings\/models$/);
+    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "models");
 
     await page.goBack();
     await expect(page).toHaveURL(/\/settings\/general$/);
@@ -115,33 +116,39 @@ test.describe("settings modal", () => {
     await pinLocaleEn(page);
     const cases = [
       ["/models", "models"],
-      ["/mcp", "mcp"],
-      // `skills` is an alias of the merged Tools & Skills section: the URL
-      // stays /settings/skills (each alias carries its own sub-view state),
-      // the canonical section is mcp, and the skills view is what renders.
-      ["/skills", "skills", "skills"],
-      ["/extensions", "mcp"],
-      ["/extensions/mcp", "mcp"],
-      ["/extensions/skills", "skills", "skills"],
       ["/dashboard", "status"],
       // /trace is the trace TAB of the status section now (restructure-yizuo-ia):
       // the alias slug stays in the URL, the canonical section is `status`.
-      ["/trace", "diagnostics", undefined, "status"],
+      ["/trace", "diagnostics", "status"],
     ];
-    for (const [legacy, section, extensionType, canonical] of cases) {
+    for (const [legacy, section, canonical] of cases) {
       await page.goto(legacy);
       await expect(page).toHaveURL(new RegExp(`/settings/${section}$`));
       await expect(page.getByTestId("settings-panel")).toHaveAttribute(
         "data-section",
-        extensionType ? "mcp" : (canonical ?? section),
+        canonical ?? section,
       );
-      if (extensionType) {
-        await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", extensionType);
-      }
     }
 
     // /bots and /settings/channels LEFT Settings for the nav surface
     // (restructure-yizuo-ia): both hand over to /channels without a modal.
+    // unify-material-market: tools/skills left Settings for the market tabs.
+    for (const [legacy, tab] of [
+      ["/mcp", "tools"],
+      ["/extensions", "tools"],
+      ["/extensions/mcp", "tools"],
+      ["/settings/mcp", "tools"],
+      ["/skills", "skills"],
+      ["/extensions/skills", "skills"],
+      ["/settings/skills", "skills"],
+      ["/settings/plugins", "plugins"],
+    ]) {
+      await page.goto(legacy);
+      await expect(page).toHaveURL(new RegExp(`/agents\\?tab=${tab}$`));
+      await expect(page.getByTestId("settings-panel")).toHaveCount(0);
+      await expect(page.getByTestId(`agent-market-tab-${tab}`)).toHaveAttribute("data-active", "true");
+    }
+
     for (const legacy of ["/bots", "/settings/channels"]) {
       await page.goto(legacy);
       await expect(page).toHaveURL(/\/channels$/);
@@ -154,11 +161,22 @@ test.describe("settings modal", () => {
     await openSettings(page, "status");
     await expect(page.getByTestId("system-status-page")).toBeVisible({ timeout: 15000 });
 
-    await page.getByTestId("mcp-manage-link").click();
-    await expect(page).toHaveURL(/\/settings\/mcp$/);
-    // Still open, just a different pane.
+    // 模型 is still a Settings section, so a Manage link into it keeps the modal
+    // open and switches panes (unify-material-market: the tools link now leaves
+    // for the market tab, which is a different assertion below).
+    await page.getByTestId("config-row-manage").first().click();
+    await expect(page).toHaveURL(/\/settings\/models$/);
     await expect(page.getByTestId("settings-panel")).toBeVisible();
-    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "mcp");
+    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "models");
+  });
+
+  test("the tools Manage link leaves the modal for the market tab", async ({ page }) => {
+    await openSettings(page, "status");
+    await expect(page.getByTestId("system-status-page")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("mcp-manage-link").click();
+    await expect(page).toHaveURL(/\/agents\?tab=tools$/);
+    await expect(page.getByTestId("settings-panel")).toHaveCount(0);
+    await expect(page.getByTestId("agent-market-tab-tools")).toHaveAttribute("data-active", "true");
   });
 
   test("a Manage link to a work surface closes the modal", async ({ page }) => {
@@ -185,8 +203,8 @@ test.describe("settings modal", () => {
 
     await page.getByTestId("settings-btn").click();
     await page.getByTestId("settings-section-status").click();
-    await page.getByTestId("mcp-manage-link").click();
-    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "mcp");
+    await page.getByTestId("config-row-manage").first().click();
+    await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "models");
 
     // Closing must still return to the Library — the Manage link has to carry
     // the background location forward or this lands on /chat.

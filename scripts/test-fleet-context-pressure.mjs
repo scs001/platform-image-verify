@@ -199,3 +199,11 @@ test("接线：overflow 失败走收尾补数（与超时同一条组合）", as
   });
   assert.equal(quiet.wrapUp, undefined);
 });
+
+test("失败回合留下收尾判据的四项事实（下次不用从外面猜）", () => {
+  const { shouldSalvageReport: judge } = { shouldSalvageReport };
+  const facts = { isFleet: true, interrupted: false, pressure: true, reported: false };
+  assert.equal(judge({ contextPressure: facts.pressure, reported: facts.reported }, { isFleet: facts.isFleet, interrupted: facts.interrupted }), true);
+  // And the shape the runner writes is the one a reader can act on.
+  assert.deepEqual(Object.keys(facts).sort(), ["interrupted", "isFleet", "pressure", "reported"]);
+});

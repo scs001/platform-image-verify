@@ -17,6 +17,20 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IS_DESKTOP } from "@/lib/environment";
 
+// Tour copy key. The old code concatenated `onboarding.tour.step` with a value
+// that was ITSELF a full key, so the first-run card rendered
+// `onboarding.tour.steponboarding.tour.step1.title` verbatim (shipped
+// 2026-11-09). One helper now owns the shape; a step without copy falls back to
+// the generic step copy instead of printing a key.
+function stepKey(
+  step: { action?: string } | undefined,
+  n: number,
+  field: "title" | "body",
+): string {
+  if (step?.action === "install-preset") return `onboarding.tour.stepFleet.${field}`;
+  return `onboarding.tour.step${n}.${field}`;
+}
+
 export const TOUR_DONE_KEY = "onboarding.tour.done";
 // The desktop step keeps its OWN marker (change 4): the browser tour's
 // three-step contract — one key, one meaning — stays exactly as it was, and
@@ -237,10 +251,10 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
           </button>
         </div>
         <h3 className="mt-1 text-sm font-semibold text-foreground">
-          {t(`onboarding.tour.step${visible[step]?.action === "install-preset" ? "onboarding.tour.stepFleet" : `onboarding.tour.step${n}`}.title`)}
+          {t(stepKey(visible[step], n, "title"))}
         </h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {t(`onboarding.tour.step${visible[step]?.action === "install-preset" ? "onboarding.tour.stepFleet" : `onboarding.tour.step${n}`}.body`)}
+          {t(stepKey(visible[step], n, "body"))}
         </p>
         {visible[step]?.action === "install-preset" && (
           <button

@@ -426,13 +426,16 @@ export default function App() {
             {/* Configuration moved into the Settings modal. These redirects
                 keep existing deep links and bookmarks resolving. */}
             <Route path="/models" element={<Navigate to={settingsPath("models")} replace />} />
-            <Route path="/mcp" element={<Navigate to={settingsPath("mcp")} replace />} />
-            <Route path="/skills" element={<Navigate to={settingsPath("skills")} replace />} />
-            <Route path="/extensions" element={<Navigate to={settingsPath("mcp")} replace />} />
-            <Route path="/extensions/mcp" element={<Navigate to={settingsPath("mcp")} replace />} />
+            {/* unify-material-market: tools/skills moved out of Settings into the
+                materials market. These stay as route-level redirects (the modal
+                must never open for them). */}
+            <Route path="/mcp" element={<Navigate to="/agents?tab=tools" replace />} />
+            <Route path="/skills" element={<Navigate to="/agents?tab=skills" replace />} />
+            <Route path="/extensions" element={<Navigate to="/agents?tab=tools" replace />} />
+            <Route path="/extensions/mcp" element={<Navigate to="/agents?tab=tools" replace />} />
             <Route
               path="/extensions/skills"
-              element={<Navigate to={settingsPath("skills")} replace />}
+              element={<Navigate to="/agents?tab=skills" replace />}
             />
             <Route path="/dashboard" element={<Navigate to={settingsPath("status")} replace />} />
 
@@ -492,6 +495,10 @@ export default function App() {
           {/* restructure-yizuo-ia: `channels` left the Settings container for
               primary navigation — the old address must not open the modal. */}
           <Route path="/settings/channels" element={<Navigate to="/channels" replace />} />
+          {/* unify-material-market: tools/skills/plugins are market tabs now. */}
+          <Route path="/settings/mcp" element={<Navigate to="/agents?tab=tools" replace />} />
+          <Route path="/settings/skills" element={<Navigate to="/agents?tab=skills" replace />} />
+          <Route path="/settings/plugins" element={<Navigate to="/agents?tab=plugins" replace />} />
           <Route
             path="/settings/:section"
             element={<SettingsDialog backgroundPath={backgroundPath} />}

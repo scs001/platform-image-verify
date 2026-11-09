@@ -167,7 +167,7 @@ export function DashboardPage() {
             <div className="mt-2 flex items-baseline gap-3">
               <span className="text-2xl font-semibold" data-testid="mcp-count">{status.mcpToolCount}</span>
               <Link
-                to={settingsPath("mcp")}
+                to="/agents?tab=tools"
                 state={location.state}
                 className="text-xs text-primary hover:underline"
                 data-testid="mcp-manage-link"

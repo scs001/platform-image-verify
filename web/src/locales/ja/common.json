@@ -65,7 +65,7 @@
     },
     "knowledge": "ライブラリ",
     "resources": "成果",
-    "agents": "エージェントマーケット",
+    "agents": "マテリアル",
     "bots": "ボット",
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
@@ -80,10 +80,11 @@
     "tuning": "チューニング",
     "channels": "チャネル",
     "shortcuts": {
-      "tools": "ツール / MCP",
+      "tools": "ツール",
       "plugins": "プラグイン",
       "models": "モデル"
-    }
+    },
+    "familyActiveHint": "現在の画面はこのグループにあります"
   },
   "trace": {
     "title": "トレース",
@@ -3990,10 +3991,14 @@
       "tuning": "チューニング",
       "apps": "アプリ",
       "market": "マーケット",
-      "mine": "マイ"
+      "mine": "マイ",
+      "agents": "エージェント",
+      "tools": "ツール",
+      "skills": "スキル",
+      "plugins": "プラグイン"
     },
     "market": {
-      "subtitle": "作成と公開はサプライドメインへ；インストールと実行はこちら",
+      "subtitle": "能力の取得と管理：エージェント・ツール・スキル・プラグイン",
       "openStudio": "Studio を開く",
       "installed": "このマシンのインストール済みパック"
     }
@@ -4041,5 +4046,26 @@
     "tabBrowse": "階層表示",
     "tabTimeline": "タイムライン",
     "fromHarness": "{{harness}} から"
+  },
+  "market": {
+    "plugins": {
+      "state": {
+        "available": "有効化可能",
+        "enabled": "有効",
+        "unsupplied": "未供給"
+      },
+      "request": "供給を申請",
+      "requested": "供給を申請しました：{{name}}",
+      "requestPending": "申請済み・次回供給待ち",
+      "refresh": "カタログを更新",
+      "emptyTitle": "この配備にプラグインは含まれていません",
+      "emptyBody": "プラグインカタログは配備とともに供給されます。この配備にはまだ含まれていません。",
+      "rosterUnavailable": "プラグイン一覧を取得できません",
+      "errorTitle": "プラグインカタログを読めませんでした"
+    },
+    "agents": {
+      "unavailableTitle": "この配備ではエージェント市場が無効です",
+      "unavailableBody": "市場が接続されていません。導入済みのパックは「マイ」にあり、そのまま利用できます。"
+    }
   }
 }

@@ -17,6 +17,72 @@ function requireIdentity(req, res) {
 export function registerUserBindingRoutes(ctx) {
   const { app, db } = ctx;
 
+  // ── Personal-data export (privacy: portability) ───────────────────────────
+  //
+  // Read-only by design. The audit's finding was "no export/erase/minimisation
+  // implementation point"; export is the half that destroys nothing, so it
+  // lands first and the erase cascade stays a product decision (what a delete
+  // MAY destroy is not a call the implementation can make).
+  //
+  // Scope is exactly the rows keyed by this identity across the cells' personal
+  // tables, plus session OWNERSHIP facts (id/title/timestamps — not message
+  // bodies: those belong to the session archive, and copying them here would
+  // quietly widen this endpoint into a transcript dump). Deployment-global
+  // state is NOT personal data and is excluded on purpose:
+  //   user_preferences  — keys like agent.preset / llm.effort.<provider>
+  //   user_presets      — the shared custom-preset roster
+  //   chart_bindings    — lineage-keyed, no identity column
+  // Credential VALUES are masked; the export is a record of what is held, not
+  // a second copy of the secrets.
+  const PERSONAL_TABLES = [
+    "user_model_bindings",
+    "user_mcp_bindings",
+    "user_registry_credentials",
+    "user_connector_credentials",
+    "user_search_credentials",
+    "user_facet_market_devices",
+    "user_paper_trading_credentials",
+    "user_line_credentials",
+    "user_ciyuan_account",
+  ];
+
+  const SECRET_COL = /(token|secret|key|password|credential|cookie|hash|dsn|url)$/i;
+  const maskRow = (row) =>
+    Object.fromEntries(
+      Object.entries(row).map(([k, v]) => [
+        k,
+        SECRET_COL.test(k) && typeof v === "string" && v.length > 0 ? "<held>" : v,
+      ]),
+    );
+
+  app.get("/api/users/me/export", (req, res) => {
+    const user = requireIdentity(req, res);
+    if (!user) return;
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "User data is disabled (database unavailable)" });
+    }
+    const email = user.email;
+    const data = {};
+    for (const table of PERSONAL_TABLES) {
+      data[table] = db.listPersonalRows(table, email).map(maskRow);
+    }
+    res.json({
+      identity: { email },
+      exportedAt: new Date().toISOString(),
+      // What this file is and is not, so a reader never mistakes it for a full
+      // account archive.
+      scope: {
+        personalTables: PERSONAL_TABLES,
+        excludes: ["user_preferences", "user_presets", "chart_bindings", "session message bodies"],
+        secrets: "masked",
+      },
+      data,
+      // Ownership facts only (id/title/timestamps/workspace), never bodies:
+      // message content lives in the session archive and is not this endpoint's to copy.
+      sessions: db.listChatSessions({ owner: email }),
+    });
+  });
+
   app.get("/api/users/me/bindings", (req, res) => {
     const user = requireIdentity(req, res);
     if (!user) return;

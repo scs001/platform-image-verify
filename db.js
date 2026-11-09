@@ -1488,6 +1488,36 @@ export function appendMessage(sessionId, role, content, createdAt, blocksJson) {
 //   { owner: email }   — only that user's rows (NULL-owner rows excluded:
 //                        under auth-on they are admin-visible only)
 //   { includeAll: true } — every row (admin group / ops console)
+// Personal-data export reader (privacy). Table names come from the caller's
+// own allowlist, but validation lives HERE too: a query layer that interpolates
+// a table name is the wrong place to trust the caller. Only tables whose rows
+// are keyed by `email` qualify; deployment-global tables (user_preferences,
+// user_presets, chart_bindings) are deliberately absent — they are not an
+// individual's data.
+const PERSONAL_TABLE_ALLOW = new Set([
+  "user_model_bindings",
+  "user_mcp_bindings",
+  "user_registry_credentials",
+  "user_connector_credentials",
+  "user_search_credentials",
+  "user_facet_market_devices",
+  "user_paper_trading_credentials",
+  "user_line_credentials",
+  "user_ciyuan_account",
+]);
+
+export function listPersonalRows(table, email) {
+  if (!dbReady || !email) return [];
+  if (!PERSONAL_TABLE_ALLOW.has(table)) throw new Error(`not a personal table: ${table}`);
+  try {
+    return db.prepare(`SELECT * FROM ${table} WHERE email = ?`).all(email);
+  } catch {
+    // Table absent in this deployment (lane never used, or older schema):
+    // an export answers with what exists rather than failing wholesale.
+    return [];
+  }
+}
+
 export function listChatSessions(scope) {
   if (!dbReady) return [];
   const base = `SELECT s.id, s.title, s.created_at AS createdAt, s.updated_at AS updatedAt, s.path, s.agent_preset AS agentPreset, s.workspace, s.project_id AS projectId, s.owner,

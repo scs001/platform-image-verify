@@ -18,7 +18,7 @@
 import { DshBridge } from "../dsh-bridge.js";
 import * as engine from "../task-engine.js";
 import * as chatHistory from "../chat-history.js";
-import { collectTurn, resolveTurnBudgetMs } from "./cron-runner.js";
+import { collectTurn, resolveTurnBudgetMs, roundChildSessionId, fleetTagOf } from "./cron-runner.js";
 
 const REAP_SCAN_MS = 60_000;
 const IDLE_REAP_MS = 5 * 60_000;
@@ -138,9 +138,25 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   // One task turn on a worker: the cron-runner contract minus the preset
   // switch (the worker IS its persona) and minus the primary bridge.
   async function runOnWorker(worker, task, { turnTimeoutMs }) {
+    // The MIRROR session: what the sidebar reads and the transcript lands on.
     const sessionId = task.sessionId;
-    worker.currentFleet = task.sourceTag?.fleetId ?? null;
-    worker.currentSession = sessionId;
+    // The CHILD session the runtime is prompted under (fix-worker-session-rotation):
+    // the serial chain rotates this per round since fix-fleet-round-discipline
+    // (a stable id accumulated every round's history until compaction ate the
+    // budget), but the pool path kept prompting the mirror id. Two consequences,
+    // both measured on 2026-11-09: a worker turn re-read the same accumulated
+    // conversation (the compaction storms this night chased), and with the pool
+    // above one slot the same id was claimed from two places at once —
+    // `session "…" is already owned by …`, 6 rounds, first seen 11:48Z the hour
+    // the pool went from 1 to 3. Same derivation as the chain, so both lanes
+    // identify a round the same way.
+    const childSessionId = roundChildSessionId(task, Date.now(), task.roundSeq ?? 0);
+    worker.currentFleet = fleetTagOf(task)?.fleetId ?? null;
+    // `currentSession` is the COLLECTOR and ABORT key — pumpFor() and the slot
+    // watchdog both read it — so it must be the id the runtime is actually
+    // prompted under (the rotated child). The mirror id stays the transcript /
+    // sidebar id below. Keeping these apart is the whole point of the rotation.
+    worker.currentSession = childSessionId;
     worker.lastUsedAt = Date.now();
     // Turn accounting on the pool path (live 2026-11-08): a worker turn ran 43s
     // and reported `state=done success=true tokens{in769,out652}` while
@@ -177,10 +193,10 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         chatHistory.setTitle(sessionId, task.sessionTitle);
       } catch { /* sanitize failure leaves the prompt-derived title */ }
     }
-    const collected = collectTurn(ctx, sessionId, turnTimeoutMs, worker.activeTurns, worker.collectors);
+    const collected = collectTurn(ctx, childSessionId, turnTimeoutMs, worker.activeTurns, worker.collectors, sessionId);
     let result;
     try {
-      await worker.bridge.prompt(sessionId, [{ type: "text", text: task.prompt }]);
+      await worker.bridge.prompt(childSessionId, [{ type: "text", text: task.prompt }]);
       result = await collected;
     } catch (e) {
       // prompt 抛错时 collectTurn 的 promise 还挂着：它内部挂着 turnTimeout 定时器
@@ -188,9 +204,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       // ——于是十分钟后它以**未处理拒绝**的形式炸出来（实测 2026-11-08：一条
       // "prompt 抛错"的用例让整个测试文件以 "promise pending while event loop resolved" 失败）。
       // 正确做法是先主动结算（interrupted 语义），再清表；真正的错误照旧返回给引擎。
-      const abortTurn = worker.activeTurns.get(sessionId);
-      worker.collectors.delete(sessionId);
-      worker.activeTurns.delete(sessionId);
+      const abortTurn = worker.activeTurns.get(childSessionId);
+      worker.collectors.delete(childSessionId);
+      worker.activeTurns.delete(childSessionId);
       try {
         abortTurn?.(`worker prompt failed: ${e?.message || String(e)}`);
         collected.catch(() => {}); // 结算后的拒绝由此吞掉；调用方拿的是下面的返回值

@@ -210,6 +210,15 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**第三源处置结果（2026-11-09，已执行 72 条、未动 53 条）**：
+- 写路径确认：`sourceTag` 是 `cron.updateJob` 支持的字段（`cron.js`：`if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null`），走 `PATCH /api/cron/:id`（引擎内存 + 落盘）。**不直接改 `jobs.json`**——cell 会整文件重写，外部改动会被覆盖。仅 `trigger=schedule` 可原地改。
+- 单点实弹先行：1 条写入 → 200，`sourceTag` 落地，`preset`/`cron`/`paused` 逐字未变。
+- 批量：**PATCHED=70 · SKIPPED=1（非 schedule）· FAILED=0**（+单点 1 = 71）。
+- 覆盖率：`sourceTag` 1301→**1372**，`BLIND` 125→**54**（53 歧义原样 + 1 skipped）。
+- **交叉核对**：171 条已带归属者，写入值 vs `member_turn_events` 里运行时的观测归属 → **171/171 一致、0 不一致**（两条独立路径互证，非自证）。
+- 歧义未被误写：抽查 `company-ceo/oss/invest` 等带 tag 的记录，均为 2026-10-31 创建的现代任务（本来就带 sourceTag）。
+- **53 条歧义一条未写**（`company-ceo` 等 persona 被 3–4 支舰队复用，按 preset 猜=把 A 舰队的账记到 B）。处置另议。
+
 **第三源的 dry-run（2026-11-09，只读，未写任何数据）**：对「三源皆空」的任务尝试按 `preset → fleet_members.target_id` 反查，结果分成两半——
 - **72 条唯一可定**（该 preset 在该 cell 只匹配一个舰队成员），例如 `invest-chief → fleet_1792725854512_4iuzp0 / m_…_ceyu`；
 - **53 条歧义**：同一 persona 被 3–4 支舰队共用（`company-ceo` 匹配 4 个、`wire-assistant` 3 个、`pack-wire-valuation-analyst` 4 个）。

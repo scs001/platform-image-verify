@@ -1140,7 +1140,14 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   if (budgetLedger.length) {
     try {
       for (const a of budgetLedger) {
-        const r = ctx.modelBudget?.consumeBudget?.(a.model, a.tokens, { jobId: job.id, sessionId });
+        // 分账归属（4.1）：owner/fleet 从任务自身的来源读，读不到就是 unknown——
+        // 绝不回落到"默认舰队"（那会把别人的用量算到无辜的线上）。
+        const r = ctx.modelBudget?.consumeBudget?.(a.model, a.tokens, {
+          jobId: job.id,
+          sessionId,
+          owner: job.owner ?? job.ownerEmail ?? ctx.ownerEmail ?? null,
+          fleet: job.sourceTag?.fleetId ?? job.origin?.fleet?.fleetId ?? null,
+        });
         if (r?.singleExceeded) {
           console.warn(`[fleets] single-turn budget exceeded for ${job.id}: model=${a.model} tokens=${a.tokens} cap=${ctx.modelBudget?.config?.single}`);
         }

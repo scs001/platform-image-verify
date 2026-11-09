@@ -210,6 +210,13 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**开池后的产线测试（2026-11-09，镜像 sha-27fe835，阈值已核为 4、worker=1）**：
+- 触发 8 条（成功入队 6 条），样本 6 回合：**3 ok / 3 failed（50%）**。
+- 两条 failed 是 `context_overflow`，detail 完整（`kind=context_overflow, reported=true, hasOutput=true`）——**归因正确且正确地不补收尾**（它们已交过报数）；耗时 268s / 241s（远早于 600s，符合溢出先于压缩的形态）。
+- **一条异常待查**：`source=cron, 600s, 6 compactions`，错误文案已被点名 `context pressure (6 compactions)`，但 **detail 为空且未提前停止**（阈值 4、接线在 `/app/server/cron-runner.js:1009` 确认在位）。同 pod 另一条正常回合的 detail 带 `attribution.source="job-sourceTag"`，而这条 detail 全空——怀疑该 job 在 runner 手里 `sourceTag` 为空（`earlyStop` 因此为 false），与 turn-contract admission 那次同源。**未证，列为待查**。
+- 并行确认：批处理期间 `running=2` 持续（主链 + worker），`overBudget=0`；`34997` cell 积压 895s 时仍 `ready=true`（忙/卡区分生效）。
+- **当前通过率不能归因于任一单项改动**：样本 6 条、且 pod 每 15–20 分钟被并发会话重建一次，观测窗口持续被打断。
+
 **开 worker 池 cap=1（2026-11-09，产线实证）**：单串行槽是通过率的结构性瓶颈（`oldestQueuedMs` 92–103 分钟）。7Gi 上限本就是为开池抬的，那一步一直没走。准入算术：门槛 `7Gi×0.85=5.95Gi` > `used+足迹 4.07–4.16Gi` → 放行；对照 11-08 的 4Gi（门槛 3.4Gi < 4.07Gi → 拒醒、空转 608s）。**实证**：连发 3 条不同岗位任务后队列采样 6 次持续 `running=2`（主链 + worker 各一），`overBudget=0`；真实 spawn `worker-1 for persona hotel-watch-chief / xb-poster`；内存 1.76–2.14Gi / 7Gi（不升反降）。改的是 GitOps 真源（非 kubectl patch），故并发会话反复滚镜像后 `TASK_WORKER_MAX=1` 仍随 ArgoCD 对齐保住。
 
 **队列「忙」被当成「卡」（2026-11-09，已修并产线实证，镜像 sha-b4d3952）**：`/api/ready` 把「最老等待 > 10 分钟」判为 degraded→503，而舰队 cell 的最老等待常年 90–100 分钟，同期每 4–5 分钟就有回合成功收口——**繁忙被报成不可用**。现以 `lastSettledAt`（每次收口都写，失败也算推进）为证据：**积压 103 分钟但刚收口 → ready=true；积压 97 分钟且无收口 → ready=false**，同一镜像同一时刻同时观测到两态。真停滞仍降级，原「假绿」事故的可检测性不变。

@@ -3,6 +3,14 @@
 - [ ] 1.1 应用 `specs/worker-pool/spec.md` 的 MODIFIED Requirement，覆盖 `openspec/specs/worker-pool/spec.md` 中「人的唤醒在人满时仍有通道」那条——验证：`openspec validate fix-operator-ignition-priority --strict` 通过，且归档后 `grep -c "由主槽串行链按"` 在正式 spec 里为 0
 - [ ] 1.2 确认正式 spec 里不再出现「由串行链自行保证排队优先级」的表述，且新增的「排序不扩大容量」「两个标记不可互替」两条在正文可检索——验证：`grep -n "SHALL NOT 互相替代\|SHALL NOT 扩大" openspec/specs/worker-pool/spec.md` 两条都有命中
 
+## 1b. 老化豁免的前提（2026-11-09 实测补入）
+
+- [ ] 1b.1 定义"等待超限"：上限 = max(老化上限 × 3, 回合预算, 60 分钟)——验证：单测断言三个输入各取哪一支，以及非法输入回落默认
+- [ ] 1b.2 有 `nextRun` 的点火轮超限时按普通轮 `skipped`，error 写明等待与"由下一次排期接替"——验证：构造 human 轮等待超限且无槽，断言 state=skipped 且 error 含两个要素
+- [ ] 1b.3 无 `nextRun` 的 manual 点火轮超限时不丢弃，但在就绪面暴露为可辨识停滞——验证：构造同场景，断言 state 仍 queued 且就绪面出现该轮的停滞标识（字段名以实现为准，须能从 `/readyz` 读出）
+- [ ] 1b.4 未超限的点火轮仍豁免老化——验证：等待为上限的 1/2 时，断言不被丢弃
+- [ ] 1b.5 既有 `queuedby-human-exempts-queue-staleness` 的用例全绿（豁免本身不得被这次改动破坏）——验证：`node --test scripts/test-queue-staleness.mjs`
+
 ## 2. 验收锁定（测试已存在，本次确认为验收依据）
 
 - [ ] 2.1 三条用例在 CI 侧可独立运行且全绿——验证：`node --test scripts/test-worker-pool.mjs` 输出 15/15 通过，其中含 `outranks a waiting cadence fire`、`keep FIFO order`、`does not widen the human-only extra slot` 三条

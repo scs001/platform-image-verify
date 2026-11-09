@@ -575,3 +575,42 @@ test("预算交付：解析器拿到的是本回合的任务（可按岗位/边�
   await engine.idle();
   assert.equal(id, "m1", "解析器必须看到任务本身，否则岗位/边维度无从分辨");
 });
+
+// ── 4.3 耗尽即 skip：结算与留痕 ────────────────────────────────────────
+//
+// 全链超限时 runPersonaTurn 在任何模型调用之前就返回了，所以那一步既不是执行
+// 失败也不是配置错。记 failed 会污染失败率与重跑面（与 lane breaker 打开同一条
+// 理由）。这里钉两件事：状态落 skipped，且历史行带得出原因——否则 skipped 会
+// 变成第二个"看不出为什么"的桶。
+test("budget exhaustion settles skipped (not failed) and records the reason", async () => {
+  await boot(
+    [legacyRecord()],
+    async () => ({ ok: false, skipped: true, budgetExhausted: true,
+                   error: "budget_exhausted: all candidate models over daily/monthly budget" }),
+  );
+  engine.enqueueExecution("job_1");
+  await engine.idle?.();
+
+  const t = engine.getTask("job_1");
+  assert.equal(t.state, "skipped", "额度耗尽不是执行失败");
+  assert.notEqual(t.state, "failed");
+  const last = t.history.at(-1);
+  assert.equal(last.state, "skipped");
+  assert.equal(last.kind, "execution");
+  assert.equal(last.skippedReason, "budget_exhausted",
+    "原因必须落盘，否则 skipped 桶无法与「运行时未就绪」区分");
+  assert.match(String(last.error), /budget_exhausted/);
+});
+
+test("a plain skip carries no budget reason (没有原因就不许编原因)", async () => {
+  await boot(
+    [legacyRecord()],
+    async () => ({ ok: false, skipped: true, error: "llm lane open — round skipped" }),
+  );
+  engine.enqueueExecution("job_1");
+  await engine.idle?.();
+
+  const last = engine.getTask("job_1").history.at(-1);
+  assert.equal(last.state, "skipped");
+  assert.equal(last.skippedReason, undefined, "其它 skip 不该被贴上 budget 原因");
+});

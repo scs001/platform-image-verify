@@ -715,8 +715,15 @@ async function normalizeModelForJob(ctx, preset, job = null) {
   }
   if (!landed) {
     const allBudgetBlocked = plan.candidates.length > 0 && plan.candidates.every((hop) => budgetBlockedModels.has(hop.model));
+    // 4.3 耗尽即 skip：全链超限时**一个模型都没试**就返回了，这既不是执行失败、
+    // 也不是模型配置错——回合根本没开始。记成 `failed` 会把它混进失败率与重跑面
+    // （与 lane breaker 打开同一条理由，见 finishExecution 的 D4 注释）。
+    // `skipped: true` 让它结算为 skipped；`budgetExhausted` 让历史行标出原因，
+    // 否则 skipped 会变成第二个"看不出为什么"的桶。
     return {
       ok: false,
+      skipped: allBudgetBlocked,
+      budgetExhausted: allBudgetBlocked,
       error: allBudgetBlocked
         ? `budget_exhausted: all candidate models over daily/monthly budget (${notices.length ? notices.join("; ") : "no candidates"})`
         : `no runnable model for this post (${notices.length ? notices.join("; ") : "no model declared and no default available"})`,

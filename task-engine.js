@@ -1603,6 +1603,10 @@ function finishExecution(t, startTime, result) {
     attempt,
     ...(wasCatchUp ? { catchUp: true } : {}),
     ...(t.error ? { error: t.error } : {}),
+    // 4.3：skipped 是个大桶（lane breaker、运行时未就绪、额度耗尽都落这里）。
+    // 不标原因的话，读面只能看到"跳过了"，分不清"平台主动不跑"还是"额度用完了"
+    // ——与 superseded 不报开关是同一个病。只在这一种 skip 上写。
+    ...(result?.budgetExhausted ? { skippedReason: "budget_exhausted" } : {}),
     // The collected assistant text (remote a2a turns and cluster digests
     // return it). The report lane reads the last a2a turn's text to build the
     // derived execution summary (agent-fleet-report-lane D4).

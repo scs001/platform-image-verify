@@ -281,13 +281,18 @@ test("e2e 3.3: daily cap hit → walk skips the exhausted hop and lands on the c
   // B 也烧到超限（99k 直注 + 3k 回合）。
   engine.consumeBudget(MODEL_B, 99_000, { jobId: "burn-b" });
 
-  // 第三回合：全链超限 → budget_exhausted 失败，不再烧任何模型。
+  // 第三回合：全链超限 → budget_exhausted，不再烧任何模型。
   const beforeAll = switchCalls.length;
   const job3 = budgetJob(3);
   const out3 = await runPersonaTurn(ctx, job3, 5_000, new Map(), { startedAt: now() });
   assert.equal(out3.ok, false);
   assert.match(out3.error, /budget_exhausted/);
   assert.equal(switchCalls.length, beforeAll, "no switch attempted when the whole chain is over budget");
+  // 4.3 耗尽即 skip：一个模型都没试就返回，这不是执行失败，是"没轮到它跑"。
+  // 记 failed 会污染失败率与重跑面；同时必须带原因，否则 skipped 变成第二个
+  // "看不出为什么"的桶。
+  assert.equal(out3.skipped, true, "budget exhaustion settles as skipped, not failed");
+  assert.equal(out3.budgetExhausted, true, "and carries a machine-readable reason");
 
   // 次日（UTC 日界翻页）恢复：A/B 窗口滚零 → 第四回合回到 hop 1。
   nowMs = Date.UTC(2026, 10, 9, 10, 0, 0);

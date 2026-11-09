@@ -17,7 +17,7 @@ import os from "node:os";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 
-const { createBudgetEngine, budgetConfigFromEnv } = await import("../server/model-budget.js");
+const { createBudgetEngine } = await import("../server/model-budget.js");
 
 function freshDb(file) {
   const db = new Database(file);

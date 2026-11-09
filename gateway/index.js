@@ -617,11 +617,13 @@ app.put("/api/layout/config", express.json(), (req, res) => {
 // Per-user cell status for operators. Same identity check as everything else,
 // plus the admin group: the list of users on this deployment is deployment
 // information, not something any signed-in user should be able to enumerate.
-app.get("/api/gateway/status", (req, res) => {
+app.get("/api/gateway/status", async (req, res) => {
   const user = logtoAuth.userFromCookie(req.headers.cookie);
   if (!user) return rejectUnauthenticated(req, res);
   if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
-  const cellStatus = registry.status();
+  // Cell rows carry their disk budget view (budget-cell-disk-usage 2.1); the
+  // readings are TTL-cached, so this stays one walk per cell per window.
+  const cellStatus = await registry.statusWithDisk();
   res.json({
     cells: cellStatus,
     demoCells: cellStatus.filter((c) => c.demo).length,

@@ -83,7 +83,7 @@ export function ProviderCard({ provider, isAdmin, onEdit, onDelete, onModelsChan
           <div className="flex items-center gap-2">
             <h3 className="truncate text-base font-semibold text-foreground">{provider.name}</h3>
             {reserved && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="micro-label rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
                 {t("modelsPage.builtIn")}
               </span>
             )}
@@ -95,7 +95,7 @@ export function ProviderCard({ provider, isAdmin, onEdit, onDelete, onModelsChan
             </span>
             {reserved && provider.override?.active && (
               <span
-                className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                className="micro-label rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400"
                 data-testid="llm-override-active"
               >
                 {t("modelsPage.overrideActive")}

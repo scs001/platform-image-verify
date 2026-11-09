@@ -91,7 +91,7 @@ function AddChip({ name, on, onToggle }: { name: string; on: boolean; onToggle: 
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{children}</div>;
+  return <div className="micro-label pb-1.5 font-medium text-muted-foreground">{children}</div>;
 }
 
 export function OverlayPanel({ role, open, onOpenChange }: Props) {

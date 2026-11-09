@@ -153,7 +153,7 @@ export function ModelList({ providerId, models, discovery, onChanged }: Props) {
       )}
       {others.length > 0 && (
         <div className="flex flex-col gap-1" data-testid="llm-discovered-others">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <p className="micro-label text-muted-foreground">
             {t("modelsPage.otherDiscovered")}
           </p>
           <ul className="flex flex-col gap-1">

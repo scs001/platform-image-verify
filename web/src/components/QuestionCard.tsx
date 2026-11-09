@@ -173,7 +173,7 @@ function QuestionCardBase({ block }: Props) {
           const sel = selected[q.id] ?? [];
           return (
             <div key={q.id} className="space-y-1.5" data-testid="question-item">
-              {q.header && <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{q.header}</div>}
+              {q.header && <div className="micro-label font-semibold text-muted-foreground">{q.header}</div>}
               <div className="text-sm font-medium text-foreground">{q.question}</div>
               {q.detail && <div className="whitespace-pre-wrap text-xs text-muted-foreground">{q.detail}</div>}
               {q.options && q.options.length > 0 && (

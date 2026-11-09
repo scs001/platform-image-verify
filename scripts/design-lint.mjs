@@ -43,7 +43,19 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const BASELINE_PATH = path.join(here, "design-lint-baseline.json");
 
-export const RULES = ["hex-color", "raw-rgba", "tw-arbitrary-color", "named-color", "side-tab-border", "native-confirm"];
+export const RULES = [
+  "hex-color",
+  "raw-rgba",
+  "tw-arbitrary-color",
+  "named-color",
+  "side-tab-border",
+  "native-confirm",
+  // openspec: web-design-system — micro-labels are script-aware. A label that
+  // hardcodes its own tiny size (or re-adds uppercase/tracking on the label
+  // roles) defeats the one semantic class and reads broken in Chinese: 10-11px
+  // Han strokes mush together and positive tracking pulls the characters apart.
+  "hardcoded-micro-label",
+];
 
 // Tailwind named palette families + a numeric shade (theme tokens never take a
 // numeric shade, so this cannot collide with bg-primary / text-muted-foreground).
@@ -86,6 +98,15 @@ export function scanText(text) {
   bump(
     "native-confirm",
     (stripped.match(/window\.confirm\(|(?<![A-Za-z0-9_$.])confirm\(/g) || []).length
+  );
+  // A label role that sets its own micro size instead of using `.micro-label`.
+  // Matched only when the same className also carries the old label idiom
+  // (uppercase or tracking-wide), so ordinary 10-11px body micro-copy (badges,
+  // chip numerals) is not caught — the rule targets the label roles.
+  bump(
+    "hardcoded-micro-label",
+    (stripped.match(/className=(?:"[^"]*\btext-\[(?:10|11)px\][^"]*"|\{"[^"]*\btext-\[(?:10|11)px\][^"]*")/g) || [])
+      .filter((m) => /uppercase|tracking-wide/.test(m)).length,
   );
   return counts;
 }

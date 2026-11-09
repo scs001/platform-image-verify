@@ -292,7 +292,7 @@ export function AssistantPicker({ send, variant }: Props) {
     <div key={`cluster-${cid}`} className="px-3 pb-1 pt-2">
       <div
         data-testid="strip-cluster-header"
-        className="flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-muted-foreground"
+        className="micro-label flex items-center gap-1.5 font-medium text-muted-foreground"
       >
         <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
         <span className="truncate">{group[0]?.clusterName || cid}</span>
@@ -312,7 +312,7 @@ export function AssistantPicker({ send, variant }: Props) {
   );
 
   const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <div className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="micro-label px-3 pb-1 pt-2 font-medium text-muted-foreground">
       {children}
     </div>
   );

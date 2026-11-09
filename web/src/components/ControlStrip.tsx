@@ -202,7 +202,7 @@ function MenuItem({
 // popover — no nested menus).
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="micro-label px-3 pb-1 font-medium text-muted-foreground">
       {children}
     </div>
   );
@@ -703,7 +703,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                     )}
                   {workspaceRecents.filter((p) => p !== currentWorkspace).length > 0 && (
                     <div className="py-1">
-                      <div className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <div className="micro-label px-3 pb-1 font-medium text-muted-foreground">
                         {t("composer.strip.workspaceRecents")}
                       </div>
                       {workspaceRecents

@@ -8335,3 +8335,25 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
 **顺带**：cheap 集群节点贴着 ephemeral-storage 驱逐线（阈值 ≈3.8Gi），scratch pod 写几百 MB
 就可能被驱逐，且当时 `liuliangjkiimypbdzxa` 处于 DiskPressure=True。批量 scratch 验证要挑节点、
 用完即删。
+
+### §15.154 续四十二：fd-mcp 收编补齐——Service 纳入 + 两处「永久差异」源头掐掉（11-09）
+
+- **Service 也进了 Argo**（`all-services/prod-fdmcp/fd-panel-service.yaml`，ClusterIP 8302，
+  selector `app=fd-panel`）。此前只有 Deployment 被管，Service 改了没人纠正。
+  `clusterIP` / `clusterIPs` 是**服务端分配且不可变**，所以不写进清单，
+  用 `ignoreDifferences` 忽略——同步后实测 `ip=10.43.36.180` 未变、端口未变。
+- **同时掐掉两处会制造永久差异的源头**（Application 的 `ignoreDifferences`）：
+  1. Service 的 `clusterIP(s)`；
+  2. Deployment pod 模板的 `kubectl.kubernetes.io/restartedAt` —— `kubectl rollout restart`
+     会写这个注解；不忽略的话**每次重启都让 Application 永久 OutOfSync**，而手动 sync 又会
+     把注解抹掉，于是 pod 与模板从此不一致。
+  必须同时开 `RespectIgnoreDifferences=true`（只加 ignoreDifferences 只挡差异判定，
+  sync 仍会写回——这一点在 `all-services-prod` 上已经实测吃过一次）。
+  实证：`kubectl rollout restart deploy/fd-panel` → 刷新后仍 `Synced/Healthy`，
+  容器内 `0.5.53`、`/health` 200。
+- **又一次踩到同一条顺序**：我先建了 Service 清单、没提交就 refresh，Argo 看不到它
+  （只显示 Deployment）。**Argo 的真源是仓**——这与上一轮「没推就 sync 把面板滚回去」
+  是同一个错误的两个面。已固化为操作顺序：**改清单 → commit → push → refresh → diff →
+  sync → 复核**。
+- 现状：`fd-mcp-prod` 管 2 个资源（Service + Deployment），`Synced / Healthy`，
+  面板 `0.5.53`（`sha-2a7db55`）。仍**手动 sync**，是否开 `automated + selfHeal` 待观察几天。

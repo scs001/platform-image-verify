@@ -16,5 +16,5 @@
 
 ## 3. spec 增补与收尾
 
-- [ ] 3.1 spec delta `specs/line-boards/spec.md`：+3 REQUIREMENTS（lex 看板直读客户面数据 / 凭据态诚实呈现 / 每块原站深链——照柏讯三条同形，WHEN/THEN 场景各二）——验证：delta 语法过 `openspec validate add-lex-line-board --strict`
+- [x] 3.1 spec delta `specs/line-boards/spec.md`：+3 REQUIREMENTS（lex 看板直读客户面数据 / 凭据态诚实呈现 / 每块原站深链——照柏讯三条同形，WHEN/THEN 场景各二）——验证：delta 语法过 `openspec validate add-lex-line-board --strict`（2026-11-09 复核：文件已在盘上，3 Requirement × 各 2 Scenario = 6 条 WHEN/THEN，validate --strict 通过；此前只是漏勾）
 - [x] 3.2 滚版 + 线上走查：spec 场景逐条走查记录落档；finddata B2 门 `--line lex` L7 转 PASS——验证：走查记录 + 门输出全 PASS（滚版走通：org billing 墙拒跑私仓 image.yml→备用池出片 law-bench/platform:sha-5254a72（镜像 home yizuo→law-bench 迁移，tcr-ccr pull secret 拉取实测 PASS）→bump c5dcfa3→ArgoCD Synced Healthy，pod imageID digest c95a76dd；finddata 门 --line lex 全 PASS EXIT=0，全量剩余 5 FAIL 全为 ERP 如实未接入）

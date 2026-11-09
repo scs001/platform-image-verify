@@ -167,6 +167,8 @@ function saveTasks() {
       lastRun: t.lastRun,
       nextRun: t.nextRun,
       missed: t.missed ?? 0,
+      // 停机缺口水位（2026-11-09）：不持久化它，重启后同一批触发点会被重复计数。
+      lastMissedCountedUntil: t.lastMissedCountedUntil ?? null,
       history: t.history,
     }));
     await atomicWriteJson(JOBS_FILE, serializable);
@@ -437,6 +439,8 @@ function clientShape(t) {
     // post cards can say "skipped N rounds: platform was down".
     missed: t.missed ?? 0,
     lastMissedAt: t.lastMissedAt ?? null,
+    // 已统计到哪（水位）：有了它，"这个计数是否被重复累加"可以自查。
+    lastMissedCountedUntil: t.lastMissedCountedUntil ?? null,
     lastMissedReason: t.lastMissedReason ?? null,
     catchUpPending: t.catchUpPending === true,
     history: t.history.slice(-20), // Last 20 executions

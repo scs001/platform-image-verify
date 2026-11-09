@@ -8262,3 +8262,38 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
   就必须 `ignoreDifferences`（只列凭据键，不列整块 `/data`）+ `RespectIgnoreDifferences=true`，
   并在轮换后跑 `tools/check-dsn-drift.sh` 再重启服务。
 - 验证：`drift_exit=0`（7/7 当前口令），Argo 应用 `Synced Healthy`。
+
+### §15.153 续四十一：fd-mcp 正式纳入 Argo（远端集群 + 手动 sync），面板 0.5.53（11-09）
+
+**收编落地**（业主「你处理下吧」授权，选**注册远端集群**而非在 xinru-ts 装一套 Argo）：
+
+- 集群凭据：`argocd/cluster-xinru-ts`（`argocd.argoproj.io/secret-type=cluster`），从本地
+  kubeconfig 现场生成、0600 临时文件、apply 后即删、**不进仓**。客户端证书
+  `O=system:masters, CN=system:admin`，**2027-08-18 到期**。
+- **TLS 坑**：该 apiserver 证书只对 `10.1.0.4 / 10.43.0.1 / 127.0.0.1 / ::1` 有效，
+  tailnet 的 `100.64.0.3` 不在 SAN 里 → Argo 报
+  `x509: certificate is valid for …, not 100.64.0.3`。本地 kubectl 一直是
+  `insecure-skip-tls-verify: true` 在连，所以 cluster secret 的 `tlsClientConfig.insecure`
+  跟随它（并**不是**我随手关的校验）。改完要等控制器刷新一轮才生效。
+- Application `fd-mcp-prod`（`argocd/app-fd-mcp-prod.yaml`）：source `all-services/prod-fdmcp`，
+  destination `https://100.64.0.3:6443` / ns `fd-mcp`，**不写 automated**——接管在跑的服务
+  第一次必须人看着 sync；`syncOptions: CreateNamespace=false`（ns 与带外 secret 都已存在）。
+- 首次 sync 范围只有 **1 个 Deployment**，差异只有 3 个 metadata 标签；同步后
+  `Synced / Healthy`。
+
+**踩到的顺序错误（值得记）**：我先改本地清单、**没推就触发 sync**，Argo 读 gitee main 上的
+旧值，把面板从我刚滚到的 0.5.53 又滚回 `sha-7588e44`。**Argo 的真源是仓，不是本地工作树**——
+推完再 sync，才回到 `sha-2a7db55`。
+
+**面板现在**：`version 0.5.53`，DSN 指纹 `881e6dbb36`（当前口令），`/` 与 `/health` 均 200。
+面板的镜像从 `sha-7588e44`（read_series 按实体真实类的修复提交）跟到 `sha-2a7db55`
+（0.5.53 发布头：ingest 脚本改为从 env 读 DSN）；回滚点 `sha-3d110d0`（0.5.52）。
+
+**顺手清掉一处仍在泄漏的明文**：线上 Deployment 的
+`kubectl.kubernetes.io/last-applied-configuration` 注解里还留着改 secretKeyRef **之前**的
+`SCRAW_K8S_DATABASE_URL=postgresql+psycopg2://fd:28ux…` ——任何有 `get deploy` 权限的人都能读到。
+已 `kubectl annotate … last-applied-configuration-` 删除（改 metadata 注解不触发滚动），
+删除后 `grep postgresql+psycopg2://fd:` 在该对象里为 **0**，服务健康不受影响。
+
+**仍是手动 sync**：先观察几天，确认没有意外差异（尤其别的地方改了 live），再决定是否开
+`automated` + `selfHeal`。这一步不做，收编只解决"清单在仓里"，不解决"漂移自动纠正"。

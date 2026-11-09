@@ -268,6 +268,21 @@ async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerSt
   // completes, or the next restart re-repairs the same records.
   if (loadTasks()) await saveTasks();
   initialized = true;
+  // Staleness sweep (fix-queue-staleness-sweep): the dequeue-time check only
+  // fires for the fire that WINS the slot, so an over-age cadence fire parked
+  // behind a stream of human/manual work is never looked at — and it holds the
+  // queue-liveness probe degraded (503) while it waits. Unref'd: never keeps the
+  // process alive.
+  if (!staleSweepTimer) {
+    staleSweepTimer = setInterval(() => {
+      try {
+        sweepStaleQueuedFires();
+      } catch (e) {
+        console.warn(`[task-engine] staleness sweep failed: ${e?.message || e}`);
+      }
+    }, STALE_SWEEP_INTERVAL_MS);
+    staleSweepTimer.unref?.();
+  }
 }
 
 // After the scheduling front-end has initialized (timers armed, expiry
@@ -744,6 +759,12 @@ const QUEUE_WATCHDOG_GRACE_MS = 5 * 60_000;
 // without spending budget; the next cadence fire supersedes it. Env override
 // `QUEUE_MAX_AGE_MS`; 0 disables the policy (pre-2.2 behaviour).
 const QUEUE_MAX_AGE_MS_DEFAULT = 30 * 60_000;
+// How often the sweep looks for over-age cadence fires the dequeue path cannot
+// see: they never reach the front while human wakes and manual turns keep
+// arriving, and while they wait they hold `queueHealth().degraded` true (which
+// makes /api/ready answer 503 on a healthy cell).
+const STALE_SWEEP_INTERVAL_MS = Number(process.env.QUEUE_STALE_SWEEP_MS) || 60_000;
+let staleSweepTimer = null;
 
 // 真实等待起点：`queuedAt` 每次重新入队与每次启动 drain 都会被重打（那是"本次尝试"
 // 的等待时钟），`firstQueuedAt` 才是"这发请求第一次要槽位"的时刻、且跨重启存活。
@@ -831,6 +852,50 @@ function queueMaxAgeMs() {
     return n;
   }
   return QUEUE_MAX_AGE_MS_DEFAULT;
+}
+
+// One staleness decision, two callers (fix-queue-staleness-sweep).
+//
+// The bound used to be enforced ONLY on the dequeue path, which quietly made it
+// a property of "reaching the slot" instead of "waiting too long". Live
+// 2026-11-09: `job_1793413192186_g51s7b` (a cadence fire) sat queued 80 minutes
+// — human wakes and manual turns kept jumping ahead, so it never reached the
+// front and was never dropped. Worse, it kept `queueHealth().degraded` true,
+// which makes `/api/ready` answer 503 forever on a healthy cell.
+function dropIfStaleQueued(t, nowMs) {
+  if (!t || t.state !== "queued") return false;
+  const maxAgeMs = queueMaxAgeMs();
+  if (!(maxAgeMs > 0)) return false;
+  // Only cadence fires age out: manual/event triggers never do, and neither does
+  // a `run now` on a cadence task — the trigger reads "schedule" for both, so the
+  // REQUESTOR decides (`queuedBy`), not the shape.
+  if (t.trigger !== "schedule" || t.queuedBy === "human") return false;
+  const anchor = queueAnchorMs(t);
+  if (!Number.isFinite(anchor) || nowMs - anchor <= maxAgeMs) return false;
+  const waitedMin = Math.round((nowMs - anchor) / 60_000);
+  const boundMin = Math.round(maxAgeMs / 60_000);
+  finishExecution(t, new Date(nowMs).toISOString(), {
+    ok: false,
+    skipped: true,
+    error: `queue staleness: a scheduled fire waited ${waitedMin}min behind the cell's serial slot (>${boundMin}min) — dropped without running; the next cadence fire supersedes it`,
+  });
+  t.firstQueuedAt = null;
+  t.queuedBy = null;
+  console.log(`[task-engine] ${t.id}: dropped stale queued fire (waited ${waitedMin}min > ${boundMin}min)`);
+  return true;
+}
+
+// The sweep: drop over-age cadence fires wherever they sit in the queue. Cheap —
+// one pass over the task map on a slow timer, no I/O, no dispatch. Skipped turns
+// spend no budget and leave no ledger instance, so running it often is free.
+export function sweepStaleQueuedFires(nowMs = Date.now()) {
+  if (!initialized) return 0;
+  let dropped = 0;
+  for (const t of tasks.values()) {
+    if (dropIfStaleQueued(t, nowMs)) dropped += 1;
+  }
+  if (dropped > 0) void saveTasks();
+  return dropped;
 }
 
 function queueWatchdogMs(task) {
@@ -1158,27 +1223,7 @@ async function runQueuedExecution(id) {
   // Manual/event fires are never aged out — a human asked for THAT round — and
   // neither is a `run now` on a cadence task (`queuedBy === "human"`). The
   // trigger reads "schedule" for both, so the REQUESTOR decides, not the shape.
-  const maxAgeMs = queueMaxAgeMs();
-  const firstQueuedAt = Number.isFinite(t.firstQueuedAt) ? t.firstQueuedAt : t.queuedAt;
-  if (
-    maxAgeMs > 0
-    && t.trigger === "schedule"
-    && t.queuedBy !== "human"
-    && Number.isFinite(firstQueuedAt)
-    && Date.now() - firstQueuedAt > maxAgeMs
-  ) {
-    const waitedMin = Math.round((Date.now() - firstQueuedAt) / 60_000);
-    const boundMin = Math.round(maxAgeMs / 60_000);
-    finishExecution(t, new Date().toISOString(), {
-      ok: false,
-      skipped: true,
-      error: `queue staleness: a scheduled fire waited ${waitedMin}min behind the cell's serial slot (>${boundMin}min) — dropped without running; the next cadence fire supersedes it`,
-    });
-    t.firstQueuedAt = null;
-    t.queuedBy = null;
-    console.log(`[task-engine] ${t.id}: dropped stale queued fire (waited ${waitedMin}min > ${boundMin}min)`);
-    return;
-  }
+  if (dropIfStaleQueued(t, Date.now())) return;
   await runExecutionTurn(t, runTurnFn);
 }
 
@@ -1581,6 +1626,10 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
 function shutdown() {
   for (const timer of retryTimers.values()) clearTimeout(timer);
   retryTimers.clear();
+  if (staleSweepTimer) {
+    clearInterval(staleSweepTimer);
+    staleSweepTimer = null;
+  }
 }
 
 export {

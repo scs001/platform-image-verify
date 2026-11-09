@@ -18,7 +18,7 @@
 import { DshBridge } from "../dsh-bridge.js";
 import * as engine from "../task-engine.js";
 import * as chatHistory from "../chat-history.js";
-import { collectTurn, resolveTurnBudgetMs, roundChildSessionId, fleetTagOf } from "./cron-runner.js";
+import { collectTurn, resolveTurnBudgetMs, roundChildSessionId, fleetTagOf, parkPersonaForTurn } from "./cron-runner.js";
 
 const REAP_SCAN_MS = 60_000;
 const IDLE_REAP_MS = 5 * 60_000;
@@ -211,6 +211,24 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         interrupted: true,
         error: "the agent runtime was restarting when this slot was claimed — the round did not run",
       });
+    }
+    // Park the turn's persona onto THIS round's child session (ledger E31,
+    // live 2026-11-10). The serial chain already does this before prompting;
+    // the pool did not, so a worker round ran under the DEPLOYMENT default
+    // preset — and `readMcpToolFilterFor(preset)` then found no `byPreset`
+    // entry and fell back to the global union. Measured: a hotel-watch-scout
+    // round carried 333-357 injected `tool-addition` entries instead of the 15
+    // its pack declares, and that fixed overhead is what compacted the round
+    // 4-6 times. Parking also writes the focused skills list (same helper).
+    if (task.preset) {
+      try {
+        const park = await parkPersonaForTurn(ctx, task.preset, childSessionId);
+        if (park?.legacy) {
+          console.warn(`[worker-pool] ${task.id}: persona park fell back (${park.legacy}) — the round runs on the deployment preset`);
+        }
+      } catch (e) {
+        console.warn(`[worker-pool] ${task.id}: persona park failed (turn continues): ${e?.message || e}`);
+      }
     }
     chatHistory.recordMessage(sessionId, "user", task.prompt);
     if (task.sessionTitle) {

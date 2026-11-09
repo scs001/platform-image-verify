@@ -590,7 +590,7 @@ async function switchPresetForJob(ctx, preset, timeoutMs) {
 // Returns { legacy: null } when parked (or already parked with the same
 // preset this generation), { legacy: reason } when the caller must take the
 // byte-parity restart path.
-async function parkPersonaForTurn(ctx, preset, childSessionId) {
+export async function parkPersonaForTurn(ctx, preset, childSessionId) {
   const bridge = ctx.dshBridge;
   if (!bridge || typeof bridge.hasLiveMethod !== "function" || !bridge.hasLiveMethod("preset/set")) {
     return { legacy: "preset/set unsupported by this child" };

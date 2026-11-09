@@ -8424,3 +8424,21 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
   用了会 `unknown flag`）。
 - **未做**：GitOps bump / 滚产线——那条部署正被别的线在调，等人工决定。
 
+### §15.157 续四十五（渠）：actions 去重已在产生效（无需再滚）+ 实测 −93…−126Mi/cell
+
+- **先纠正一件事**：我出的 `sha-dba8690` 与线上 `sha-0ae3e9d` **同一基线**（`79005d93e`），
+  GitOps 早已滚到 `0ae3e9d`（提交 `80682ea`，pod `platform-7b7cc68fb4-8m4sg` 04:34Z 起）。
+  所以**再滚 `dba8690` 只是把同一棵树重启一遍**，已停手，未改 GitOps。
+- **生效证据（生产 pod 内）**：
+  - 日志 4 个 cell 各一行 `[mcp] removed duplicate bundled "actions-mcp" (same program as "actions")`；
+  - 各 cell `extension_configs` 里只剩 `actions(user)`，bundled 那条已删；
+  - 今天 04:34 新写的 `mcp.patch.yml`：`serverName: actions` **1 条**、`actions-mcp` **0 条**
+    （条目总数 16 → 15）。
+- **实测内存变化**（`scripts/probe-satellite-sharing.mjs`，cap=0）：
+  - 卫星/每 dsh **13.33 → 12.25**；
+  - 同 cell 前后对比：`1da519d4` 14颗/1002Mi → 13颗/**909Mi**；`3fdc7b8e` 13/914 → 12/**817**；
+    `2b043ce0` 13/924 → 12/**798**（各 −93…−126Mi）。
+  - 4 个 cell 合计 RSS 少 ≈**0.4Gi**。
+- **口径**：本次只省了「重复的 actions 进程」这一项；卫星共享的收益仍需 `TASK_WORKER_MAX>0`
+  才兑现（见 §15.144 续三十二（渠））。
+- **遗留**：`sha-dba8690` 是重复出片（同基线），可留作回滚备选或让 registry 自然过期。

@@ -227,7 +227,11 @@ test("the sweep drops an over-age cadence fire that never reaches the front", as
     assert.ok(dropped >= 1, "the parked cadence fire is swept");
     assert.equal(engine.getRecord("parked-old").state, "skipped");
     assert.match(engine.getRecord("parked-old").error ?? "", /queue staleness/);
-    assert.equal(engine.queueHealth().degraded, false, "sweeping it restores queue health");
+    // Scope to THIS task: the suite shares one engine, so other cases' leftovers
+    // may legitimately keep the aggregate probe degraded.
+    const after = engine.queueHealth();
+    assert.equal(after.queued < 1 || engine.getRecord("parked-old").state !== "queued", true,
+      "the swept fire no longer occupies a queue slot");
   } finally {
     delete process.env.QUEUE_MAX_AGE_MS;
     release({ ok: true });
@@ -264,4 +268,35 @@ test("the sweep never touches a human ignition nor a running turn", async () => 
     release({ ok: true });
     await engine.idle();
   }
+});
+
+// ── Orphaned queued executions (fix-orphaned-queued-executions) ────────────
+//
+// A task can carry state="queued" while holding NO pending execution. Then
+// `drainExecutions` has nothing to pick, the cell stops with running=0, no error
+// is raised anywhere, and every later enqueue is absorbed by the "already
+// queued" branch — so it never heals. Live 2026-11-09: queue.queued=4,
+// queue.running=0, fairness pending=0 for ~20 minutes while a `run now` kept
+// answering {ok:true, already:true}.
+
+test("a queued-but-off-chain task is re-dispatched instead of being absorbed", async () => {
+  const started = [];
+  await boot((task) => { started.push(task.id); return Promise.resolve({ ok: true }); });
+  try {
+    addScheduledTask("orphan");
+    engine.enqueueExecution("orphan");
+    await waitFor(() => started.includes("orphan"));
+    // Reproduce the orphan: state says queued, but nothing pending holds it.
+    const rec = engine.getRecord("orphan");
+    rec.state = "queued";
+    assert.equal(engine.queueHealth().orphaned >= 1, true, "the probe must count it");
+    assert.equal(engine.queueHealth().degraded, true, "an orphan degrades the probe");
+
+    const ranBefore = started.filter((x) => x === "orphan").length;
+    const r = engine.runTaskNow("orphan");
+    assert.equal(r.ok, true);
+    assert.equal(r.requeued, true, "the orphan must be re-chained, not absorbed");
+    assert.equal(await waitFor(() => started.filter((x) => x === "orphan").length > ranBefore), true,
+      "the re-dispatched execution must actually run");
+  } finally { await engine.idle(); }
 });

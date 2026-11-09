@@ -81,6 +81,8 @@ const repairQueue = []; // ids persisted as queued at load → re-enqueue after 
 // this list at that moment (fix-main-chain-human-priority).
 const pendingExecutions = [];
 let executionDraining = false;
+// The execution spliced off the queue and about to start (see drainExecutions).
+let inFlightExecutionId = null;
 
 // ── Persistence ─────────────────────────────────────────────────────────────
 
@@ -676,10 +678,25 @@ function enqueueExecution(id, opts = {}) {
       void saveTasks();
       upgraded = true;
     }
+    // Orphan heal (fix-orphaned-queued-executions). "Already queued" used to be
+    // returned unconditionally, which assumed the task is still ON the serial
+    // chain. It need not be: a task can carry state="queued" while sitting in no
+    // pending execution at all, and then `drainExecutions` has nothing to pick —
+    // the whole queue stops with running=0, no error, and every later enqueue is
+    // absorbed by this very branch. Live 2026-11-09 (cell 1da519d4c1c0bf89):
+    // `queue.queued = 4`, `queue.running = 0`, `fairness` pending = 0 for ~20
+    // minutes; a `run now` answered `already: true` and changed nothing.
+    // "Already queued" must therefore mean "already on the chain".
+    const onChain = t.state === "running" || inFlightExecutionId === id || pendingExecutions.some((e) => e.id === id);
+    if (!onChain) {
+      console.warn(`[task-engine] ${id} is queued but off the chain — re-dispatching`);
+      dispatch(id);
+    }
     return {
       ok: true,
       already: true,
       ...(upgraded ? { upgraded: true } : {}),
+      ...(onChain ? {} : { requeued: true }),
       state: t.state,
       queuedForMs: (() => {
         const anchor = queueAnchorMs(t);
@@ -1155,8 +1172,13 @@ function drainExecutions() {
   const next = pendingExecutions.splice(at, 1)[0];
   if (fairQueueEnabled()) fairNoteDispatch(next.fleetId ?? null);
   executionDraining = true;
+  // Between the splice above and the turn's own state flip there is a window in
+  // which the task still reads `queued` while nothing holds it — that is the
+  // in-flight execution, NOT an orphan (fix-orphaned-queued-executions).
+  inFlightExecutionId = next.id;
   const done = () => {
     executionDraining = false;
+    inFlightExecutionId = null;
     drainExecutions();
   };
   executionQueue = executionQueue.then(() => runQueuedExecutionWithWatchdog(next.id)).then(done, done);
@@ -1649,14 +1671,26 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   // states.
   const settledRecently = lastSettledAt > 0 && now - lastSettledAt <= QUEUE_MAX_OLDEST_QUEUED_MS;
   const stalled = queuedTooLong && !settledRecently;
+  // Orphans (fix-orphaned-queued-executions): tasks whose state says `queued`
+  // but which hold no pending execution. They can never run, and nothing raises
+  // an error for them, so the probe must say so — otherwise "queued 4,
+  // running 0" reads like a busy cell while the single slot is dead. Live
+  // 2026-11-09: exactly that for ~20 minutes, with `fairness` pending = 0.
+  const onChain = new Set(pendingExecutions.map((e) => e.id));
+  if (inFlightExecutionId) onChain.add(inFlightExecutionId);
+  let orphaned = 0;
+  for (const t of tasks.values()) {
+    if (t.state === "queued" && !onChain.has(t.id)) orphaned += 1;
+  }
   return {
     queued,
     running,
     oldestQueuedMs,
     oldestRunningMs,
     overBudget,
+    orphaned,
     lastSettledAt: lastSettledAt || null,
-    degraded: stalled || overBudget > 0,
+    degraded: stalled || overBudget > 0 || orphaned > 0,
   };
 }
 

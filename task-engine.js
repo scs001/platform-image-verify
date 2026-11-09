@@ -67,6 +67,12 @@ let beforeTurnFn = null;
 // keeps hosts that inject nothing byte-for-byte as before.
 let resolveTurnBudgetFn = null;
 let executionQueue = Promise.resolve();
+// Progress evidence for the readiness probe (fix-queue-degraded-vs-busy): a
+// backlog is not a stall. Live 2026-11-09: a fleet cell sat 60-67 minutes deep
+// while turns settled every 4-5 minutes and four of five succeeded — yet
+// /api/ready answered 503 because the OLDEST waiting item was older than the
+// threshold. Busy and stuck are different states and must read differently.
+let lastSettledAt = 0;
 const repairQueue = []; // ids persisted as queued at load → re-enqueue after init
 
 // Executions waiting for the primary slot's serial chain, oldest first. The
@@ -244,6 +250,10 @@ async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerSt
   resolveTurnBudgetFn = typeof resolveTurnBudget === "function" ? resolveTurnBudget : null;
   onFinishedHooks.clear();
   if (onFinished) onFinishedHooks.add(onFinished);
+  // A fresh engine has settled nothing yet: the readiness projection must not
+  // inherit progress evidence from a previous generation (tests re-init in one
+  // process; a real cell boots one engine per process, so this is a no-op there).
+  lastSettledAt = 0;
   // A fresh init replaces the in-memory map — any pending retry backoff from
   // the previous generation is stale (the reloaded records carry no attempt
   // state) and must not fire into the new one.
@@ -1254,6 +1264,9 @@ function markExecutionCarrier(id, carrier, instance = null) {
 }
 
 function finishExecution(t, startTime, result) {
+  // Any settlement is progress, whatever its outcome (a failed round still
+  // freed the slot for the next one).
+  lastSettledAt = Date.now();
   const interrupted = result?.interrupted === true;
   // fix-fleet-turn-attribution D4: a platform-skipped round (lane breaker
   // open) is its own state — NOT failed (it would poison the re-run surface
@@ -1495,6 +1508,11 @@ function stats({ now = Date.now(), windowMs = 3_600_000 } = {}) {
 // 不透明点。`budgetOf(task)` 由调用方注入（引擎内部的预算解析器），缺席时
 // 退化为只看排队的积压阈值。
 export const QUEUE_MAX_OLDEST_QUEUED_MS = 10 * 60_000;
+// Test seam: pretend a settlement happened at `at` (the projection only needs
+// the fact, not the mechanism). Not exported on the public surface otherwise.
+export function _stampSettlement(at = Date.now()) {
+  lastSettledAt = at;
+}
 
 function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {}) {
   let queued = 0;
@@ -1532,13 +1550,21 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   }
 
   const queuedTooLong = oldestQueuedMs !== null && oldestQueuedMs > QUEUE_MAX_OLDEST_QUEUED_MS;
+  // Stall vs busy (fix-queue-degraded-vs-busy): a long backlog with settlements
+  // still flowing is a busy cell; a long backlog with NOTHING settling for the
+  // same window is the stall the original probe was built to expose. Keep
+  // `overBudget` unconditional — a turn past budget+grace is wrong in both
+  // states.
+  const settledRecently = lastSettledAt > 0 && now - lastSettledAt <= QUEUE_MAX_OLDEST_QUEUED_MS;
+  const stalled = queuedTooLong && !settledRecently;
   return {
     queued,
     running,
     oldestQueuedMs,
     oldestRunningMs,
     overBudget,
-    degraded: queuedTooLong || overBudget > 0,
+    lastSettledAt: lastSettledAt || null,
+    degraded: stalled || overBudget > 0,
   };
 }
 

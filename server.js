@@ -1797,7 +1797,23 @@ attachDelegationAggregator(ctx).rearm();
           const memOn = kp?.memory?.enabled ?? true;
           const token = memOn ? await memberTokenFor(cfg, { packId: identity.fleetId, memberId: identity.memberId, ownerEmail: owner }) : null;
           const collections = (kp?.collections ?? []).map((r) => r.slice("library:".length));
-          const { writeMemberMcpPatch } = await import("./dsh-profile.js");
+          const { writeMemberMcpPatch, faceForPresetFromPacks } = await import("./dsh-profile.js");
+          // Per-post server trimming (trim-mcp-injection-per-post 2.2): resolve
+          // the preset's declared MCP face from the installed packs and hand it
+          // in. Without this the writer's safety valve keeps all 34 servers —
+          // live 2026-11-10 the cell logged "injection surface: 34 MCP
+          // server(s)" with no trim, because this call site passed nothing.
+          let faceForPreset = null;
+          try {
+            const db = await import("./db.js");
+            if (db.isDbReady()) {
+              const packs = db.listInstalledPacks();
+              faceForPreset = (preset) => faceForPresetFromPacks(packs, preset);
+            }
+          } catch (e) {
+            console.warn(`[member-patch] face derivation failed for ${personaPreset} (keeping full composition): ${e?.message || e}`);
+            faceForPreset = null;
+          }
           out = await writeMemberMcpPatch({
             personaPreset,
             memoryToken: token,
@@ -1805,6 +1821,7 @@ attachDelegationAggregator(ctx).rearm();
             ownerEmail: owner,
             userGroups: null,
             agentPreset: personaPreset,
+            faceForPreset,
           });
         }
       }

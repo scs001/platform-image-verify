@@ -1535,18 +1535,17 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 //      pre-change whole-account view, byte-for-byte).
 // Dirs reuse targetPaths' { dshHome, profileName } contract (the same
 // parameterization writeToolFilterPatch takes).
-export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, libraryCollections = [], ...writeOpts } = {}) {
+export async function writeMemberMcpPatch({ personaPreset, memoryToken = null, libraryCollections = [], faceForPreset = null, ...writeOpts } = {}) {
+  // `faceForPreset` is this function's own input, never the base writer's —
+  // destructured out above so it cannot leak into writeMcpPatch's options.
   const patchPath = await writeMcpPatch({ ...writeOpts });
   if (!patchPath) return null;
   // Per-post trimming (trim-mcp-injection-per-post 2.1): a worker slot is
   // pinned to ONE persona for its life, so its patch only needs the servers
   // that persona's tool face references. The shared patch keeps serving the
   // chat lane unchanged; this narrows the member's private composition.
-  // `faceFor` is injected so this module stays free of catalog knowledge.
-  let faceForPreset = null;
-  try {
-    faceForPreset = typeof writeOpts.faceForPreset === "function" ? writeOpts.faceForPreset : null;
-  } catch { faceForPreset = null; }
+  // `faceForPreset` arrives as this function's own parameter (destructured
+  // above), so this module keeps no catalog knowledge of its own.
   const memberDir = join(dirname(MCP_PATCH_PATH), `member-${safeProfileSegment(personaPreset)}`);
   mkdirSync(memberDir, { recursive: true });
   let rows;
@@ -2345,6 +2344,36 @@ function isSafePresetId(id) {
 // first-wins at generation time (writeCatalogAgentPresets).
 export function rosterPresetId(catalogId) {
   return typeof catalogId === "string" ? catalogId.toLowerCase().replace(/[^a-z0-9-]+/g, "-") : catalogId;
+}
+
+// Per-preset MCP face, PURE (trim-mcp-injection-per-post 2.1): given the
+// installed-pack snapshots, return the { mcpTools } face a preset declares.
+// The caller resolves the DB (exactly like packPersonaToolFaces does at
+// composition time) and hands the list in, so this stays testable and this
+// module keeps no catalog knowledge of its own.
+//
+// Returns null when the preset declares nothing — the caller passes that
+// straight to trimServersToFace, whose safety valve then keeps the full
+// composition. Never fabricates an empty face: "declares nothing" and
+// "declares nothing usable" must both mean "do not narrow".
+export function faceForPresetFromPacks(installedPacks, presetId) {
+  if (!presetId || !Array.isArray(installedPacks)) return null;
+  const want = rosterPresetId(presetId);
+  const merged = {};
+  for (const installed of installedPacks) {
+    const manifest = installed?.manifest;
+    if (!manifest) continue;
+    for (const agent of manifest.agents ?? []) {
+      if (!agent?.id) continue;
+      if (rosterPresetId(agent.id) !== want) continue;
+      const tools = effectiveMcpTools(manifest, agent);
+      for (const [server, list] of Object.entries(tools)) {
+        const prev = merged[server];
+        merged[server] = prev ? [...new Set([...prev, ...list])] : [...list];
+      }
+    }
+  }
+  return Object.keys(merged).length ? merged : null;
 }
 
 // The persona text for one catalog entry: the entry's own `persona` when the

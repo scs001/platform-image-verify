@@ -93,3 +93,50 @@ test("7. describeTrim reports the reduction honestly", () => {
     "trimmed 34 → 1 server(s) (dropped 33)");
   assert.equal(describeTrim(CELL, CELL), "trimmed 34 → 34 server(s)");
 });
+
+// ── faceForPresetFromPacks ──────────────────────────────────────────────────
+// The wiring half: the writer's safety valve keeps all 34 servers unless a
+// face is actually resolved. 2026-11-10 production logged
+// "injection surface: 34 MCP server(s)" with NO trim line, because the only
+// caller passed no face. These pin the resolver's contract.
+
+// Importing dsh-profile.js would pull js-yaml and the whole profile stack into
+// a pure-function test (and fails in a bare worktree without node_modules).
+// The resolver is imported lazily and guarded so the trim contract still
+// runs everywhere; the resolver cases skip only when the module is absent.
+let faceForPresetFromPacks = null;
+try {
+  ({ faceForPresetFromPacks } = await import(path.join(here, "../dsh-profile.js")));
+} catch (e) {
+  console.warn(`[test] faceForPresetFromPacks unavailable (${e.code || e.message}); resolver cases skipped`);
+}
+
+const packWith = (agentId, tools) => ({
+  manifest: {
+    mcpServers: Object.entries(tools).map(([registryName, allowTools]) => ({ registryName, allowTools })),
+    agents: [{ id: agentId, resources: {} }],
+  },
+});
+
+test("8. resolves the declared face for a preset, merging repeat declarations", { skip: !faceForPresetFromPacks }, () => {
+  const packs = [
+    packWith("hc-architect", { "fleet-architect": ["fleet_list", "fleet_draft"], "facet-market": ["browse"] }),
+    packWith("hc-architect", { "fleet-architect": ["fleet_turns_read"] }),
+    packWith("mo-inventory", { fleet: ["report_status"] }),
+  ];
+  const face = faceForPresetFromPacks(packs, "hc-architect");
+  assert.deepEqual(Object.keys(face).sort(), ["facet-market", "fleet-architect"]);
+  assert.deepEqual(face["fleet-architect"].sort(), ["fleet_draft", "fleet_list", "fleet_turns_read"]);
+});
+
+test("9. an unknown preset resolves to null — the safety valve keeps full composition", { skip: !faceForPresetFromPacks }, () => {
+  const packs = [packWith("hc-architect", { "fleet-architect": ["fleet_list"] })];
+  assert.equal(faceForPresetFromPacks(packs, "nobody-here"), null);
+  assert.equal(faceForPresetFromPacks(null, "hc-architect"), null);
+  assert.equal(faceForPresetFromPacks(packs, ""), null);
+});
+
+test("10. roster-form and catalog-form ids both resolve", { skip: !faceForPresetFromPacks }, () => {
+  const packs = [packWith("hc.architect", { "fleet-architect": ["fleet_list"] })];
+  assert.ok(faceForPresetFromPacks(packs, "hc-architect"), "dotted catalog id normalizes to roster form");
+});

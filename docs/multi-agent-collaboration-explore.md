@@ -210,6 +210,17 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**`context_overflow` 的成分分析（2026-11-09，trace 实测，平台注入非主因）**：对三条 overflow 回合按事件类型量体积——
+
+| 回合 | 总事件 | 总量 | 最大三条 |
+|---|---|---|---|
+| 07:58:20 | 194 | 332KB | assistant 43KB / tool 40KB / user 17KB |
+| 08:02:05 | 88 | 206KB | assistant 35KB / developer 27KB / user 17KB |
+| 08:04:50 | 138 | 219KB | tool 23KB / user 17KB / assistant 14KB |
+
+**平台注入（`user/message` 模板+渲染后的 fleetContext ≈17KB、`developer/message` ≤27KB）只占 13–21%**；其余 79–87% 是 **assistant 单步产出（35–43KB/条）与工具结果（23–40KB/条）**——平台侧无写入权。
+**结论**：削平台注入最多省两成、换不来通过率，还会丢掉岗位必需的上下文；真正的旋钮是 dsh 上游「每轮工具结果与单步输出字节上限」。此项定性完成，平台侧不再改动。
+
 **修复后复测（2026-11-09，镜像 sha-5621744 + 71 条归属回填）**：5 回合 → 2 ok / 3 failed（40%），但**失败形态变了**：
 - **不再有 600s 的盲回合**（此前实测 629s/600s、零产出、detail 为空）；
 - 剩余失败是 `context_overflow`，**comp=1、耗时 165–209s**，且 `reported=true` —— 它们**已经交过报数才倒**，收尾车道按设计拒绝重复补报（`wrap=null` 是正确行为，不是漏跑）；

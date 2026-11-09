@@ -23,4 +23,10 @@
 
 ## 5. 收口
 
-- [ ] 5.1 出片 + GitOps 滚版，并在产上确认：`last_footprint_at` 落库、归档日志带年龄、拒绝记录含 `defaultWouldFit`
+- [x] 5.1 出片 + GitOps 滚版，并在产上确认
+  - 镜像 `sha-709e12b`（快照基底含 paas 6450c35cf）；ccr relay OK 2026-11-09T14:08:17+08:00；GitOps `52305f8`
+  - 期间 `sha-a8321dc` 的基底早于本提交（容器内 `last_footprint_at` = 0），故显式滚回含本改动的 tag；滚后复核
+    `fp=6 sweep=2 sat=*`（足迹时间戳/队列清扫/他线卫星共享三者共存，未互顶）
+  - 产上证据：`cell_registry` 已有 `last_footprint_at` 列；活跃 cell 的足迹**带时间戳**
+    （`3fdc… 831MB stamped`、`1da5… 900MB stamped`），历史残留行仍 `legacy-no-stamp`（按设计一次性解冻）；
+    cell 1da519d4c1c0bf89 的高水位由 1684MB 重测为 **900MB** —— 正是当初锁死它的那个数

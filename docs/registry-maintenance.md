@@ -8371,3 +8371,17 @@ serverNames(12) 里 actions 条目 = 1（修复前 = 2）
   sync → 复核**。
 - 现状：`fd-mcp-prod` 管 2 个资源（Service + Deployment），`Synced / Healthy`，
   面板 `0.5.53`（`sha-2a7db55`）。仍**手动 sync**，是否开 `automated + selfHeal` 待观察几天。
+
+### §15.155 续四十三：fd-mcp 开启自动纠正，并做了两次人为漂移验证（11-09）
+
+- **开 `automated: {prune: false, selfHeal: true}`**（`argocd/app-fd-mcp-prod.yaml`）。
+  理由：面板曾经落后主线 14 个版本而无人发现，根因就是它不在任何 reconciler 的视野里。
+  开的前提是**清单已完整**（Service + Deployment、clusterIP 与 restartedAt 已排除），
+  否则自动 sync 会按不完整清单裁剪线上。`prune` 仍为 false：删资源要人做。
+- **两次漂移实证（不是看配置，是看它真的纠正）**：
+  1. `kubectl scale deploy fd-panel --replicas=2`（清单 1）→ **20 秒内回到 1**；
+  2. `kubectl set image … :sha-0000zzz`（不存在的 tag）→ **20 秒内回到 `sha-2a7db55`**。
+  两次之后 `Synced/Healthy`，容器内 `0.5.53`、DSN 指纹 `881e6dbb36`、`/health` 200。
+- **行为约定（要告诉所有会话）**：从此**不许再 `kubectl set image` / `scale` 改 fd-mcp**，
+  改版本一律改 `all-services/prod-fdmcp/` 的清单再 push；手动改会被打回，且可能让人误以为
+  "自己没改成功"。这与 `all-services-prod` 管 cheap 那批服务是同一模型。

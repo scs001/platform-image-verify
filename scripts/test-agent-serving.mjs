@@ -15,6 +15,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
+// The reassurance ladder is the PRODUCTION 90s/210s/330s unless this process
+// says otherwise (lib/agent-serving.js reads it once, at module load). This file
+// has ten direct deployToRegistry call sites; patching them one by one is how a
+// missing seam made a single test take 5.5 minutes and fail on its own timing
+// (mainline 978b05088). One process-level override covers all of them.
+process.env.DEPLOY_REASSURANCE_DELAYS_MS = "10,20";
+
 // Set the isolation env BEFORE importing anything that resolves paths/db.
 const tmpRoot = mkdtempSync(path.join(tmpdir(), "agent-serving-"));
 process.env.DB_PATH = path.join(tmpRoot, "app.db");

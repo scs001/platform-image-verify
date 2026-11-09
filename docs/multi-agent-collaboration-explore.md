@@ -497,7 +497,7 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 
 ---
 
-### 十一、全站阻断：ArgoCD 拉不到 gitee（2026-11-09 夜，未修）
+### 十一、全站阻断：ArgoCD 拉不到 gitee（2026-11-09 夜，**2026-11-10 00:03 已恢复**）
 
 **现象**：`all-services-prod` 及其余所有应用 `SYNC STATUS = Unknown`，消息为
 `Failed to load target state: failed to generate manifest ... authentication required`。
@@ -506,6 +506,8 @@ E3 说明：这是**顺序掩护的地雷，不是当前故障**。任何调用�
 **影响**：任何 manifest 改动都无法经 GitOps 落地。当晚我的 `sha-34d7cda`（worker 车道风暴早停）与并发会话后续改动都卡在这里；现网停在 `sha-0b19a2e`（其镜像已含本夜三项：worker 会话轮转、内联预算 4000、早停阈值 4，**缺 worker 车道早停**）。
 **未做**：没有手动 `kubectl set image`。理由：`34d7cda` 基线不含真源最新提交，手动滚会在 ArgoCD 恢复时被回卷——一次会自我撤销的部署只会制造混乱。也**没有**擅自轮换凭据（凭据不入仓/不出手是红线）。
 **修复**：重新签发 gitee 私人令牌 → 更新 argocd secret `repo-fd-infra-deploy` 的 `password` → 重启 repo-server。
+**恢复（2026-11-10 00:03Z 观测）**：`all-services-prod` 已 `SYNC STATUS` 正常并完成首同步（`operationState.finishedAt=2026-11-09T16:03:55Z`），说明令牌已换新（**非我操作**，未参与签发/写入）。此后按正常 GitOps 走：`707d5d1`（platform `sha-ffc8186`）→ ArgoCD 自动滚 → 舱内 `earlyStop=1`。
+**留给下一次的判据**：应用全 `Unknown` 时先看 repo-server 里的凭据实测（不要只看 `kubectl get secret` 有没有值），再确认是否只有本应用失败——本次是全账号令牌一起死。
 
 **凭据核查（2026-11-09，实测）**：argocd 命名空间下 `gitee-law-bench` / `repo-fd-legal-search-mcp` / `repo-fd-text-core` 三份 secret 的令牌**同样被拒**——即账号 `FindDataTechnology` 名下**所有**令牌都已失效（轮换后未同步集群），集群内**没有**可用备件。
 

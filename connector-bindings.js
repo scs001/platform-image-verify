@@ -19,6 +19,7 @@
 // Resolution is idempotent: same inputs, same rows, and it never mints or
 // re-mints a token (granting is a separate, user-confirmed step).
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import * as db from "./db.js";
@@ -507,18 +508,57 @@ export function liveBindingToken(email, packId, bindingKey) {
 // credential row without guessing (two packs may declare the same binding key).
 
 export const CONNECTOR_BINDING_CREDENTIAL_REF = "connector-binding";
-const BINDING_SERVER_PREFIX = "connector:";
+// The MCP server name must satisfy the mcp-client plugin's own constraint,
+// `^[A-Za-z0-9_-]{1,32}$` — measured live 2026-11-09: `connector:<pack>:<key>`
+// (colons, 38 chars) fails config validation, and because the row is inserted
+// with `failOnStartupError: false` the server simply never starts. The tools
+// then do not exist, which reads as "the binding was never injected" even
+// though every artifact on disk is correct.
+const BINDING_SERVER_PREFIX = "connector_";
+const SERVER_NAME_MAX = 32;
 
-/** The MCP server name for a binding slot. */
-export function bindingServerName(slot) {
-  return `${BINDING_SERVER_PREFIX}${slot}`;
+/** Slug a slot into the mcp-client alphabet (lossy on purpose; see hash). */
+function serverNameSlug(slot) {
+  return String(slot)
+    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, SERVER_NAME_MAX - BINDING_SERVER_PREFIX.length - 9) || "binding";
 }
 
-/** The slot behind an MCP server name, or null when it is not a binding row. */
-export function slotFromServerName(name) {
-  return typeof name === "string" && name.startsWith(BINDING_SERVER_PREFIX)
-    ? name.slice(BINDING_SERVER_PREFIX.length)
-    : null;
+/**
+ * The MCP server name for a binding slot.
+ *
+ * `connector_<slug>_<hash8>`: the slug keeps it readable, the hash keeps two
+ * slots that fold to the same slug distinct, and the whole thing stays inside
+ * the plugin's 32-character alphabet. The name is NOT the slot — callers that
+ * need the slot resolve it through `injectionRows` (the same definition that
+ * produced the name), never by parsing.
+ */
+export function bindingServerName(slot) {
+  const digest = createHash("sha256").update(String(slot)).digest("hex").slice(0, 8);
+  return `${BINDING_SERVER_PREFIX}${serverNameSlug(slot)}_${digest}`;
+}
+
+/** Every slot this owner could have injected right now (name→slot lookup). */
+export function bindingSlotsForOwner(email) {
+  if (!email) return [];
+  try {
+    const installedPacks = db.isDbReady() ? db.listInstalledPacks().map((pack) => pack.packId) : [];
+    return injectionRows(email, { installedPacks }).map((row) => row.slot);
+  } catch {
+    return [];
+  }
+}
+
+/** True for a name this module generates (prefix check only, not a slot). */
+export function isBindingServerName(name) {
+  return typeof name === "string" && name.startsWith(BINDING_SERVER_PREFIX);
+}
+
+/** The slot behind one of OUR names, given the candidate slots to match. */
+export function slotForServerName(name, slots = []) {
+  for (const slot of slots) if (bindingServerName(slot) === name) return slot;
+  return null;
 }
 
 /** The live token for a slot, by slot alone (injection + the 401 handler). */

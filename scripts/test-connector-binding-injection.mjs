@@ -52,6 +52,7 @@ test.after(() => {
 
 const db = await import("../db.js");
 const bindings = await import("../connector-bindings.js");
+const names = bindings;
 const credentialRefs = await import("../credential-refs.js");
 const { writeMcpPatch } = await import("../dsh-profile.js");
 
@@ -120,8 +121,8 @@ test("4.2 two bindings inject as two rows, each with its own Authorization", asy
 
   await writePatch({ ownerEmail: email });
 
-  const first = patchEntry(`connector:${packId}:kingdee-cloud`);
-  const second = patchEntry(`connector:${packId}:payments`);
+  const first = patchEntry(names.bindingServerName(`${packId}:kingdee-cloud`));
+  const second = patchEntry(names.bindingServerName(`${packId}:payments`));
   assert.ok(first, "first binding row injected");
   assert.ok(second, "second binding row injected");
   assert.equal(first.config.headers.Authorization, "Bearer oct_k1");
@@ -161,7 +162,7 @@ test("4.2 a full-authority account token is only injected through its binding", 
 
   await writePatch({ ownerEmail: email });
   assert.equal(patchNames().includes("connector"), false);
-  assert.equal(patchEntry("connector:chat:explore").config.headers.Authorization, "Bearer oct_full_authority");
+  assert.equal(patchEntry(names.bindingServerName("chat:explore")).config.headers.Authorization, "Bearer oct_full_authority");
 
   // Drop the binding: the token still exists, but nothing may inject it.
   db.deleteConnectorBinding(email, db.CONNECTOR_EXPLORE_BINDING);
@@ -182,7 +183,7 @@ test("4.2 an installed-pack filter keeps an uninstalled pack's binding out", asy
   db.getDb().prepare("DELETE FROM installed_packs WHERE pack_id = ?").run(packId);
 
   await writePatch({ ownerEmail: email });
-  assert.equal(patchNames().includes(`connector:${packId}:kingdee-cloud`), false);
+  assert.equal(patchNames().includes(names.bindingServerName(`${packId}:kingdee-cloud`)), false);
   assert.equal(db.getConnectorBinding(email, bindings.bindingSlot(packId, "kingdee-cloud")).token, "oct_x");
 });
 
@@ -191,8 +192,8 @@ test("4.3 one binding going stale removes exactly that row (and only it)", async
   const { packId } = seedPackBindings(email, { packId: "pack-degrade" });
 
   await writePatch({ ownerEmail: email });
-  assert.ok(patchEntry(`connector:${packId}:kingdee-cloud`));
-  assert.ok(patchEntry(`connector:${packId}:payments`));
+  assert.ok(patchEntry(names.bindingServerName(`${packId}:kingdee-cloud`)));
+  assert.ok(patchEntry(names.bindingServerName(`${packId}:payments`)));
 
   // The 401 handler marks the slot; the next write drops only that row.
   assert.equal(
@@ -211,9 +212,9 @@ test("4.3 one binding going stale removes exactly that row (and only it)", async
   );
 
   await writePatch({ ownerEmail: email });
-  assert.equal(patchNames().includes(`connector:${packId}:kingdee-cloud`), false, "failed row omitted");
+  assert.equal(patchNames().includes(names.bindingServerName(`${packId}:kingdee-cloud`)), false, "failed row omitted");
   assert.equal(
-    patchEntry(`connector:${packId}:payments`).config.headers.Authorization,
+    patchEntry(names.bindingServerName(`${packId}:payments`)).config.headers.Authorization,
     "Bearer oct_k2",
     "other row keeps its own token",
   );
@@ -230,8 +231,8 @@ test("4.3 a revoked binding disappears; re-granting brings it back with the new 
 
   assert.equal(bindings.revokeBindingGrant(email, packId, "payments"), true);
   await writePatch({ ownerEmail: email });
-  assert.equal(patchNames().includes(`connector:${packId}:payments`), false);
-  assert.equal(patchNames().includes(`connector:${packId}:kingdee-cloud`), true);
+  assert.equal(patchNames().includes(names.bindingServerName(`${packId}:payments`)), false);
+  assert.equal(patchNames().includes(names.bindingServerName(`${packId}:kingdee-cloud`)), true);
 
   // Re-grant is a fresh token on the same slot; resolution must mark it
   // satisfied again for the row to come back.
@@ -247,7 +248,7 @@ test("4.3 a revoked binding disappears; re-granting brings it back with the new 
   });
   db.setConnectorBinding({ email, slot: bindings.bindingSlot(packId, "payments"), token: "oct_k2_fresh" });
   await writePatch({ ownerEmail: email });
-  assert.equal(patchEntry(`connector:${packId}:payments`).config.headers.Authorization, "Bearer oct_k2_fresh");
+  assert.equal(patchEntry(names.bindingServerName(`${packId}:payments`)).config.headers.Authorization, "Bearer oct_k2_fresh");
 });
 
 test("4.1 single-token refs resolve byte-identically through the new per-row pass", async () => {

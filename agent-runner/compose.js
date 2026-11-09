@@ -13,6 +13,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import yaml from "js-yaml";
 
@@ -399,12 +400,27 @@ export function connectorBindingEntries(connectorBindings, secretValues) {
 
 // One dsh-mcp-client loader entry per registry server — the http branch of
 // dsh-profile's toMcpClientEntry, verbatim shape.
+// The mcp-client plugin validates `serverName` against
+// `^[A-Za-z0-9_-]{1,32}$` and, with `failOnStartupError: false`, a rejected row
+// disappears silently — the post then has no such tool and nobody knows why
+// (measured live 2026-11-09). Names arrive from the descriptor, so tighten here
+// too rather than trusting every producer.
+const MCP_SERVER_NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
+export function compliantServerName(name) {
+  const raw = String(name ?? "");
+  if (MCP_SERVER_NAME_RE.test(raw)) return raw;
+  const slug = raw.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "server";
+  const digest = createHash("sha256").update(raw).digest("hex").slice(0, 8);
+  return `${slug.slice(0, 23)}_${digest}`;
+}
+
 export function mcpEntry(name, { url, token }) {
+  const serverName = compliantServerName(name);
   return {
-    id: `mcp-${name}`,
+    id: `mcp-${serverName}`,
     name: "@deepseek-ai/dsh-mcp-client",
     config: {
-      serverName: name,
+      serverName,
       failOnStartupError: false,
       transport: "streamable-http",
       url,

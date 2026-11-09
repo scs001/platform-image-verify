@@ -206,3 +206,23 @@ node -e '...过滤 h.success===null && !h.missed...'
 node scripts/missed-recalibrate.mjs --dir /data/cells --clean-markers --apply
 ```
 
+## 九、读数不可信清单（2026-11-09，一天之内六个坑）
+
+> 这一节的存在理由：当天每一次误判都不是"想错了"，而是**信了一个看起来在动的数字**。
+> 每一条都写清「它为什么骗人」和「该怎么读」，下次先查这里再下结论。
+
+| # | 读数 | 为什么骗人 | 正确读法 |
+|---|---|---|---|
+| 1 | `jobs.json` 的 `queuedAt` | 每次重新入队、每次启动 drain 都重打 | 用 `firstQueuedAt`（`queueAnchorMs`）。实测同一队列，前者显示 1 分钟，后者 85 分钟 |
+| 2 | `missed` 累计数 | 修好前每次启动都从 `lastRun` 重数同一批缺口，按重启次数翻倍（一个日频 job 到 25315） | 现已加水位 `lastMissedCountedUntil`；判据看**分时分布**——每个 job 次数≈重启次数就是假信号 |
+| 3 | `executionCarrier` | **瞬态，不落盘**（`saveTasks` 白名单里没有），从磁盘加载的任务恒为 `null` | 查持久化账本 `member_turn_events.carrier`，别看 `jobs.json` |
+| 4 | `history[]` 里的 `success:null` | 三种含义混在一起：到期未执行（`missed:1`）、审计/元数据行（有 `note` 无 `state`）、真失败 | 失败率分母只含 `done+failed+skipped`；先按 `keys` 分组看形状 |
+| 5 | `history[]` 的任意一行 | 统计工具一律当作"一次执行"——我的校准脚本写了 75 条审计行，把 38.3% 读成 62.1% | 元数据只写记录级字段；见第八节 |
+| 6 | CI 的 lint 红 | `ci.yml` 的 lint/unit 与出片门无关；`image`/`image-publish` 才是出片门 | 判出片看 `gh run list --workflow=image-publish.yml`，不要看仓库最近一次 run |
+
+### 一句话判据
+
+**看到任何数字先问三句**：它是谁写的？写了什么时候？会不会被重置/重复计？
+
+三句里有一句答不上来，就先做一次交叉验证（换一个数据源对同一个事实），再下结论。
+

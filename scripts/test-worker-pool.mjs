@@ -497,7 +497,8 @@ test("a worker turn records exactly once even when the bridge throws", async () 
   attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
 
   try {
-    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    // Side effect only — this case never reads the task handle.
+    engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
     await settle();
     await settle();
     // The bridge rejects BEFORE the collector produced an outcome: the failure

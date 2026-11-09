@@ -490,7 +490,7 @@ test("a worker turn records exactly once even when the bridge throws", async () 
   const events = [];
   const ctx = makeCtx(events);
   const recorded = [];
-  ctx.recordFleetTurnEvent = (job, outcome, meta) => {
+  ctx.recordFleetTurnEvent = (job, outcome) => {
     recorded.push({ jobId: job?.id, ok: outcome?.ok });
     return null;
   };

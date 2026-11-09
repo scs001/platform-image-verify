@@ -346,7 +346,6 @@ test("isAgeExemptQueued: exempt iff the period is long enough to matter", () => 
   const { isAgeExemptQueued } = engine;
   const day = { state: "queued", trigger: "schedule", interval: { number: 1, unit: "day" } };
   const hour = { state: "queued", trigger: "schedule", interval: { number: 1, unit: "hour" } };
-  const tenMin = 600_000;
   assert.equal(isAgeExemptQueued(day), true, "losing a daily round costs a whole day");
   assert.equal(isAgeExemptQueued({ state: "queued", trigger: "schedule", interval: { number: 6, unit: "hour" } }), true,
     "the floor is inclusive: 6h is already a quarter of a day");

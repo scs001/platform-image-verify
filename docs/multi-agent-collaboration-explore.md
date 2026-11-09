@@ -294,6 +294,10 @@
 - **探针陷阱（我自己踩的）**：早停文案是 `turn stopped early — context pressure (4 compactions)`，用 `context pressure \((\d+) compactions\)` 正则数压力超时会**把它一起数进去**。第一版报「25 次超时/20 次 n≥4」是重复计数，真值是 19/14。凡按文案计数，先问「这段文案会不会也被别的桶匹配」。
 - **仍未做**：worker 的失败结算不带 metering，这些行的 `carrier` 是 NULL（与「未知」不可区分）。已修（`server/worker-slots.js` 的 settle 统一盖 `carrier=worker`+`carrierInstance`），随下一片带上；本片部署的 `sha-3db84d7` 里这三行仍是 null，故上面靠日志交叉判定。
 
+**残留观测：请求期超窗（`pi-ai detected context overflow`，2026-11-10 夜，未立项）**：早停管的是"压缩风暴"，这条是**请求时整段输入就超出模型窗口**，属于另一类。近 6h 四次（12:40 / 16:43 / 17:09 / 17:25，三个不同岗位，各烧 160–302s）。
+关键区别：**最近两次（17:09、17:25）都带 `hasOutput:true, reported:true`** —— 回合干完活、交过报数后才撞墙，不是静默白烧；更早两次（12:40、16:43）`detail` 为 null（旧片）。
+`contextPressureDetail()` 已把 overflow 与超时归一到同一口径（`kind=context_overflow`），收尾车道照常补数，所以**记账面是完整的**。剩余可调的是单轮输入上界（`spill-policy.maxInlineTokens` 现 4000，可下调），但那会把工具结果更多地推到文件读取，属权衡，等有"overflow 是否随 4000 显著下降"的更长窗口再定。
+
 **P0′-1 第五批 + 产线观测（2026-11-09）**：
 - **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。
 - **收尾判据改按报数**：上线后头 6 条压力回合里 5 条有文本却零报数，旧判据（有文本就不补）恰在最需要时不动作；现以「已完成的 `report_status` 调用」为准，窗口 90s→240s，prompt 更硬。
@@ -328,6 +332,12 @@
 | P1-4 | 成本只见 token 不见钱（USD 列无读面） | `fleets-db.js:420-441` vs `fleets.js:1331,841,1639` | 【码】 |
 | P1-5 | ~~决策送达丢上下文（execute-now 顶掉占位符）~~ **已修**：判据抽成 `cron.keepFleetContextPlaceholder`（带占位符且渲染器在位→保留，裁定随注入段到达；渲染器缺席→预拼裁定）；手动 persona 车道补占位符 → `openspec/changes/archive/2026-11-08-fix-decision-delivery-context/`（镜像 sha-c721105） | `fleets.js:2645`、`cron.js` | 【码】 |
 | P1-6 | 建岗静默丢 4 字段（D2） | `fleets.js:3036-3094` | 【码】 |
+
+**这张表已经是历史（2026-11-10 对齐）**：P0-1…P0-5、P1-1…P1-4、P1-6 全部由 §八 切片关闭并归档，逐条映射如下——读表时不要把它们当现行缺陷：
+P0-1→④ `add-fleet-edge-context`；P0-2→③ `fix-a2a-call-timeout`；P0-3→① `fix-fleet-turn-budget`；
+P0-4→⑥ `fix-dispatch-delivery`；P0-5→⑤ `fix-fanout-aggregation`；P1-1→⑤（分组键改点火键）；
+P1-2→⑦ `add-fleet-ignition-idem`；P1-3→⑨ `add-fleet-ruling-ledger`；P1-4→⑪ `add-fleet-cost-read-face`；
+P1-6→② `fix-member-config-complete`。P2 各行已在表内逐条标注状态。
 
 ### P2 — 规模化 / 表达力
 

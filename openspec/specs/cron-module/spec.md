@@ -85,7 +85,7 @@ Recurring schedules whose occurrences passed while the runtime was down SHALL fo
 
 ### Requirement: 舰队成员回合的子进程对话逐回合全新
 
-舰队成员岗位（任务携带 fleetId sourceTag——节奏触发、委托唤醒、事件唤醒同一执行缝）的
+舰队成员岗位（任务携带 fleetId——节奏触发、委托唤醒、事件唤醒同一执行缝；归属 SHALL 从 `sourceTag.fleetId` **或** `origin.fleet.fleetId` 任一取得，见下条）的
 回合在设计上无状态：提示模板与舰队上下文（直属岗位末次报数、在岗总览）每回合现算注入，
 历史对话对回合产出没有贡献。实现 SHALL 与该模型一致：每个舰队成员回合 SHALL 以**全新
 的子进程对话**执行——运行时子进程 MUST NOT 回放此前回合的对话状态，回合启动 MUST NOT
@@ -118,6 +118,11 @@ Recurring schedules whose occurrences passed while the runtime was down SHALL fo
 
 - WHEN 一个不携带 fleetId sourceTag 的普通定时任务触发
 - THEN 其绑定会话的续执行语义与本 change 之前一致
+
+#### Scenario: 历史任务的归属双源可判
+
+- **WHEN** 一条舰队任务携带 `origin.fleet.fleetId` 而 `sourceTag` 为空（2026-10-24 前后的存量记录）
+- **THEN** 该回合 SHALL 按舰队成员回合对待：轮换子进程对话 id、注入舰队上下文、适用早停与报数收尾判据
 
 ### Requirement: 模型车道按身份键控熔断与降级重试
 

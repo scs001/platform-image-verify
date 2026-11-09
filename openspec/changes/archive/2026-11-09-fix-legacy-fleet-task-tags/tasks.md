@@ -17,7 +17,15 @@
 
 - [x] 3.1 `cron-module`：舰队回合条款补双源归属 + 1 场景
 
+## 3b. 覆盖面实测（产线，1820 条舰队岗位任务）
+
+- [x] 3b.1 `sourceTag` 1301（71.5%）· `originOnly` 394（21.6%）← 本刀修复 · **三源皆空 125（6.9%）**
+- [x] 3b.2 三源皆空样例：`company-ceo` / `company-oss` / `invest-chief` 等早期 cron 物化任务
+- [x] 3b.3 判定：第三源（preset→成员反查）**未做**——会把归属从记录字段变成运行时查询依赖；
+      候选处置是修数据（给这 125 条补 sourceTag），属写操作，待拍板
+
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测
-- [ ] 4.2 归档
+- [x] 4.1 快照 5621744 → GHA ✅ → relay → digest sha256:fe9230bf → GitOps 53ddec2 → ArgoCD → 舱内实证
+      `fleetTagOf=6 / threshold=4 / worker=1`，套件 3/3
+- [x] 4.2 归档

@@ -21,5 +21,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内实测（真实 cell 的 503 应转 200）
-- [ ] 4.2 归档（`openspec validate --strict` 通过后）
+- [x] 4.1 快照 b4d3952 → GHA ✅ → relay → digest sha256:cb2bb468 → GitOps 4432698 → ArgoCD → 滚完 →
+      **产线实证（同一镜像、同一时刻、同一 pod）**：积压 103 分钟但刚有收口的 cell → `ready=true`（`lastSettledAt` 有值）；
+      积压 97 分钟且无收口的 cell → `ready=false`（`lastSettledAt=null`）；空队列 → 200。两态同时可观测
+- [x] 4.2 归档（`openspec validate --strict` 通过后）

@@ -309,3 +309,131 @@ test("FLEET_EARLY_STOP=0 可整条关掉", () => {
   assert.equal(earlyStopEnabled(), true);
   if (saved !== undefined) process.env.FLEET_EARLY_STOP = saved;
 });
+
+// ── 溢出证据（fix-overflow-attribution）──────────────────────────────────
+//
+// 2026-11-10：12h 内 28/215 回合以 context overflow 失败，而失败行 usage_input
+// 恒 null、detail 里没有撞墙时的输入量与解析窗口——为分清「真到顶」与「窗口被
+// 声明错」，当晚写了三个临时探针去 trace 里捞。这三条钉住「行数据自己说得清」。
+
+test("collector 记录运行时解析的窗口与撞墙时的最大输入", async () => {
+  const ctx = makeCtx();
+  const collectors = new Map();
+  const p = collectTurn(ctx, "s-ov", 5000, new Map(), collectors, "s-ov");
+  const push = collectors.get("s-ov");
+  push({ method: "session.event", params: { event: { type: "request/context", data: { provider: "volces", model: "m", contextWindow: 128000 } } } });
+  push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [] }, usage: { input: 60000, output: 10, cacheReadTokens: 20000 } } } } });
+  // 后一步更小（压缩之后）——高水位不能被它覆盖
+  push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [] }, usage: { input: 1000, output: 10 } } } } });
+  push({ method: "session.status", params: { status: "idle" } });
+  const out = await p;
+  assert.equal(out.contextWindow, 128000);
+  assert.equal(out.lastInputTokens, 80000, "billed input = input + cacheRead，取高水位");
+  assert.equal(out.usageSteps, 2);
+});
+
+test("溢出 detail 带四字段；窗口缺失时为 null，不回落声明值", async () => {
+  const { contextPressureDetail } = await import("../server/cron-runner.js");
+  const withWin = contextPressureDetail('pi-ai detected context overflow for model "m"', {
+    facts: { contextWindow: 128000, lastInputTokens: 118034, usageSteps: 6 },
+    steps: 7,
+    toolResults: 6,
+  });
+  assert.equal(withWin.kind, "context_overflow");
+  assert.equal(withWin.lastInputTokens, 118034);
+  assert.equal(withWin.contextWindow, 128000);
+  assert.equal(withWin.usageSteps, 6);
+  assert.equal(withWin.steps, 7);
+  assert.equal(withWin.toolResults, 6);
+
+  // 运行时没报窗口 → 字段缺席（不是 0、不是 128000）
+  const noWin = contextPressureDetail("context overflow", { facts: { contextWindow: null, lastInputTokens: 4631, usageSteps: 3 } });
+  assert.equal(noWin.lastInputTokens, 4631);
+  assert.ok(!("contextWindow" in noWin), "an unresolved window must be absent, never the catalog's declaration");
+
+  // 非压力失败：detail 仍为 null（逐字节不变）
+  assert.equal(contextPressureDetail("turn timed out", { compactions: 0 }), null);
+});
+
+test("提前收口默认关；开了才在 95% 处停", async () => {
+  const { collectTurn: ct, overflowPreemptEnabled, OVERFLOW_PREEMPT_RATIO } = await import("../server/cron-runner.js");
+  assert.equal(OVERFLOW_PREEMPT_RATIO, 0.95);
+  assert.equal(overflowPreemptEnabled(), false, "默认关");
+
+  const drive = async (preempt) => {
+    const prev = process.env.FLEET_OVERFLOW_PREEMPT;
+    if (preempt) process.env.FLEET_OVERFLOW_PREEMPT = "1";
+    else delete process.env.FLEET_OVERFLOW_PREEMPT;
+    const ctx = makeCtx();
+    ctx.dshBridge = { cancelSession: () => Promise.resolve() };
+    const collectors = new Map();
+    const p = ct(ctx, `s-p-${preempt}`, 5000, new Map(), collectors, `s-p-${preempt}`);
+    const push = collectors.get(`s-p-${preempt}`);
+    push({ method: "session.event", params: { event: { type: "request/context", data: { contextWindow: 100000 } } } });
+    push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [] }, usage: { input: 96000 } } } } });
+    const settled = await Promise.race([
+      p.then((v) => ({ ok: true, v }), (e) => ({ ok: false, e })),
+      new Promise((r) => setTimeout(() => r({ timeout: true }), 120)),
+    ]);
+    if (prev === undefined) delete process.env.FLEET_OVERFLOW_PREEMPT;
+    else process.env.FLEET_OVERFLOW_PREEMPT = prev;
+    return settled;
+  };
+
+  const off = await drive(false);
+  assert.equal(off.timeout, true, "开关关：不提前收口，回合照常继续");
+  const on = await drive(true);
+  assert.equal(on.ok, false, "开关开：达 95% 即收口");
+  assert.match(String(on.e.message), /context overflow/);
+  assert.equal(on.e.detail.kind, "context_overflow");
+  assert.equal(on.e.detail.lastInputTokens, 96000);
+  assert.equal(on.e.detail.contextWindow, 100000);
+});
+
+test("markPartialUsage：有 usage 才盖章，无 detail 不造", async () => {
+  const { markPartialUsage } = await import("../server/cron-runner.js");
+  assert.equal(markPartialUsage(null, { input: 1 }), null, "没有 detail 就不造一个");
+  const same = markPartialUsage({ kind: "x" }, null);
+  assert.equal(same.kind, "x", "无 usage 原样返回");
+  assert.ok(!("usagePartial" in same), "没测到用量就不许说它是半截");
+  const marked = markPartialUsage({ kind: "context_overflow" }, { input: 100 });
+  assert.equal(marked.usagePartial, true);
+  assert.equal(marked.kind, "context_overflow", "原有字段必须保留");
+});
+
+test("失败行的 usage 与 usagePartial 一路落到行形状", async () => {
+  const { shapeTurnOutcome } = await import("../server/fleet-events.js");
+  const detail = {
+    kind: "context_overflow",
+    contextPressure: true,
+    overflow: true,
+    lastInputTokens: 118034,
+    contextWindow: 128000,
+    usagePartial: true,
+  };
+  const shaped = shapeTurnOutcome({ ok: false, error: "pi-ai detected context overflow", detail, usage: { input: 118034, output: 900 } });
+  assert.equal(shaped.status, "failed");
+  assert.equal(shaped.detail.usagePartial, true, "半截用量必须自证是半截");
+  assert.equal(shaped.detail.lastInputTokens, 118034);
+  assert.equal(shaped.detail.contextWindow, 128000);
+  // 用量本身也保留（否则这一行看起来像「从没跑过」）
+  assert.ok(shaped.usage == null || shaped.usage.input === 118034, "usage 必须随失败行落下");
+});
+
+test("成本窗口把半截用量计入花费，但单独报出 partialTurns", async () => {
+  const { createFleetDatabase } = await import("../server/routes/fleets-db.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "partial-cost-"));
+  const db = createFleetDatabase({ file: path.join(dir, "c.db") });
+  const fleet = db.createFleet({ id: "f_cost", name: "成本舰", ownerEmail: "o@t" });
+  db.createMember({ id: "m1", fleetId: fleet.id, title: "岗", targetKind: "persona", targetId: "p1", parentId: null, kpiSlots: [], cadence: null });
+  const now = Date.now();
+  // 一个整轮（有 usage）+ 一个 overflow 半截（也带 usage）
+  const priced = (usd) => ({ inputUsd: usd, outputUsd: 0, cacheWriteUsd: 0, cacheReadUsd: 0, pricingAt: 1_700_000_000_000 });
+  db.appendTurnEvent({ fleetId: fleet.id, memberId: "m1", source: "cron", status: "ok", startedAt: now, endedAt: now, usage: { input: 1000, output: 100 }, model: "m", pricing: priced(0.25), metering: {} });
+  db.appendTurnEvent({ fleetId: fleet.id, memberId: "m1", source: "cron", status: "failed", error: "pi-ai detected context overflow", startedAt: now, endedAt: now, usage: { input: 118034, output: 900 }, model: "m", pricing: priced(0.5), detail: { kind: "context_overflow", usagePartial: true }, metering: {} });
+  const spend = db.spendProjection(fleet.id);
+  assert.ok(spend.allTime.costUsd > 0, "半截用量也要进花费——那 token 真扣了钱");
+  assert.equal(spend.allTime.partialTurns, 1, "但读面必须知道其中 1 条是半截");
+  db.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});

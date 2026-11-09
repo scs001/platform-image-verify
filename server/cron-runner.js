@@ -20,7 +20,7 @@ import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 import { clusterMemoryFor, memoryInjectionFor } from "@finddatatechnology/yongyi-client";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
-import { classifyErrorKind } from "./fleet-events.js";
+import { classifyErrorKind, normalizeUsage } from "./fleet-events.js";
 import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
 import { classifyPresetSetError } from "../dsh-bridge.js";
 import { getFleetDatabase } from "./routes/fleets-db.js";
@@ -226,6 +226,20 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     let error = null;
     let usage = null;
     const toolBlocks = [];
+    // Overthrow evidence (fix-overflow-attribution D1/D2): the two facts a
+    // context-overflow failure needs and never carried — how big the dialogue
+    // actually was, and how big the window actually is. Both are recorded from
+    // the turn's OWN events:
+    //   • contextWindow comes from `request/context` (runtime-resolved). The
+    //     catalog's declared value is NEVER used here: on 2026-11-10 four
+    //     overflows died at 4.6k–9.6k input against a declared 128k window, so
+    //     the declaration is a hypothesis, not a fact.
+    //   • lastInputTokens is the largest input+cacheRead any step reported. The
+    //     final upstream 400 carries no usage at all, so the newest snapshot we
+    //     hold belongs to the step BEFORE the wall — that is the honest number.
+    let contextWindow = null;
+    let lastInputTokens = 0;
+    let usageSteps = 0;
     // 早停的"到点复判"定时器（见 maybeEarlyStop）。
     let earlyStopTimer = null;
     const settle = (fn, arg) => {
@@ -311,6 +325,38 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       settle(reject, err);
     });
 
+    // Pre-emptive overflow stop (fix-overflow-attribution D3). Default OFF:
+    // the 95% ratio can misfire on a round whose LAST step merely grazes the
+    // window and would still have finished, so the ratio is measured for one
+    // window before it is allowed to change outcomes.
+    const maybePreemptOverflow = () => {
+      if (!overflowPreemptEnabled()) return false;
+      // No resolved window → nothing to compare against. Staying put is the
+      // conservative choice; inventing a fallback window would be the same
+      // mistake as trusting the catalog.
+      if (!Number.isFinite(contextWindow) || contextWindow <= 0) return false;
+      if (lastInputTokens < contextWindow * OVERFLOW_PREEMPT_RATIO) return false;
+      const err = timeoutError(toolBlocks, startedAtMs, Date.now(), { compactions, hasOutput: Boolean(text), reported });
+      err.message = `turn stopped early — context overflow (${lastInputTokens}/${contextWindow} input tokens)`;
+      err.earlyStop = true;
+      // Build the detail here (the message now names the overflow, so the shared
+      // builder classifies it) — the catch path takes `e.detail` verbatim.
+      err.detail = contextPressureDetail(err.message, {
+        compactions,
+        reported,
+        hasOutput: Boolean(text),
+        facts: { contextWindow, lastInputTokens, usageSteps },
+        steps: toolBlocks.length,
+        toolResults: toolBlocks.filter((b) => b.result !== undefined).length,
+      }) ?? err.detail;
+      const cancel = typeof cancelSession === "function"
+        ? cancelSession
+        : (sid) => ctx.dshBridge?.cancelSession?.(sid);
+      try { cancel(sessionId)?.catch?.(() => {}); } catch { /* best effort */ }
+      settle(reject, err);
+      return true;
+    };
+
     collectors.set(sessionId, (notif) => {
       // Run ledger trace tap (agent-fleet-runs D4): a fleet turn never crosses
       // handleDshEvent — this collector is its only observer — so the trace
@@ -319,7 +365,13 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       ctx.fleetTurnLedger?.tap?.(notif, sessionId, mirrorSessionId);
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
-        return settle(resolve, { text, error, usage, firstAssistantAt, compactions, reported });
+        return settle(resolve, {
+          text, error, usage, firstAssistantAt, compactions, reported,
+          // Overflow evidence rides every normal close too, so a failure that
+          // arrives later (the upstream error is reported on this same payload)
+          // carries the wall it hit.
+          contextWindow, lastInputTokens, usageSteps,
+        });
       }
       // A user-questions ask in an unattended session (scheduled task or
       // worker slot — both use this collector) has no human to answer it:
@@ -345,6 +397,12 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       if (method !== "session.event") return;
       const ev = params.event;
       if (!ev) return;
+      if (ev.type === "request/context") {
+        // The runtime's own resolution of capacity for this request. Never the
+        // catalog's declaration (fix-overflow-attribution D2).
+        if (Number.isFinite(ev.data?.contextWindow)) contextWindow = Number(ev.data.contextWindow);
+        return;
+      }
       if (ev.type === "compaction/start") {
         compactions += 1;
         // Early stop: past the hard threshold a fleet round is not going to
@@ -367,7 +425,19 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         // step — keep the last (the honest live context size). The whole
         // TokenUsage rides: the metering columns read cacheReadTokens /
         // cacheWriteTokens / reasoningTokens off it (add-turn-metering D4).
-        if (ev.data?.usage) usage = ev.data.usage;
+        if (ev.data?.usage) {
+          usage = ev.data.usage;
+          // The size of the dialogue at this step = billed input, i.e. uncached
+          // input plus cache reads (normalizeUsage owns the shape drift). Keep
+          // the LARGEST seen: a later step can legitimately be smaller after a
+          // compaction, and the number we want is the high-water mark the round
+          // actually reached.
+          const step = normalizeUsage(usage);
+          const billed = step ? (step.input ?? 0) + (step.cacheReadTokens ?? 0) : 0;
+          if (billed > lastInputTokens) lastInputTokens = billed;
+          usageSteps += 1;
+          maybePreemptOverflow();
+        }
         // Mirror the final message into SQLite WITH the tool-call blocks, the
         // same structure the web path persists — a reloaded job session
         // rebuilds the same evidence trail as a live one. Rows land under the
@@ -483,7 +553,7 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compac
 // `detail: null`. Both mean "this round could not fit its own work".
 export const OVERFLOW_RE = /context overflow|context_length_exceeded|maximum context/i;
 
-export function contextPressureDetail(error, { compactions = 0, reported = false, hasOutput = false } = {}) {
+export function contextPressureDetail(error, { compactions = 0, reported = false, hasOutput = false, facts = null, steps = null, toolResults = null } = {}) {
   const overflow = OVERFLOW_RE.test(String(error ?? ""));
   const pressured = overflow || compactions >= CONTEXT_PRESSURE_COMPACTIONS;
   if (!pressured) return null;
@@ -494,6 +564,14 @@ export function contextPressureDetail(error, { compactions = 0, reported = false
     reported: reported === true,
     hasOutput: hasOutput === true,
     ...(overflow ? { overflow: true } : {}),
+    // The wall, in numbers (fix-overflow-attribution D1/D2). Absent facts stay
+    // ABSENT rather than defaulted: a null contextWindow means the runtime never
+    // told us its capacity, which is different from "the window is 128k".
+    ...(Number.isFinite(facts?.lastInputTokens) ? { lastInputTokens: facts.lastInputTokens } : {}),
+    ...(Number.isFinite(facts?.contextWindow) ? { contextWindow: facts.contextWindow } : {}),
+    ...(Number.isFinite(facts?.usageSteps) ? { usageSteps: facts.usageSteps } : {}),
+    ...(Number.isFinite(steps) ? { steps } : {}),
+    ...(Number.isFinite(toolResults) ? { toolResults } : {}),
   };
 }
 
@@ -503,8 +581,27 @@ export function earlyStopEnabled() {
   return process.env.FLEET_EARLY_STOP !== "0";
 }
 
-export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {
-  // Pressure in EITHER shape: compaction-storm timeout or runtime overflow.
+// Pre-emptive overflow stop (fix-overflow-attribution D3). OFF by default: the
+// measured window showed 4 of 17 overflows dying far below the declared
+// capacity, so the ratio is first measured on real rounds before it is allowed
+// to end them. FLEET_OVERFLOW_PREEMPT=1 turns it on.
+export const OVERFLOW_PREEMPT_RATIO = 0.95;
+
+export function overflowPreemptEnabled() {
+  return process.env.FLEET_OVERFLOW_PREEMPT === "1";
+}
+
+// A failed round that still reported tokens did NOT spend a whole round's worth
+// (fix-overflow-attribution D4). The marker rides the detail so every read face
+// can tell "partial spend" from "the round's total" — an unmarked partial would
+// silently understate cost. Kept as its own function so the stamping itself is
+// testable: it used to live inline, and removing it broke nothing.
+export function markPartialUsage(detail, usage) {
+  if (!detail || !usage) return detail;
+  return { ...detail, usagePartial: true };
+}
+
+export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {  // Pressure in EITHER shape: compaction-storm timeout or runtime overflow.
   return detail?.contextPressure === true
     // The round did not file its report. `hasOutput` is NOT the test: live
     // 2026-11-08 showed five pressure-killed rounds that had produced text and
@@ -526,8 +623,23 @@ export async function attributeFailureAndSalvage(ctx, {
   childSessionId = null,
   mirrorSessionId = null,
   isFleet = false,
+  // Overflow evidence collected by the turn itself (fix-overflow-attribution):
+  // the failing upstream answer carries no usage, so these are the only numbers
+  // that can describe the wall.
+  contextWindow = null,
+  lastInputTokens = 0,
+  usageSteps = 0,
+  steps = null,
+  toolResults = null,
 } = {}) {
-  let detail = contextPressureDetail(error, { compactions, reported, hasOutput: Boolean(text) });
+  let detail = contextPressureDetail(error, {
+    compactions,
+    reported,
+    hasOutput: Boolean(text),
+    facts: { contextWindow, lastInputTokens, usageSteps },
+    steps,
+    toolResults,
+  });
   if (!detail) return null;
   if (shouldSalvageReport(detail, { isFleet })) {
     const salvage = await runWrapUpReport(ctx, { childSessionId, mirrorSessionId });
@@ -1117,8 +1229,17 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
           childSessionId,
           mirrorSessionId: sessionId,
           isFleet: Boolean(fleetTagOf(job)),
+          contextWindow: out.contextWindow ?? null,
+          lastInputTokens: out.lastInputTokens ?? 0,
+          usageSteps: out.usageSteps ?? 0,
+          steps: out.steps ?? null,
+          toolResults: out.toolResults ?? null,
         });
-        return { ok: false, error: out.error, interrupted: false, detail, metering };
+        // Keep the usage we DID see (fix-overflow-attribution D4): the turn died
+        // on an answer, so its earlier steps' tokens are real spend and used to
+        // be thrown away with the whole row. `usagePartial` says so out loud, so
+        // a cost read face can never mistake it for a whole-round figure.
+        return { ok: false, error: out.error, interrupted: false, detail: markPartialUsage(detail, out.usage), metering, usage: out.usage ?? null };
       }
       // ttft (add-turn-metering): first assistant event − attempt start. The
       // attempt START is the prompt call's wall clock, not the seam's
@@ -1307,7 +1428,10 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
   // metering rides the seam return (add-turn-metering): attempt() stamps it
   // per attempt; a no-attempt ending (shouldn't reach here) falls back to the
   // turn-level assembly.
-  if (result.error) return withPresetPath({ ok: false, error: result.error, detail: result.detail ?? null, metering: result.metering ?? metering }, presetPath);
+  // The error branch keeps `usage` too (fix-overflow-attribution D4): a round
+  // that died on step 7 DID spend tokens on steps 1–6, and dropping them made
+  // every overflow row look like it never ran. `detail.usagePartial` marks it.
+  if (result.error) return withPresetPath({ ok: false, error: result.error, detail: result.detail ?? null, metering: result.metering ?? metering, usage: result.usage ?? null }, presetPath);
   return withPresetPath({ ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo, metering: result.metering ?? metering }, presetPath);
 }
 

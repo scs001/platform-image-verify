@@ -1625,9 +1625,15 @@ export function createFleetDatabase({ file } = {}) {
       // Money for the same window, from the turn rows (the only place the
       // per-turn estimate lives). `costUsd` stays null when NOTHING in the
       // window was priced — honest absence, never a zero posing as a reading.
+      // `partialTurns` (fix-overflow-attribution D4): a failed round now keeps
+      // the usage it had already reported, and those tokens were really billed —
+      // so they count toward spend (excluding them would UNDERSTATE cost). The
+      // count is published so a reader knows some rows hold a high-water
+      // snapshot rather than a whole-round total, instead of having to guess.
       const money = db
         .prepare(`
           SELECT SUM(CASE WHEN pricing_at IS NOT NULL THEN 1 ELSE 0 END) AS priced_turns,
+                 SUM(CASE WHEN detail LIKE '%"usagePartial":true%' THEN 1 ELSE 0 END) AS partial_turns,
                  SUM(COALESCE(cost_input_usd, 0) + COALESCE(cost_output_usd, 0)
                      + COALESCE(cost_cache_write_usd, 0) + COALESCE(cost_cache_read_usd, 0)) AS usd
           FROM member_turn_events WHERE fleet_id = ? AND started_at >= ?
@@ -1640,6 +1646,7 @@ export function createFleetDatabase({ file } = {}) {
         usageOutput: agg.usage_output ?? null,
         costUsd: money?.priced_turns > 0 && Number.isFinite(money?.usd) ? money.usd : null,
         pricedTurns: money?.priced_turns ?? 0,
+        partialTurns: money?.partial_turns ?? 0,
       };
     };
     const day = 24 * 3600_000;

@@ -266,7 +266,7 @@
 **开池后的产线测试（2026-11-09，镜像 sha-27fe835，阈值已核为 4、worker=1）**：
 - 触发 8 条（成功入队 6 条），样本 6 回合：**3 ok / 3 failed（50%）**。
 - 两条 failed 是 `context_overflow`，detail 完整（`kind=context_overflow, reported=true, hasOutput=true`）——**归因正确且正确地不补收尾**（它们已交过报数）；耗时 268s / 241s（远早于 600s，符合溢出先于压缩的形态）。
-- **一条异常待查**：`source=cron, 600s, 6 compactions`，错误文案已被点名 `context pressure (6 compactions)`，但 **detail 为空且未提前停止**（阈值 4、接线在 `/app/server/cron-runner.js:1009` 确认在位）。同 pod 另一条正常回合的 detail 带 `attribution.source="job-sourceTag"`，而这条 detail 全空——怀疑该 job 在 runner 手里 `sourceTag` 为空（`earlyStop` 因此为 false），与 turn-contract admission 那次同源。**未证，列为待查**。
+- **一条异常待查**：`source=cron, 600s, 6 compactions`，错误文案已被点名 `context pressure (6 compactions)`，但 **detail 为空且未提前停止**（阈值 4、接线在 `/app/server/cron-runner.js:1009` 确认在位）。同 pod 另一条正常回合的 detail 带 `attribution.source="job-sourceTag"`，而这条 detail 全空——怀疑该 job 在 runner 手里 `sourceTag` 为空（`earlyStop` 因此为 false），与 turn-contract admission 那次同源。**未证，列为待查**。（2026-11-10 更新：见 P0′-1 第六批——worker 车道的早停接线曾整段丢失，是这条异常的**更可能成因**；仍未逐条证实该回合走的是哪条车道。）
 - 并行确认：批处理期间 `running=2` 持续（主链 + worker），`overBudget=0`；`34997` cell 积压 895s 时仍 `ready=true`（忙/卡区分生效）。
 - **当前通过率不能归因于任一单项改动**：样本 6 条、且 pod 每 15–20 分钟被并发会话重建一次，观测窗口持续被打断。
 
@@ -277,6 +277,14 @@
 **重启成本已量化（2026-11-09，实测日志时间戳）**：pod 重建后 `gateway listening` 在 3 秒、三个 cell 的 HTTP 面在 9 秒，但 **dsh runtime ready 分别要 29 / 62 / 97 秒**（`[cell …] [dsh] runtime ready`）——这段是 dsh 初始化（35 个 MCP 源串行），`awaitRuntimeReadyForJob` 的 120s 轮询把它兜住了，所以**重启丢的不是回合，是约 90 秒的推迟**；风险在于推迟窗口里撞上上游 429/503 就会被记成失败。**并行化 MCP 初始化在 dsh 内部，平台侧无旋钮**（与工具输出上限同一结论），故此项不做代码改动，仅记录。
 
 **留痕立刻破案（2026-11-09，产线实证）**：`salvageSkipped={"isFleet":true,"interrupted":false,"pressure":true,"reported":true}` —— 那条 12 次压缩后超时的回合**已经交过报数**，所以收尾车道按设计拒绝补第二次（否则写重复报数）。此前两次「原因已点名却没收尾」的怀疑，答案大概率一直是这个——**实现没有 bug，判据是对的**。这条也验证了留痕字段的价值：一个字段省掉了一整轮从外部猜。
+
+**P0′-1 第六批：worker 车道的早停接线被同仓重构整段删掉（2026-11-10，镜像 sha-ffc8186）**：
+`fix-worker-early-stop` 曾把 `collectTurn(..., { earlyStop })` 接进 worker 车道（`server/worker-slots.js`）。随后 `1c003d38b`（orphan sweep 改写 dispatch 段）重写同一文件的调用点，把整个**可选参数对象连注释一起**删掉了——编译通过、类型无涉、19 条既有用例全绿，**没有任何信号**。于是池开着时（产线 `TASK_WORKER_MAX=3`）风暴早停静默失效，而串行链道照停：这正是「同一缺陷两个车道两种行为」的隐蔽形态。
+- **线上取证**：`sha-0b19a2e` 容器内 `grep -c "earlyStop: Boolean(fleetTagOf(task))" /app/server/worker-slots.js` = **0**（同时 `spill-policy`=4、阈值 4 都在，排除「镜像不对」）。
+- **基线实测（8h，按小时分桶，探针 `/tmp/stormprobe.js`）**：≥4 次压缩的风暴回合 **7 个，早停仅 1 次**（且在链道上）——13Z 1 个、14Z 2 个、15Z 1 个全部跑满。即风暴回合里 6/7 是白烧满额。
+- **修法**：恢复那 4 行 + 补一条**源码级接线断言**（`scripts/test-worker-pool.mjs`：调用点必须把 `earlyStop` 交给 `collectTurn`）；行为级用例依赖事件泵时序不稳定，故守接线事实而非守时序。反证：删掉该行 → 1 红；恢复 → 20/20 绿（树内同验）。
+- **部署**：新片 `sha-ffc8186` 是前一片 `sha-7a73257` 的超集（同基线 `f5cd5ebfc` + 两个提交，树内 `interrupted` 结算与 `earlyStop` 同时在），一次滚动同时完成两件事。ArgoCD 已恢复（token 修复后 16:03Z 首同步），走正常 GitOps + digest 闸门（`sha256:a412af86`，hkccr 与 ccr 同 digest）。
+- **待测**：修复后同窗口的风暴回合早停率。结构障碍见下条（每次滚镜像销毁全部 cell 子进程），需一段不滚片的窗口。
 
 **P0′-1 第五批 + 产线观测（2026-11-09）**：
 - **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。

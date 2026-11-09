@@ -90,6 +90,54 @@ let inFlightExecutionId = null;
 // that is drift, not a dispatch in flight.
 let orphanCandidates = new Set();
 
+// ── Cron session rotation (rotate-cron-session-on-context-pressure) ─────────
+//
+// A cron task keeps ONE session forever (`cron-<id>`), so every round appends
+// its full conversation — including tool results — and the cached context only
+// grows. Live 2026-11-09, the optimizer's inventory post:
+//
+//   cacheRead 84,480 → 119,168 → 157,824   (window = 128,000)
+//   output tokens 564 → 805 → 128
+//
+// The last round's output collapsed to exactly 128 tokens — the same number a
+// completely different post produced — because the window had ~128 tokens
+// left. Two unrelated posts reporting the identical output size is the
+// fingerprint: it is the window, not the prompt.
+//
+// So the session is rotated once it approaches the window. The ratio is
+// configurable because the right number depends on the model; 0.7 leaves room
+// for one long round on top of the accumulated history.
+const SESSION_ROTATE_RATIO = Number(process.env.CRON_SESSION_ROTATE_RATIO || 0.7);
+const SESSION_CONTEXT_WINDOW = Number(process.env.CRON_CONTEXT_WINDOW || 128_000);
+
+// Pure predicate (exported for tests): does the most recent metered round put
+// this task's session at/over the rotate threshold? Only the newest metered
+// entry counts — an old spike that a rotation already cleared must not rotate
+// again forever.
+export function shouldRotateSession(
+  history = [],
+  { window = SESSION_CONTEXT_WINDOW, ratio = SESSION_ROTATE_RATIO } = {},
+) {
+  if (!Array.isArray(history) || history.length === 0) return false;
+  if (!Number.isFinite(window) || window <= 0) return false;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const tokens = history[i]?.tokens;
+    if (!tokens) continue;
+    const cache = Number(tokens.cacheReadTokens) || 0;
+    const input = Number(tokens.inputTokens) || 0;
+    const used = cache + input;
+    if (used <= 0) return false;
+    return used >= window * ratio;
+  }
+  return false;
+}
+
+// Mint the next session id. Derived from the task id (never from the previous
+// sessionId) so repeated rotations cannot grow a suffix chain.
+function nextCronSessionId(taskId) {
+  return `cron-${taskId}--r${Date.now()}`;
+}
+
 // ── Persistence ─────────────────────────────────────────────────────────────
 
 // Serialized + atomic persistence: mutations rewrite the whole tasks file, so
@@ -1426,6 +1474,20 @@ async function runExecutionTurn(t, turnFn) {
   // Leaving the queue for a real run: the staleness anchor is spent.
   t.firstQueuedAt = null;
   t.queuedBy = null;
+  // Session rotation (rotate-cron-session-on-context-pressure): a cron task's
+  // session accumulates every round. Once the newest metered round sits at or
+  // over the threshold, THIS round starts on a fresh session instead of
+  // inheriting the near-window context. Rotation is per fire and sticky — the
+  // new id is what the runner reads (`job.sessionId || cron-<id>`).
+  if (t.trigger === "schedule" && shouldRotateSession(t.history)) {
+    const previous = t.sessionId ?? null;
+    t.sessionId = nextCronSessionId(t.id);
+    t.sessionRotatedAt = Date.now();
+    t.sessionRotatedFrom = previous;
+    t.sessionRotatedThisTurn = true;
+  } else {
+    t.sessionRotatedThisTurn = false;
+  }
   const startTime = new Date().toISOString();
   t.lastRun = startTime;
   t.state = "running";
@@ -1542,6 +1604,10 @@ function finishExecution(t, startTime, result) {
     // Token spend when the runtime reports usage on the finish chunk
     // (absent on some providers — the card omits the line, never blocks).
     ...(result?.usage ? { tokens: result.usage } : {}),
+    // Session rotation is a round-level fact: the history entry says whether
+    // THIS round started on a fresh session, so a later reader can explain a
+    // sudden cacheRead drop without guessing (rotate-cron-session-on-context-pressure).
+    ...(t.sessionRotatedThisTurn ? { sessionRotated: true } : {}),
     // Per-member model attribution (agent-cluster-platform 3.15): a cluster
     // fan-out reports the model each member actually ran under. The lane is
     // the deployment's single provider — this records WHAT model id served

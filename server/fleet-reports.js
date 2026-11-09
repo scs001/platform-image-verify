@@ -282,7 +282,25 @@ export function floodWindowMs(cadence, cronPeriodMs) {
 }
 
 // Returns { ok: true } | { ok: false, error, windowResetsAt }.
-export function checkFlood({ countSince, windowMs, now = Date.now(), oldestInWindowAt = null }) {
+//
+// `roundReports` is how many reports THIS round (same session) already filed.
+// A round that has not reported yet is never throttled: flood control exists to
+// stop one post from spamming its card, not to forbid a round from reporting.
+// Live 2026-11-09: a stray `summary:"probe"` report from a platform session
+// filled the 3-per-720min window, and the proposal post's one honest report —
+// carrying the rejected-slot disclosure — was rejected whole. The ledger kept
+// an empty `metrics:{}` row and the real report vanished, which read like "the
+// model never reported". First-report-of-round is the fix at that boundary.
+export function checkFlood({
+  countSince,
+  roundReports = null,
+  windowMs,
+  now = Date.now(),
+  oldestInWindowAt = null,
+}) {
+  // `null` = the caller did not tell us (legacy callers): keep the old
+  // behaviour rather than granting an exemption on a guess.
+  if (roundReports === 0) return { ok: true };
   if (countSince < FLOOD_MAX_PER_WINDOW) return { ok: true };
   const windowResetsAt = oldestInWindowAt != null ? oldestInWindowAt + windowMs : now + windowMs;
   return {

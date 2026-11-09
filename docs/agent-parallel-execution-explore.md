@@ -320,6 +320,15 @@ R2（每 cell −220–280Mi，但要重做 8 个隔离维度 + 崩溃域退化�
 ```
 
 - **每个 dsh 连同它的卫星 ≈ 930Mi 标称 / 约 450Mi 实扣**（RSS→cgroup 比 ≈0.48）。
+- **实测已落地（2026-11-09，`share-mcp-satellites-per-cell` 已归档；scratch / `default` ns，
+  同镜像 + 线上真实 mcp.json + 真池派发 `TASK_WORKER_MAX=2`）**：
+  - 3 个 dsh（主 + 2 worker）：关共享 **42 颗卫星 / 2848Mi**，开共享 **26 颗 / 1814Mi**
+    → **省 16 颗 / 1034Mi 标称（≈500Mi 实扣）**，正好 2×(8 颗共享集)。
+  - 规律：**省 = 8 ×（dsh 数 − 1）** 颗。本舰队共享集 8 颗 = fleet/cron/delegation +
+    blueprint-author / fleet-architect / pack-author / persona-evolution / skill-evolution；
+    `bench-proposal` 因 `envRefs`（BENCH_*）被守卫排除，`actions`/`library`/`websearch` 保持 per-runtime。
+  - 对容量决定的意义：开一个 worker 槽，共享前 ≈+995Mi 标称、共享后 ≈+430Mi 标称
+    （≈+210Mi 实扣）——**门槛降到原来的一半以下**，但降不到 0。
 - 对照：浏览器车道当年省下的是 **~170Mi/cell** → 卫星是它的 **2.6 倍**，且**每个 dsh 一份**
   （开 worker 槽就翻倍），所以 `TASK_WORKER_MAX` 实际是「每个槽 ≈ +450Mi」的开关。
 
@@ -336,6 +345,7 @@ R2（每 cell −220–280Mi，但要重做 8 个隔离维度 + 崩溃域退化�
 | 路线 | 做法 | 收益 | 风险 |
 |---|---|---|---|
 | S1 只共享无状态者 | 把 actions/fleet/cron/delegation/bench-proposal/blueprint/pack/persona/skill 这类"纯转发"卫星做成 pod 级一份，按调用方注入 `*_MCP_URL` | 每 dsh −9×(65–77)Mi ≈ −630Mi 标称 / **−300Mi 实扣** | 需一套"调用方→cell"的可信解析（浏览器车道已有同款：socket→pid→cwd）；判错=跨租户写 |
+| ~~S1 已实施~~ | **已按更窄的形态做完（`share-mcp-satellites-per-cell`，2026-11-09 归档）**：不做 pod 级、按调用方解析 cell，而是 **cell 内一份**（天然无跨租户风险），dsh 按 url 接入 | 实测 3 dsh **42→26 颗 / −1034Mi 标称**；省 = 8×(dsh−1) | 无需"调用方→cell"解析：宿主属于该 cell，越界不可能 |
 | S2 池化 + 按会话绑定 | 池内 N 个共享卫星，会话首次调用时绑定 cell，未绑定即拒 | 同上，上限更硬 | 生命周期/回收复杂；绑定错误仍致命 |
 | S3 维持现状 | 不动 | 0 | 每 dsh 约 450Mi 实扣；开 worker 槽即翻倍 |
 

@@ -91,3 +91,25 @@
   → **已达**：接线进产后（`fd23f9ceb` 起）16:14–16:26 出现 3 条 `turn stopped early (n=4)`，
   而 **15:40:49 之后再无一条 n≥4 的压力超时**。窗口 1h+，未满 24h，故按"方向达成、样本仍短"记。
   **回滚注意**：`sha-7a73257` 及更早的片**不含**本接线，回滚会把缺陷装回去。
+
+## 7. 上产后发现的第三处缺陷：早停的取消打错了 bridge（2026-11-10，`sha-3db84d7`）
+
+> 6.x 修的是「接线在不在」。这一节是「接线在、但指向错的对象」。
+
+- [x] 7.1 归因 — 早停里写死 `ctx.dshBridge?.cancelSession(sessionId)`。串行链对，worker 错：
+  会话活在**每个 worker 自己的子进程**里，发给主 bridge 的 `session/cancel` 是 no-op。
+  于是 collector 立刻按早停收口、槽释放（`prompt()` 只返回入队消息 id、不等回合结束），
+  但子进程继续跑完那一轮、继续烧预算，台账却记 `stopped early`——「修复看起来生效、代价照付」。
+- [x] 7.2 修法 — `collectTurn` 增加可注入 `cancelSession`（缺省仍是 `ctx.dshBridge`，
+  串行链行为逐字节不变）；worker 车道传 `worker.bridge.cancelSession`。
+- [x] 7.3 测试 — `test-worker-pool` 新增确定性风暴用例（阈值即停 / 取消落在 worker bridge /
+  结算 failed 且文案 stopped early）。下限注入为 0 去掉时序成分；pod 内曾 1/8 假红
+  （固定等两拍不够），改轮询状态后本地 12/12、pod 内 10/10。反证两处：去掉
+  `cancelSession` → 取消打主 bridge 即红；去掉 `earlyStop` → 用例挂住。
+- [x] 7.4 观测缺陷 — worker 的失败结算不带 metering，`carrier` 为 NULL（与「未知」不可区分）；
+  `settle` 统一盖 `carrier=worker` + `carrierInstance`。反证：去掉即红。
+- [x] 7.5 上产实测（`sha-3db84d7`，17Z 复核）— 05–15Z：早停 1（链道）、压力超时 19、其中 n≥4 **14**；
+  16Z 起：早停 **3**（324s/313s/298s，均 n=4，`carrier=null` 指纹 + spawn 日志判定为 worker 车道）、
+  **压力超时 0**、n≥4 **0**。
+  探针口径更正：早停文案本身含 `context pressure (N compactions)`，第一版正则把它同时计入超时桶
+  （报成 25/20，真值 19/14）。

@@ -94,6 +94,13 @@ export function createCellRegistry(config) {
     // add-wake-budget-admission: the contribution booked for a residency with
     // no archived footprint (MB, 0 disables → legacy current-only degrade).
     wakeDefaultFootprintMb = 512,
+    // fix-stale-wake-footprint: how long an archived footprint stays authoritative.
+    // Past this age the archive is treated as ABSENT (the wake is judged on the
+    // default footprint — exactly the "this cell has never been measured" path
+    // that already ships), then the next park re-archives a fresh number. That
+    // breaks the self-lock: a cell whose archive is too big to admit can never
+    // wake, so it can never re-measure.
+    footprintTtlMs = 6 * 60 * 60 * 1000,
   } = config;
   const cells = new Map();
   // In-flight spawns, keyed by userId. Registered BEFORE spawnCell() is called
@@ -583,7 +590,7 @@ export function createCellRegistry(config) {
       if (!(footprint > 0)) return;
       const row = registryRowForSafe(userId);
       if (!row) return;
-      registryDb.put({ ...row, lastFootprintBytes: footprint });
+      registryDb.put({ ...row, lastFootprintBytes: footprint, lastFootprintAt: Date.now() });
     } catch (e) {
       console.warn(`[gateway] footprint archive failed for ${userId}: ${e?.message || e}`);
     }
@@ -691,10 +698,33 @@ export function createCellRegistry(config) {
     // gate-disabled paths skip the ledger entirely (byte-for-byte legacy).
     // The inflight claim below stays SYNCHRONOUS with the pending check —
     // no await may slip between them (2026-10-10 duplicate-spawn guard).
+    // Freshness (fix-stale-wake-footprint): an archive older than the TTL is
+    // treated as absent — the wake is then judged on the default footprint,
+    // which is the same path a never-before-measured cell takes. A legacy row
+    // with bytes but no stamp is treated as stale (the stamp ships with this
+    // change; anything older predates it).
+    // The stamp ships with this change, so legacy rows have bytes but no
+    // `lastFootprintAt`. `updatedAt` is the fallback: `put()` touches it on the
+    // same park that wrote the footprint, so it is the same instant for any row
+    // this archive has ever written — and a row whose updatedAt is ancient is
+    // exactly the stale high-water mark we want to retire.
+    // `updatedAt` is deliberately NOT a fallback: `put()` rewrites it on every
+    // write, so it says "someone touched this row", not "when was this measured".
+    // A row carrying bytes but no stamp predates freshness tracking, and its age
+    // is unknowable — treat it as stale so the cell gets one re-measure instead
+    // of staying dark forever.
+    const archivedAt = Number.isFinite(tomb?.lastFootprintAt) ? tomb.lastFootprintAt : null;
+    // ttl <= 0 disables expiry (an archive is then always authoritative).
+    const footprintFresh =
+      archivedAt !== null && (footprintTtlMs <= 0 || Date.now() - archivedAt <= footprintTtlMs);
     const wakeFootprint = (() => {
       const fp = tomb?.lastFootprintBytes;
-      return Number.isFinite(fp) && fp > 0 ? fp : null;
+      if (!(Number.isFinite(fp) && fp > 0)) return null;
+      return footprintFresh ? fp : null; // stale ⇒ absent ⇒ default footprint
     })();
+    if (archivedAt !== null && !footprintFresh) {
+      console.log(`[gateway] cell ${userId} archived footprint ${Math.round((tomb.lastFootprintBytes ?? 0) / 1e6)}MB is stale (age ${Math.round((Date.now() - archivedAt) / 60000)}min) — judging the wake on the ${Math.round(defaultFootprintBytes / 1e6)}MB default`);
+    }
     const armed = gateArmed();
     const ownBytes = armed ? (wakeFootprint ?? defaultFootprintBytes) : 0;
     const usingDefault = armed && wakeFootprint == null && ownBytes > 0;
@@ -713,7 +743,18 @@ export function createCellRegistry(config) {
           ({ evicted, refusal } = await evictUntilAdmissible(userId, ownBytes, usingDefault));
         }
         if (refusal) {
-          recordGateRefusal(userId, user, refusal, { footprintBytes: wakeFootprint, evictedCellIds: evicted, inflightBytes: inflightBytesExcluding(userId), defaultFootprintApplied: usingDefault });
+          // Diagnostic (fix-stale-wake-footprint): would the DEFAULT footprint have
+          // fit? When this is true the refusal is being carried by the archive, not
+          // by the container — the operator can free memory or wait for the TTL
+          // instead of chasing a phantom "the cell needs 2GB".
+          const defaultVerdict = wakeFootprint !== null && wakeFootprint !== defaultFootprintBytes
+            ? memoryAdmissionVerdict({ projectedBytes: defaultFootprintBytes, inflightBytes: inflightBytesExcluding(userId), usingDefault: true })
+            : null;
+          const defaultWouldFit = defaultVerdict ? defaultVerdict.decision !== "refuse" : null;
+          if (defaultWouldFit === true) {
+            console.warn(`[gateway] cell ${userId} refused on an archived footprint of ${Math.round(wakeFootprint / 1e6)}MB while a ${Math.round(defaultFootprintBytes / 1e6)}MB default would fit — the archive is the blocker`);
+          }
+          recordGateRefusal(userId, user, { ...refusal, defaultWouldFit }, { footprintBytes: wakeFootprint, evictedCellIds: evicted, inflightBytes: inflightBytesExcluding(userId), defaultFootprintApplied: usingDefault });
           const err = new Error("cell residency refused: container memory headroom below floor");
           err.code = "memory_floor";
           err.friendly = "服务器内存余量不足，请稍后再试";

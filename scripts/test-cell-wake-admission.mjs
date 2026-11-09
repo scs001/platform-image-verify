@@ -104,7 +104,7 @@ function expectedFootprint(state, cellId) {
   return Math.round(cellRow.totalBytes * ratio);
 }
 
-function makeHarness({ idleReapSecs = 3600, floor = FLOOR, stubDelayMs = 0, wakeDefaultFootprintMb = null, releaseHoldMs = 0 } = {}) {
+function makeHarness({ idleReapSecs = 3600, floor = FLOOR, stubDelayMs = 0, wakeDefaultFootprintMb = null, releaseHoldMs = 0, footprintTtlMs = null } = {}) {
   const harness = {};
   harness.ready = (async () => {
     const root = await realpath(await mkdtemp(path.join(tmpdir(), "cell-wake-adm-")));
@@ -132,6 +132,7 @@ function makeHarness({ idleReapSecs = 3600, floor = FLOOR, stubDelayMs = 0, wake
       procMemory: sampler,
       memoryFloor: floor,
       ...(wakeDefaultFootprintMb != null ? { wakeDefaultFootprintMb } : {}),
+      ...(footprintTtlMs != null ? { footprintTtlMs } : {}),
     });
     return harness;
   })();
@@ -152,13 +153,13 @@ const idB = userIdFor(userB.email);
 
 // Seed a parked waker with an archived footprint (deterministic T2-T8 setup).
 function seedParkedWaker(harness, footprintBytes) {
-  const row = { ...newRegistryRow({ cellId: idA, ownerEmail: userA.email }), state: "suspended", lastFootprintBytes: footprintBytes };
+  const row = { ...newRegistryRow({ cellId: idA, ownerEmail: userA.email }), state: "suspended", lastFootprintBytes: footprintBytes, lastFootprintAt: Date.now() };
   harness.regDb.put(row);
 }
 // Same, for an arbitrary user (5.x reservation tests wake several cells).
 function seedParked(harness, user, footprintBytes) {
   const cellId = userIdFor(user.email);
-  const row = { ...newRegistryRow({ cellId, ownerEmail: user.email }), state: "suspended", lastFootprintBytes: footprintBytes };
+  const row = { ...newRegistryRow({ cellId, ownerEmail: user.email }), state: "suspended", lastFootprintBytes: footprintBytes, lastFootprintAt: Date.now() };
   harness.regDb.put(row);
 }
 
@@ -304,7 +305,7 @@ test("3.3 an evicted resident re-waking converges: it may evict others or be ref
   // Round 2: B re-wakes with a big archive while A is ACTIVE (untouchable) →
   // refused, staying parked. Terminal state, no livelock: the refusal is the
   // convergence point the spec names (候选耗尽仍超限 SHALL 拒绝).
-  harness.regDb.put({ ...harness.regDb.get(idB), lastFootprintBytes: 1_250_000_000 });
+  harness.regDb.put({ ...harness.regDb.get(idB), lastFootprintBytes: 1_250_000_000, lastFootprintAt: Date.now() });
   await assert.rejects(
     () => harness.registry.ensure(userB),
     (err) => {
@@ -525,4 +526,43 @@ test("5.5 fail-open and gate-disabled leave no residue", async (t) => {
   seedParkedWaker(off, FP_C);
   const cell = await off.registry.ensure(userA);
   assert.equal(cell.state, "running");
+});
+
+// ── Footprint freshness (fix-stale-wake-footprint) ──────────────────────────
+//
+// An archive is evidence with no expiry: a high-water mark captured in a heavier
+// era keeps refusing the wake that would re-measure it, so the cell can never
+// come back to correct its own record (live 2026-11-08: 2.0GB archived against
+// 755/788MB peers, headroom −28.1%, cell dark ~40min). Past the TTL the archive
+// is ignored and the wake is judged on the default footprint — the same path a
+// never-measured cell takes — and the next park writes a fresh number.
+
+test("archived footprint older than the TTL does not block the wake", async (t) => {
+  const harness = makeHarness({ footprintTtlMs: 60_000 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  // 1.25GB archived two hours ago — over the floor with any current use, exactly
+  // the shape that went dark in production.
+  harness.regDb.put({
+    ...newRegistryRow({ cellId: idA, ownerEmail: userA.email }),
+    state: "suspended",
+    lastFootprintBytes: 1_250_000_000,
+    lastFootprintAt: Date.now() - 2 * 60 * 60 * 1000,
+  });
+  const cell = await harness.registry.ensure(userA);
+  assert.equal(cell.state, "running", "a stale archive must not lockout the wake");
+});
+
+test("archived footprint inside the TTL still governs admission", async (t) => {
+  const harness = makeHarness({ footprintTtlMs: 60 * 60 * 1000 });
+  t.after(cleanup(harness));
+  await harness.ready;
+  harness.regDb.put({
+    ...newRegistryRow({ cellId: idA, ownerEmail: userA.email }),
+    state: "suspended",
+    lastFootprintBytes: 1_250_000_000,
+    lastFootprintAt: Date.now() - 60_000, // one minute old — authoritative
+  });
+  await assert.rejects(() => harness.registry.ensure(userA), (err) => err.code === "memory_floor",
+    "a fresh archive keeps its full weight");
 });

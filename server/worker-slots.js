@@ -193,19 +193,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
         chatHistory.setTitle(sessionId, task.sessionTitle);
       } catch { /* sanitize failure leaves the prompt-derived title */ }
     }
-    // Early stop applies to a worker exactly as it does to the chain
-    // (fix-worker-early-stop): both lanes run the same fleet rounds, and without
-    // this the pool silently disabled the storm stop — measured 2026-11-09, three
-    // consecutive rounds at 7/7/9 compactions each burned the full 600s because
-    // they ran on workers, while the chain path stopped at 4.
-    const collected = collectTurn(
-      ctx, childSessionId, turnTimeoutMs, worker.activeTurns, worker.collectors, sessionId,
-      {
-        earlyStop: Boolean(fleetTagOf(task)),
-        // The 60s floor stays the default; an embedder (or a test) may lower it.
-        ...(Number.isFinite(ctx.earlyStopAfterMs) ? { earlyStopAfterMs: ctx.earlyStopAfterMs } : {}),
-      },
-    );
+    const collected = collectTurn(ctx, childSessionId, turnTimeoutMs, worker.activeTurns, worker.collectors, sessionId);
     let result;
     try {
       await worker.bridge.prompt(childSessionId, [{ type: "text", text: task.prompt }]);
@@ -275,6 +263,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
 
   // Run one queued task id on a worker slot, then service the wait queue.
   async function runTaskOn(worker, id) {
+    // 交还认领标记：从这里开始该执行的归属是引擎的 in-flight 语义，
+    // 池不再声称它在 waiting 里（否则任务结束后标记会永久残留）。
+    claimed.delete(id);
     // Turn metering (add-turn-metering D3): the slot claimant is the only
     // authority on "this ran on a worker" — mark before the execution reads it.
     engine.markExecutionCarrier?.(id, "worker", worker.id);
@@ -456,6 +447,17 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
 
   // The engine's slot dispatcher: claim persona-targeted executions whenever
   // the pool can serve them now or soon; anything else goes to the primary.
+  // 已认领但还没真正开始跑的 task id。
+  //
+  // 为什么需要它：`dispatcher` 的语义是"这个我接了"——它把 id 推进 `waiting`
+  // 然后**返回 true**，引擎据此认为"已在链上"。但引擎的 onChain 集合只认
+  // `pendingExecutions` + `inFlightExecutionId`，看不到池里的 `waiting`。
+  // 于是负责补漏的 sweep 每一遍都判定这些任务是"queued but off the chain"，
+  // 打印告警并把同一个 id **再推一遍** waiting —— 线上实测每 30 秒循环一次、
+  // 永不停止，队列因此既排不空也不会报错（2026-11-09 cell 3fdc 实测）。
+  // 这份集合就是给引擎问"这个 id 到底在不在链上"用的。
+  const claimed = new Set();
+
   function dispatcher(task) {
     if (!task) return false;
     const dbg = dispatchDebugEnabled();
@@ -479,7 +481,10 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     if (task.targetType === "cluster") return no("targetType=cluster");
     // Null-ref (legacy live-preset) tasks have no persona to pin a worker to.
     if (!task.preset) return no("no-preset");
-    waiting.push(task.id);
+    if (!claimed.has(task.id)) {
+      claimed.add(task.id);
+      waiting.push(task.id);
+    }
     if (dbg) console.log(`[worker-pool] dispatch ${task.id} -> claim:${task.preset}`);
     scheduleNext();
     return true;
@@ -506,6 +511,8 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   }, Math.min(REAP_SCAN_MS, Math.max(200, idleReapMs)));
   reapTimer.unref?.();
 
+  // 让引擎的 orphan sweep 能问"这个 id 是不是池已经接了"。
+  dispatcher.claims = (id) => claimed.has(id);
   engine.setSlotDispatcher(dispatcher);
 
   return {

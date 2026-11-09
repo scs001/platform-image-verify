@@ -281,10 +281,18 @@
 **P0′-1 第六批：worker 车道的早停接线被同仓重构整段删掉（2026-11-10，镜像 sha-ffc8186）**：
 `fix-worker-early-stop` 曾把 `collectTurn(..., { earlyStop })` 接进 worker 车道（`server/worker-slots.js`）。随后 `1c003d38b`（orphan sweep 改写 dispatch 段）重写同一文件的调用点，把整个**可选参数对象连注释一起**删掉了——编译通过、类型无涉、19 条既有用例全绿，**没有任何信号**。于是池开着时（产线 `TASK_WORKER_MAX=3`）风暴早停静默失效，而串行链道照停：这正是「同一缺陷两个车道两种行为」的隐蔽形态。
 - **线上取证**：`sha-0b19a2e` 容器内 `grep -c "earlyStop: Boolean(fleetTagOf(task))" /app/server/worker-slots.js` = **0**（同时 `spill-policy`=4、阈值 4 都在，排除「镜像不对」）。
-- **基线实测（8h，按小时分桶，探针 `/tmp/stormprobe.js`）**：≥4 次压缩的风暴回合 **7 个，早停仅 1 次**（且在链道上）——13Z 1 个、14Z 2 个、15Z 1 个全部跑满。即风暴回合里 6/7 是白烧满额。
+- **基线实测（8h，按小时分桶）**：≥4 次压缩的风暴回合 **7 个，早停仅 1 次**（且在链道上）——13Z 1 个、14Z 2 个、15Z 1 个全部跑满。即风暴回合里 6/7 是白烧满额。（12h 口径的更正数字见下「实测」表：19 次超时、其中 n≥4 共 14 次。）
 - **修法**：恢复那 4 行 + 补一条**源码级接线断言**（`scripts/test-worker-pool.mjs`：调用点必须把 `earlyStop` 交给 `collectTurn`）；行为级用例依赖事件泵时序不稳定，故守接线事实而非守时序。反证：删掉该行 → 1 红；恢复 → 20/20 绿（树内同验）。
 - **部署**：新片 `sha-ffc8186` 是前一片 `sha-7a73257` 的超集（同基线 `f5cd5ebfc` + 两个提交，树内 `interrupted` 结算与 `earlyStop` 同时在），一次滚动同时完成两件事。ArgoCD 已恢复（token 修复后 16:03Z 首同步），走正常 GitOps + digest 闸门（`sha256:a412af86`，hkccr 与 ccr 同 digest）。
-- **待测**：修复后同窗口的风暴回合早停率。结构障碍见下条（每次滚镜像销毁全部 cell 子进程），需一段不滚片的窗口。
+- **第二处真问题（同夜修完，`sha-3db84d7`）**：接线恢复后取消仍写死 `ctx.dshBridge`（主 bridge）。worker 的会话活在自己的子进程里，那次 `session/cancel` 对它是 **no-op**：collector 立刻按早停收口、槽也释放（`prompt()` 只返回入队消息 id、不等回合结束），但子进程继续跑完那一轮、继续烧预算，台账却记 `stopped early`。**「修复看起来生效、代价照付」的典型。** 修法：`collectTurn` 增加可注入的 `cancelSession`（缺省仍主 bridge，串行链逐字节不变），worker 传自己的 bridge。
+- **实测（修正后的探针，见下条陷阱）**：
+  | 窗口 | `stopped early` | 压力超时 | 其中 n≥4 |
+  |---|---|---|---|
+  | 05–15Z（修复前） | 1（链道） | 19 | **14** |
+  | 16Z 起（修复后） | **3** | **0** | **0** |
+  三条早停：`16:15:07` 324s、`16:16:28` 313s、`16:26:39` 298s，均 n=4；`carrier` 为 null 而链道写 `cell`，再对上 `spawned worker-1 for persona hotel-watch-scout` 的日志 → 三条都在 worker 车道。
+- **探针陷阱（我自己踩的）**：早停文案是 `turn stopped early — context pressure (4 compactions)`，用 `context pressure \((\d+) compactions\)` 正则数压力超时会**把它一起数进去**。第一版报「25 次超时/20 次 n≥4」是重复计数，真值是 19/14。凡按文案计数，先问「这段文案会不会也被别的桶匹配」。
+- **仍未做**：worker 的失败结算不带 metering，这些行的 `carrier` 是 NULL（与「未知」不可区分）。已修（`server/worker-slots.js` 的 settle 统一盖 `carrier=worker`+`carrierInstance`），随下一片带上；本片部署的 `sha-3db84d7` 里这三行仍是 null，故上面靠日志交叉判定。
 
 **P0′-1 第五批 + 产线观测（2026-11-09）**：
 - **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。

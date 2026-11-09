@@ -28,7 +28,8 @@ process.env.DSH_HOME = path.join(tmpRoot, "dsh");
 fs.mkdirSync(process.env.DSH_HOME, { recursive: true });
 fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
 
-const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport } = await import("../server/cron-runner.js");
+const { collectTurn, timeoutError, runWrapUpReport, shouldSalvageReport, attachCronRunner } = await import("../server/cron-runner.js");
+const attachCronRunnerForTest = (ctx) => attachCronRunner(ctx, { runPersona: async () => ({ ok: true }), runA2a: async () => ({ ok: true }), listAgents: () => [] });
 
 test.after(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -143,4 +144,58 @@ test("端到端（缝级）：真超时产生 pressure 归因，随后收尾把�
   };
   const salvaged = await runWrapUpReport(ctx, { childSessionId: "child-e2e", mirrorSessionId: "mirror-e2e" });
   assert.equal(salvaged.text, "补交：本周 3 篇");
+});
+
+// ── the overflow shape (fix-fleet-output-salvage D3) ────────────────────────
+const { contextPressureDetail, OVERFLOW_RE, attributeFailureAndSalvage } = await import("../server/cron-runner.js");
+
+test("overflow 也归压力类，且与超时共用判据", () => {
+  // The live error the runtime emits when the working set stops fitting.
+  const err = 'pi-ai detected context overflow for model "deepseek-v4.1-flash"';
+  const d = contextPressureDetail(err, { compactions: 0, reported: false });
+  assert.equal(d.contextPressure, true, "an overflow is pressure, not an unknown failure");
+  assert.equal(d.kind, "context_overflow");
+  assert.equal(d.overflow, true);
+  assert.equal(shouldSalvageReport(d, { isFleet: true }), true, "and it earns the salvage lane");
+  assert.equal(shouldSalvageReport({ ...d, reported: true }, { isFleet: true }), false, "unless it already reported");
+
+  // Not every failure is pressure.
+  assert.equal(contextPressureDetail("502: upstream service temporarily unavailable"), null);
+  assert.equal(contextPressureDetail("budget_exhausted: all candidate models over daily budget"), null);
+  assert.equal(contextPressureDetail("turn timed out", { compactions: 1 }), null, "one compaction is not a storm");
+  assert.equal(contextPressureDetail("turn timed out", { compactions: 3 }).kind, "turn_budget_exceeded");
+
+  assert.ok(OVERFLOW_RE.test(err));
+});
+
+test("接线：overflow 失败走收尾补数（与超时同一条组合）", async () => {
+  const ctx = makeCtx();
+  let wrapUps = 0;
+  ctx.dshBridge = {
+    prompt: async (sessionId, blocks) => {
+      assert.match(blocks[0].text, /report_status/);
+      wrapUps += 1;
+      const push = ctx.sessionCollectors.get(sessionId);
+      push({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "补交" }] } } } } });
+      push({ method: "session.status", params: { status: "idle" } });
+    },
+  };
+  const detail = await attributeFailureAndSalvage(ctx, {
+    error: 'pi-ai detected context overflow for model "m"',
+    childSessionId: "child-ovf",
+    mirrorSessionId: "mirror-ovf",
+    isFleet: true,
+  });
+  assert.equal(detail.contextPressure, true);
+  assert.equal(detail.kind, "context_overflow");
+  assert.equal(wrapUps, 1, "the salvage lane ran on the overflow path");
+  assert.deepEqual(detail.wrapUp, { ok: true, chars: 2 });
+
+  // Non-pressure failures are left exactly as they were.
+  assert.equal(await attributeFailureAndSalvage(ctx, { error: "502 upstream unavailable", isFleet: true }), null);
+  // A fleet round that already reported needs nothing.
+  const quiet = await attributeFailureAndSalvage(ctx, {
+    error: 'context overflow', reported: true, childSessionId: "child-x", isFleet: true,
+  });
+  assert.equal(quiet.wrapUp, undefined);
 });

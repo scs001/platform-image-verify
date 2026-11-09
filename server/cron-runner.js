@@ -409,7 +409,30 @@ export function timeoutError(toolBlocks, startedAtMs, now = Date.now(), { compac
 // The salvage DECISION, apart from its effects (fix-fleet-turn-budget): one
 // predicate, so the four conditions that must all hold are testable without
 // driving a whole fleet turn. Exported for exactly that reason.
+// Two shapes of the same failure (fix-fleet-output-salvage D3, live 2026-11-08):
+// the runtime either COMPACTS until the budget dies (attributed as
+// contextPressure in timeoutError) or refuses outright with
+// `context overflow` in ~80-100s. The second used to bypass the salvage lane
+// entirely — it returns through the collector's error branch, which carried
+// `detail: null`. Both mean "this round could not fit its own work".
+export const OVERFLOW_RE = /context overflow|context_length_exceeded|maximum context/i;
+
+export function contextPressureDetail(error, { compactions = 0, reported = false, hasOutput = false } = {}) {
+  const overflow = OVERFLOW_RE.test(String(error ?? ""));
+  const pressured = overflow || compactions >= CONTEXT_PRESSURE_COMPACTIONS;
+  if (!pressured) return null;
+  return {
+    kind: overflow ? "context_overflow" : "turn_budget_exceeded",
+    contextPressure: true,
+    compactions,
+    reported: reported === true,
+    hasOutput: hasOutput === true,
+    ...(overflow ? { overflow: true } : {}),
+  };
+}
+
 export function shouldSalvageReport(detail, { interrupted = false, isFleet = false } = {}) {
+  // Pressure in EITHER shape: compaction-storm timeout or runtime overflow.
   return detail?.contextPressure === true
     // The round did not file its report. `hasOutput` is NOT the test: live
     // 2026-11-08 showed five pressure-killed rounds that had produced text and
@@ -417,6 +440,28 @@ export function shouldSalvageReport(detail, { interrupted = false, isFleet = fal
     && detail.reported !== true
     && interrupted !== true
     && isFleet === true;
+}
+
+// The error branch's whole job, in one testable place (fix-fleet-output-salvage
+// D3): attribute a failure that came back as an ANSWER (context overflow) the
+// same way the timeout path attributes its sibling, and salvage the report when
+// the predicate says this round needs it.
+export async function attributeFailureAndSalvage(ctx, {
+  error,
+  compactions = 0,
+  reported = false,
+  text = "",
+  childSessionId = null,
+  mirrorSessionId = null,
+  isFleet = false,
+} = {}) {
+  let detail = contextPressureDetail(error, { compactions, reported, hasOutput: Boolean(text) });
+  if (!detail) return null;
+  if (shouldSalvageReport(detail, { isFleet })) {
+    const salvage = await runWrapUpReport(ctx, { childSessionId, mirrorSessionId });
+    detail = { ...detail, wrapUp: { ok: Boolean(salvage?.text), chars: (salvage?.text ?? "").length } };
+  }
+  return detail;
 }
 
 export async function runWrapUpReport(ctx, { childSessionId, mirrorSessionId, timeoutMs = WRAPUP_TIMEOUT_MS } = {}) {
@@ -933,7 +978,20 @@ export async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { started
       // silent empty return) must settle FAILED, not ride ok:true with an
       // error field into billing. error wins over the collected payload.
       if (out?.error) {
-        return { ok: false, error: out.error, interrupted: false, detail: null, metering };
+        // A context-overflow failure lands here, not in the catch (the runtime
+        // answers instead of hanging). Attribute it like its timeout sibling and
+        // run the same salvage lane — an overflowed round is the one that most
+        // certainly filed nothing.
+        const detail = await attributeFailureAndSalvage(ctx, {
+          error: out.error,
+          compactions: out.compactions ?? 0,
+          reported: out.reported === true,
+          text: out.text ?? "",
+          childSessionId,
+          mirrorSessionId: sessionId,
+          isFleet: Boolean(job.sourceTag?.fleetId),
+        });
+        return { ok: false, error: out.error, interrupted: false, detail, metering };
       }
       // ttft (add-turn-metering): first assistant event − attempt start. The
       // attempt START is the prompt call's wall clock, not the seam's

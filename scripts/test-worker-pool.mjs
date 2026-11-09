@@ -515,6 +515,52 @@ test("a worker turn records exactly once even when the bridge throws", async () 
   }
 });
 
+// ── worker session rotation (fix-worker-session-rotation) ───────────────────
+//
+// The serial chain rotates the child conversation id per round
+// (fix-fleet-round-discipline: a stable id accumulated every round's history
+// until compaction ate the budget). The pool path kept prompting the MIRROR id,
+// which had two measured consequences on 2026-11-09: worker rounds re-read their
+// own accumulated conversation, and above one slot the same id was claimed from
+// two places at once (`session "…" is already owned by …` — 6 rounds, first seen
+// the hour the pool went from 1 to 3).
+//
+// The mirror id must stay the transcript/sidebar id; only the runtime prompt
+// moves to the rotated child.
+
+test("worker turns prompt a ROTATED child session, never the mirror id", async () => {
+  await bootEngine();
+  process.env.TASK_WORKER_MAX = "1";
+  try {
+    const ctx = makeCtx([]);
+    attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+    const t = engine.createManualTask({
+      prompt: "R", persona: "code", initiator: "s1",
+      // createManualTask derives sourceTag from origin.fleet (it does not take a
+      // sourceTag argument), which is exactly the shape a fleet dispatch has.
+      origin: { fleet: { fleetId: "f_rot", memberId: "m_rot", depth: 1 } },
+    });
+    await settle();
+    await settle();
+
+    const bridge = FakeBridge.byPersona.get("code");
+    assert.ok(bridge, "a worker was spawned");
+    assert.equal(bridge.prompts.length, 1, "one prompt went out");
+    const prompted = bridge.prompts[0].sessionId;
+    assert.notEqual(prompted, t.sessionId, "the runtime is NOT prompted on the mirror id");
+    assert.match(prompted, /#r\d+/, "it carries the per-round rotation suffix");
+
+    bridge.release();
+    await settle();
+    await settle();
+    assert.equal(engine.getTask(t.id).state, "done");
+    releaseAll();
+    engine.setSlotDispatcher(null);
+  } finally {
+    process.env.TASK_WORKER_MAX = "2";
+  }
+});
+
 // ── Operator ignition ordering (harden-fleet-execution-economics 3.x) ───────
 //
 // Two different markers, and they are easy to conflate:

@@ -43,10 +43,18 @@ class FakeBridge {
   async prompt(sessionId, blocks) {
     this.prompts.push({ sessionId, blocks });
     this.emit({ method: "session.event", params: { event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "stub reply" }] } } } } });
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
       this.release = resolve;
+      // E21 acceptance: let a test reject the in-flight prompt AFTER it has
+      // started, which is the shape that used to leave the turn unaccounted
+      // (prompt throws, the collector promise is still hanging).
+      this.failPrompt = reject;
     });
     this.emit({ method: "session.status", params: { status: "idle" } });
+  }
+  // Reject the prompt currently awaiting release (no-op if none is in flight).
+  failWith(err) {
+    this.failPrompt?.(err);
   }
   emit(notif) {
     this.params.onEvent(notif);
@@ -437,5 +445,71 @@ test("a worker turn that never settles is reaped by the pool watchdog", async ()
       releaseAll();
       await settle();
     }
+  }
+});
+
+// ── E21: a worker turn must leave the SAME accounting row a serial turn does
+// (fix-fleet-replay-dispatch-and-turn-accounting 2.1). Live 2026-11-08: a job
+// reported state=done success=true with token usage while member_turn_events
+// had no row for it at all — worker throughput was invisible to every audit
+// surface. These two cases pin the missing call in both directions.
+test("a worker turn settles ctx.recordFleetTurnEvent (success path)", async () => {
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+  const recorded = [];
+  ctx.recordFleetTurnEvent = (job, outcome, meta) => {
+    recorded.push({ jobId: job?.id, ok: outcome?.ok, startedAt: meta?.startedAt, endedAt: meta?.endedAt });
+    return null;
+  };
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+  try {
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    await settle();
+    await settle();
+    assert.equal(recorded.length, 0, "no row before the turn settles");
+    FakeBridge.byPersona.get("code").release();
+    await settle();
+    await settle();
+    assert.equal(engine.getTask(a.id).state, "done");
+    assert.equal(recorded.length, 1, "a worker turn MUST leave exactly one turn row");
+    assert.equal(recorded[0].jobId, a.id);
+    assert.equal(recorded[0].ok, true);
+    assert.ok(Number.isFinite(recorded[0].startedAt) && recorded[0].endedAt >= recorded[0].startedAt,
+      "the row must carry a real time window (queue_wait_ms/turn duration derive from it)");
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    for (let i = 0; i < 6; i += 1) { releaseAll(); await settle(); }
+  }
+});
+
+test("a worker turn records exactly once even when the bridge throws", async () => {
+  await bootEngine();
+  const events = [];
+  const ctx = makeCtx(events);
+  const recorded = [];
+  ctx.recordFleetTurnEvent = (job, outcome, meta) => {
+    recorded.push({ jobId: job?.id, ok: outcome?.ok });
+    return null;
+  };
+  attachWorkerPool(ctx, { spawnBridge: (p) => new FakeBridge(p) });
+
+  try {
+    const a = engine.createManualTask({ prompt: "A", persona: "code", initiator: "s1" });
+    await settle();
+    await settle();
+    // The bridge rejects BEFORE the collector produced an outcome: the failure
+    // path settles, and the success path must not settle a second time.
+    FakeBridge.byPersona.get("code").failWith(new Error("bridge exploded"));
+    await settle();
+    await settle();
+    assert.equal(recorded.length, 1, "a failed worker turn still leaves ONE row (idempotent settle)");
+    assert.equal(recorded[0].ok, false);
+  } finally {
+    releaseAll();
+    engine.setSlotDispatcher(null);
+    for (let i = 0; i < 6; i += 1) { releaseAll(); await settle(); }
   }
 });

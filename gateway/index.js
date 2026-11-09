@@ -335,7 +335,7 @@ app.use(express.static(WEB_DIST, { setHeaders: (res, filePath) => applySpaHeader
 // OWN headers (dynamic CSP, loader MIME) — the SPA fallback must not swallow
 // them before the zhiyu module answers. The member-facing /zhiyu page route
 // stays on the SPA fallback in the same breath.
-app.get(/^\/(?!api\/|external\/|auth\/|healthz$|assets\/|zhiyu\/embed\/|zhiyu\/join\/|zhiyu\/widget).*/, (_req, res) => {
+app.get(/^\/(?!api\/|external\/|auth\/|healthz$|readyz$|assets\/|zhiyu\/embed\/|zhiyu\/join\/|zhiyu\/widget).*/, (_req, res) => {
   res.sendFile(path.join(WEB_DIST, "index.html"), { headers: { "Cache-Control": SHELL_CACHE_CONTROL } });
 });
 
@@ -617,11 +617,13 @@ app.put("/api/layout/config", express.json(), (req, res) => {
 // Per-user cell status for operators. Same identity check as everything else,
 // plus the admin group: the list of users on this deployment is deployment
 // information, not something any signed-in user should be able to enumerate.
-app.get("/api/gateway/status", (req, res) => {
+app.get("/api/gateway/status", async (req, res) => {
   const user = logtoAuth.userFromCookie(req.headers.cookie);
   if (!user) return rejectUnauthenticated(req, res);
   if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
-  const cellStatus = registry.status();
+  // Cell rows carry their disk budget view (budget-cell-disk-usage 2.1); the
+  // readings are TTL-cached, so this stays one walk per cell per window.
+  const cellStatus = await registry.statusWithDisk();
   res.json({
     cells: cellStatus,
     demoCells: cellStatus.filter((c) => c.demo).length,

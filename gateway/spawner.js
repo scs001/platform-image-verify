@@ -17,6 +17,7 @@ import path from "node:path";
 import { bundledJson } from "../paths.js";
 import Database from "better-sqlite3";
 import { newRegistryRow } from "../lib/cell-registry.js";
+import { createDiskMeter } from "./cell-disk.js";
 
 // A stable, filesystem-safe per-user directory name. Derived by hashing rather
 // than by sanitizing the email so a hostile address can never contribute a path
@@ -845,6 +846,27 @@ export function createCellRegistry(config) {
     }));
   }
 
+  // Disk figures ride a SEPARATE async view: measuring 48 cell roots is I/O the
+  // sync status() must not hide behind (budget-cell-disk-usage 2.1). The readings
+  // are TTL-cached, so a polling console costs one walk per cell per window.
+  const diskMeter = createDiskMeter();
+
+  async function statusWithDisk() {
+    const base = status();
+    return Promise.all(
+      base.map(async (cell) => {
+        try {
+          const disk = await diskMeter.read(path.join(dataRoot, cell.userId));
+          return { ...cell, disk };
+        } catch (e) {
+          // A cell whose bytes cannot be read still appears — with the error,
+          // never silently missing from the board.
+          return { ...cell, disk: null, diskError: e?.message || String(e) };
+        }
+      }),
+    );
+  }
+
   async function shutdown() {
     shuttingDown = true;
     if (reaper) clearInterval(reaper);
@@ -882,5 +904,5 @@ export function createCellRegistry(config) {
     return cells.delete(userId);
   }
 
-  return { ensure, record, status, stop, drop, shutdown, cells, reapIdle };
+  return { ensure, record, status, statusWithDisk, diskMeter, stop, drop, shutdown, cells, reapIdle };
 }

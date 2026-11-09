@@ -229,3 +229,37 @@ test("legacy queued record without firstQueuedAt still reports a wait", async ()
   const h = queueHealth({ now });
   assert.ok(h.oldestQueuedMs >= 119_000, `legacy fallback (got ${h.oldestQueuedMs})`);
 });
+
+// ── busy vs stalled (fix-queue-degraded-vs-busy) ─────────────────────────────
+//
+// Live 2026-11-09: a fleet cell held 60-67 minutes of backlog while a turn
+// settled every 4-5 minutes (four of five ok), and /api/ready still answered
+// 503 — the oldest waiting item was simply older than the threshold. That is a
+// busy cell, not the stall this probe exists to catch, and 503 on the serving
+// path is a false alarm that reads like an outage.
+
+test("backlog WITH settlements flowing is busy, not degraded", async () => {
+  await freshEngine();
+  const id = addTask("settling");
+  enqueueExecution(id);
+  const now = Date.now();
+  // One clock for both facts (the probe reads them at the same instant): a
+  // settlement 30 seconds before the read, a backlog 60 minutes deep — the live
+  // 2026-11-09 shape.
+  const probeNow = now + QUEUE_MAX_OLDEST_QUEUED_MS + 50 * 60_000;
+  const engine = await import(path.join(here, "../task-engine.js"));
+  engine._stampSettlement(probeNow - 30_000);
+  const h = queueHealth({ now: probeNow });
+  assert.ok(h.oldestQueuedMs > QUEUE_MAX_OLDEST_QUEUED_MS, "the backlog is real");
+  assert.equal(h.degraded, false, "progress means busy, not stalled");
+  assert.ok(h.lastSettledAt != null, "and the fact is on the projection");
+});
+
+test("backlog WITHOUT settlements for the same window still degrades", async () => {
+  await freshEngine();
+  const id = addTask("stuck-again");
+  enqueueExecution(id);
+  const later = Date.now() + QUEUE_MAX_OLDEST_QUEUED_MS * 3;
+  const h = queueHealth({ now: later });
+  assert.equal(h.degraded, true, "nothing settled for three windows — that IS a stall");
+});

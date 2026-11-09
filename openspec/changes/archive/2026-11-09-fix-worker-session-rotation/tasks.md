@@ -18,5 +18,7 @@
 
 ## 4. 上线
 
-- [ ] 4.1 快照 → GHA → relay → digest → GitOps → ArgoCD → 舱内观测 `already owned` 是否消失
-- [ ] 4.2 归档
+- [x] 4.1 快照 21159b6 → GHA ✅ → relay → digest sha256:b351d419 → GitOps 40e3632 → ArgoCD → 舱内 `rotation=2 / spill=4 / worker=3`。
+      **观测**：`already owned` 累计 7 条全部落在 11:48–**14:08**Z，而修复镜像 **14:12:55Z** 才上线 → **修复后 0 条**。
+      同批 5 回合 **5 ok / 0 failed（100%）**，且单条输出实测 11–12KB（此前 40–43KB，内联预算生效）
+- [x] 4.2 归档

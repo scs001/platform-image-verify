@@ -8233,3 +8233,19 @@ cheap 的 Argo 也**没登记远端集群**。所以 `fd-mcp/fd-panel` 想进 Gi
 - **口径**：清单里那份旧口令现在只是**历史残留**，真源是 live secret 与
   `fd-master/fd-db-secret`；以后轮换照旧走「改 live secret + 跑 drift 检查」，
   不需要也不允许把新口令写进仓。真要彻底解决，仍是 sealed-secrets / ExternalSecrets 的活。
+
+### §15.152 续四十：凭据入仓只剩一处，已把它的四个键全部排除比对（11-09）
+
+- **全量审计**（`all-services/prod/` 下所有 Secret，只看键名与是否含内嵌口令）：
+  凭据写进清单的**只有 `fd-paper-trading-env` 一个**（4 个键：`ASTOCK_DSN`、
+  `FD_OPEN_DATA_MCP_DATABASE_URL`、`DATABASE_URL`、`JWT_SECRET`）；
+  其余 12 个服务（agent-runner-*、edu-catalog、fd-erp-*、fd-juchuang、fd-memory*、
+  fd-shilun、fd-mcp 等）都是 `envFrom`/`secretKeyRef` 按名字引用带外 secret——**正确形态**。
+- 四个键全部纳入 `ignoreDifferences`（此前只做了两条 DSN）。补上的两个按危害排更靠前：
+  - `JWT_SECRET` 被 selfHeal 回卷 = **旧令牌继续有效而无人察觉**（比 DB 口令更隐蔽，因为
+    DB 口令错了至少下次重启会炸）；
+  - `DATABASE_URL` 指向 paper-trading 自己的库（100.64.0.12:5435），轮换同样会被卷回。
+- **通用规则已写进** `docs/fd-mcp-gitops-onboarding.md`：凭据不进同步路径；实在要进，
+  就必须 `ignoreDifferences`（只列凭据键，不列整块 `/data`）+ `RespectIgnoreDifferences=true`，
+  并在轮换后跑 `tools/check-dsn-drift.sh` 再重启服务。
+- 验证：`drift_exit=0`（7/7 当前口令），Argo 应用 `Synced Healthy`。

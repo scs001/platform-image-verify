@@ -86,6 +86,57 @@ h.success === false              → 真失败
 且集中在几分钟的窗口里，那是重启假信号，不是饥饿。已修（水位
 `lastMissedCountedUntil`，同一缺口只记一次）。
 
+### 4.1 `missed` 的两个新口径（2026-11-09 复算后补）
+
+**① 撞上限的行只是下界。** `countMissedBetween` 一次加载最多数
+`MAX_MISSED_PER_LOAD = 100` 个触发点；撞上限时水位照样推进到 `now`，
+超出那截**永久不计**。这是有意的取舍（反过来的错——重复记——曾让我误判
+"饥饿恶化"），但必须打标：写入方盖 `missedCapped: true`，
+`summarizeHistory()` 分开报 `missed`（行数）/ `missedOccurrences`（次数）/
+`missedCapped`（下界行数）。**一行 `missed:100` 与一行 `missed:1` 都是"一次记录"，
+但差 100 倍**——用行数当饥饿量级会把最糟的 job 读成最轻的。
+
+**② 暂停任务不欠轮次。** 原先 boot pass 只把 `!paused` 用在补跑与告警上，
+`countMissedOccurrences` 与落盘没拦：一个 10-25 起就暂停的 `17 * * * *` 任务
+在每次 cell 重启时都记一笔缺口，24h 内积到 **2700 次（27 行 × 上限 100）**，
+占该窗口全部 missed 的 83%，读起来像"排队饥饿恶化"。现已跳过暂停任务；
+resume 时把水位推到 `now`，不把暂停窗口当欠账。
+
+### 4.2 唯一读面：`scripts/queue-history-stats.mjs`
+
+不要再在报表脚本里自己写 `cls()`——那正是同一天里同一个形状被读错三次的原因。
+
+```bash
+# 直接对生产 job 库算（先从 cell 拷出来；3MB 级文件 kubectl cp 会截断，见 §6）
+node scripts/queue-history-stats.mjs --hours 24 /path/cell-a.json /path/cell-b.json
+node scripts/queue-history-stats.mjs --hours 24 --per-task ...   # 按饥饿比排序
+node scripts/queue-history-stats.mjs --json ...                  # 给 24h 报表吃
+node scripts/queue-history-stats.mjs --hours 24 --trusted ...    # 见下
+```
+
+两条内置的诚实性约定：
+
+- **坏文件不当零行**：解析失败的文件单独列出。`kubectl cp` 截断过的 JSON
+  看起来只是"这个 cell 没记录"，实测骗过一次。
+- **存量污染要告警**：`kind` 字段是 2026-11-09 才加的，之前写入的 missed 行
+  没有它，而且那批数字本身就是重复记的。窗口一旦跨过修复时刻，`missed`
+  就是虚高的——脚本会点名有几行 legacy burst，`--trusted` 只丢掉
+  **存量的 missed 行**（执行行的 `state` 一直都在，分类不依赖 `kind`）。
+
+**复算结果（2026-11-09，4 个在用 cell，24h 窗口；窗口边随运行时刻滑动）：**
+
+| 读法 | 分母 | 结果 |
+|---|---|---|
+| 正确（`executed`） | 557 | **失败率 34.6%**（failed 193） |
+| 旧读法（missed+meta 当失败） | 1007 | 63.9%（failed 643） |
+
+差 **1.85 倍**。旧读法把 375 行 missed 与 75 行校准留痕（`note` 行）一起
+塞进了失败桶——那 75 行正是我自己早前做校准留下的审计行。
+
+⚠️ `--trusted` 在该窗口返回 `missed = 0`：线上**还没写入任何一行
+`kind:"missed"`**（镜像未更新），所以当期窗口里的 missed 全是存量。
+饥饿量级要等带本次改动的镜像上产、且窗口完全落在修复之后才可读。
+
 历史读法（有效，但要看窗口内是否重启过）：2026-11-08 最近 24h 真执行 590
 （done 148 / failed 328 / skipped 114），另有 842 次到期未跑 → 失败率 55.6%。
 （更早的 89.7% 是把 missed 当成失败算出来的，错。）

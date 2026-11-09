@@ -634,9 +634,37 @@ function enqueueExecution(id, opts = {}) {
     // fine while the task had been parked for hours. Carry the state AND how
     // long it has waited so the caller can tell "just queued" from "been
     // sitting there since 00:34".
+    //
+    // An operator's run-now on a task that is ALREADY queued must still count
+    // as an operator's ignition (harden-fleet-tool-face-and-queue 2.1): the
+    // staleness policy only exempts `queuedBy === "human"`, and that stamp is
+    // written once per queue residence. Live 2026-11-09: `POST
+    // /api/cron/:id/run` answered `{ok:true, already:true, queuedForMs:481625}`
+    // and left `queuedBy` null, so the operator's request inherited the cadence
+    // fire's staleness and sat one bound away from being dropped. Upgrading the
+    // stamp deliberately does NOT move the entry or touch `firstQueuedAt`: the
+    // wait that already happened is real.
+    let upgraded = false;
+    if (opts.by === "human" && t.state === "queued" && t.queuedBy !== "human") {
+      t.queuedBy = "human";
+      t.history ||= [];
+      const anchor = queueAnchorMs(t);
+      t.history.push({
+        time: new Date().toISOString(),
+        duration: 0,
+        state: "queued",
+        success: null,
+        error: null,
+        note: "run-now on an already-queued fire: staleness exemption upgraded to human",
+        waitedMs: anchor === null ? null : Math.max(0, Date.now() - anchor),
+      });
+      void saveTasks();
+      upgraded = true;
+    }
     return {
       ok: true,
       already: true,
+      ...(upgraded ? { upgraded: true } : {}),
       state: t.state,
       queuedForMs: (() => {
         const anchor = queueAnchorMs(t);

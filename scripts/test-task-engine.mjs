@@ -143,6 +143,33 @@ test("enqueue guards: paused rejected, already-queued is a no-op", async () => {
   assert.equal(task.history.length, 1); // exactly one execution ran
 });
 
+test("run-now on an already-queued fire upgrades the staleness exemption", async () => {
+  // harden-fleet-tool-face-and-queue 2.1. Live 2026-11-09: a scheduled fire had
+  // waited 8 minutes (queuedBy=null) and POST /api/cron/:id/run answered
+  // {already:true, queuedForMs:481625} without touching queuedBy — so the
+  // operator's request kept the cadence fire's age and was one bound from being
+  // dropped. The upgrade must not reorder the entry or reset its wait.
+  await boot([legacyRecord()]);
+  engine.enqueueExecution("job_1", { by: "cadence" });
+  const before = engine.getTaskRecord("job_1"); // raw: clientShape strips queuedBy
+  assert.equal(before.queuedBy, "cadence", "a cadence fire is not exempt");
+  const anchor = before.firstQueuedAt;
+
+  const again = engine.enqueueExecution("job_1", { by: "human" });
+  assert.equal(again.already, true);
+  assert.equal(again.upgraded, true, "the caller must be able to tell the stamp moved");
+  const after = engine.getTaskRecord("job_1");
+  assert.equal(after.queuedBy, "human", "an operator ignition is exempt from the age bound");
+  assert.equal(after.firstQueuedAt, anchor, "催办不得清零已等待的时长");
+  assert.equal(after.history.at(-1).note.includes("upgraded to human"), true, "催办必须留痕");
+
+  // A second run-now is a plain no-op: the stamp is already human.
+  const third = engine.enqueueExecution("job_1", { by: "human" });
+  assert.equal(third.already, true);
+  assert.equal(third.upgraded, undefined);
+  await engine.idle();
+});
+
 test("failed execution records the gist and re-run works", async () => {
   let n = 0;
   await boot([legacyRecord()], async () => {

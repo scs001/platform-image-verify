@@ -83,6 +83,12 @@ const pendingExecutions = [];
 let executionDraining = false;
 // The execution spliced off the queue and about to start (see drainExecutions).
 let inFlightExecutionId = null;
+// Orphan debounce (fix-orphaned-queued-executions): enqueue→dispatch is not
+// synchronous, so a task can briefly read `queued` with no pending execution and
+// would otherwise be counted (and reported) as an orphan for that instant. Only a
+// task seen off-chain on TWO consecutive evaluations is treated as orphaned —
+// that is drift, not a dispatch in flight.
+let orphanCandidates = new Set();
 
 // ── Persistence ─────────────────────────────────────────────────────────────
 
@@ -1692,10 +1698,16 @@ function queueHealth({ now = Date.now(), budgetOf = null, graceMs = null } = {})
   // 2026-11-09: exactly that for ~20 minutes, with `fairness` pending = 0.
   const onChain = new Set(pendingExecutions.map((e) => e.id));
   if (inFlightExecutionId) onChain.add(inFlightExecutionId);
-  let orphaned = 0;
+  const suspects = new Set();
   for (const t of tasks.values()) {
-    if (t.state === "queued" && !onChain.has(t.id)) orphaned += 1;
+    if (t.state === "queued" && !onChain.has(t.id)) suspects.add(t.id);
   }
+  const orphanIds = [...suspects].filter((id) => orphanCandidates.has(id));
+  const orphaned = orphanIds.length;
+  if (orphaned > 0) {
+    console.warn(`[task-engine] queue health: ${orphaned} orphaned queued execution(s): ${orphanIds.slice(0, 5).join(", ")}`);
+  }
+  orphanCandidates = suspects;
   return {
     queued,
     running,

@@ -289,6 +289,7 @@ test("a queued-but-off-chain task is re-dispatched instead of being absorbed", a
     // Reproduce the orphan: state says queued, but nothing pending holds it.
     const rec = engine.getRecord("orphan");
     rec.state = "queued";
+    engine.queueHealth(); // first sighting (dispatch may be in flight)
     assert.equal(engine.queueHealth().orphaned >= 1, true, "the probe must count it");
     assert.equal(engine.queueHealth().degraded, true, "an orphan degrades the probe");
 
@@ -310,6 +311,7 @@ test("the periodic sweep revives an orphan that nobody re-fires", async () => {
     await waitFor(() => started.includes("orphan-swept"));
     // Drift into the orphan state: queued, but no pending execution holds it.
     engine.getRecord("orphan-swept").state = "queued";
+    engine.queueHealth(); // first sighting (dispatch may be in flight)
     assert.equal(engine.queueHealth().orphaned >= 1, true);
     const before = started.filter((x) => x === "orphan-swept").length;
     engine.sweepStaleQueuedFires();

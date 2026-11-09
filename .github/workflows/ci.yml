@@ -44,6 +44,16 @@ jobs:
       - name: Lint (Biome)
         run: npm run lint
 
+      # release-line-hygiene: the same judgement the local pre-push hook makes,
+      # over the pushed range. It exists because a pusher without the hook (or
+      # with SKIP_LINT_HOOK=1) would otherwise ship lint-red code and block the
+      # IMAGE build — where the submit already left the machine and someone else
+      # has to clear it. Scoped to the changed files so pre-existing debt in
+      # untouched files never turns this red.
+      - name: Lint (pushed range)
+        if: github.event_name == 'push'
+        run: node scripts/lint-changed.mjs --range "${{ github.event.before }}..${{ github.sha }}"
+
       - name: dsh adapter boundary (ADR-0023)
         run: node scripts/lint-dsh-adapter.mjs
 

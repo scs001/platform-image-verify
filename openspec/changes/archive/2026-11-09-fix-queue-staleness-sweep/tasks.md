@@ -21,4 +21,9 @@
 
 ## 4. 收口
 
-- [ ] 4.1 出片 + GitOps 滚版，并在产上确认那条 80 分钟的过龄排期轮被清扫、`/api/ready` 从 503(队列降级) 恢复 200
+- [x] 4.1 出片 + GitOps 滚版，并在产上确认清扫生效、探针恢复
+  - 出片 `sha-89f4ce3`（快照 60a6912ba）：relay OK 2026-11-09T13:26:33+08:00；GitOps `04aad49`；Argo 落地后
+    容器内 `grep -c sweepStaleQueuedFires task-engine.js` = 2，且同时 `recordFleetTurnEvent` = 2（未顶掉他线 E21）
+  - 产上复核：cell 1da519d4c1c0bf89 队列最老等待由 80.3 分钟降到 4.3 分钟，`/api/ready` 由
+    `503 {"ready":false,…"degraded":true,"oldestQueuedMs":4597515}` 恢复为
+    `200 {"ready":true,"dshInitError":null,…}`

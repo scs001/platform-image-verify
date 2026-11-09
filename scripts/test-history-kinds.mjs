@@ -79,3 +79,34 @@ test("the engine stamps kind on the entries it writes", async () => {
   const last = (rec.history || []).at(-1);
   assert.equal(last?.kind, HISTORY_KIND.EXECUTION, `recordFailedFire must stamp kind, got ${JSON.stringify(last)}`);
 });
+
+// ── 缺口是次数，不是行数；撞上限的行只是下界 ─────────────────────────
+test("missed counts occurrences, not rows", () => {
+  // 一行 missed:100 和一行 missed:1 都是「一次记录」，但差 100 倍。
+  // 用行数当饥饿量级会把最糟的那个 job 读成最轻的。
+  const s = summarizeHistory([
+    { kind: "missed", success: null, missed: 100 },
+    { kind: "missed", success: null, missed: 1 },
+    { kind: "execution", state: "done", success: true },
+  ]);
+  assert.equal(s.missed, 2, "rows");
+  assert.equal(s.missedOccurrences, 101, "occurrences");
+  assert.equal(s.starvationRatio, 101, "ratio is occurrences / executed");
+});
+
+test("a capped row is a floor and says so", () => {
+  // cron.js 一次加载最多数 MAX_MISSED_PER_LOAD(100) 个触发点；撞上限时
+  // 超出那截永久不计（水位仍推进到 now，宁愿少报也不重复记）。
+  const s = summarizeHistory([
+    { kind: "missed", success: null, missed: 100, missedCapped: true },
+    { kind: "missed", success: null, missed: 1 },
+  ]);
+  assert.equal(s.missedCapped, 1, "readers must be able to tell a floor from an exact count");
+  assert.equal(s.missedOccurrences, 101);
+});
+
+test("no executions means no ratio and no rate", () => {
+  const s = summarizeHistory([{ kind: "missed", success: null, missed: 5 }]);
+  assert.equal(s.starvationRatio, null, "∞ is not a number anyone can compare");
+  assert.equal(s.failureRate, null);
+});

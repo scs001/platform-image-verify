@@ -11,7 +11,12 @@
 import schedule from "node-schedule";
 import cronParser from "cron-parser";
 import * as engine from "./task-engine.js";
-import { catchUpWindowMs, withinCatchUpWindow, countMissedBetween } from "./server/cron-decisions.js";
+import {
+  catchUpWindowMs,
+  withinCatchUpWindow,
+  countMissedBetween,
+  MAX_MISSED_PER_LOAD,
+} from "./server/cron-decisions.js";
 import { resolveTurnBudgetMs, fleetTagOf } from "./server/cron-runner.js";
 
 // ── Initialization ────────────────────────────────────────────────────────────
@@ -62,12 +67,18 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
       // (harden-cell-execution-reliability) — the miss record alone is not
       // sufficient, silent swallowing is banned. Cron-only: interval rows have
       // no cron expression to parse.
-      if (j.cron) {
+      // 到期未执行（missed）只统计**本该跑却没跑**的轮次。暂停任务不在其列：
+      // 不跑是所有者的本意（同 test-cron-catchup "boot 暂停任务窗外丢轮" 的口径），
+      // 但这里原先只把 `!j.paused` 用在补跑与告警上，计数与落盘没拦——
+      // 于是一个 10-25 就暂停的 `17 * * * *` 每小时任务在每次 cell 重启时都记一笔
+      // 缺口，24h 内被记了 2700 次（27 行 × 上限 100），读起来像"排队饥饿"。
+      // 暂停即无义务，一律不计数、不写历史行。
+      if (j.cron && !j.paused) {
         const missed = countMissedOccurrences(j);
         if (missed > 0) {
           void engine.saveTasks();
-          if (!j.paused && withinToleranceWindow(j)) catchUp.push(j.id);
-          else if (!j.paused) alertMissedBeats(j, missed);
+          if (withinToleranceWindow(j)) catchUp.push(j.id);
+          else alertMissedBeats(j, missed);
         }
       }
       scheduleJob(j);
@@ -280,8 +291,23 @@ function countMissedOccurrences(task) {
       task.history = task.history || [];
       // 到期未执行是**独立一类**，不是失败（1.4）：写入方声明 kind，
       // 读方不必再猜这个形状（同一天里它被误读成失败过一次，89.7% 假失败率）。
-      task.history.push({ kind: "missed", time: now.toISOString(), missed, success: null });
-      console.log(`[cron] Task ${task.id} missed ${missed} occurrence(s) during downtime`);
+      //
+      // 一次加载最多数 MAX_MISSED_PER_LOAD 个触发点，碰到上限时这个数只是**下界**：
+      // 水位照样推进到 now（宁愿少报也不重复记——重复记曾让我误诊"饥饿恶化"），
+      // 于是超出上限的那截缺口永久不计。所以撞上限必须打标，否则读方会把
+      // 「≥100」当成「正好 100」，而汇总里 starvationRatio 就成了假下界。
+      const capped = missed >= MAX_MISSED_PER_LOAD;
+      task.history.push({
+        kind: "missed",
+        time: now.toISOString(),
+        missed,
+        ...(capped ? { missedCapped: true } : {}),
+        success: null,
+      });
+      console.log(
+        `[cron] Task ${task.id} missed ${missed} occurrence(s) during downtime`
+        + (capped ? " (hit the per-load cap: this is a floor, the rest of the gap is not counted)" : ""),
+      );
       return missed;
     }
   } catch (err) {
@@ -854,7 +880,12 @@ async function resumeJob(id) {
   // occurrence is recomputed from the anchor grid; spec: on resume a recurring
   // task continues from the next future occurrence).
   if (task.type === "recurring" && (task.cron || task.interval)) {
-    if (task.cron) countMissedOccurrences(task);
+    if (task.cron) {
+      // 恢复时同样不把暂停窗口算成缺口：那段时间没跑是所有者按下的暂停。
+      // 把水位推到 now，等于"暂停期间的触发点不欠"，之后再积累的才计数。
+      task.lastMissedCountedUntil = new Date().toISOString();
+      countMissedOccurrences(task);
+    }
     scheduleJob(task);
   } else if (task.type === "once" && task.when) {
     const scheduledAt = new Date(task.when);

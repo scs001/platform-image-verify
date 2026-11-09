@@ -943,55 +943,14 @@ function supersedeQueuedForPost(t) {
 //   ③ 真失败是 `{success:false, state:"failed"}`。
 // 统计脚本各自写 `cls()` 猜，于是每猜一次就错一次。类型必须由**写入方**声明，
 // 读方按 `kind` 分流；旧数据没有 `kind` 时按形状回退推断（见 classifyHistoryEntry）。
-const HISTORY_KIND = {
-  EXECUTION: "execution",       // 真跑过：state ∈ done/failed/interrupted/skipped
-  MISSED: "missed",             // 到期未执行（从未开始）
-  SUPERSEDED: "superseded",     // 被同岗位新一轮顶替
-  QUEUED_UPGRADE: "queued-upgrade", // 入队时把 staleness 豁免升级为 human
-  META: "meta",                 // 其它元数据（不得计入任何执行统计）
-};
-
-// 读方唯一入口。**新写入的条目靠 kind；旧条目靠形状回退**——两条路都在这里，
-// 别在调用方再写一遍 if。
-function classifyHistoryEntry(h) {
-  if (!h || typeof h !== "object") return HISTORY_KIND.META;
-  if (h.kind && Object.values(HISTORY_KIND).includes(h.kind)) return h.kind;
-  if (h.supersededBy) return HISTORY_KIND.SUPERSEDED;
-  if (h.state === "queued") return HISTORY_KIND.QUEUED_UPGRADE;
-  if (h.success === null && h.missed) return HISTORY_KIND.MISSED;
-  // 有 state 才是真执行；没有 state 的（只有 note/时间戳）一律当元数据，
-  // 绝不能落进"失败"桶——今天 75 条校准留痕就是这么把 38.3% 变成 62.1% 的。
-  if (h.state === "done" || h.state === "failed" || h.state === "interrupted"
-      || h.state === "skipped") {
-    return HISTORY_KIND.EXECUTION;
-  }
-  return HISTORY_KIND.META;
-}
-
-// 汇总一条记录的 history。执行类只在 EXECUTION 里分流，missed/meta 单独计数，
-// 这样"失败率"的分母永远只含真执行过的回合。
-function summarizeHistory(entries) {
-  const out = { done: 0, failed: 0, skipped: 0, interrupted: 0, missed: 0, superseded: 0, meta: 0 };
-  for (const h of entries || []) {
-    switch (classifyHistoryEntry(h)) {
-      case HISTORY_KIND.MISSED: out.missed += 1; break;
-      case HISTORY_KIND.SUPERSEDED: out.superseded += 1; break;
-      case HISTORY_KIND.QUEUED_UPGRADE:
-      case HISTORY_KIND.META: out.meta += 1; break;
-      default: {
-        const st = h?.state;
-        if (st === "done") out.done += 1;
-        else if (st === "failed") out.failed += 1;
-        else if (st === "skipped") out.skipped += 1;
-        else if (st === "interrupted") out.interrupted += 1;
-        else out.meta += 1;
-      }
-    }
-  }
-  out.executed = out.done + out.failed + out.skipped + out.interrupted;
-  out.failureRate = out.executed > 0 ? out.failed / out.executed : null;
-  return out;
-}
+// history[] 的分类与汇总住在 server/history-kinds.js：那个模块是纯函数
+// （不碰 fs/时钟/引擎），报表脚本可以直接给生产记录分类而不必加载引擎。
+// 这里 import 进来再原样导出，in-cell 调用方的入口不变。
+import {
+  HISTORY_KIND,
+  classifyHistoryEntry,
+  summarizeHistory,
+} from "./server/history-kinds.js";
 
 function queueAnchorMs(t) {
   if (!t) return null;

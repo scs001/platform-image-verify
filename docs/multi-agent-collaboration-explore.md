@@ -210,6 +210,13 @@
 
 **处置（2026-11-08 收口）**：`fix-fleet-output-salvage`（镜像 sha-41b95d9）——①超时归因点名 `contextPressure` + 压缩次数，文案改成 `turn timed out — context pressure (N compactions)`；②空产出且压力超时的**舰队**回合，失败收口后向同一子会话追加一次「只交报数、拒绝其他工具、90s 预算」的收尾询问，回合仍记 failed、`detail.wrapUp` 如实记录是否补到内容；四类排除（已有文本/非舰队/运行时中断/未达阈值）。规格落 `cron-module`。
 
+**P0′-1 第五批 + 产线观测（2026-11-09）**：
+- **overflow 与压缩风暴归一**：`pi-ai detected context overflow` 此前从 collector 的 error 分支返回、`detail` 为空，收尾车道看不到它；现与超时共用 `contextPressureDetail()`，error 分支同规格补数（`attributeFailureAndSalvage`）。
+- **收尾判据改按报数**：上线后头 6 条压力回合里 5 条有文本却零报数，旧判据（有文本就不补）恰在最需要时不动作；现以「已完成的 `report_status` 调用」为准，窗口 90s→240s，prompt 更硬。
+- **留痕 `salvageFacts`**：当晚两次出现「原因已点名却没收尾」，所有解释只能从外面猜；现在每次压力失败都带 `{isFleet,interrupted,pressure,reported}`（拒绝时带 `salvageSkipped`）。
+- **实测**：新镜像上触发 17 回合 16 ok（94%）；但 03Z 时段被上游 502/429 打穿（3 ok / 12 bad），那段失败与我的改动无关，且**压力判据正确未误伤**（`salvageFacts=0` 因为没有压力类失败）。
+- **观测的结构性障碍（重要）**：今天 `platform.yaml` 被改 12 次（7 次滚镜像），Deployment 是 `Recreate` + 单副本，**每次重建都销毁所有 cell 子进程**：队列清空、在飞回合丢弃、runtime 重新初始化。这既是「触发—等待—统计」拿不到干净样本的原因，也是产线通过率的真实成本之一（重启后的回合以 5xx/429 形态失败）。
+
 **P0′-1 第四批（2026-11-08，镜像 sha-7b92fa7）**：`cron_list` —— **单次最大**（12 次共 1.3MB，均 112KB/次）。根因不是格式而是构成：一个 cell 817 个任务里 **659 个是舰队物化的节奏任务**（85%）。现按 scope（user 默认/fleet/all）分域、分页默认 30 上限 200、头部永远报全量账目；未知 scope 回落最窄。实弹：同一 cell 默认页 30 行、输出 ~5KB。
 
 **P0′-1 第三批（2026-11-08，镜像 sha-6f121f5）**：`fleet_list` —— 53 次调用 × **单次 31.5KB**（共 1.7MB），而每行只 6 个短字段：体积全在 `JSON.stringify(…,null,2)` 的缩进。改紧凑 + 六字段投影，**名册仍完整下发**（漏项=谎报不存在）；200 行病态上限并回带 total/truncated。剩余最大单次：`cron_list` **112KB/次**（12 次 1.3MB）。

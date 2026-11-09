@@ -50,26 +50,29 @@ test.describe("legacy route redirects", () => {
     await expect(page.getByTestId("documents-page")).toBeVisible({ timeout: 15000 });
   });
 
-  test("/extensions → /mcp", async ({ page }) => {
+  test("/extensions → the materials market's tools tab", async ({ page }) => {
     await pinLocaleEn(page);
+    // unify-material-market moved this surface out of Settings; the extension
+    // ADDRESSES survive as redirects into the market (App.tsx:452-458), so the
+    // old /mcp target can never be reached again.
     await page.goto("/extensions");
-    await expect(page).toHaveURL(/\/mcp$/);
+    await expect(page).toHaveURL(/\/agents\?tab=tools$/);
     const root = page.getByTestId("extensions-page");
     await expect(root).toBeVisible({ timeout: 15000 });
     await expect(root).toHaveAttribute("data-extensions-type", "mcp");
   });
 
-  test("/extensions/mcp → /mcp", async ({ page }) => {
+  test("/extensions/mcp → the tools tab", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/extensions/mcp");
-    await expect(page).toHaveURL(/\/mcp$/);
+    await expect(page).toHaveURL(/\/agents\?tab=tools$/);
     await expect(page.getByTestId("extensions-page")).toBeVisible();
   });
 
-  test("/extensions/skills → /skills", async ({ page }) => {
+  test("/extensions/skills → the skills tab", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/extensions/skills");
-    await expect(page).toHaveURL(/\/skills$/);
+    await expect(page).toHaveURL(/\/agents\?tab=skills$/);
     const root = page.getByTestId("extensions-page");
     await expect(root).toBeVisible();
     await expect(root).toHaveAttribute("data-extensions-type", "skills");

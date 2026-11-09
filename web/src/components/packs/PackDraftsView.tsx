@@ -25,6 +25,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "./Badge";
 import { Switch } from "@/components/ui/switch";
 import { Upload } from "lucide-react";
+import { PublishChecklist } from "./PublishChecklist";
+import { buildChecklist, rowsFromRefusal } from "@/lib/publishChecklist";
+import { trialTarget, trialHandoffHref } from "@/lib/trialHandoff";
+import { draftRelation } from "@/lib/draftRelation";
 
 const emptyEntries = { skills: [], mcpServers: [], agents: [] };
 
@@ -34,7 +38,17 @@ let uid = 0;
 const nextKey = () => `e${++uid}`;
 const withKeys = <T,>(items: T[]) => items.map((v) => ({ key: nextKey(), value: v }));
 
-export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
+export function PackDraftsView({
+  onPublished,
+  runOrigin,
+  onOpenChat,
+}: {
+  onPublished?: () => void;
+  /** Set only when this view is hosted by the facet shell (cross-domain trial). */
+  runOrigin?: string;
+  /** In-domain trial's last step: open a conversation. */
+  onOpenChat?: () => void;
+}) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState<PackDraft[]>([]);
   const [editing, setEditing] = useState<PackDraft | null>(null);
@@ -93,6 +107,8 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
       <PackDraftEditor
         draft={editing}
         bridgeReport={bridgeReport}
+        runOrigin={runOrigin}
+        onOpenChat={onOpenChat}
         onClose={() => {
           setEditing(null);
           setBridgeReport(null);
@@ -219,12 +235,24 @@ function PackDraftEditor({
   onClose,
   onPublished,
   onImported,
+  runOrigin,
+  onOpenChat,
 }: {
   draft: PackDraft;
   bridgeReport?: BridgeReport | null;
   onClose: () => void;
   onPublished: (updated: PackDraft) => void;
   onImported?: (draft: PackDraft) => void;
+  /** Cross-domain run origin (facet shell) — the contract for a host that
+   *  carries drafts on the supply domain. NOTE: no such host exists today
+   *  (PackDraftsView mounts only in AgentMarketPage, which passes no
+   *  runOrigin), so this branch is currently UNREACHABLE and not e2e-covered.
+   *  It stays because it is the designed affordance (complete-creator-loop D2):
+   *  a draft surface on the facet shell must hand the trial off rather than
+   *  pretend to execute. Delete it only together with that decision. */
+  runOrigin?: string;
+  /** Opens the conversation after an in-domain install (the shipped next step). */
+  onOpenChat?: () => void;
 }) {
   const { t } = useTranslation();
   const { marketCatalog, refreshMarketCatalog } = useExtensionsStore();
@@ -327,6 +355,8 @@ function PackDraftEditor({
   const [gateGaps, setGateGaps] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [trialBusy, setTrialBusy] = useState(false);
+  const [trialNote, setTrialNote] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -457,6 +487,9 @@ function PackDraftEditor({
       }
       setPublishResult(t("packs.editor.publishOk", { version: r.version }));
       setGateGaps(null);
+      // The live version just moved: re-read it so the relation line says
+      // "matches v N" instead of "unpublished changes since v N-1".
+      void loadPublishedManifest();
       onPublished({ ...draft, ...updated, publishedPackId: draft.publishedPackId ?? r.id });
     } catch (err) {
       // 4.9 分级提示: the server answers verbatim. An official en-coverage
@@ -525,6 +558,83 @@ function PackDraftEditor({
       (el as HTMLElement).focus();
     }
   };
+
+  // 一试（complete-creator-loop D2）：供给域不执行，只把包交到能执行的地方。
+  // 域内 = 装进本工作台并开口对话（与市场详情同一套 subscribe → install 路径）；
+  // 跨域 = 交给运行域的既有深链，由它自己的装 → 打开对话承接。
+  // 未发布过的草稿没有 pack id，install 只收 {packId, version}，所以结构上装不了
+  // ——这里如实说「先发布一版」，而不是给一个点了会失败的按钮。
+  const trial = async () => {
+    setTrialNote(null);
+    const target = trialTarget(draft);
+    if (!target.ok) {
+      setTrialNote(t("packs.trial.unpublished"));
+      return;
+    }
+    if (runOrigin) {
+      const href = trialHandoffHref(runOrigin, target.packId);
+      window.open(href, "_blank", "noopener");
+      return;
+    }
+    setTrialBusy(true);
+    try {
+      const sub = await api.subscribePack(target.packId);
+      await api.installPack(sub.packId, sub.version);
+      setTrialNote(t("packs.trial.started", { version: sub.version }));
+      onOpenChat?.();
+    } catch (err) {
+      setTrialNote((err as Error).message);
+    } finally {
+      setTrialBusy(false);
+    }
+  };
+
+  // 草稿 ↔ 线上（complete-creator-loop 3.1）：服务端把清单原文存库，所以这条关系
+  // 可以由「编译后的草稿清单」与「线上最新版清单」结构性比较得出——不引入脏标记。
+  // 拉取失败就不显示（关系未知不是「已一致」）。
+  const [publishedManifest, setPublishedManifest] = useState<{ version: number; manifest: unknown } | null>(null);
+  const loadPublishedManifest = useCallback(async () => {
+    const packId = draft.publishedPackId;
+    if (!packId) {
+      setPublishedManifest(null);
+      return;
+    }
+    try {
+      const d = await api.getPack(packId);
+      setPublishedManifest({ version: d.version, manifest: d.manifest });
+    } catch {
+      // Unknown is not "in sync": no line rather than a false claim.
+      setPublishedManifest(null);
+    }
+  }, [draft.publishedPackId]);
+  useEffect(() => {
+    void loadPublishedManifest();
+  }, [loadPublishedManifest]);
+
+  // The four publish gates, aggregated (complete-creator-loop 1.2). Reads the
+  // same state the publish pre-checks read; it adds no condition of its own.
+  const checklistRows = buildChecklist({
+    mcpPicked,
+    mcpTools,
+    fullSurfaceReasons,
+    vocabularySlugs: vocabulary.map((v) => v.slug),
+    domainPicks,
+    audiencePicks,
+    coverage,
+  });
+  // A refused publish maps into the same rows, so the panel never speaks two
+  // vocabularies for one problem.
+  const refusalRows = gateGaps?.length
+    ? rowsFromRefusal({ code: "official_en_coverage_incomplete", missing: gateGaps })
+    : [];
+
+  // The relation line (3.1): computed from the same manifest the publish path
+  // would send, so saving nothing is needed to get a truthful answer.
+  const relation = draftRelation({
+    version: publishedManifest?.version ?? null,
+    publishedManifest: publishedManifest?.manifest ?? null,
+    draftManifest: compileDraftManifest(draft, visibility),
+  });
 
   return (
     <section data-testid="pack-editor" className="space-y-4">
@@ -652,6 +762,9 @@ function PackDraftEditor({
               {importing ? t("packs.editor.importing") : t("packs.editor.import")}
             </span>
           </label>
+          <Button size="sm" variant="outline" onClick={() => void trial()} disabled={trialBusy} data-testid="pack-draft-trial">
+            {trialBusy ? t("packs.trial.busy") : t("packs.trial.action")}
+          </Button>
           <Button size="sm" onClick={() => void publish()} disabled={publishing} data-testid="pack-draft-publish">
             {t("packs.editor.publish")}
           </Button>
@@ -661,25 +774,23 @@ function PackDraftEditor({
         </div>
       </div>
 
-      {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md" data-testid="pack-editor-error" role="alert">{error}</div>}
-      {gateGaps && gateGaps.length > 0 && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3" data-testid="pack-publish-gate" role="alert">
-          <p className="text-xs font-medium text-destructive">{t("packs.editor.officialGateHint")}</p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {gateGaps.map((path) => (
-              <button
-                key={path}
-                type="button"
-                data-testid={`pack-publish-gap-${path}`}
-                onClick={() => jumpToGap(path)}
-                className="rounded-full border border-destructive/40 px-2 py-0.5 font-mono text-[10px] text-destructive hover:bg-destructive/10"
-              >
-                {path}
-              </button>
-            ))}
-          </div>
+      <PublishChecklist pending={checklistRows} refusal={refusalRows} onJump={jumpToGap} />
+
+      <div className="text-xs text-muted-foreground" data-testid="pack-draft-relation">
+        {relation.state === "never-published"
+          ? t("packs.relation.never")
+          : relation.state === "same"
+            ? t("packs.relation.same", { version: relation.version })
+            : t("packs.relation.ahead", { version: relation.version })}
+      </div>
+
+      {trialNote && (
+        <div className="rounded-md border border-border bg-muted px-4 py-2 text-xs text-muted-foreground" data-testid="pack-trial-note">
+          {trialNote}
         </div>
       )}
+
+      {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md" data-testid="pack-editor-error" role="alert">{error}</div>}
       {publishResult && (
         <div className="bg-primary/10 text-primary px-4 py-3 rounded-md" data-testid="pack-publish-ok">
           {publishResult}

@@ -17,10 +17,14 @@ function connectedBoard({ artifactsError = false } = {}) {
     line: "wire",
     title: "柏讯",
     originUrl: ORIGIN,
+    // The API derives this from the adapter's own blocks (unify-line-board-tabs
+    // D1); the mock mirrors the server so the page's single path is exercised.
+    tabs: ["overview", "datasets", "artifacts", "demands"],
     connected: true,
     blocks: [
       {
         id: "overview_metrics",
+        tab: "overview",
         type: "metrics",
         title: "概览",
         href: `${ORIGIN}/#/console/datasets`,
@@ -29,6 +33,7 @@ function connectedBoard({ artifactsError = false } = {}) {
       },
       {
         id: "datasets_list",
+        tab: "datasets",
         type: "list",
         title: "我的数据",
         href: `${ORIGIN}/#/console/datasets`,
@@ -39,6 +44,7 @@ function connectedBoard({ artifactsError = false } = {}) {
         ? { id: "artifacts_list", type: "list", title: "产物", error: "柏讯返回 HTTP 500", href: `${ORIGIN}/#/console/artifacts` }
         : {
             id: "artifacts_list",
+            tab: "artifacts",
             type: "list",
             title: "产物",
             href: `${ORIGIN}/#/console/artifacts`,
@@ -58,6 +64,7 @@ function connectedBoard({ artifactsError = false } = {}) {
           },
       {
         id: "demands_timeline",
+        tab: "demands",
         type: "timeline",
         title: "需求单",
         href: `${ORIGIN}/#/console/demands`,

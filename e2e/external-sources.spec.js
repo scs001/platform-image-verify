@@ -201,7 +201,8 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
   test("external zone is present by default in the skills market, absent from the tools view", async ({ page }) => {
     await gotoExternalMarket(page);
     // The tools view's Store tab shows the catalog only (settings-connect-center).
-    await page.goto("/settings/mcp");
+    // /settings/mcp redirects into the materials market (unify-material-market).
+    await page.goto("/agents?tab=tools");
     await page.getByTestId("extensions-tab-market").click();
     await expect(page.getByTestId("mcp-market-section")).toBeVisible();
     await expect(page.getByTestId("market-external-zone")).toHaveCount(0);

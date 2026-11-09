@@ -13,6 +13,22 @@ npx @finddatatechnology/facet install <packRef>
 - `--registry <url>`：注册处地址（默认 `https://mcp.finddatatech.cloud`）。
 - `--oauth`：免键（OAuth）条目车道——写静态 client_id 形状而非凭据（目前仅 `workbuddy` 提供写入；两层状态见「版本说明」）；`--oauth-client <id>` 覆盖 client_id。
 
+## 先找包（list / search）
+
+不知道功能集 id 时不必先去网页翻——CLI 自己就能列目录，打印出来的 id 可以直接喂给 `install`：
+
+```bash
+npx @finddatatechnology/facet list                          # 列已上架功能集
+npx @finddatatechnology/facet list --line lex                # 按产品线过滤（lex / wire / …）
+npx @finddatatechnology/facet search 合同                     # 按关键词搜
+npx @finddatatechnology/facet search 合同 --line lex --json    # 出原始行，便于脚本消费
+npx @finddatatechnology/facet list --base https://facet.example.internal   # 自部署谦面
+```
+
+- `--limit <n>`：每页条数（上限 100）。
+- `--json`：输出服务端原始行（字段与目录 API 一致），不做任何重排或改写。
+- 目录不可达时**报出尝试过的地址与原因，不打印半截目录**；无匹配时明说「无匹配」而不是给一张空表。
+
 ## 连接 MCP（connect）
 
 功能集引用的 MCP 经谦面注册处网关调用，需要一把 `wgk-` 调用键（免费注册即得，带月度免费额度）：
@@ -59,6 +75,18 @@ npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --clear all
 - 键不进 shell 历史、不回显全文（`--show` 只露头尾四位）。
 - 不安装到对话运行时——那是壹座的工作面：订阅功能集后在 壹座 → 设置 → 功能集 → 我的功能集
   一键安装（MCP 凭据在壹座内已打通）。
+
+## 更新已装的包（update）
+
+安装会记下**装自哪个谦面**；`update` 按记录回那个地址取新版，不会把自部署的包悄悄换成官方市场上的同名包。
+
+```bash
+npx @finddatatechnology/facet update              # 全部已装包各取最新版
+npx @finddatatechnology/facet update <packRef>     # 只更新一个
+```
+
+- 已是最新时打印「已最新」，不动磁盘。
+- 老工具留下的记录没有 base 时回落到官方市场，**并在报告里明说**。
 
 ## 版本说明
 

@@ -1,12 +1,17 @@
 // ── Board routes (add-line-boards-and-action-gate, task 10) ─────────────────
 //
 // GET /api/boards/:line — fetch a board's blocks
-// Returns { line, title, originUrl, blocks: [...] } where each block has
-// { id, type, title, data?, error? }.
+// Returns { line, title, originUrl, tabs, blocks: [...] } where `tabs` is the
+// de-duplicated, first-appearance-ordered set of `tab` values the adapter's
+// own blocks declare, and each block has { id, type, title, data?, error? }.
+//
+// `tabs` is derived here, never declared separately (unify-line-board-tabs D1):
+// a front-end table and an adapter list are two sources that drift silently —
+// lex's four tabs were shipped by the adapter and never reached the page.
 //
 // Unknown lines return 404 with an honest message.
 
-import { getBoardAdapter, listBoardLines, lineBoardsEnabled } from "../../lib/board-adapters.js";
+import { getBoardAdapter, listBoardLines, lineBoardsEnabled, tabsOfBlocks } from "../../lib/board-adapters.js";
 import { copilotPresetForLine } from "../../lib/copilot-presets.js";
 
 export function registerBoardRoutes(ctx) {
@@ -62,6 +67,7 @@ export function registerBoardRoutes(ctx) {
         line: adapter.id,
         title: adapter.title,
         originUrl: adapter.originUrl,
+        tabs: tabsOfBlocks(result.blocks ?? []),
         ...result,
       });
     } catch (err) {
@@ -72,6 +78,7 @@ export function registerBoardRoutes(ctx) {
         line: adapter.id,
         title: adapter.title,
         originUrl: adapter.originUrl,
+        tabs: [],
         blocks: [
           {
             id: "error",

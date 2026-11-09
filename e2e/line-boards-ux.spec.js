@@ -30,6 +30,7 @@ function facetBoard() {
     line: "facet",
     title: "谦面",
     originUrl: ORIGIN,
+    tabs: ["overview", "my-packs", "publish-history"],
     connected: true,
     blocks: [
       { id: "overview_metrics", type: "metrics", tab: "overview", title: "概览", data: { my_packs: 2, published_versions: 3 }, href: `${ORIGIN}/#/mine` },
@@ -104,4 +105,92 @@ test("under_construction renders the neutral card, not the red failure chrome", 
   await expect(page.getByTestId("block-publish_history-construction")).toContainText("Under construction");
   // Not the destructive error styling.
   await expect(page.getByTestId("block-publish_history-error")).toHaveCount(0);
+});
+
+// ── 识律: the fourth adapter's four tabs are actually reachable ─────────────
+// The adapter, its spec and its live walk-through all shipped; the page's
+// hand-written tab table never learned about lex, so its four blocks stacked
+// into one wall and /apps never offered the entry. Both halves are pinned
+// here: the tabs render, and the card links in.
+function lexBoard() {
+  const ORIGIN = "https://lex.finddatatech.cloud";
+  return {
+    line: "lex",
+    title: "识律",
+    originUrl: ORIGIN,
+    // Derived server-side from the adapter's own blocks (D1).
+    tabs: ["overview", "credentials", "suites", "billing"],
+    connected: true,
+    blocks: [
+      { id: "overview_metrics", type: "metrics", tab: "overview", title: "概览", data: { usage: 12 }, href: `${ORIGIN}/#/console` },
+      { id: "credentials_list", type: "list", tab: "credentials", title: "我的凭据", data: [{ id: "k1", title: "合同线", subtitle: "active" }], href: `${ORIGIN}/#/console` },
+      { id: "suites_matrix", type: "list", tab: "suites", title: "识律套件", data: [{ id: "s1", title: "合同审查" }], href: `${ORIGIN}/#/console` },
+      { id: "billing_timeline", type: "timeline", tab: "billing", title: "账单", data: [], href: `${ORIGIN}/#/console` },
+    ],
+  };
+}
+
+test("lex board renders its four tabs, one block each", async ({ page }) => {
+  await pinLocaleEn(page);
+  await enableBoards(page);
+  await page.route("**/api/boards/lex", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(lexBoard()) }));
+
+  await page.goto("/boards/lex");
+  await expect(page.getByTestId("board-lex")).toBeVisible({ timeout: 15000 });
+
+  for (const tab of ["overview", "credentials", "suites", "billing"]) {
+    await expect(page.getByTestId(`board-tab-${tab}`)).toBeVisible();
+  }
+
+  // Each tab shows exactly its own block — the wall-of-blocks regression.
+  await expect(page.locator('[data-testid^="block-"]')).toHaveCount(1);
+  await page.getByTestId("board-tab-billing").click();
+  await expect(page.getByTestId("block-billing_timeline")).toBeVisible();
+  await expect(page.getByTestId("block-overview_metrics")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="block-"]')).toHaveCount(1);
+});
+
+// ── 萬星: a wholly under-construction line says it once ─────────────────────
+test("a wholly under-construction line collapses into one statement", async ({ page }) => {
+  await pinLocaleEn(page);
+  await enableBoards(page);
+  const ORIGIN = "https://wanxing.finddatatech.cloud";
+  await page.route("**/api/boards/wanxing", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        line: "wanxing",
+        title: "萬星",
+        originUrl: ORIGIN,
+        tabs: ["fleet-summary", "missions", "deployments"],
+        connected: true,
+        blocks: [
+          { id: "fleet_summary_metrics", type: "metrics", tab: "fleet-summary", title: "集群概况", error: "under_construction" },
+          { id: "missions", type: "list", tab: "missions", title: "任务", error: "under_construction" },
+          { id: "deployments", type: "list", tab: "deployments", title: "部署", error: "under_construction" },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto("/boards/wanxing");
+  await expect(page.getByTestId("board-line-construction")).toBeVisible({ timeout: 15000 });
+  // No tab strip, and the same sentence is not printed three times.
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="block-"]')).toHaveCount(0);
+  await expect(page.getByTestId("board-line-construction")).toContainText(/under construction/i);
+});
+
+// ── base is the host, not a missing line ───────────────────────────────────
+test("base says it is the host instead of 'not onboarded'", async ({ page }) => {
+  await pinLocaleEn(page);
+  await enableBoards(page);
+  await page.route("**/api/boards/base", (route) =>
+    route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "line_not_found", message: "该线尚未接入 (base)" }) }),
+  );
+
+  await page.goto("/boards/base");
+  await expect(page.getByTestId("board-host-line")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("board-host-line")).toContainText("host");
+  await expect(page.locator('[data-testid^="block-"]')).toHaveCount(0);
 });

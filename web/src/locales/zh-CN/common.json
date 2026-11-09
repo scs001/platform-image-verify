@@ -319,6 +319,7 @@
     "empty": "发送消息开始对话。",
     "loadingSession": "正在加载对话…",
     "loadEarlier": "加载更早的消息（还有 {{count}} 条）",
+    "loadingEarlier": "载入中…",
     "plan": {
       "title": "进度",
       "ariaLabel": "智能体计划",
@@ -1756,7 +1757,8 @@
       "client": {
         "skillDir": "技能写入：",
         "mcpFile": "原生 MCP 配置文件：",
-        "deepGuide": "该客户端的深度指南（公开仓库）"
+        "deepGuide": "该客户端的深度指南（公开仓库）",
+        "selfHost": "自部署谦面：加 --base 指向你自己的实例"
       }
     },
     "clients": {
@@ -1908,7 +1910,11 @@
       "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手智能体——安装后向导自动聚焦。",
       "official": "官方",
       "officialBadge": "官方",
-      "officialAdoptedBadge": "官方精选 · 已审校"
+      "officialAdoptedBadge": "官方精选 · 已审校",
+      "installedBadge": "已装 v{{version}}",
+      "updateBadge": "可更新 v{{version}}",
+      "emptyHint": "这个市场还没有可上架的内容；换一条线或清掉筛选看看。",
+      "clearFilters": "清除筛选"
     },
     "detail": {
       "fork": "克隆到我的工作室",
@@ -2251,6 +2257,31 @@
       "compactTools": "工具 {{n}}",
       "compactToolsZero": "无工具",
       "forkedFrom": "克隆自 {{packId}} v{{version}}"
+    },
+    "checklist": {
+      "title": "发布体检",
+      "pending": "{{count}} 项待修",
+      "ready": "全部通过，可发布",
+      "more": "还有 {{count}} 项",
+      "collapse": "收起",
+      "jump": "去修",
+      "gate": {
+        "toolsFace": "工具面",
+        "vocabulary": "词表",
+        "enCoverage": "英文覆盖",
+        "manifest": "清单结构"
+      }
+    },
+    "trial": {
+      "action": "装进工作台试用",
+      "busy": "正在装…",
+      "unpublished": "这个草稿还没发布过——发布一版之后才能装进工作台试用（安装只认已发布的版本）。",
+      "started": "已装进工作台（v{{version}}），开始对话试试。"
+    },
+    "relation": {
+      "never": "尚未发布",
+      "same": "与线上 v{{version}} 一致",
+      "ahead": "v{{version}} 后有未发布改动"
     }
   },
   "studio": {
@@ -2791,6 +2822,16 @@
       "identity": "身份",
       "usage_calls": "检索调用",
       "quota_state": "额度状态"
+    },
+    "tabsLabel": "{{title}} 分区",
+    "lineConstruction": {
+      "title": "{{title}}：建设中",
+      "hint": "这条线还没有可读的上游数据。看板只呈现真实数据，不填占位数字——完整视图请到原站。"
+    },
+    "hostLine": {
+      "title": "壹座是宿主，不设线看板",
+      "body": "看板是壹座对外部产品线的原生视图。壹座自身就是这里——直接开始用即可。",
+      "action": "开始对话"
     }
   },
   "copilot": {
@@ -3507,6 +3548,8 @@
       "invite": "邀请",
       "settings": "设置",
       "privateWindow": "私窗",
+      "loadEarlier": "加载更早的消息",
+      "loadingEarlier": "载入中…",
       "privateEmpty": "你和你的分身在这里的私下对话（仅你们可见）。",
       "privatePlaceholder": "在私窗里吩咐你的分身…",
       "composerPlaceholder": "说点什么…@名字点名智能体",

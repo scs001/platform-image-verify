@@ -219,7 +219,7 @@ test("full export on green fixture writes all artifact kinds with three species"
   const fixture = path.join(dir, "fixture.json");
   fs.writeFileSync(fixture, JSON.stringify(mkFixture()));
   const r = await runExport({ fixture, outDir: path.join(dir, "gen") });
-  assert.deepEqual(r.counts, { packs: 2, skills: 2, mcpServers: 2, tools: 3 });
+  assert.deepEqual(r.counts, { packs: 2, skills: 2, mcpServers: 2, facades: 0, officialData: 0, tools: 3 });
   for (const f of ["snapshot.json", "catalog.json", "llms.txt", "llms-full.txt", "infrastructure.md", "counts.json", "skills-snapshot.json"]) {
     assert.ok(fs.existsSync(path.join(dir, "gen", f)), `${f} written`);
   }
@@ -231,6 +231,51 @@ test("full export on green fixture writes all artifact kinds with three species"
   const llms = fs.readFileSync(path.join(dir, "gen", "llms.txt"), "utf8");
   assert.ok(llms.includes("## Skills (2)"), "skills section in the index");
   assert.ok(llms.includes("## MCP servers (2 — 3 public tools embedded per page)"), "mcp section with tool total");
+});
+
+// ── machine surfaces speak per-species counts (fix-supply-machine-faces 3.x) ─
+//
+// 机器面上的计数必须按物种逐项报，且 llms.txt 与 catalog.json 同一口径、
+// 同一生成时间。跨物种合称（旧头的「577 agents = pack+facade+official-data」）
+// 一律不许再出现——AI 客户端按那个数字对账会永远对不上。
+test("llms.txt reports every species separately and no merged total", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plaza-counts-"));
+  const fixture = path.join(dir, "fixture.json");
+  const fx = mkFixture();
+  fx.facades = [mkFacade("law-assistant")];
+  fx.dataAnchors = [mkAnchor("gdp")];
+  fs.writeFileSync(fixture, JSON.stringify(fx));
+
+  const r = await runExport({ fixture, outDir: path.join(dir, "gen") });
+  const llms = fs.readFileSync(path.join(dir, "gen", "llms.txt"), "utf8");
+  const cat = JSON.parse(fs.readFileSync(path.join(dir, "gen", "catalog.json"), "utf8"));
+
+  // 五物种各报各的
+  assert.ok(llms.includes(`${r.counts.packs} packs`), "pack count named");
+  assert.ok(llms.includes(`${r.counts.skills} skills`), "skill count named");
+  assert.ok(llms.includes(`${r.counts.mcpServers} MCP servers`), "mcp count named");
+  assert.ok(llms.includes(`${r.counts.facades} facades`), "facade count named");
+  assert.ok(llms.includes(`${r.counts.officialData} official data anchors`), "official-data count named");
+
+  // 不许出现跨物种合称
+  assert.equal(/\b\d+ agents\b/.test(llms), false, "no merged 'agents' total on the machine surface");
+  assert.equal(llms.includes("## Agents ("), false, "no merged Agents section");
+
+  // catalog 的 per-species 计数与 llms 同源
+  const byCat = cat.materials.reduce((a, m) => { a[m.category] = (a[m.category] ?? 0) + 1; return a; }, {});
+  assert.equal(cat.counts.packs, byCat.pack ?? 0);
+  assert.equal(cat.counts.skills, byCat.skill ?? 0);
+  assert.equal(cat.counts.mcpServers, byCat.mcp ?? 0);
+  assert.equal(cat.counts.facades, byCat.facade ?? 0);
+  assert.equal(cat.counts.officialData, byCat["official-data"] ?? 0);
+
+  // 同一生成时间：机器面两处逐字节相等
+  const stamp = cat.generatedAt;
+  assert.ok(stamp, "catalog carries generatedAt");
+  assert.ok(llms.includes(`As of: ${stamp}`), "llms.txt carries the same generation timestamp");
+
+  // 机器面自指的地址是根路径（发布脚本把三份导出物拷到站点根）
+  assert.ok(llms.includes("/catalog.json"), "catalog link uses the root path");
 });
 
 // ── five species (add-supply-catalog-unification): facade + data-anchor ─────

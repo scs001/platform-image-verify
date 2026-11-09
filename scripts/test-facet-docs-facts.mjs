@@ -90,3 +90,24 @@ test("capability table mirrors MCP_TARGETS project-file presence", async () => {
     assert.equal(claimsProject, hasProject, `${id}: matrix says project MCP=${claimsProject}, CLI has projectFile=${hasProject}`);
   }
 });
+
+// ── Discovery subcommands are real and documented (fix-supply-machine-faces 5.4) ──
+// The docs facts single-source the commands they print. A constant that names a
+// subcommand the CLI does not carry would send a reader into "未知命令".
+test("list / search facts name subcommands the CLI actually dispatches", async () => {
+  const cliSource = await (await import("node:fs/promises")).readFile(
+    new URL("../facet/cli/facet.js", import.meta.url),
+    "utf8",
+  );
+  for (const [constant, sub] of [
+    [facts.FACET_LIST_COMMAND, "list"],
+    [facts.FACET_SEARCH_COMMAND, "search"],
+  ]) {
+    assert.ok(constant.endsWith(` ${sub}`), `${constant} names the ${sub} subcommand`);
+    assert.ok(
+      cliSource.includes(`opts.command === "${sub}"`),
+      `the CLI dispatches ${sub} (otherwise the docs point at a dead command)`,
+    );
+    assert.ok(cliSource.includes(`facet ${sub} `), `facet help documents ${sub}`);
+  }
+});

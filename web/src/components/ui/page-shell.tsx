@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils"
 
 export interface PageShellProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   title: React.ReactNode
+  /** Test id for the heading itself, for surfaces whose title is asserted by
+   *  e2e (the heading's text is the assertion; the id keeps the anchor). */
+  titleTestId?: string
   subtitle?: React.ReactNode
   actions?: React.ReactNode
   filters?: React.ReactNode
@@ -20,6 +23,7 @@ export interface PageShellProps extends Omit<React.HTMLAttributes<HTMLDivElement
 
 export function PageShell({
   title,
+  titleTestId,
   subtitle,
   actions,
   filters,
@@ -36,7 +40,9 @@ export function PageShell({
           lost its 材). Desktop keeps the normal padding. */}
       <header className="flex shrink-0 items-start justify-between gap-4 px-4 pb-3 pl-12 pt-4 md:px-6 md:pl-6">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold leading-7 text-foreground">{title}</h1>
+          <h1 className="text-lg font-semibold leading-7 text-foreground" data-testid={titleTestId}>
+            {title}
+          </h1>
           {subtitle != null && <p className="mt-1 text-sm leading-5 text-muted-foreground">{subtitle}</p>}
         </div>
         {actions != null && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

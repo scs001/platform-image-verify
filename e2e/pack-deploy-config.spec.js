@@ -108,7 +108,9 @@ async function openDeployForm(page) {
   await pinLocaleEn(page);
   await page.goto("/packs?tab=market");
   await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("agent-market-tab-market").click(); // market tab, then the card
+  // `market` is a retired slug normalized to `agents` (agent-catalog) — the
+  // stale name here clicked a tab that cannot render.
+  await page.getByTestId("agent-market-tab-agents").click(); // market tab, then the card
   await page.getByTestId(`pack-card-${PACK.id}`).click();
   await expect(page.getByTestId("pack-detail")).toBeVisible();
   await expect(page.getByTestId("pack-deploy-model-form-agent")).toBeVisible({ timeout: 15_000 });

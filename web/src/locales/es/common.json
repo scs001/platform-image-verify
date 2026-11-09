@@ -319,6 +319,7 @@
     "empty": "Envía un mensaje para empezar a chatear.",
     "loadingSession": "Cargando conversación…",
     "loadEarlier": "Cargar mensajes anteriores (quedan {{count}})",
+    "loadingEarlier": "Cargando…",
     "plan": {
       "title": "Progreso",
       "ariaLabel": "Plan del agente",
@@ -1756,7 +1757,8 @@
       "client": {
         "skillDir": "Las habilidades se escriben en",
         "mcpFile": "Archivo de configuración MCP nativo:",
-        "deepGuide": "Guía detallada de este cliente (repositorio público)"
+        "deepGuide": "Guía detallada de este cliente (repositorio público)",
+        "selfHost": "Facet autoalojado: añada --base apuntando a su propia instancia"
       }
     },
     "clients": {
@@ -1908,7 +1910,11 @@
       "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El agente asistente no está instalado en esta celda — instálalo para enfocar la guía.",
       "official": "Oficial",
       "officialBadge": "Oficial",
-      "officialAdoptedBadge": "Selección oficial · Revisado"
+      "officialAdoptedBadge": "Selección oficial · Revisado",
+      "installedBadge": "Instalado v{{version}}",
+      "updateBadge": "Actualizar a v{{version}}",
+      "emptyHint": "Aquí todavía no hay nada listado: pruebe otra línea o borre los filtros.",
+      "clearFilters": "Borrar filtros"
     },
     "detail": {
       "fork": "Bifurcar a mi estudio",
@@ -2251,6 +2257,31 @@
       "compactTools": "Herramientas {{n}}",
       "compactToolsZero": "Sin herramientas",
       "forkedFrom": "Bifurcado de {{packId}} v{{version}}"
+    },
+    "checklist": {
+      "title": "Revisión de publicación",
+      "pending": "{{count}} por corregir",
+      "ready": "Todo correcto: listo para publicar",
+      "more": "{{count}} más",
+      "collapse": "Mostrar menos",
+      "jump": "Corregir",
+      "gate": {
+        "toolsFace": "Superficie de herramientas",
+        "vocabulary": "Vocabulario",
+        "enCoverage": "Cobertura en inglés",
+        "manifest": "Manifiesto"
+      }
+    },
+    "trial": {
+      "action": "Probar en un espacio de trabajo",
+      "busy": "Instalando…",
+      "unpublished": "Este borrador nunca se ha publicado: publique una versión primero; una instalación solo puede tomar una versión publicada.",
+      "started": "Instalado en su espacio de trabajo (v{{version}}): iniciando la conversación."
+    },
+    "relation": {
+      "never": "Aún sin publicar",
+      "same": "Coincide con la versión publicada v{{version}}",
+      "ahead": "Hay cambios sin publicar desde v{{version}}"
     }
   },
   "studio": {
@@ -2948,6 +2979,16 @@
       "identity": "Identidad",
       "usage_calls": "Llamadas de búsqueda",
       "quota_state": "Estado de cuota"
+    },
+    "tabsLabel": "Secciones de {{title}}",
+    "lineConstruction": {
+      "title": "{{title}}: en construcción",
+      "hint": "Esta línea aún no tiene datos de origen legibles. El panel solo muestra datos reales y nunca rellena cifras de marcador — consulte el sitio original para la vista completa."
+    },
+    "hostLine": {
+      "title": "Yizuo es el anfitrión: no tiene panel de línea",
+      "body": "Un panel es la vista nativa de Yizuo sobre una línea de producto externa. Yizuo en sí está aquí mismo: empiece a usarlo.",
+      "action": "Iniciar una conversación"
     }
   },
   "copilot": {
@@ -3507,6 +3548,8 @@
       "invite": "Invitar",
       "settings": "Ajustes",
       "privateWindow": "Ventana privada",
+      "loadEarlier": "Cargar mensajes anteriores",
+      "loadingEarlier": "Cargando…",
       "privateEmpty": "Tu canal privado con tu apoderado (solo visible para ustedes dos).",
       "privatePlaceholder": "Instruye a tu gemelo aquí…",
       "composerPlaceholder": "Escribe algo… @nombre para dirigirte a un agente",

@@ -319,6 +319,7 @@
     "empty": "Send a message to start chatting.",
     "loadingSession": "Loading conversation…",
     "loadEarlier": "Load earlier messages ({{count}} more)",
+    "loadingEarlier": "Loading…",
     "plan": {
       "title": "Progress",
       "ariaLabel": "Agent plan",
@@ -1756,7 +1757,8 @@
       "client": {
         "skillDir": "Skills are written to",
         "mcpFile": "Native MCP config file:",
-        "deepGuide": "Deep guide for this client (public repository)"
+        "deepGuide": "Deep guide for this client (public repository)",
+        "selfHost": "Self-hosted facet: add --base pointing at your own instance"
       }
     },
     "clients": {
@@ -1908,7 +1910,11 @@
       "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant agent is not installed on this cell — install it to focus the guide.",
       "official": "Official",
       "officialBadge": "Official",
-      "officialAdoptedBadge": "Official Pick · Reviewed"
+      "officialAdoptedBadge": "Official Pick · Reviewed",
+      "installedBadge": "Installed v{{version}}",
+      "updateBadge": "Update to v{{version}}",
+      "emptyHint": "Nothing is listed here yet — try another line or clear the filters.",
+      "clearFilters": "Clear filters"
     },
     "detail": {
       "fork": "Fork to my studio",
@@ -2251,6 +2257,31 @@
       "compactTools": "Tools {{n}}",
       "compactToolsZero": "No tools",
       "forkedFrom": "Forked from {{packId}} v{{version}}"
+    },
+    "checklist": {
+      "title": "Publish check",
+      "pending": "{{count}} to fix",
+      "ready": "All clear — ready to publish",
+      "more": "{{count}} more",
+      "collapse": "Show less",
+      "jump": "Fix",
+      "gate": {
+        "toolsFace": "Tool surface",
+        "vocabulary": "Vocabulary",
+        "enCoverage": "English coverage",
+        "manifest": "Manifest"
+      }
+    },
+    "trial": {
+      "action": "Try in a workspace",
+      "busy": "Installing…",
+      "unpublished": "This draft has never been published — publish a version first; an install can only take a published version.",
+      "started": "Installed into your workspace (v{{version}}) — starting a conversation."
+    },
+    "relation": {
+      "never": "Not published yet",
+      "same": "Matches the live v{{version}}",
+      "ahead": "Unpublished changes since v{{version}}"
     }
   },
   "studio": {
@@ -2791,6 +2822,16 @@
       "identity": "Identity",
       "usage_calls": "Search calls",
       "quota_state": "Quota state"
+    },
+    "tabsLabel": "{{title}} sections",
+    "lineConstruction": {
+      "title": "{{title}}: under construction",
+      "hint": "This line has no readable upstream yet. The board shows real data only and never fills in placeholder numbers — see the origin site for the full view."
+    },
+    "hostLine": {
+      "title": "Yizuo is the host — it has no line board",
+      "body": "A board is Yizuo's native view onto an external product line. Yizuo itself is right here — just start using it.",
+      "action": "Start a conversation"
     }
   },
   "copilot": {
@@ -3507,6 +3548,8 @@
       "invite": "Invite",
       "settings": "Settings",
       "privateWindow": "Private window",
+      "loadEarlier": "Load earlier messages",
+      "loadingEarlier": "Loading…",
       "privateEmpty": "Your private side-channel with your proxy (only visible to you two).",
       "privatePlaceholder": "Instruct your duty twin here…",
       "composerPlaceholder": "Say something… @name to address an agent",

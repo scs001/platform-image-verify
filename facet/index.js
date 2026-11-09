@@ -38,6 +38,7 @@ import { registerMarketplaceJson } from "./marketplace-json.js";
 import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
 import { registerSameNamePublishGate } from "./publish-gate.js";
 import { registerStudioRoutes } from "./studio.js";
+import { machineSurfaceGuard } from "./machine-paths.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.FACET_DATA_ROOT || process.env.DATA_ROOT || path.resolve("data");
@@ -302,6 +303,12 @@ initSupplyCatalog(app, { resolveUser, registry });
     entriesFn: () => registryBridge.getMarketEntries().mcpServers ?? [],
   });
 }
+
+// Machine surfaces belong to the plaza host (fix-supply-machine-faces D1):
+// this shell owns none of them, and a soft 200 carrying index.html is
+// indistinguishable from a real machine face to a crawler. Mounted before the
+// static handler and the catch-all so nothing below can mask it.
+app.use(machineSurfaceGuard());
 
 // Static thin SPA + fallback (non-API, non-auth GETs land in the app shell).
 app.use(express.static(WEB_DIST, { index: "index.html" }));

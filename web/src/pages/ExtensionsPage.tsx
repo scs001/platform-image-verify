@@ -17,6 +17,7 @@ import { SkillsInstalledView } from "@/components/extensions/SkillsInstalledView
 import { SkillCandidatesView } from "@/components/skills/SkillCandidatesView";
 import { SkillsMarketView } from "@/components/extensions/SkillsMarketView";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
+import { Tabs } from "@/components/ui/tabs";
 import { useEffect } from "react";
 
 export interface ExtensionsPageProps {
@@ -70,31 +71,20 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
   // passed). Deleting the header removes the duplication and the broken key.
   return (
     <div className="flex flex-col h-full bg-background" data-testid="extensions-page" data-extensions-type={type}>
-      {/* Tabs */}
-      <div className="border-b border-border px-6">
-        <nav className="flex gap-4">
-          <button
-            onClick={() => setActiveTab("installed")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "installed"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t("extensions.tabs.installed")}
-          </button>
-          <button
-            onClick={() => setActiveTab("market")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "market"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            data-testid="extensions-tab-market"
-          >
-            {t("extensions.tabs.market")}
-          </button>
-        </nav>
+      {/* Tabs — the foundation bar (polish-material-market-tabs A). This view
+          renders INSIDE /agents, so a hand-rolled strip here would put two tab
+          idioms on one page. `extensions-tab-market` stays (e2e asserts it). */}
+      <div className="border-b border-border px-6 pb-1">
+        <Tabs
+          ariaLabel={t("extensions.tabs.installed")}
+          items={[
+            { id: "installed", label: t("extensions.tabs.installed") },
+            { id: "market", label: t("extensions.tabs.market") },
+          ]}
+          value={activeTab}
+          onChange={(id) => setActiveTab(id as Tab)}
+          itemProps={(id) => ({ "data-testid": `extensions-tab-${id}` })}
+        />
       </div>
 
       {/* Content */}

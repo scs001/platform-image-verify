@@ -11,6 +11,10 @@
 // change this one in the same commit or the unit suite goes red.
 export const FACET_CLI_PACKAGE = "@finddatatechnology/facet";
 export const FACET_INSTALL_COMMAND = `npx ${FACET_CLI_PACKAGE} install`;
+// Discovery comes before install (fix-supply-machine-faces 5.x): a user who
+// does not know an id starts here, and the printed id feeds install verbatim.
+export const FACET_LIST_COMMAND = `npx ${FACET_CLI_PACKAGE} list`;
+export const FACET_SEARCH_COMMAND = `npx ${FACET_CLI_PACKAGE} search`;
 export const FACET_HELP_COMMAND = `npx ${FACET_CLI_PACKAGE} help`;
 export const FACET_CONNECT_COMMAND = `npx ${FACET_CLI_PACKAGE} connect`;
 
@@ -23,6 +27,11 @@ export const FACET_REGISTRY_URL = "https://mcp.finddatatech.cloud";
 const DOCS_REPO_BASE = "https://github.com/FindDataTechnology/platform/blob/main/docs";
 export const FACET_CLIENT_GUIDE_URL = (target: string) => `${DOCS_REPO_BASE}/ecosystem/${target}.md`;
 export const FACET_CREATING_GUIDE_URL = `${DOCS_REPO_BASE}/creating-packs.md`;
+/** The capability matrix's own guide. Its OWN constant on purpose: the link used
+ *  to be built through FACET_CLIENT_GUIDE_URL plus a no-op `.replace()` that
+ *  rewrote "client-matrix.md" to itself, which looked like a fix and changed
+ *  nothing (fix-supply-machine-faces 7.2). */
+export const FACET_CLIENT_MATRIX_URL = `${DOCS_REPO_BASE}/ecosystem/client-matrix.md`;
 
 export type FacetTargetId = "claude-code" | "cursor" | "zcode" | "codex" | "gemini-cli" | "workbuddy";
 

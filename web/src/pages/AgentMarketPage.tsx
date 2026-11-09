@@ -25,6 +25,8 @@ import { useTranslation } from "react-i18next";
 import { Blocks, ExternalLink } from "lucide-react";
 import { EmptyState } from "@/components/ui/states-kit";
 import { Button } from "@/components/ui/button";
+import { PageShell } from "@/components/ui/page-shell";
+import { Tabs } from "@/components/ui/tabs";
 import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
@@ -35,7 +37,6 @@ import { PluginCatalogView } from "@/components/plugins/PluginCatalogView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
 import { studioHref } from "@/lib/studio-origin";
-import { cn } from "@/lib/utils";
 
 type Tab = "agents" | "tools" | "skills" | "plugins" | "mine";
 
@@ -114,40 +115,33 @@ export function AgentMarketPage() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-background" data-testid="agent-market-page">
-      {/* pl-12 below md: the shell's floating drawer toggle occupies that
-          gutter; without it the button covers the first glyph of the title. */}
-      <div className="border-b border-border px-6 py-3 pl-12 md:pl-6">
-        <h1 className="text-base font-semibold" data-testid="agent-market-title">
-          {t("nav.agents")}
-        </h1>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("agents.market.subtitle")}</p>
-      </div>
-
-      <div className="border-b border-border px-6">
-        <nav className="flex gap-4" data-testid="agent-market-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              data-testid={`agent-market-tab-${tab}`}
-              data-active={active === tab ? "true" : "false"}
-              onClick={() => selectTab(tab)}
-              className={cn(
-                "-mb-px border-b-2 px-1 py-2 text-sm font-medium transition-colors",
-                active === tab
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t(TAB_LABEL[tab])}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      <div className="flex-1 overflow-auto p-6">
-        {active === "agents" && packMarketplace === false && (
+    <PageShell
+      data-testid="agent-market-page"
+      title={t("nav.agents")}
+      titleTestId="agent-market-title"
+      subtitle={t("agents.market.subtitle")}
+      filters={
+        <div className="border-b border-border pb-1">
+          {/* The foundation tab bar, not a hand-rolled one (polish-material-
+              market-tabs 2.2/2.3): one keyboard contract (arrows/Home/End,
+              roving tabindex, aria-selected) and no 2px coloured border for the
+              active state. The public test contract rides itemProps:
+              agent-market-tab-<slug> and data-active are asserted by e2e and
+              stay byte-identical. */}
+          <Tabs
+            items={tabs.map((tab) => ({ id: tab, label: t(TAB_LABEL[tab]) }))}
+            value={active}
+            onChange={(id) => selectTab(id as Tab)}
+            ariaLabel={t("nav.agents")}
+            itemProps={(id) => ({
+              "data-testid": `agent-market-tab-${id}`,
+              "data-active": active === id ? "true" : "false",
+            })}
+          />
+        </div>
+      }
+      bodyClassName="pt-4"
+    >        {active === "agents" && packMarketplace === false && (
           <EmptyState
             icon={<Blocks className="h-5 w-5" />}
             title={t("market.agents.unavailableTitle")}
@@ -233,11 +227,13 @@ export function AgentMarketPage() {
               <h2 className="mb-3 text-sm font-medium text-muted-foreground">
                 {t("packs.mineSections.creations")}
               </h2>
-              <PackDraftsView onPublished={() => tabs.includes("agents") && selectTab("agents")} />
+              <PackDraftsView
+                onPublished={() => tabs.includes("agents") && selectTab("agents")}
+                onOpenChat={() => navigate("/chat")}
+              />
             </section>
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }

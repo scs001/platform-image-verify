@@ -224,6 +224,11 @@ export const BOARD_CREDENTIAL: Record<string, ConnectionId | null> = {
   facet: "facet-market",
   wanxing: null,
   wire: "line-wire-customer",
+  // lex was the fourth adapter with a spec, a live walk-through and no way in:
+  // the card never offered 看板, so /boards/lex was reachable only by typing
+  // the URL (unify-line-board-tabs). Same credential the settings panel and
+  // ActionCard already use for 识律.
+  lex: "line-lex",
 };
 
 export function hasBoard(lineId: string): boolean {

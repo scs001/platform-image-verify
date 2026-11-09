@@ -22,8 +22,10 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { PackSummary } from "@/lib/packs-api";
 import { Badge } from "@/components/packs/Badge";
+import { StatusPill } from "@/components/ui/status-pill";
 import { SiteMark } from "@/components/ui/site-mark";
 import { firstSentence, markCharOf } from "@/lib/packIdentity";
+import type { PackRelation } from "@/lib/packRelation";
 
 export function PackCard({
   pack,
@@ -32,6 +34,7 @@ export function PackCard({
   tone = "plain",
   index,
   audienceLabels,
+  relation,
   children,
   extra,
 }: {
@@ -46,6 +49,11 @@ export function PackCard({
   // as chips ONLY when its slugs resolve here — an unresolved slug would leak
   // a raw identifier, so the slot falls back to the tag row instead.
   audienceLabels?: Record<string, string>;
+  /** The viewer's own state (polish-material-market-tabs 1.2): the installed
+   *  snapshot's version and whether the listing is ahead. Null on either side
+   *  renders nothing — a failed install read must never read as "not
+   *  installed", and the state gates nothing. */
+  relation?: PackRelation;
   // Position in the grid — the entrance stagger lives HERE so the three host
   // branches (featured / gallery / plain) can never drift on the timing
   // (facet/web/DESIGN.md 入场: rise-in ≤200ms, list stagger allowed). The
@@ -143,6 +151,26 @@ export function PackCard({
                 <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
               ) : (
                 pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
+              )}
+              {/* The viewer's relation to this material (1.2). Words carry it —
+                  the pill's tint is decoration, never the message. Both are
+                  absent when the install read failed or the listing has no
+                  version, so "unknown" never renders as "not installed". */}
+              {relation?.installedVersion != null && (
+                <StatusPill
+                  status="neutral"
+                  dot={false}
+                  data-testid={`pack-installed-badge-${pack.id}`}
+                  label={t("packs.market.installedBadge", { version: relation.installedVersion })}
+                />
+              )}
+              {relation?.updateVersion != null && (
+                <StatusPill
+                  status="waiting"
+                  dot={false}
+                  data-testid={`pack-update-badge-${pack.id}`}
+                  label={t("packs.market.updateBadge", { version: relation.updateVersion })}
+                />
               )}
             </span>
             <span className="text-xs text-muted-foreground shrink-0">v{pack.version}</span>

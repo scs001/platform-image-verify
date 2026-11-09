@@ -23,9 +23,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs } from "@/components/ui/tabs";
 import { PACK_GUIDES, STARTER_TEAMS } from "@/lib/packGuides";
 import { replayTour } from "@/components/OnboardingTour";
-import { cn } from "@/lib/utils";
 
 const CMDS = [
   { label: "/model", descKey: "composer.cmd.model" },
@@ -79,28 +79,18 @@ export function HelpDialog({ open, onOpenChange }: Props) {
           <DialogDescription>{t("help.subtitle")}</DialogDescription>
         </DialogHeader>
 
-        {/* Tabs */}
-        <div className="mt-2 border-b border-border">
-          <nav className="flex gap-4" role="tablist" aria-label={t("help.title")}>
-            {TABS.map(({ id, labelKey }) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                data-testid={`help-tab-${id}`}
-                onClick={() => setTab(id)}
-                className={cn(
-                  "border-b-2 px-2 py-2 text-sm font-medium transition-colors",
-                  tab === id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(labelKey)}
-              </button>
-            ))}
-          </nav>
+        {/* Tabs — the foundation bar (unify-tab-idiom 1.1): it already had
+            role/aria-selected, but no keyboard contract (arrows / Home / End /
+            roving tabindex), and its active state rode on a 2px coloured border
+            the design language forbids. `help-tab-<id>` is preserved. */}
+        <div className="mt-2 border-b border-border pb-1">
+          <Tabs
+            ariaLabel={t("help.title")}
+            items={TABS.map(({ id, labelKey }) => ({ id, label: t(labelKey) }))}
+            value={tab}
+            onChange={(id) => setTab(id as Tab)}
+            itemProps={(id) => ({ "data-testid": `help-tab-${id}` })}
+          />
         </div>
 
         {tab === "start" && (

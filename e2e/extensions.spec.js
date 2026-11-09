@@ -55,12 +55,15 @@ test.describe("Extensions Page - UI Rendering", () => {
     await expect(page.getByRole("heading", { name: /^MCP$/i, level: 1 })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /^MCP$/i })).toBeVisible();
 
+    // The strip is the foundation Tabs (polish-material-market-tabs A): roles are
+    // tab/tablist and selection is aria-selected — asserting role=button or the
+    // old border-primary class would pin the retired hand-rolled bar instead.
     // Check tab names (new naming)
-    await expect(page.getByRole("button", { name: /enabled/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /store/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /enabled/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /store/i })).toBeVisible();
 
     // Enabled tab should be active by default
-    await expect(page.getByRole("button", { name: /enabled/i })).toHaveClass(/border-primary/);
+    await expect(page.getByRole("tab", { name: /enabled/i })).toHaveAttribute("aria-selected", "true");
   });
 
   test("MCP section shows correct title and button labels", async ({ page }) => {
@@ -115,22 +118,22 @@ test.describe("Extensions Page - UI Rendering", () => {
   test("can switch between Enabled and Store tabs", async ({ page }) => {
     await gotoExtensions(page);
 
-    const enabledTab = page.getByRole("button", { name: /enabled/i });
-    const storeTab = page.getByRole("button", { name: /store/i });
+    const enabledTab = page.getByRole("tab", { name: /enabled/i });
+    const storeTab = page.getByRole("tab", { name: /store/i });
 
     // Start on Enabled tab
-    await expect(enabledTab).toHaveClass(/border-primary/);
+    await expect(enabledTab).toHaveAttribute("aria-selected", "true");
 
     // Click Store tab
     await storeTab.click();
-    await expect(storeTab).toHaveClass(/border-primary/);
+    await expect(storeTab).toHaveAttribute("aria-selected", "true");
 
     // Store content should be visible (skills moved to the /skills page)
     await expect(page.getByTestId("mcp-market-section")).toBeVisible();
 
     // Click back to Enabled
     await enabledTab.click();
-    await expect(enabledTab).toHaveClass(/border-primary/);
+    await expect(enabledTab).toHaveAttribute("aria-selected", "true");
   });
 });
 
@@ -139,7 +142,7 @@ test.describe("Extensions Page - Store Tab", () => {
     await gotoExtensions(page);
 
     // Switch to Store tab
-    await page.getByRole("button", { name: /store/i }).click();
+    await page.getByRole("tab", { name: /store/i }).click();
 
     // Should show MCP market section
     const mcpMarketSection = page.getByTestId("mcp-market-section");
@@ -158,7 +161,7 @@ test.describe("Extensions Page - Store Tab", () => {
     await gotoSkills(page);
 
     // Switch to Store tab
-    await page.getByRole("button", { name: /store/i }).click();
+    await page.getByRole("tab", { name: /store/i }).click();
 
     // Should show Skills market section
     const skillsMarketSection = page.getByTestId("skills-market-section");
@@ -173,7 +176,7 @@ test.describe("Extensions Page - Store Tab", () => {
     await gotoExtensions(page);
 
     // Switch to Store tab
-    await page.getByRole("button", { name: /store/i }).click();
+    await page.getByRole("tab", { name: /store/i }).click();
 
     // Click Install on first MCP card
     const firstCard = page.getByTestId("mcp-market-card").first();
@@ -276,7 +279,7 @@ test.describe("Extensions Page - MCP Interaction Flow", () => {
     await gotoExtensions(page);
 
     // Switch to Store tab
-    await page.getByRole("button", { name: /store/i }).click();
+    await page.getByRole("tab", { name: /store/i }).click();
 
     // Get the first MCP card's name
     const firstCard = page.getByTestId("mcp-market-card").first();
@@ -297,7 +300,7 @@ test.describe("Extensions Page - MCP Interaction Flow", () => {
     await page.getByRole("button", { name: /^add$/i }).click();
 
     // Should switch to Enabled tab and show the new item
-    await expect(page.getByRole("button", { name: /enabled/i })).toHaveClass(/border-primary/, { timeout: 5000 });
+    await expect(page.getByRole("tab", { name: /enabled/i })).toHaveAttribute("aria-selected", "true", { timeout: 5000 });
 
     const newCard = page.getByTestId("mcp-card").filter({ has: page.getByText(new RegExp(uniqueTestName, "i")) });
     await expect(newCard).toBeVisible({ timeout: 10000 });

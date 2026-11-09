@@ -109,7 +109,10 @@ test("all-migratable preset converts clean through the page action", async ({ pa
 
   // Landed in the pack editor with the converted draft open — no banner
   // (nothing pending), serving pre-checked, persona verbatim.
-  await expect(page.getByTestId("agent-market-tab-mine")).toHaveClass(/border-primary/);
+  // Selection is asserted through the a11y contract, not a CSS class: the old
+  // hand-rolled strip marked the active tab with a 2px coloured border, which
+  // polish-material-market-tabs replaced with the foundation Tabs (aria-selected).
+  await expect(page.getByTestId("agent-market-tab-mine")).toHaveAttribute("aria-selected", "true");
   const editor = page.getByTestId("pack-editor");
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("pack-bridge-report")).toHaveCount(0);

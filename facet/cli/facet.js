@@ -58,6 +58,8 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
                           [--project <dir>] [--base <url>] [--registry <url>]
                           [--write-mcp|--no-write-mcp] [--oauth [--oauth-client <id>]]
   facet update [packRef] [--target <t>] [--base <url>]   # 重取最新版快照（无订阅副作用）
+  facet list [--base <url>] [--line <l>] [--limit <n>] [--json]     # 列目录（不知 id 时用）
+  facet search <关键词> [--base <url>] [--line <l>] [--limit <n>] [--json]
   facet auth [packRef] [--target <t>] [--project <dir>] [--write-mcp]
                           [--server <name>] [--status] [--refresh] [--no-open]
   facet connect [--key wgk-…] [--registry <url>] [--clear] [--show] [--no-open]
@@ -102,7 +104,12 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
     用户级 ~/.workbuddy/mcp.json、项目级 <dir>/.workbuddy/mcp.json）
 
   update 子命令（F2.3）：按 ~/.facet/installed.json 的记录重取各包最新版——已最新
-  即 no-op，升级打印 v旧 → v新；零订阅副作用（快照模型）。
+  即 no-op，升级打印 v旧 → v新；零订阅副作用（快照模型）。来源市场随记录走：
+  装自哪个谦面就从哪个谦面更新（--base 可覆盖；老记录无 base 才回落官方并明说）。
+
+  list / search 子命令（fix-supply-machine-faces 5.x）：不知道 id 时先看目录。
+  读的是 install 用的同一个 /api/packs，打印的 id 可直接喂给 install。
+  --line 按产品线过滤（lex / wire …），--limit 最多 100，--json 出原始行。
 
   publish 子命令（F3.2 回流桥）：把功集 manifest 发到官方市场——本地清单文件，
   或从自部署实例的公开详情拉取（--from <base>，或直接给功集页 URL）。首次运行
@@ -114,7 +121,7 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
 说明：安装即版本快照（不产生订阅）；MCP 需 registry 账号凭据，端点仅打印。`;
 
 function parseArgs(argv) {
-  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY, market: DEFAULT_BASE, from: null, packId: null, key: null, wanxing: process.env.FACET_WANXING || "https://wanxing.finddatatech.cloud", setCallback: null, setReap: undefined, clear: null };
+  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, baseExplicit: false, registry: DEFAULT_REGISTRY, market: DEFAULT_BASE, from: null, packId: null, key: null, wanxing: process.env.FACET_WANXING || "https://wanxing.finddatatech.cloud", setCallback: null, setReap: undefined, clear: null };
   const rest = [...argv];
   out.command = rest.shift() ?? null;
   // A bare flag in command position (`facet --version`, `facet -h`) is the
@@ -128,13 +135,17 @@ function parseArgs(argv) {
       out.targetExplicit = true; // update filters only on an explicit target
     }
     else if (a === "--project") out.project = rest.shift();
-    else if (a === "--base") out.base = rest.shift();
+    else if (a === "--base") { out.base = rest.shift(); out.baseExplicit = true; }
     else if (a === "--registry") out.registry = rest.shift();
     else if (a === "--key") out.key = rest.shift();
     else if (a === "--wanxing") out.wanxing = rest.shift();
     else if (a === "--from") out.from = rest.shift();
     else if (a === "--market") out.market = rest.shift();
     else if (a === "--pack-id") out.packId = rest.shift();
+    else if (a === "--limit") out.limit = rest.shift();
+    else if (a === "--line") out.line = rest.shift();
+    else if (a === "--species") out.species = rest.shift();
+    else if (a === "--json") out.json = true;
     else if (a === "--new") out.fresh = true;
     else if (a === "--set-callback") {
       const url = rest.shift();
@@ -996,7 +1007,10 @@ async function install(opts) {
   console.log(`谦面 Facet · 安装 ${detail.name}（${detail.id}）v${version} → ${opts.target}（${scope}）`);
   if (skills.length === 0) console.log("  （该功能集没有技能条目）");
   await writeSkillSnapshot(base, detail, dir);
-  await recordInstall({ packId: detail.id, name: detail.name, target: opts.target, scope, project: opts.project ? path.resolve(opts.project) : null, version, installedAt: new Date().toISOString() });
+  // 记下装自哪个市场（fix-supply-machine-faces 6.1）：update 之前一律回落到
+  // 官方基址，自部署者装完再更新会静默从别人的市场拉同一 id——装成不是自己
+  // 发布的那份。base 随记录走，update 才能按记录解析。
+  await recordInstall({ packId: detail.id, name: detail.name, target: opts.target, scope, project: opts.project ? path.resolve(opts.project) : null, version, base, installedAt: new Date().toISOString() });
 
   const mcp = detail.manifest?.mcpServers ?? [];
   if (mcp.length > 0) {
@@ -1165,7 +1179,6 @@ const realOrSelf = (p) => {
 // (--target further). Same write path as install — an update's bytes are a
 // fresh install's bytes; zero subscription semantics by construction.
 async function update(opts) {
-  const base = String(opts.base).replace(/\/+$/, "");
   const installs = await loadInstalled();
   const wantRef = opts.packRef ? extractPackId(opts.packRef) : null;
   const targets = installs.filter(
@@ -1182,23 +1195,109 @@ async function update(opts) {
   let upgraded = 0;
   for (const rec of targets) {
     const label = `${rec.name ?? rec.packId}（${rec.target}${rec.scope === "项目级" ? " · 项目级" : ""}）`;
+    // 按记录解析来源（fix-supply-machine-faces 6.2）：显式 --base 覆盖一切；
+    // 否则用安装时记下的市场；老记录没有 base 才回落官方，并且**说出来**
+    // ——原来那个坑之所以难查，正是因为它一声不响。
+    const recordedBase = typeof rec.base === "string" && rec.base ? rec.base : null;
+    const base = String(
+      opts.baseExplicit ? opts.base : recordedBase || DEFAULT_BASE,
+    ).replace(/\/+$/, "");
+    const fromNote = opts.baseExplicit
+      ? `来源 ${base}（--base）`
+      : recordedBase
+        ? `来源 ${base}（随记录）`
+        : `来源 ${base}（记录无 base，默认官方市场）`;
     const detail = await fetchJson(`${base}/api/packs/${encodeURIComponent(rec.packId)}`).catch(() => null);
     if (!detail?.id) {
-      console.log(`✗ ${label} — 功能集已不可解析（下架/私有/网络），记录保持 v${rec.version}`);
+      console.log(`✗ ${label} — 功能集已不可解析（下架/私有/网络），记录保持 v${rec.version}；${fromNote}`);
       continue;
     }
     if (detail.version === rec.version) {
-      console.log(`✓ ${label} 已最新 v${rec.version}`);
+      console.log(`✓ ${label} 已最新 v${rec.version}；${fromNote}`);
       continue;
     }
     const root = rec.scope === "项目级" && rec.project ? rec.project : HOME();
     const dir = path.join(root, SKILLS_SUBDIR[rec.target], "skills");
-    console.log(`↻ ${label} v${rec.version} → v${detail.version}（重取快照）`);
+    console.log(`↻ ${label} v${rec.version} → v${detail.version}（重取快照）；${fromNote}`);
     await writeSkillSnapshot(base, detail, dir);
-    await recordInstall({ ...rec, version: detail.version, installedAt: new Date().toISOString() });
+    await recordInstall({ ...rec, base, version: detail.version, installedAt: new Date().toISOString() });
     upgraded += 1;
   }
   console.log(upgraded > 0 ? `完成：${upgraded} 笔更新（无订阅副作用——快照模型）。` : "没有需要更新的安装。");
+}
+
+// ── list / search (fix-supply-machine-faces 5.x): 不知道 id 也能走到 install ──
+// 读的是 install 用的同一个目录 API（/api/packs），没有第二份目录、没有本地
+// 缓存。打印出来的 id 就是 facet install 接受的那个字符串——管道里能直接用。
+const LISTABLE_SPECIES = ["pack"];
+
+function listingBase(opts) {
+  return String(opts.base || DEFAULT_BASE).replace(/\/+$/, "");
+}
+
+async function fetchListing(opts, { search = "" } = {}) {
+  const base = listingBase(opts);
+  const species = String(opts.species || "pack");
+  if (!LISTABLE_SPECIES.includes(species)) {
+    throw new Error(
+      `--species ${species} 暂不由本命令列出（当前只列 pack）；${species} 的目录面：${base}/api/${species === "mcp" ? "mcp-catalog" : "skills-catalog"}`,
+    );
+  }
+  const limit = Math.min(Math.max(1, Number(opts.limit) || 50), 100);
+  const qs = new URLSearchParams({ page: "1", pageSize: String(limit) });
+  if (search) qs.set("search", search);
+  if (opts.line) qs.set("category", String(opts.line));
+  let payload;
+  try {
+    payload = await fetchJson(`${base}/api/packs?${qs.toString()}`);
+  } catch (e) {
+    throw new Error(`目录不可达：${base}（${e.message}）——未打印任何半截目录`);
+  }
+  return { base, payload, limit };
+}
+
+function printListing({ base, payload }, { search = "" } = {}) {
+  const rows = payload.packs ?? [];
+  if (rows.length === 0) {
+    const what = search ? `匹配「${search}」的功能集` : "已上架的功能集";
+    console.log(`无匹配：${base} 上没有${what}（目录可达，结果为空）。`);
+    return;
+  }
+  for (const p of rows) {
+    const line = p.category ? ` · ${p.category}` : "";
+    const desc = String(p.description ?? "").replace(/\s+/g, " ").slice(0, 80);
+    console.log(`${p.id}  v${p.version}  ${p.name}${line}`);
+    if (desc) console.log(`    ${desc}`);
+  }
+  const total = Number(payload.total ?? rows.length);
+  if (total > rows.length) {
+    console.log(`\n共 ${total} 个，显示前 ${rows.length} 个（--limit 可到 100）。`);
+  }
+  console.log(`\n安装：npx @finddatatechnology/facet install <id>${base === DEFAULT_BASE ? "" : ` --base ${base}`}`);
+}
+
+async function listRun(opts) {
+  const listing = await fetchListing(opts);
+  if (opts.json) {
+    console.log(JSON.stringify(listing.payload.packs ?? [], null, 2));
+    return;
+  }
+  console.log(`谦面目录 · ${listing.base}${opts.line ? ` · ${opts.line}` : ""}`);
+  console.log("");
+  printListing(listing);
+}
+
+async function searchRun(opts) {
+  const query = String(opts.packRef ?? "").trim();
+  if (!query) throw new Error("缺少查询词——用法：facet search <关键词> [--base …] [--line …]");
+  const listing = await fetchListing(opts, { search: query });
+  if (opts.json) {
+    console.log(JSON.stringify(listing.payload.packs ?? [], null, 2));
+    return;
+  }
+  console.log(`谦面搜索 · ${listing.base} · 「${query}」`);
+  console.log("");
+  printListing(listing, { search: query });
 }
 
 // ── publish (add-facet-publish-bridge, F3.2): return a pack to the official market ──
@@ -1426,6 +1525,8 @@ if (isMain) {
     else if (opts.command === "auth") await authRun(opts);
     else if (opts.command === "prefs") await prefs(opts);
     else if (opts.command === "update") await update(opts);
+    else if (opts.command === "list") await listRun(opts);
+    else if (opts.command === "search") await searchRun(opts);
     else if (opts.command === "publish") await publishRun(opts);
     else {
       console.error(`未知命令：${opts.command}\n\n${USAGE}`);

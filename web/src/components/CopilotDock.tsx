@@ -38,6 +38,22 @@ interface Props {
   send: (m: ClientMessage) => void;
 }
 
+/**
+ * Whether an `/agents` `?tab=` value addresses the pack market — the surface
+ * whose focused assistant is the 谦面 line.
+ *
+ * Three values qualify, and the old check only accepted the middle one: the
+ * market page normalizes its own slug (`LEGACY_TAB.market → agents`) and writes
+ * the normalized value back to the URL, so by the time the dock reads it the
+ * string is `agents`. With only `"market"` accepted, opening the dock on the
+ * market surface produced a context-free frame — no `board=facet`, no focused
+ * preset (caught by e2e/copilot-dock.spec.js). An absent tab is the same
+ * surface too: `agents` is the first tab, i.e. the default.
+ */
+function isMarketTab(tab: string | null): boolean {
+  return tab === null || tab === "" || tab === "market" || tab === "agents";
+}
+
 export function CopilotDock({ send }: Props) {
   const location = useLocation();
   const { copilotEnabled, lineBoardsEnabled } = useAppConfig();
@@ -58,14 +74,13 @@ export function CopilotDock({ send }: Props) {
   // assistant line. The legacy /agents?tab=market URL stays mapped so old
   // bookmarks keep behaving. Other routes open context-free.
   useEffect(() => {
-    const match = location.pathname.match(/^\/boards\/([^/]+)/);
-    if (match?.[1]) {
+    const match = location.pathname.match(/^\/boards\/([^/]+)/);    if (match?.[1]) {
       setBoardLine(match[1]);
       return;
     }
     if (
       location.pathname === "/packs" ||
-      (location.pathname === "/agents" && new URLSearchParams(location.search).get("tab") === "market")
+      (location.pathname === "/agents" && isMarketTab(new URLSearchParams(location.search).get("tab")))
     ) {
       setBoardLine("facet");
       return;

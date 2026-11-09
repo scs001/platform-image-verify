@@ -66,9 +66,14 @@ const BROWSER_NAV = ALL_NAV.filter((slug) => slug !== "fleet");
 // 12 settings sections; branding/roles/layout are admin-only → filtered for a
 // non-admin resolver, and `pairing` replaced devices + wechat-app while
 // `diagnostics` folded into `status`.
+// The non-admin settings view, in registry order (packages/core/src/lib/surfaces.ts
+// SETTINGS_SURFACES). `roles`/`layout`/`branding` carry `adminOnly` and are absent
+// here, which is why the count is 9 and not the registry's 12. Kept in step with
+// the registry: mcp/plugins left for the materials market, mandate + mandate-intake
+// arrived with the personal-mandate work (this list had gone stale against both).
 const ALL_SETTINGS = [
   "general", "account", "pairing", "connections",
-  "models", "delegation", "status",
+  "models", "delegation", "mandate", "mandate-intake", "status",
 ];
 
 async function api(pathname, { method = "GET", cookie, body } = {}) {

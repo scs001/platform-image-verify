@@ -239,7 +239,13 @@ async function gotoPacksTab(page, tab) {
   await pinLocaleEn(page);
   await page.goto("/packs");
   await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId(`agent-market-tab-${tab}`).click();
+  // `market` is a RETIRED slug: the page normalizes it to `agents` and writes
+  // that back to the URL (agent-catalog: market → agents), so no
+  // `agent-market-tab-market` element has existed since unify-material-market.
+  // Every caller still passing "market" was clicking a tab that cannot render.
+  // Normalize here, where the helper already owns the tab vocabulary.
+  const slug = tab === "market" ? "agents" : tab;
+  await page.getByTestId(`agent-market-tab-${slug}`).click();
 }
 
 async function getSkills(page) {

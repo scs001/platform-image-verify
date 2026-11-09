@@ -18,7 +18,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Server } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Tabs } from "@/components/ui/tabs";
 import { WeChatAppSection } from "@/components/settings/WeChatAppSection";
 import { DevicesSection } from "@/components/settings/DevicesSection";
 
@@ -38,31 +38,23 @@ export function PairingSection({ tab = "wechat" }: { tab?: PairingTab } = {}) {
 
   return (
     <div className="flex flex-col" data-testid="settings-pairing">
-      <div
-        role="tablist"
-        aria-label={t("settings.sections.pairing")}
-        className="flex gap-1 border-b border-border px-6 pt-4"
-        data-testid="pairing-tabs"
-      >
-        {TABS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="tab"
-            aria-selected={active === entry.id}
-            data-testid={entry.testId}
-            data-active={active === entry.id ? "true" : "false"}
-            onClick={() => setActive(entry.id)}
-            className={cn(
-              "-mb-px border-b-2 px-3 pb-2 text-sm",
-              active === entry.id
-                ? "border-primary font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(entry.labelKey)}
-          </button>
-        ))}
+      {/* The foundation bar (unify-tab-idiom 1.3) — same treatment as
+          StatusSection: keyboard contract in, 2px border out, every testid and
+          `data-active` preserved through itemProps. */}
+      <div className="border-b border-border px-6 pt-4 pb-1" data-testid="pairing-tabs">
+        <Tabs
+          ariaLabel={t("settings.sections.pairing")}
+          items={TABS.map((entry) => ({ id: entry.id, label: t(entry.labelKey) }))}
+          value={active}
+          onChange={(id) => setActive(id as PairingTab)}
+          itemProps={(id) => {
+            const entry = TABS.find((x) => x.id === id);
+            return {
+              "data-testid": entry?.testId ?? `pairing-tab-${id}`,
+              "data-active": active === id ? "true" : "false",
+            };
+          }}
+        />
       </div>
 
       {active === "wechat" && (

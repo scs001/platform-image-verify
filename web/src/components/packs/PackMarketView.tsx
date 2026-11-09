@@ -7,8 +7,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import * as api from "@/lib/packs-api";
+import { packRelation, installedVersionMap } from "@/lib/packRelation";
 import type { PackSummary, PackReport } from "@/lib/packs-api";
 import { Input } from "@/components/ui/input";
+import { EmptyState, ErrorState } from "@/components/ui/states-kit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
@@ -91,6 +93,23 @@ export function PackMarketView({
 }) {
   const { t, i18n } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[]>([]);
+  // Installed snapshots, for the per-card relation state
+  // (polish-material-market-tabs 1.2). A host that cannot read them (the facet
+  // shell is anonymous) leaves this empty — and empty means "say nothing",
+  // never "not installed".
+  const [installedVersions, setInstalledVersions] = useState<Record<string, number>>({});
+  const loadInstalled = useCallback(async () => {
+    try {
+      const r = await api.listInstalledPacks();
+      setInstalledVersions(installedVersionMap(r.packs));
+    } catch {
+      setInstalledVersions({});
+    }
+  }, []);
+  useEffect(() => {
+    void loadInstalled();
+  }, [loadInstalled]);
+  const relationFor = (pack: PackSummary) => packRelation(pack.version, installedVersions[pack.id]);
   const [search, setSearch] = useState("");
   // Curation (add-facet-content-management): a category filter chips row
   // (from the distinct live categories) and a featured rail. Both render
@@ -410,26 +429,37 @@ export function PackMarketView({
               {visiblePacks
                 .filter((p) => p.featured)
                 .map((p, i) => (
-                  <PackCard key={p.id} pack={p} index={i} audienceLabels={domainLabels} tone="gallery" testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
+                  <PackCard key={p.id} pack={p} index={i} audienceLabels={domainLabels} tone="gallery" relation={relationFor(p)} testId={`pack-featured-card-${p.id}`} onOpen={() => setDetailId(p.id)} />
                 ))}
             </div>
           </div>
         )}
       {loading && <MarketSkeleton />}
       {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4 space-y-1" data-testid="pack-market-error">
-          <p>{error}</p>
-          <button type="button" className="text-sm text-destructive underline" onClick={() => void refresh(search)}>
-            {t("common.retry")}
-          </button>
+        // StatesKit (polish-material-market-tabs 3.1): the failure names the
+        // problem and offers the way forward, in the same shape the rest of the
+        // product uses. The rows above stay on screen — a failed refetch never
+        // blanks a working catalog (3.2).
+        <div data-testid="pack-market-error" className="mb-4">
+          <ErrorState message={error} onRetry={() => void refresh(search)} retryLabel={t("common.retry")} />
         </div>
       )}
       {!loading && !error && visiblePacks.length === 0 && (
-        <p className="text-sm text-muted-foreground" data-testid="pack-market-empty">
+        <div data-testid="pack-market-empty">
           {/* A selected line with nothing listed says so in its own words — the
               generic "market is empty" would misdescribe a healthy catalog. */}
-          {category && !search ? t("packs.market.lineEmpty") : t("packs.market.empty")}
-        </p>
+          <EmptyState
+            title={category && !search ? t("packs.market.lineEmpty") : t("packs.market.empty")}
+            hint={t("packs.market.emptyHint")}
+            action={
+              category || search ? (
+                <Button variant="outline" size="sm" onClick={() => void refresh("", "", "")} data-testid="pack-market-clear-filters">
+                  {t("packs.market.clearFilters")}
+                </Button>
+              ) : null
+            }
+          />
+        </div>
       )}
 
       <div className="grid gap-3">
@@ -450,6 +480,7 @@ export function PackMarketView({
               pack={pack}
               index={i}
               audienceLabels={domainLabels}
+              relation={relationFor(pack)}
               tone="gallery"
               testId={`pack-gallery-card-${pack.id}`}
               onOpen={() => setDetailId(pack.id)}
@@ -486,7 +517,7 @@ export function PackMarketView({
               }
             </PackCard>
           ) : (
-            <PackCard key={pack.id} pack={pack} index={i} audienceLabels={domainLabels} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
+            <PackCard key={pack.id} pack={pack} index={i} audienceLabels={domainLabels} relation={relationFor(pack)} testId={`pack-card-${pack.id}`} onOpen={() => setDetailId(pack.id)} />
           )
         )}
       </div>
@@ -501,6 +532,8 @@ export function PackMarketView({
           setReportPack(name);
           setReportPackId(packId);
           void refresh(search);
+          // The viewer just gained a snapshot: the card must say 已装 now.
+          void loadInstalled();
         }}
         onGotoMine={onGotoMine}
         onRequireLogin={onRequireLogin}

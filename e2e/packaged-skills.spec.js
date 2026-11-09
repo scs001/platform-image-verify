@@ -137,7 +137,12 @@ async function gotoPacksTab(page, tab) {
   // PacksPage is mounted at its own route since add-supply-studio-migration 5.2.
   await page.goto("/packs");
   await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId(`agent-market-tab-${tab}`).click();
+  // `market` is a RETIRED slug — the page normalizes it to `agents` and rewrites
+  // the URL (agent-catalog), so no `agent-market-tab-market` element has existed
+  // since unify-material-market. Normalize here, where this file owns the tab
+  // vocabulary (same repair as e2e/packs.spec.js).
+  const slug = tab === "market" ? "agents" : tab;
+  await page.getByTestId(`agent-market-tab-${slug}`).click();
 }
 
 test.beforeEach(async ({ page }) => {

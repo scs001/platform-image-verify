@@ -319,6 +319,7 @@
     "empty": "メッセージを送信してチャットを開始してください。",
     "loadingSession": "会話を読み込み中…",
     "loadEarlier": "過去のメッセージを読み込む（残り{{count}}件）",
+    "loadingEarlier": "読み込み中…",
     "plan": {
       "title": "進捗",
       "ariaLabel": "エージェントの計画",
@@ -1756,7 +1757,8 @@
       "client": {
         "skillDir": "スキルの書き込み先：",
         "mcpFile": "ネイティブ MCP 設定ファイル：",
-        "deepGuide": "このクライアントの詳細ガイド（公開リポジトリ）"
+        "deepGuide": "このクライアントの詳細ガイド（公開リポジトリ）",
+        "selfHost": "セルフホストの facet：--base で自分のインスタンスを指定します"
       }
     },
     "clients": {
@@ -1908,7 +1910,11 @@
       "assistantHint": "マーケットガイド：右下のコパイロットは「謙面助手」フォーカスで応答します。このセルにアシスタントエージェントが未インストールです——インストールするとガイドが自動フォーカスします。",
       "official": "公式",
       "officialBadge": "公式",
-      "officialAdoptedBadge": "公式セレクト · 審査済み"
+      "officialAdoptedBadge": "公式セレクト · 審査済み",
+      "installedBadge": "インストール済み v{{version}}",
+      "updateBadge": "v{{version}} に更新できます",
+      "emptyHint": "ここにはまだ掲載がありません。別のラインを選ぶか、絞り込みを解除してください。",
+      "clearFilters": "絞り込みを解除"
     },
     "detail": {
       "fork": "マイスタジオへフォーク",
@@ -2251,6 +2257,31 @@
       "compactTools": "ツール {{n}}",
       "compactToolsZero": "ツールなし",
       "forkedFrom": "{{packId}} v{{version}} からフォーク"
+    },
+    "checklist": {
+      "title": "公開前チェック",
+      "pending": "{{count}} 件要修正",
+      "ready": "すべて通過、公開できます",
+      "more": "残り {{count}} 件",
+      "collapse": "折りたたむ",
+      "jump": "修正する",
+      "gate": {
+        "toolsFace": "ツール面",
+        "vocabulary": "語彙",
+        "enCoverage": "英語カバレッジ",
+        "manifest": "マニフェスト"
+      }
+    },
+    "trial": {
+      "action": "ワークスペースで試す",
+      "busy": "インストール中…",
+      "unpublished": "この下書きはまだ公開されていません。先にバージョンを公開してください（インストールは公開済みのバージョンのみ）。",
+      "started": "ワークスペースにインストールしました（v{{version}}）。会話を開始します。"
+    },
+    "relation": {
+      "never": "まだ公開していません",
+      "same": "公開中の v{{version}} と一致",
+      "ahead": "v{{version}} 以降に未公開の変更があります"
     }
   },
   "studio": {
@@ -2948,6 +2979,16 @@
       "identity": "識別情報",
       "usage_calls": "検索呼び出し",
       "quota_state": "クォータ状態"
+    },
+    "tabsLabel": "{{title}} のセクション",
+    "lineConstruction": {
+      "title": "{{title}}：準備中",
+      "hint": "このラインにはまだ読み取り可能な上流データがありません。ボードは実データのみを表示し、プレースホルダーの数値で埋めることはしません。全体像は元のサイトをご覧ください。"
+    },
+    "hostLine": {
+      "title": "壹座はホストであり、ラインボードを持ちません",
+      "body": "ボードは外部プロダクトラインに対する壹座のネイティブビューです。壹座自身はここにあります。そのまま使い始めてください。",
+      "action": "会話を始める"
     }
   },
   "copilot": {
@@ -3507,6 +3548,8 @@
       "invite": "招待",
       "settings": "設定",
       "privateWindow": "プライベート窓",
+      "loadEarlier": "以前のメッセージを読み込む",
+      "loadingEarlier": "読み込み中…",
       "privateEmpty": "あなたと代理だけの非公開チャネル（二人だけに可視）。",
       "privatePlaceholder": "私窗で分身に指示…",
       "composerPlaceholder": "話しかけてみましょう…@名前でエージェント指名",

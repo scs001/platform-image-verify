@@ -21,9 +21,14 @@ export interface TabsProps {
   /** Prefix for generated tab ids; pass one when panels wire aria-controls. */
   idPrefix?: string
   ariaLabel?: string
+  /** Extra attributes per tab button. Hosts that own a public test contract
+   *  (data-testid / data-active asserted by e2e) pass them here instead of
+   *  hand-rolling a second tab bar — that is what this prop exists to prevent.
+   *  The primitive keeps owning role, selection and the keyboard contract. */
+  itemProps?: (id: string) => Record<string, string | number | boolean | undefined>
 }
 
-export function Tabs({ items, value, onChange, className, idPrefix, ariaLabel }: TabsProps) {
+export function Tabs({ items, value, onChange, className, idPrefix, ariaLabel, itemProps }: TabsProps) {
   const refs = React.useRef<(HTMLButtonElement | null)[]>([])
   const onKeyDown = (e: React.KeyboardEvent) => {
     const key = e.key as TabKey
@@ -58,11 +63,13 @@ export function Tabs({ items, value, onChange, className, idPrefix, ariaLabel }:
           disabled={item.disabled}
           tabIndex={item.id === value ? 0 : -1}
           onClick={() => onChange(item.id)}
+          {...itemProps?.(item.id)}
           className={cn(
             "rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
             item.id === value
               ? "bg-primary-deep text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            itemProps?.(item.id)?.className as string | undefined
           )}
         >
           {item.label}

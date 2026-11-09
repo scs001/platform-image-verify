@@ -1,148 +1,163 @@
 import { test, expect } from "@playwright/test";
-import { openSettings } from "./helpers.js";
+import { pinLocaleEn } from "./helpers.js";
 
-// Settings → Plugins (openspec: add-dsh-plugin-supply). The UI contract of the
-// whitelisted dsh bundle roster: rows render from the `plugins` WS snapshot,
-// management-protected rows stay untoggleable with their badge, a toggle shows
-// the applying state until the `plugins_changed` pulse lands, and a live turn
-// grays every switch out.
+// 插件 tab of the materials market (openspec: unify-material-market —
+// dsh-plugin-supply MODIFIED, plugin-supply-request ADDED).
 //
-// The roster is driven through the e2e store seam — the same seam chat-store
-// specs use. The WIRE contract (real plugins/list + persisted toggle against a
-// supplied bundle) is pinned by dsh-contracts ⑱, not here.
-//
-// The fixture id must NOT be a real bundle. dsh-profile-template declares
-// `@platform/supply-probe-bundle` in its bundles list, so the child's own
-// plugins/list now returns that row (with `error.code: "operation-error"` in
-// this layout, where the sample package is not resolvable) — injecting a row
-// under the same id raced that snapshot and the real row won, which is what
-// turned these UI assertions red. A synthetic id cannot collide.
+// HISTORY — read before "restoring" anything. This file used to drive
+// Settings → Plugins and assert `plugins-list` with an "Applying…" state and a
+// `plugins-streaming-hint`. That settings section was RETIRED by
+// unify-material-market (sections.ts carries no `plugins` slug) and the
+// catalogue moved to `/agents?tab=plugins`. The old settings component
+// (`settings/PluginsSection.tsx`) stayed behind with zero importers until it was
+// deleted — a replaced surface that is strictly worse (no supply states, no
+// 申请供应) must not sit in the tree waiting to be re-mounted by mistake. Four behaviours the old spec pinned did NOT
+// survive the move; they are listed here so they get re-decided instead of
+// silently lost:
+//   1. per-row failure metadata (an `error.code: "operation-error"` badge);
+//   2. a local "Applying…" pending state after a toggle;
+//   3. a REJECTED toggle retiring that pending state (nothing is pending now —
+//      `toggle()` is a fire-and-forget `set_plugin_enabled` WS send);
+//   4. greying every switch out during a live turn (`plugins-streaming-hint`).
+// What the live component does contract is asserted below: three supply states,
+// protection via `readOnlyReason`, 申请供应 writing a request row, an
+// unavailable-roster note, an explaining empty state, and a retryable failure.
 
-const SAMPLE = {
-  id: "@e2e/roster-fixture",
-  name: "@e2e/roster-fixture",
-  version: "0.0.1",
-  description: "Sample dsh bundle proving the platform plugin-supply chain.",
-  enabled: true,
-  installed: true,
-  optional: false,
-  removable: true,
-};
+const CATALOG = [
+  { id: "@e2e/cat-enabled", name: "Enabled bundle", description: "supplied and on" },
+  { id: "@e2e/cat-available", name: "Off bundle", description: "supplied, switched off" },
+  { id: "@e2e/cat-protected", name: "Protected bundle", description: "managed elsewhere" },
+  { id: "@e2e/cat-unsupplied", name: "Not supplied", description: "catalogued only" },
+];
 
-const BASE_ROW = {
-  id: "@deepseek-ai/dsh-base",
-  name: "@deepseek-ai/dsh-base",
-  enabled: true,
-  installed: false,
-  optional: false,
-  removable: false,
-  readOnlyReason: "management-required",
-};
+const BUNDLES = [
+  { id: "@e2e/cat-enabled", name: "@e2e/cat-enabled", version: "0.0.1", enabled: true, installed: true, optional: false, removable: true },
+  { id: "@e2e/cat-available", name: "@e2e/cat-available", version: "0.0.1", enabled: false, installed: true, optional: false, removable: true },
+  {
+    id: "@e2e/cat-protected",
+    name: "@e2e/cat-protected",
+    version: "0.0.1",
+    enabled: true,
+    installed: false,
+    optional: false,
+    removable: false,
+    readOnlyReason: "management-required",
+  },
+];
 
-const FAILED_ROW = {
-  id: "@example/broken-bundle",
-  name: "@example/broken-bundle",
-  enabled: false,
-  installed: true,
-  optional: false,
-  removable: true,
-  error: { code: "not-bundle", message: "no dsh bundle patch found" },
-};
-
-async function applyRoster(page, bundles, available = true) {
+/** Open the tab, stub the catalogue, then inject the WS roster through the same
+ *  store seam the chat specs use (after mount, so the real first answer cannot
+ *  overwrite the injection mid-assertion). */
+async function openPluginsTab(page, { catalog = CATALOG, bundles = BUNDLES, available = true } = {}) {
+  await pinLocaleEn(page);
+  await page.route("**/api/plugin-catalog**", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ plugins: catalog }) }),
+  );
+  await page.goto("/agents?tab=plugins");
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
   await page.evaluate(
-    ({ bundles, available }) => window.__chatStore.getState().apply({ type: "plugins", bundles, available }),
+    ({ bundles: b, available: a }) => window.__chatStore.getState().apply({ type: "plugins", bundles: b, available: a }),
     { bundles, available },
   );
+  return page.getByTestId("plugin-catalog");
 }
 
-test.beforeEach(async ({ page }) => {
-  await openSettings(page, "plugins");
-  // The section sends its own `list_plugins` when the socket connects; the
-  // REAL roster lands a beat later and would overwrite an injected one
-  // mid-assertion (observed: the injected rows vanish between expects).
-  // Wait for that first real answer, then every test injects on top of it.
-  await page
-    .waitForFunction(() => window.__chatStore?.getState().pluginsAvailable === true, null, { timeout: 20000 })
-    .catch(() => {});
+test("the three supply states render, and protection disables its switch", async ({ page }) => {
+  const catalog = await openPluginsTab(page);
+  await expect(catalog).toBeVisible();
+
+  // supplied + on
+  const enabled = page.getByTestId("plugin-row-@e2e/cat-enabled");
+  await expect(enabled).toHaveAttribute("data-state", "enabled");
+  await expect(enabled.getByTestId("plugin-toggle-@e2e/cat-enabled")).toBeEnabled();
+
+  // supplied + off
+  const off = page.getByTestId("plugin-row-@e2e/cat-available");
+  await expect(off).toHaveAttribute("data-state", "available");
+  await expect(off.getByTestId("plugin-toggle-@e2e/cat-available")).toBeEnabled();
+
+  // protected: disabled, and the reason is stated in words (colour never alone)
+  const guarded = page.getByTestId("plugin-row-@e2e/cat-protected");
+  await expect(guarded.getByTestId("plugin-toggle-@e2e/cat-protected")).toBeDisabled();
+  await expect(guarded).toContainText("management-required");
+
+  // unsupplied: NO switch at all, and 申请供应 instead. A greyed switch would
+  // send the user hunting for a fault on their side that does not exist.
+  const missing = page.getByTestId("plugin-row-@e2e/cat-unsupplied");
+  await expect(missing).toHaveAttribute("data-state", "unsupplied");
+  await expect(missing.getByTestId("plugin-toggle-@e2e/cat-unsupplied")).toHaveCount(0);
+  await expect(missing.getByTestId("plugin-request-@e2e/cat-unsupplied")).toBeVisible();
 });
 
-test("roster renders rows with protection and failure metadata", async ({ page }) => {
-  await applyRoster(page, [BASE_ROW, SAMPLE, FAILED_ROW]);
+test("申请供应 writes one request and the row switches to pending", async ({ page }) => {
+  const posts = [];
+  await page.route("**/api/plugin-supply-requests", (route) => {
+    posts.push(route.request().postDataJSON());
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
 
-  await expect(page.getByTestId("plugins-list")).toBeVisible();
-  const sampleRow = page.getByTestId(`plugin-row-${SAMPLE.id}`);
-  await expect(sampleRow).toBeVisible();
-  await expect(sampleRow).toContainText(SAMPLE.description);
-  await expect(sampleRow.getByTestId(`plugin-toggle-${SAMPLE.id}`)).toBeEnabled();
+  await openPluginsTab(page);
+  await page.getByTestId("plugin-request-@e2e/cat-unsupplied").click();
 
-  // Management-protected: badge visible, switch untoggleable.
-  const baseRow = page.getByTestId(`plugin-row-${BASE_ROW.id}`);
-  await expect(baseRow).toBeVisible();
-  await expect(baseRow).toContainText("Required by management");
-  await expect(baseRow.getByTestId(`plugin-toggle-${BASE_ROW.id}`)).toBeDisabled();
-
-  // A bundle that failed to resolve carries its reason and cannot be enabled.
-  const failedRow = page.getByTestId(`plugin-row-${FAILED_ROW.id}`);
-  await expect(failedRow).toContainText("no dsh bundle patch found");
-  await expect(failedRow.getByTestId(`plugin-toggle-${FAILED_ROW.id}`)).toBeDisabled();
+  await expect(page.getByTestId("plugin-request-pending-@e2e/cat-unsupplied")).toBeVisible();
+  expect(posts).toEqual([{ pluginId: "@e2e/cat-unsupplied" }]);
+  // The action retires: the same row cannot fire a second request.
+  await expect(page.getByTestId("plugin-request-@e2e/cat-unsupplied")).toHaveCount(0);
 });
 
-// The "Applying…" transient itself is NOT assertable against the live server:
-// this fixture id is not a real bundle, so dsh answers `set_enabled failed:
-// operation-error` within milliseconds and the marker retires off the error
-// signal before any assertion can see it (that speed is the fixed behaviour —
-// the marker used to stick forever). What IS worth pinning is the invariant
-// that made the old bug user-visible: the marker always retires, by EITHER
-// path, and it never freezes the rest of the pane.
-test("the applying state retires when the roster pulse lands", async ({ page }) => {
-  await applyRoster(page, [SAMPLE]);
-  const toggle = page.getByTestId(`plugin-toggle-${SAMPLE.id}`);
-  await expect(toggle).toBeEnabled();
-
-  await toggle.click();
-  // The server's own completion signal: a fresh roster with the new state.
-  await page.evaluate(
-    ({ bundles }) => window.__chatStore.getState().apply({ type: "plugins_changed", bundles }),
-    { bundles: [{ ...SAMPLE, enabled: false }] },
-  );
-  await expect(page.getByTestId(`plugin-row-${SAMPLE.id}`)).not.toContainText("Applying…", { timeout: 10_000 });
-  await expect(toggle).toBeEnabled();
-  await expect(toggle).not.toBeChecked();
-});
-
-test("a rejected toggle retires the applying state instead of freezing the pane", async ({ page }) => {
-  // A rejected toggle never broadcasts `plugins_changed` (ws.js sends only
-  // `{type:"error"}`), so without an error-keyed clear the row would sit on
-  // 「Applying…」forever — and because `disabled` treats `pending !== null` as
-  // global, every other switch in the pane would be dead until remount.
-  await applyRoster(page, [SAMPLE, { ...SAMPLE, id: "@e2e/second-row", name: "@e2e/second-row" }]);
-  const toggle = page.getByTestId(`plugin-toggle-${SAMPLE.id}`);
-  await expect(toggle).toBeEnabled();
-
-  await toggle.click();
-  await page.evaluate(() =>
-    window.__chatStore.getState().apply({ type: "error", message: "plugins/set_enabled failed: operation-error" }),
+test("a refused request leaves the row actionable instead of freezing it", async ({ page }) => {
+  await page.route("**/api/plugin-supply-requests", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "supply-request-failed" }),
+    }),
   );
 
-  // Idle again, and the sibling row is still operable.
-  await expect(page.getByTestId(`plugin-row-${SAMPLE.id}`)).not.toContainText("Applying…", { timeout: 10_000 });
-  await expect(toggle).toBeEnabled();
-  await expect(page.getByTestId("plugin-toggle-@e2e/second-row")).toBeEnabled();
+  await openPluginsTab(page);
+  await page.getByTestId("plugin-request-@e2e/cat-unsupplied").click();
+
+  // Still a request affordance and still enabled — `busy` is cleared in finally.
+  const request = page.getByTestId("plugin-request-@e2e/cat-unsupplied");
+  await expect(request).toBeVisible();
+  await expect(request).toBeEnabled();
+  await expect(page.getByTestId("plugin-request-pending-@e2e/cat-unsupplied")).toHaveCount(0);
 });
 
-test("a live turn grays every switch out", async ({ page }) => {
-  await applyRoster(page, [SAMPLE]);
-  await page.evaluate(() => window.__chatStore.setState({ isStreaming: true }));
+test("an unavailable roster says so without hiding the catalogue", async ({ page }) => {
+  await openPluginsTab(page, { bundles: [], available: false });
 
-  await expect(page.getByTestId("plugins-streaming-hint")).toBeVisible();
-  await expect(page.getByTestId(`plugin-toggle-${SAMPLE.id}`)).toBeDisabled();
-
-  await page.evaluate(() => window.__chatStore.setState({ isStreaming: false }));
-  await expect(page.getByTestId(`plugin-toggle-${SAMPLE.id}`)).toBeEnabled();
+  await expect(page.getByTestId("plugin-catalog-unavailable")).toBeVisible();
+  // With no roster every catalogue row is unsupplied and offers the request.
+  await expect(page.getByTestId("plugin-row-@e2e/cat-enabled")).toHaveAttribute("data-state", "unsupplied");
 });
 
-test("an empty roster states that nothing is supplied", async ({ page }) => {
-  await applyRoster(page, []);
-  await expect(page.getByTestId("plugins-empty")).toBeVisible();
+test("an empty catalogue states that nothing is catalogued", async ({ page }) => {
+  await pinLocaleEn(page);
+  await page.route("**/api/plugin-catalog**", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ plugins: [] }) }),
+  );
+  await page.goto("/agents?tab=plugins");
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
+
+  await expect(page.getByTestId("plugin-catalog")).toHaveCount(0);
+  await expect(page.getByRole("note")).toBeVisible();
+});
+
+test("a catalogue failure names the problem and offers a retry", async ({ page }) => {
+  let calls = 0;
+  await pinLocaleEn(page);
+  await page.route("**/api/plugin-catalog**", (route) => {
+    calls += 1;
+    return calls === 1
+      ? route.fulfill({ status: 500, body: "boom" })
+      : route.fulfill({ contentType: "application/json", body: JSON.stringify({ plugins: CATALOG }) });
+  });
+
+  await page.goto("/agents?tab=plugins");
+  await expect(page.getByTestId("agent-market-page")).toBeVisible({ timeout: 15_000 });
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText(/HTTP 500/);
+  await alert.getByRole("button").click();
+  await expect(page.getByTestId("plugin-catalog")).toBeVisible();
 });

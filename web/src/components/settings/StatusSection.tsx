@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
+import { Tabs } from "@/components/ui/tabs";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { TracePage } from "@/pages/TracePage";
 
@@ -28,31 +28,25 @@ export function StatusSection({ tab = "health" }: { tab?: StatusTab } = {}) {
 
   return (
     <div className="flex flex-col" data-testid="settings-status">
-      <div
-        role="tablist"
-        aria-label={t("settings.sections.status")}
-        className="flex gap-1 border-b border-border px-6 pt-4"
-        data-testid="status-tabs"
-      >
-        {TABS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="tab"
-            aria-selected={active === entry.id}
-            data-testid={entry.testId}
-            data-active={active === entry.id ? "true" : "false"}
-            onClick={() => setActive(entry.id)}
-            className={cn(
-              "-mb-px border-b-2 px-3 pb-2 text-sm",
-              active === entry.id
-                ? "border-primary font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t(entry.labelKey)}
-          </button>
-        ))}
+      {/* The foundation bar (unify-tab-idiom 1.2). The hand-rolled strip had
+          role/aria-selected but no keyboard contract (arrows/Home/End, roving
+          tabindex) and used a 2px coloured border for the active state.
+          `status-tabs` / per-tab testids / `data-active` are preserved via
+          itemProps because e2e asserts them. */}
+      <div className="border-b border-border px-6 pt-4 pb-1" data-testid="status-tabs">
+        <Tabs
+          ariaLabel={t("settings.sections.status")}
+          items={TABS.map((entry) => ({ id: entry.id, label: t(entry.labelKey) }))}
+          value={active}
+          onChange={(id) => setActive(id as StatusTab)}
+          itemProps={(id) => {
+            const entry = TABS.find((x) => x.id === id);
+            return {
+              "data-testid": entry?.testId ?? `status-tab-${id}`,
+              "data-active": active === id ? "true" : "false",
+            };
+          }}
+        />
       </div>
 
       {active === "health" && (

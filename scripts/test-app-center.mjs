@@ -218,14 +218,17 @@ test("no board line carries an 'early' badge; lex joined wire as live (add-lex-l
   assert.equal(byId.wanxing.status, "live");
 });
 
-test("board lines and their own credential (D7): facet→facet-market, wire→line-wire-customer, wanxing→none", () => {
-  assert.deepEqual(Object.keys(BOARD_CREDENTIAL).sort(), ["facet", "wanxing", "wire"]);
+test("board lines and their own credential (D7): facet→facet-market, wire→line-wire-customer, lex→line-lex, wanxing→none", () => {
+  assert.deepEqual(Object.keys(BOARD_CREDENTIAL).sort(), ["facet", "lex", "wanxing", "wire"]);
   assert.equal(BOARD_CREDENTIAL.facet, "facet-market");
   assert.equal(BOARD_CREDENTIAL.wire, "line-wire-customer");
+  assert.equal(BOARD_CREDENTIAL.lex, "line-lex", "识律 adapter + spec shipped without a door — the card must offer 看板");
   assert.equal(BOARD_CREDENTIAL.wanxing, null);
-  for (const id of ["facet", "wanxing", "wire"]) assert.ok(hasBoard(id), id);
-  for (const id of ["lex", "yizuo", "yizuo-packs", "wanxing-token"]) assert.equal(hasBoard(id), false, id);
+  for (const id of ["facet", "lex", "wanxing", "wire"]) assert.ok(hasBoard(id), id);
+  // base is the host: a board there would be the platform looking at itself.
+  for (const id of ["base", "yizuo", "yizuo-packs", "wanxing-token"]) assert.equal(hasBoard(id), false, id);
   assert.equal(boardPathFor("wire"), "/boards/wire");
+  assert.equal(boardPathFor("lex"), "/boards/lex");
 });
 
 test("boardAvailable: wire shows the board on its OWN credential even when the card aggregate is partial", () => {
@@ -237,17 +240,26 @@ test("boardAvailable: wire shows the board on its OWN credential even when the c
   assert.equal(boardAvailable("wire", null, true), false, "no /api/connections projection = not connected");
 });
 
-test("boardAvailable: facet needs facet-market; wanxing needs nothing; lex has no board", () => {
+test("boardAvailable: facet needs facet-market; wanxing needs nothing; lex needs line-lex", () => {
   assert.equal(boardAvailable("facet", { "facet-market": "connected" }, true), true);
   assert.equal(boardAvailable("facet", { "facet-market": "stale" }, true), false);
   assert.equal(boardAvailable("wanxing", {}, true), true);
   assert.equal(boardAvailable("wanxing", null, true), true);
-  assert.equal(boardAvailable("lex", { "line-lex": "connected" }, true), false);
+  // lex's own credential gates it, exactly like wire's — an unconnected 识律
+  // card must not offer a board whose blocks would all be the connect card.
+  assert.equal(boardAvailable("lex", { "line-lex": "connected" }, true), true);
+  assert.equal(boardAvailable("lex", { "line-lex": "disconnected" }, true), false);
+  assert.equal(boardAvailable("lex", null, true), false);
 });
 
 test("boardAvailable: the deployment switch off hides every board (D8 rollback)", () => {
-  const allGreen = { "facet-market": "connected", "line-wire-customer": "connected", "paper-trading": "connected" };
-  for (const id of ["facet", "wanxing", "wire"]) {
+  const allGreen = {
+    "facet-market": "connected",
+    "line-wire-customer": "connected",
+    "paper-trading": "connected",
+    "line-lex": "connected",
+  };
+  for (const id of ["facet", "wanxing", "wire", "lex"]) {
     assert.equal(boardAvailable(id, allGreen, false), false, `${id} must not offer a board when disabled`);
   }
 });

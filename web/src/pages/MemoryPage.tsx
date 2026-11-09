@@ -13,6 +13,7 @@ import {
   listMemoryEntries, listPromotions, acceptPromotion, ignorePromotion,
   type MemoryEntry, type MemoryQuery, type PromotionProposal,
 } from "@/api/memory";
+import { Tabs } from "@/components/ui/tabs";
 
 const LAYERS = ["L0", "L1", "L2"] as const;
 const TIERS = ["draft", "stable", "canonical"] as const;
@@ -406,20 +407,19 @@ export function MemoryPage() {
             只切列表渲染（分层浏览/时间线），共享同一 items 与筛选 state——
             分页/筛选/降级语义原样沿用，不另造读取面。 */}
         {!degraded && !loading ? (
-          <div className="mb-3 flex items-center gap-2" data-testid="memory-view-tabs" role="tablist">
-            {(["browse", "timeline"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                role="tab"
-                aria-selected={view === v}
-                onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 text-xs ${view === v ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
-                data-testid={`memory-tab-${v}`}
-              >
-                {v === "browse" ? t("memoryTimeline.tabBrowse") : t("memoryTimeline.tabTimeline")}
-              </button>
-            ))}
+          <div className="mb-3 flex items-center gap-2" data-testid="memory-view-tabs">
+            {/* 视图切换走 foundation Tabs（unify-tab-idiom 1.4）：只切渲染，
+                共享同一 items 与筛选 state。`memory-tab-<v>` 保留。 */}
+            <Tabs
+              ariaLabel={t("memoryTimeline.tabBrowse")}
+              items={[
+                { id: "browse", label: t("memoryTimeline.tabBrowse") },
+                { id: "timeline", label: t("memoryTimeline.tabTimeline") },
+              ]}
+              value={view}
+              onChange={(id) => setView(id as "browse" | "timeline")}
+              itemProps={(id) => ({ "data-testid": `memory-tab-${id}` })}
+            />
           </div>
         ) : null}
         {degraded ? (

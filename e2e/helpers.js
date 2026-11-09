@@ -216,16 +216,27 @@ export async function openSettings(page, section = "general") {
   await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", canonical);
 }
 
-// Navigate to the React MCP Servers page — now Settings → MCP.
+// The extensions surface (MCP servers / skills) left Settings with
+// unify-material-market: both now live in the materials market as the 工具 and
+// 技能 tabs, and the same ExtensionsPage is mounted there. /settings/mcp and
+// /settings/skills still redirect, but they open a SETTINGS PANEL no more — so
+// assertions on `settings-panel` could never pass and every spec using these
+// helpers sat red for a routing change, not a behaviour change.
+
+// Navigate to the MCP servers surface — materials market → 工具.
 export async function gotoMcp(page) {
-  await openSettings(page, "mcp");
+  await pinLocaleEn(page);
+  await page.goto("/agents?tab=tools");
+  await expect(page).toHaveURL(/\/agents\?tab=tools/);
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", "mcp");
 }
 
-// Navigate to the React Skills page — Settings → Tools & Skills (skills view).
+// Navigate to the skills surface — materials market → 技能.
 export async function gotoSkills(page) {
-  await openSettings(page, "skills");
+  await pinLocaleEn(page);
+  await page.goto("/agents?tab=skills");
+  await expect(page).toHaveURL(/\/agents\?tab=skills/);
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", "skills");
 }
@@ -240,7 +251,9 @@ export async function gotoModels(page) {
 export async function gotoExtensions(page) {
   await pinLocaleEn(page);
   await page.goto("/extensions");
-  await expect(page).toHaveURL(/\/settings\/mcp$/);
+  // The legacy /extensions address resolves into the materials market's 工具
+  // tab (settings-surface), not into a Settings panel.
+  await expect(page).toHaveURL(/\/agents\?tab=tools/);
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
 }
 
@@ -255,8 +268,14 @@ export async function gotoConnections(page, panel = null) {
 // (settings-connect-center): the retired third tab resolves here.
 export async function gotoExternalMarket(page) {
   await pinLocaleEn(page);
-  await page.goto("/settings/skills");
-  await expect(page).toHaveURL(/\/settings\/skills$/);
+  // unify-material-market retired the Settings → skills section: those
+  // marketplaces moved to the materials market, and /settings/skills now
+  // REDIRECTS to /agents?tab=skills. Asserting the old URL could never pass, so
+  // this helper — and every spec that used it — sat red for a routing change,
+  // not for a behaviour change. The extensions surface itself is unchanged: it
+  // is the same ExtensionsPage, mounted inside the skills tab.
+  await page.goto("/agents?tab=skills");
+  await expect(page).toHaveURL(/\/agents\?tab=skills/);
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
   await page.getByTestId("extensions-tab-market").click();
   await expect(page.getByTestId("market-external-zone")).toBeVisible();

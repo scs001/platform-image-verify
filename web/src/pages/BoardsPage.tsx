@@ -23,6 +23,9 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { ActionCard, type ActionProposal } from "@/components/ActionCard";
 import { PageShell } from "@/components/ui/page-shell";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/states-kit";
+import { Tabs } from "@/components/ui/tabs";
+import { HOST_LINES, tabsOf, whollyUnderConstruction } from "@/lib/boardTabs";
 
 interface BlockAction {
   id: string;
@@ -65,17 +68,14 @@ interface BoardData {
   line: string;
   title: string;
   originUrl: string;
+  /** Tab set declared by the adapter's own blocks (unify-line-board-tabs D1).
+   *  The page renders exactly this — it keeps no table of its own. */
+  tabs?: string[];
   blocks: Block[];
   connected?: boolean;
-  reason?: "not_connected" | "expired";
+  reason?: "not_connected" | "expired" | "host_line";
   connectPath?: string;
 }
-
-const TABS: Record<string, string[]> = {
-  facet: ["overview", "my-packs", "publish-history"],
-  wanxing: ["fleet-summary", "missions", "deployments"],
-  wire: ["overview", "datasets", "artifacts", "demands"],
-};
 
 export function BoardsPage() {
   const { t } = useTranslation();
@@ -88,24 +88,29 @@ export function BoardsPage() {
   const [refreshTick, setRefreshTick] = useState(0);
   const refresh = useCallback(() => setRefreshTick((n) => n + 1), []);
 
-  // Current tab from hash or default to first available
-  const [currentTab, setCurrentTab] = useState(() => {
-    if (!line || !TABS[line]) return "";
+  // Current tab comes from the board's own tab set, once it arrives. The hash
+  // is honoured when it names a real tab; anything else falls back to the first
+  // tab — or to "" for a single-tab line, which renders without a tab strip.
+  const [currentTab, setCurrentTab] = useState("");
+
+  useEffect(() => {
+    const tabs = tabsOf(data);
+    if (tabs.length === 0) return;
     const hash = window.location.hash.slice(1);
-    return TABS[line].includes(hash) ? hash : TABS[line][0];
-  });
+    setCurrentTab((prev) => (tabs.includes(hash) ? hash : tabs.includes(prev) ? prev : (tabs[0] ?? "")));
+  }, [data]);
 
   useEffect(() => {
     const handleHashChange = () => {
+      const tabs = tabsOf(data);
       const hash = window.location.hash.slice(1);
-      if (line && TABS[line] && TABS[line].includes(hash)) {
+      if (tabs.length > 0 && tabs.includes(hash)) {
         setCurrentTab(hash);
       }
     };
     window.addEventListener("hashchange", handleHashChange);
-    handleHashChange();
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [line]);
+  }, [data]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick is a deliberate refetch trigger
   useEffect(() => {
@@ -173,6 +178,26 @@ export function BoardsPage() {
     );
   }
 
+  // A host line is not a missing line. 壹座 is where the boards live, so
+  // /boards/base is the platform looking at itself — say that, instead of the
+  // "not onboarded yet" wording that sends the reader looking for a connector
+  // that will never exist.
+  if (line && HOST_LINES.has(line) && (error || !data)) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 p-6" data-testid="board-host-line">
+        <EmptyState
+          title={t("board.hostLine.title")}
+          hint={t("board.hostLine.body")}
+          action={
+            <Button type="button" size="sm" onClick={() => navigate("/chat")}>
+              {t("board.hostLine.action")}
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
   if (error || !data) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 p-6" data-testid="board-not-found">
@@ -227,34 +252,45 @@ export function BoardsPage() {
             </button>
           )}
         </div>
+      ) : whollyUnderConstruction(data.blocks) ? (
+        /* One honest statement instead of N identical ones (D2): a line with no
+           upstream yet should not make the reader click through three tabs that
+           each say the same sentence. The origin deep link stays — it is the
+           only control on this page that can actually do something. */
+        <div data-testid="board-line-construction">
+          <EmptyState
+            icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+            title={t("board.lineConstruction.title", { title: data.title })}
+            hint={t("board.lineConstruction.hint")}
+            action={<OriginLink href={data.originUrl} label={t("board.openOrigin")} />}
+          />
+        </div>
       ) : (
         <>
           {/* Tabs */}
-          {line && TABS[line] && TABS[line].length > 1 && (
-            <div className="flex items-center gap-2 border-b border-border">
-              {TABS[line].map((tab) => (
-                <button
-                  type="button"
-                  key={tab}
-                  data-testid={`board-tab-${tab}`}
-                  onClick={() => {
-                    // replaceState, not `location.hash =`: the tab stays
-                    // shareable in the URL, but clicking tabs never pushes
-                    // history entries — one browser back leaves the board
-                    // straight for where the user came from (D1). replaceState
-                    // fires no hashchange, so the state update is explicit.
-                    window.history.replaceState(null, "", `#${tab}`);
-                    setCurrentTab(tab);
-                  }}
-                  className={
-                    currentTab === tab
-                      ? "border-b-2 border-primary px-4 py-2 text-sm font-medium text-primary"
-                      : "px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-                  }
-                >
-                  {t(`board.tab.${tab}`, { defaultValue: tab.replace("-", " ") })}
-                </button>
-              ))}
+          {tabsOf(data).length > 1 && (
+            // The foundation tab bar, same as the materials market: ONE tab
+            // idiom across the product, one keyboard contract (arrows/Home/End,
+            // roving tabindex, aria-selected), and no 2px coloured border for
+            // the active state. `board-tab-<name>` stays (e2e asserts it).
+            <div className="border-b border-border pb-1">
+              <Tabs
+                ariaLabel={t("board.tabsLabel", { title: data.title })}
+                items={tabsOf(data).map((tab) => ({
+                  id: tab,
+                  label: t(`board.tab.${tab}`, { defaultValue: tab.replace(/-/g, " ") }),
+                }))}
+                value={currentTab}
+                onChange={(id) => {
+                  // replaceState, not `location.hash =`: the tab stays shareable
+                  // in the URL, but clicking tabs never pushes history entries —
+                  // one browser back leaves the board straight for where the user
+                  // came from (D1).
+                  window.history.replaceState(null, "", `#${id}`);
+                  setCurrentTab(id);
+                }}
+                itemProps={(id) => ({ "data-testid": `board-tab-${id}` })}
+              />
             </div>
           )}
 

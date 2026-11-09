@@ -17,6 +17,20 @@ async function createSession(request) {
   return body.id;
 }
 
+// Rows live inside a group that only renders when EXPANDED (Sidebar.tsx:
+// `{expanded && (…)}`, and `groupIsExpanded` defaults to "the group holding the
+// current session"). A session created through the REST API carries no origin
+// socket, so the deployment-global "current" pointer moves with it and the
+// user's other groups can render collapsed — the session is present (it shows
+// under the welcome surface's "Recent chats") but its row is not rendered yet.
+// Expand the disclosure the way a user would before asserting on rows.
+async function expandGroups(page) {
+  const collapsed = page.locator('[data-testid="workspace-group-toggle"][aria-expanded="false"]');
+  for (let i = 0; i < await collapsed.count(); i += 1) {
+    await collapsed.nth(i).click();
+  }
+}
+
 function sessionRow(page, id) {
   return page.locator(`[data-testid="session-row"][data-session-id="${id}"]`);
 }
@@ -31,11 +45,26 @@ function currentRow(page) {
 //   - active session: Delete is disabled with a tooltip
 //   - API: 404 on missing id, 409 on current id (covered by the UI; the
 //     409 case is what disables the menu entry)
+test.beforeEach(async ({ page }) => {
+  // First-run onboarding gates the chat surface: while it is up the main pane is
+  // the questionnaire and the sidebar renders no rows, so a session created via
+  // the API can never be seen. Same dismissal the other chat specs use
+  // (projects-automation.spec.js).
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("onboarding.tour.done", "1");
+    } catch {
+      /* private mode: nothing to persist */
+    }
+  });
+});
+
 test.describe("session right-click delete", () => {
   test("deletes a non-active session", async ({ page, request }) => {
     await gotoChat(page);
     const firstId = await createSession(request);
     const inactiveId = await createSession(request);
+    await expandGroups(page);
     await expect(sessionRow(page, firstId)).toBeVisible({ timeout: 5000 });
     await expect(sessionRow(page, inactiveId)).toBeVisible({ timeout: 5000 });
 

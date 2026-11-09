@@ -28,7 +28,33 @@ echo "   包: $BUNDLE ($(du -h "$BUNDLE" | cut -f1 | tr -d '\t'))"
 echo "③ 上传并落位 $TARGET:$PLAZA_DIR ..."
 ssh "$TARGET" "mkdir -p '$PLAZA_DIR' 2>/dev/null || sudo mkdir -p '$PLAZA_DIR'"
 scp -q "$BUNDLE" "$TARGET:/tmp/agent-plaza-site.tar.gz"
-ssh "$TARGET" "tar -xzf /tmp/agent-plaza-site.tar.gz -C '$PLAZA_DIR' && cp '$PLAZA_DIR/generated/llms.txt' '$PLAZA_DIR/llms.txt' && printf 'User-agent: *\nAllow: /\n# AI agents: start at /llms.txt — the self-contained site index\n' > '$PLAZA_DIR/robots.txt' && ls '$PLAZA_DIR' | tr '\n' ' ' && echo"
+
+# 落位逻辑在 scripts/plaza-stage.sh（单一来源：本地测试跑的是同一个文件）。
+# 语义见该文件头：staging 解包 → 四个根机器面成套校验 → 逐个原子 mv。
+ssh "$TARGET" 'bash -s' -- "'/tmp/agent-plaza-site.tar.gz'" "'$PLAZA_DIR'" < scripts/plaza-stage.sh
+
+# 2.2 发布后自检：四个根路径必须 200 且类型正确；任何一条不符即非零退出并点名。
+# 这一步是「根路径真的存在」的判据本体——脚本自报成功而线上 404，正是本次要修的坏。
+PLAZA_PUBLIC_BASE="${PLAZA_PUBLIC_BASE:-https://agent.finddatatech.cloud}"
+echo "③b 机器面自检 $PLAZA_PUBLIC_BASE ..."
+check_machine_face() {
+  local path="$1" want_type="$2" out code type body
+  out=$(curl -fsS -o /tmp/mf.body -w '%{http_code} %{content_type}' "$PLAZA_PUBLIC_BASE$path" 2>/dev/null) || {
+    echo "   ✗ $path 不可取（curl 失败）" >&2; return 1; }
+  code=${out%% *}; type=${out#* }
+  [ "$code" = "200" ] || { echo "   ✗ $path HTTP $code" >&2; return 1; }
+  case "$type" in "$want_type"*) ;; *) echo "   ✗ $path content-type=$type（应为 $want_type）" >&2; return 1;; esac
+  body=$(head -c 200 /tmp/mf.body)
+  case "$body" in *'<!doctype'*|*'<html'*) echo "   ✗ $path 返回的是 HTML 壳，不是机器面" >&2; return 1;; esac
+  [ -s /tmp/mf.body ] || { echo "   ✗ $path 空体" >&2; return 1; }
+  echo "   ✓ $path ($type, $(wc -c < /tmp/mf.body | tr -d ' ') bytes)"
+}
+failed=0
+check_machine_face "/llms.txt"      "text/plain"      || failed=1
+check_machine_face "/llms-full.txt" "text/plain"      || failed=1
+check_machine_face "/catalog.json"  "application/json" || failed=1
+check_machine_face "/robots.txt"    "text/plain"      || failed=1
+[ "$failed" -eq 0 ] || { echo "③b 失败：机器面未就位，别对外宣称发布完成。" >&2; exit 1; }
 
 cat <<EOF
 

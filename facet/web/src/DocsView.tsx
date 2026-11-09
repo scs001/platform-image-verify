@@ -14,6 +14,7 @@ import {
   FACET_CAPABILITIES,
   FACET_CLI_PACKAGE,
   FACET_CLIENT_GUIDE_URL,
+  FACET_CLIENT_MATRIX_URL,
   FACET_CONNECT_COMMAND,
   FACET_CREATING_GUIDE_URL,
   FACET_INSTALL_COMMAND,
@@ -100,6 +101,15 @@ function InstallSection() {
           <h3 className="text-sm font-semibold">{t(`facetDocs.clients.${tab}.label`)}</h3>
           <p className="mt-2 text-sm text-muted-foreground leading-6">{t(`facetDocs.clients.${tab}.body`)}</p>
           <Command>{`${FACET_INSTALL_COMMAND} <packRef> --target ${tab}`}</Command>
+          {/* Self-hosted form (fix-supply-machine-faces 7.3): a self-hoster
+              following this page used to install silently from the OFFICIAL
+              market, because the page only ever showed the official base. */}
+          <p className="mt-3 text-xs text-muted-foreground" data-testid={`docs-install-selfhost-${tab}`}>
+            {t("facetDocs.install.client.selfHost")}{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono">
+              {`${FACET_INSTALL_COMMAND} <packRef> --target ${tab} --base <your-facet-url>`}
+            </code>
+          </p>
           <p className="mt-3 text-xs text-muted-foreground">
             {t("facetDocs.install.client.skillDir")}{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono">{target?.skillsDir}</code>
@@ -179,7 +189,7 @@ function InstallSection() {
         </table>
         <p className="mt-2 text-xs text-muted-foreground">
           {t("facetDocs.matrix.note")}{" "}
-          <a className="underline hover:text-foreground" href={FACET_CLIENT_GUIDE_URL("client-matrix").replace(/client-matrix\.md$/, "client-matrix.md")} target="_blank" rel="noopener noreferrer" data-testid="matrix-deep-link">
+          <a className="underline hover:text-foreground" href={FACET_CLIENT_MATRIX_URL} target="_blank" rel="noopener noreferrer" data-testid="matrix-deep-link">
             {t("facetDocs.matrix.deepDoc")}
           </a>
         </p>

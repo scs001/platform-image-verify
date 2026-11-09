@@ -370,6 +370,10 @@ export function buildCatalog(materials) {
       packs: materials.filter((m) => m.category === "pack").length,
       skills: materials.filter((m) => m.category === "skill").length,
       mcpServers: materials.filter((m) => m.category === "mcp").length,
+      // facade / official-data 也是物种，机器面上必须各报各的——
+      // 合成一个「agents」总数就是这次要拆掉的口径（fix-supply-machine-faces 3.1）。
+      facades: materials.filter((m) => m.category === "facade").length,
+      officialData: materials.filter((m) => m.category === "official-data").length,
       tools: materials.reduce((n, m) => n + (m.toolCount ?? 0), 0),
     },
     materials: materials.map(({ id, slug, category, marketCategory, tags, contents, canonical, human, whenToUse, badges, tools, toolCount, license, provider, endpoint, repositoryUrl, provenance }) => {
@@ -515,23 +519,34 @@ zh 镜像：上表即全文；本页自足，不依赖站点其他章节。Prove
 
 export function buildLlmsTxt(catalog, base, generatedAt) {
   const by = (c) => catalog.materials.filter((m) => m.category === c);
-  const agents = [...by("pack"), ...by("facade"), ...by("official-data")];
+  const packs = by("pack");
   const skills = by("skill");
   const mcps = by("mcp");
+  const facades = by("facade");
+  const anchors = by("official-data");
+  // 计数按物种逐个报（fix-supply-machine-faces 3.1）：不出现任何跨物种合称。
+  // 五物种的名字取自 CATEGORY_ENUM，机器面与 catalog.json 用同一套词。
+  const speciesLine = [
+    `${packs.length} packs`,
+    `${skills.length} skills`,
+    `${mcps.length} MCP servers (${catalog.counts.tools} public tools)`,
+    `${facades.length} facades`,
+    `${anchors.length} official data anchors`,
+  ].join(", ");
   const lines = [
     `# ${PLAZA_NAME.en}（壹座·智能体素材广场）`,
     "",
-    `> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Three species: ${agents.length} agents (versioned bundles), ${skills.length} skills, ${mcps.length} MCP servers (${catalog.counts.tools} public tools). Canonical data: ${base}/generated/catalog.json. As of: ${generatedAt}.`,
+    `> The outward understanding surface of the Yizuo platform: what materials exist, how the platform supplies them, and how to obtain each one. Every item below is a material — something a human or an AI agent can understand, obtain, and run. Five species: ${speciesLine}. Canonical data: ${base}/catalog.json. As of: ${generatedAt}.`,
     "",
     "## Machine surfaces",
     "",
-    `- [catalog.json](${base}/generated/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.`,
+    `- [catalog.json](${base}/catalog.json): every material with a canonical brief, five-locale human summaries, whenToUse, and provenance — the annotation-layer shape this platform already runs internally.`,
     `- [infrastructure.md](${base}/generated/infrastructure.md): the supply mechanism as an input–action–output table (publish / obtain / run / serve), self-contained.`,
     "",
-    `## Agents (${agents.length} — one self-contained page each, stable addresses)`,
+    `## Packs (${packs.length} — one self-contained page each, stable addresses)`,
     "",
   ];
-  for (const m of agents) {
+  for (const m of packs) {
     lines.push(`- [${m.human.en.name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}`);
   }
   lines.push("", `## Skills (${skills.length})`, "");
@@ -541,6 +556,14 @@ export function buildLlmsTxt(catalog, base, generatedAt) {
   lines.push("", `## MCP servers (${mcps.length} — ${catalog.counts.tools} public tools embedded per page)`, "");
   for (const m of mcps) {
     lines.push(`- [${m.human["zh-CN"].name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}${m.endpoint ? ` · endpoint: ${m.endpoint}` : ""}`);
+  }
+  lines.push("", `## Facades (${facades.length})`, "");
+  for (const m of facades) {
+    lines.push(`- [${m.human["zh-CN"].name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}${m.endpoint ? ` · endpoint: ${m.endpoint}` : ""}`);
+  }
+  lines.push("", `## Official data anchors (${anchors.length})`, "");
+  for (const m of anchors) {
+    lines.push(`- [${m.human["zh-CN"].name}](${base}/generated/materials/${m.slug}.md): ${m.canonical.brief.slice(0, 140)}`);
   }
   lines.push("", "## For humans", "");
   lines.push(`- [The plaza site](${base}/): five-locale narrative face — what materials exist, how they are supplied, live inventory.`);
